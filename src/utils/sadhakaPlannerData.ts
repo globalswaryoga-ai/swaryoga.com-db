@@ -58,6 +58,36 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Add response error interceptor with retry logic
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    console.error('API Error:', error.message, error.response?.status);
+    
+    // If network error, try localhost as fallback
+    if (!error.response && error.message.includes('Network')) {
+      console.warn('⚠️ Network error detected, retrying with localhost...');
+      try {
+        const fallbackUrl = 'http://localhost:4000/api';
+        const fallbackClient = axios.create({
+          baseURL: fallbackUrl,
+          headers: apiClient.defaults.headers
+        });
+        
+        // Copy the original request config to fallback client
+        const config = error.config;
+        const response = await fallbackClient.request(config);
+        return response;
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        return Promise.reject(error);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 // ============ TYPE DEFINITIONS ============
 
 export interface Vision {
@@ -242,9 +272,19 @@ export const visionAPI = {
       });
       console.log(`✅ Vision created:`, response.data);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error creating vision:', error);
-      throw error;
+      // Provide helpful error message
+      if (error.response?.status === 400) {
+        throw new Error('Invalid vision data. Please check all required fields.');
+      } else if (error.response?.status === 401) {
+        throw new Error('You are not authenticated. Please sign in again.');
+      } else if (error.response?.status === 500) {
+        throw new Error('Server error. Please try again later.');
+      } else if (!error.response) {
+        throw new Error('Unable to connect to server. Please check your internet connection.');
+      }
+      throw new Error(error.response?.data?.message || 'Failed to create vision');
     }
   },
 
@@ -253,10 +293,14 @@ export const visionAPI = {
       const response = await apiClient.put(`/visions/${id}`, data, {
         headers: { 'X-User-ID': data.userId }
       });
+      console.log(`✅ Vision updated:`, response.data);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error updating vision:', error);
-      throw error;
+      if (!error.response) {
+        throw new Error('Unable to connect to server. Please check your internet connection.');
+      }
+      throw new Error(error.response?.data?.message || 'Failed to update vision');
     }
   },
 
@@ -265,9 +309,13 @@ export const visionAPI = {
       await apiClient.delete(`/visions/${id}`, {
         headers: { 'X-User-ID': userId }
       });
-    } catch (error) {
+      console.log(`✅ Vision deleted successfully`);
+    } catch (error: any) {
       console.error('❌ Error deleting vision:', error);
-      throw error;
+      if (!error.response) {
+        throw new Error('Unable to connect to server. Please check your internet connection.');
+      }
+      throw new Error(error.response?.data?.message || 'Failed to delete vision');
     }
   }
 };
