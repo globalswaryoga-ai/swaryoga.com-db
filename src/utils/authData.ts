@@ -26,7 +26,9 @@ const getSignUpData = async (): Promise<any[]> => {
   try {
     const response = await fetch('/api/admin/signup-data');
     if (!response.ok) throw new Error('Failed to fetch signup data');
-    return await response.json();
+    const json = await response.json();
+    // Handle both direct array response and wrapped { data: [] } response
+    return json.data || json;
   } catch (error) {
     console.error('Error fetching signup data from backend:', error);
     // Fallback to localStorage
@@ -45,7 +47,9 @@ const getSignInData = async (): Promise<any[]> => {
   try {
     const response = await fetch('/api/admin/signin-data');
     if (!response.ok) throw new Error('Failed to fetch signin data');
-    return await response.json();
+    const json = await response.json();
+    // Handle both direct array response and wrapped { data: [] } response
+    return json.data || json;
   } catch (error) {
     console.error('Error fetching signin data from backend:', error);
     // Fallback to localStorage

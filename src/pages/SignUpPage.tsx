@@ -124,12 +124,20 @@ const SignUpPage = () => {
     setSubmitStatus(null);
 
     try {
-      // Try server registration
+      // Register user with all details
       const payload = {
+        name: formData.name,
         email: formData.email,
         password: formData.password,
-        name: formData.name
+        confirmPassword: formData.confirmPassword,
+        phone: formData.phone,
+        countryCode: formData.countryCode,
+        country: formData.country,
+        state: formData.state,
+        gender: formData.gender,
+        age: formData.age
       };
+      
       const resp = await fetch('/api/users/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,7 +148,7 @@ const SignUpPage = () => {
         const created = await resp.json();
         setSubmitStatus('success');
         toast.success('Account created successfully!');
-        // Also record signup analytics locally
+        // Also record signup analytics for admin dashboard
         await authAPI.recordSignUp({
           name: formData.name,
           email: formData.email,
