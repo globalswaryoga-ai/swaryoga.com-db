@@ -1,4 +1,4 @@
-name: Vercel Deployment
+name: Verify Deployment
 
 on:
   push:
@@ -9,56 +9,9 @@ on:
       - main
 
 jobs:
-  deploy-frontend:
+  verify:
     runs-on: ubuntu-latest
-    name: Deploy Frontend to Railway
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Deploy to Railway
-        run: |
-          curl -X POST https://railway.app/api/v1/projects \
-            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
-            -H "Content-Type: application/json"
-      
-      - name: Notify Vercel - Frontend
-        uses: vercel/repository-dispatch/actions/status@v1
-        with:
-          name: 'Vercel - swar-yoga-dec: frontend'
-          state: 'success'
-          description: 'Frontend deployed to Railway'
-
-  deploy-backend:
-    runs-on: ubuntu-latest
-    name: Deploy Backend to Vercel
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Build Backend
-        run: |
-          cd server
-          npm install
-          npm run build
-      
-      - name: Deploy Backend to Vercel
-        uses: vercel/action@master
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_BACKEND }}
-          working-directory: ./server
-          production: true
-      
-      - name: Notify Vercel - Backend
-        uses: vercel/repository-dispatch/actions/status@v1
-        with:
-          name: 'Vercel - swar-yoga-dec: backend'
-          state: 'success'
-          description: 'Backend deployed to Vercel'
-
-  lint:
-    runs-on: ubuntu-latest
-    name: Lint Code
+    name: Verify Build
     steps:
       - uses: actions/checkout@v3
       
@@ -70,10 +23,16 @@ jobs:
       - name: Install Dependencies
         run: npm install
       
-      - name: Run ESLint
-        run: npm run lint || true
+      - name: Build Frontend
+        run: npm run build
       
-      - name: Notify Vercel - Lint
-        uses: vercel/repository-dispatch/actions/status@v1
-        with:
-          name: 'Vercel - swar-yoga-dec: lint'
+      - name: Verify Build Output
+        run: |
+          if [ -d "dist" ]; then
+            echo "✅ Frontend build successful"
+            ls -la dist/ | head -10
+          else
+            echo "❌ Frontend build failed"
+            exit 1
+          fi
+
