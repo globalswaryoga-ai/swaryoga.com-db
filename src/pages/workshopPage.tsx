@@ -132,11 +132,19 @@ const WorkshopPage = () => {
     console.log('🚀 WorkshopPage component mounted, loading workshops...');
     loadWorkshops();
     
-    // Auto-refresh workshops every 2 minutes to check for new batches
+    // Auto-refresh workshops every 1 second for instant updates
     const autoRefreshInterval = setInterval(() => {
       console.log('⏰ Auto-refresh check at', new Date().toLocaleTimeString());
-      loadWorkshops();
-    }, 120000); // Refresh every 2 minutes (120 seconds)
+      loadWorkshops(false); // Show silently without loading state
+    }, 1000); // Refresh every 1 second for instant updates
+
+    // Also refresh when window regains focus
+    const handleFocus = () => {
+      console.log('👁️ Window focused, refreshing workshops...');
+      loadWorkshops(true);
+    };
+    
+    window.addEventListener('focus', handleFocus);
 
     // Set up BroadcastChannel listener if available
     let bc: BroadcastChannel | null = null;
@@ -145,7 +153,7 @@ const WorkshopPage = () => {
       bc.onmessage = (event) => {
         if (event.data.type === 'WORKSHOP_UPDATE') {
           console.log('📡 Received workshop update from admin panel:', event.data.timestamp);
-          loadWorkshops();
+          loadWorkshops(true);
           toast.info('✨ New workshops added!');
         }
       };
@@ -168,6 +176,7 @@ const WorkshopPage = () => {
     return () => {
       clearInterval(autoRefreshInterval);
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleFocus);
       if (bc) bc.close();
     };
   }, []);

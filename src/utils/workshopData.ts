@@ -223,27 +223,66 @@ try {
   console.log('BroadcastChannel not supported, using localStorage events only');
 }
 
+// Get API URL
+const getAPIUrl = () => {
+  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  if (envUrl) return envUrl;
+  
+  const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (isDev) {
+    return 'http://localhost:4000/api';
+  } else {
+    return 'https://swar-yoga-latest-jma0xxixy-swar-yoga-projects.vercel.app/api';
+  }
+};
+
 // Workshop API methods
 export const workshopAPI = {
   // Get all workshops (for admin)
   getAllWorkshops: async (): Promise<Workshop[]> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
+    try {
+      const response = await fetch(`${getAPIUrl()}/admin/workshops`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        console.warn('API call failed, falling back to localStorage');
         const workshops = initializeWorkshopData();
-        resolve(workshops);
-      }, 100); // Reduced timeout for faster response
-    });
+        return workshops;
+      }
+      
+      const data = await response.json();
+      return data.data || [];
+    } catch (error) {
+      console.warn('Error fetching workshops from API:', error);
+      return initializeWorkshopData();
+    }
   },
   
   // Get public workshops (for public display)
   getPublicWorkshops: async (): Promise<Workshop[]> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
+    try {
+      console.log('🔄 Fetching public workshops from API...');
+      const response = await fetch(`${getAPIUrl()}/admin/workshops?isPublic=true`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        console.warn('Failed to fetch public workshops, using fallback');
         const workshops = initializeWorkshopData();
-        const publicWorkshops = workshops.filter(workshop => workshop.isPublic);
-        resolve(publicWorkshops);
-      }, 100); // Reduced timeout for faster response
-    });
+        return workshops.filter(w => w.isPublic);
+      }
+      
+      const data = await response.json();
+      console.log('✅ Got public workshops:', data.data?.length);
+      return data.data || [];
+    } catch (error) {
+      console.warn('Error fetching public workshops:', error);
+      const workshops = initializeWorkshopData();
+      return workshops.filter(w => w.isPublic);
+    }
   },
   
   // Get workshop by ID

@@ -4,15 +4,24 @@
  */
 
 const getAPIUrl = () => {
+  // Check environment variable first
   const envUrl = (import.meta as any).env?.VITE_API_URL;
   if (envUrl) return envUrl;
   
+  // Check if running in development or production
   const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  if (isDev) return 'http://localhost:3001/api';
-  return 'https://api.swaryoga.online/api';
+  
+  if (isDev) {
+    return 'http://localhost:4000/api'; // Local development - backend on port 4000
+  } else {
+    // Production - use latest Vercel backend (updated Dec 9, 2025)
+    return 'https://swar-yoga-latest-jma0xxixy-swar-yoga-projects.vercel.app/api';
+  }
 };
 
 const API_BASE_URL = `${getAPIUrl()}/admin/workshops`;
+
+console.log(`🔗 Workshop API URL: ${API_BASE_URL}`);
 
 export interface WorkshopBatch {
   id?: string;
