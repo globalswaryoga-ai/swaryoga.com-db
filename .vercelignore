@@ -1,0 +1,8 @@
+server/
+backups/
+bolt/
+netlify/
+supabase/
+*.md
+.git
+.gitignore
