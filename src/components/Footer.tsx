@@ -249,7 +249,7 @@ const Footer = () => {
                 className="flex items-center space-x-2 hover:text-green-400 transition-colors group"
               >
                 <LayoutDashboard className="h-5 w-5 text-green-400 group-hover:rotate-12 transition-transform duration-300" />
-                <span>Sadhaka Planner</span>
+                <span>Life Planner</span>
               </Link>
               <Link 
                 to="/swar-calendar" 

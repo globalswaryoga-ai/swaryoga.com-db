@@ -1,4 +1,4 @@
-// Sadhaka Planner Data Management - MongoDB Backend Integration
+// Life Planner Data Management - MongoDB Backend Integration
 
 import axios from 'axios';
 

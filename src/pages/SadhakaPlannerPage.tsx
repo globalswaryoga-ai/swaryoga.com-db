@@ -126,7 +126,7 @@ const SadhakaPlannerPage = () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-50 to-purple-50">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading your Sadhaka Planner...</p>
+          <p className="mt-4 text-gray-600">Loading your Life Planner...</p>
         </div>
       </div>
     );
@@ -152,7 +152,7 @@ const SadhakaPlannerPage = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-gray-800 mb-2">🧘 Sadhaka Planner</h1>
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">🧘 Life Planner</h1>
               <p className="text-gray-600">Achieve your transformation journey with mindful planning</p>
             </div>
             <div className="flex gap-2">
