@@ -12,6 +12,11 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
+      
+      // Periodic restart (every 10 minutes) - helps with memory leaks
+      // Uncomment to enable: every one hour, every 10 minutes, or custom cron
+      // cron_restart: '0 */1 * * *',  // Every hour
+      
       env: {
         NODE_ENV: 'development',
         PORT: 4000
@@ -28,7 +33,11 @@ module.exports = {
       
       // Restart policies
       max_restarts: 10,
-      min_uptime: '10s'
+      min_uptime: '10s',
+      
+      // Graceful shutdown
+      kill_timeout: 5000,
+      listen_timeout: 10000
     },
     
     // Frontend Server (Vite Dev Server)
