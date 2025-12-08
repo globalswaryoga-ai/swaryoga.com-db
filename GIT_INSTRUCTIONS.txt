@@ -1,0 +1,77 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    HOW TO GET YOUR GIT URL FOR VERCEL                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📍 YOUR GIT REPOSITORY IS READY!
+═════════════════════════════════════════════════════════════════════════════
+
+✅ Local Git Status:
+   Location: /Users/mohankalburgi/Downloads/swar-yoga-latest-latest-prod-version/.git
+   Branch: main
+   Commit: Ready with "Initial commit - Swar Yoga Life Planner..."
+   Status: Ready to push to GitHub ✓
+
+🔗 HOW TO GET YOUR GIT URL (5 STEPS):
+═════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Go to GitHub
+──────────────────────
+• Open: https://github.com/new
+• Sign in with your GitHub account
+
+STEP 2: Create New Repository
+──────────────────────────────
+Fill in these details:
+  • Repository name: swar-yoga-life-planner
+  • Description: Swar Yoga Life Planner - Full Stack Application
+  • Visibility: Public (recommended) or Private
+  • Do NOT initialize with README (we already have one)
+  • Click "Create repository"
+
+STEP 3: Copy Your Repository URL
+─────────────────────────────────
+After creating, you'll see your repository URL:
+
+   https://github.com/YOUR_USERNAME/swar-yoga-life-planner.git
+
+EXAMPLE (replace YOUR_USERNAME):
+   https://github.com/mohankalburgi/swar-yoga-life-planner.git
+
+STEP 4: Connect Your Local Repository
+──────────────────────────────────────
+Run these commands in Terminal:
+
+   cd /Users/mohankalburgi/Downloads/swar-yoga-latest-latest-prod-version
+   git remote add origin https://github.com/YOUR_USERNAME/swar-yoga-life-planner.git
+   git branch -M main
+   git push -u origin main
+
+STEP 5: Verify Push
+───────────────────
+After pushing, verify on GitHub:
+   • Go to your repository URL
+   • You should see all your files there ✓
+
+═════════════════════════════════════════════════════════════════════════════
+
+🚀 ONCE YOU HAVE YOUR GIT URL:
+═════════════════════════════════════════════════════════════════════════════
+
+1. Go to https://vercel.com/dashboard
+2. Click "Add New" → "Project"
+3. Click "Import Git Repository"
+4. Paste your GitHub repository URL
+5. Follow Vercel's setup wizard
+6. Add environment variables:
+   - MONGODB_URI=mongodb://admin:MySecurePass123@157.173.221.234:27017/?authSource=admin
+   - PORT=4000
+7. Click "Deploy"
+
+═════════════════════════════════════════════════════════════════════════════
+
+✅ WHAT YOU NEED:
+  ✓ GitHub Account (free at github.com)
+  ✓ Vercel Account (free at vercel.com)
+  ✓ Your GitHub repository URL (you'll get it after Step 3)
+
+📝 NOTE: Your git repository is ALREADY initialized locally and ready to push!
