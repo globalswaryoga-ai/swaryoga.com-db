@@ -14,8 +14,8 @@ const getAPIUrl = () => {
   if (isDev) {
     return 'http://localhost:4000/api'; // Local development - backend on port 4000
   } else {
-    // Production - use latest Vercel backend (updated Dec 9, 2025)
-    return 'https://swar-yoga-latest-jma0xxixy-swar-yoga-projects.vercel.app/api';
+    // Production - use Vercel backend
+    return 'https://swar-yoga-latest-dogliiw3r-swar-yoga-projects.vercel.app/api';
   }
 };
 
