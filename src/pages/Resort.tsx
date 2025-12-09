@@ -137,10 +137,10 @@ const Resort: React.FC = () => {
         specialRequests: bookingForm.specialRequests
       };
 
-      // Save to MySQL database
+      // Save to database
       await resortAPI.create(bookingData);
       
-      toast.success('Booking request submitted successfully and saved to our database! We will contact you shortly.');
+      toast.success('Booking request submitted successfully! We will contact you shortly.');
       
       // Reset form
       setBookingForm({
@@ -152,7 +152,7 @@ const Resort: React.FC = () => {
         specialRequests: ''
       });
 
-      console.log('✅ Resort booking saved to MySQL database');
+      console.log('✅ Resort booking saved to database');
     } catch (error) {
       console.error('❌ Error submitting booking:', error);
       const errorMessage = handleAPIError(error);
@@ -638,7 +638,7 @@ const Resort: React.FC = () => {
 
                 <div className="text-center">
                   <p className="text-xs text-gray-500">
-                    🔒 Your booking is securely saved to our MySQL database
+                    🔒 Your booking is securely saved to our database
                   </p>
                 </div>
               </form>

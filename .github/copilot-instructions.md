@@ -4,7 +4,7 @@
 **Swar Yoga** is a full-stack life planning & wellness application built with React 18 + TypeScript frontend and Express.js + MongoDB backend. It features multi-user data persistence, admin dashboard, and integrated booking/calendar features.
 
 **Architecture:** Monorepo with `/src` (frontend) and `/server` (backend)  
-**Key Tech:** React, Vite, Tailwind, Express.js, MongoDB Atlas, Vercel/Netlify deployment
+**Key Tech:** React, Vite, Tailwind, Express.js, MongoDB Atlas, Vercel deployment
 
 ---
 

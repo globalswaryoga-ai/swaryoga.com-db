@@ -13,8 +13,8 @@ const API_BASE_URL = (() => {
     return 'http://localhost:4000/api';
   }
   
-  // Default for production/Netlify - use current domain or custom backend
-  const fallback = (import.meta as any).env.VITE_PRODUCTION_API_URL || 'https://api.swaryoga.online';
+  // Default for production - use Vercel backend
+  const fallback = (import.meta as any).env.VITE_PRODUCTION_API_URL || 'https://swar-yoga-latest-dogliiw3r-swar-yoga-projects.vercel.app/api';
   console.log('📡 Using production API:', fallback);
   return fallback;
 })();

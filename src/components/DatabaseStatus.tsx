@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Database, Wifi, RefreshCw, AlertCircle } from 'lucide-react';
+import { Database, RefreshCw } from 'lucide-react';
 import { testConnection } from '../utils/database';
 
 const DatabaseStatus = () => {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
-  const [dbType, setDbType] = useState<'mysql' | 'local'>('local');
   const [isChecking, setIsChecking] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
@@ -18,25 +17,17 @@ const DatabaseStatus = () => {
   const checkConnection = async () => {
     setIsChecking(true);
     try {
-      // Try to check MySQL connection first
+      // Check MongoDB backend connection
       const response = await fetch('http://localhost:4000/api/health', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       }).catch(() => null);
 
-      if (response?.ok) {
-        setIsConnected(true);
-        setDbType('mysql');
-      } else {
-        // Fall back to local storage
-        setIsConnected(true);
-        setDbType('local');
-      }
+      setIsConnected(response?.ok ?? false);
       setLastChecked(new Date());
     } catch (error) {
       console.error('Error checking connection:', error);
-      setIsConnected(true);
-      setDbType('local');
+      setIsConnected(false);
     } finally {
       setIsChecking(false);
     }
@@ -53,7 +44,7 @@ const DatabaseStatus = () => {
     if (isConnected === null) {
       return 'bg-gray-100 text-gray-700';
     }
-    if (dbType === 'mysql') {
+    if (isConnected) {
       return 'bg-green-100 text-green-800';
     }
     return 'bg-yellow-100 text-yellow-800';
@@ -63,25 +54,25 @@ const DatabaseStatus = () => {
     if (isChecking) {
       return <RefreshCw className="h-4 w-4 animate-spin" />;
     }
-    if (dbType === 'mysql') {
+    if (isConnected) {
       return <Database className="h-4 w-4 text-green-600" />;
     }
-    return <Wifi className="h-4 w-4 text-yellow-600" />;
+    return <Database className="h-4 w-4 text-yellow-600" />;
   };
 
   const getStatusText = () => {
     if (isChecking) {
       return 'Checking...';
     }
-    if (dbType === 'mysql') {
-      return '🟢 MySQL Connected';
+    if (isConnected) {
+      return '🟢 MongoDB Connected';
     }
-    return '🟡 Using LocalStorage';
+    return '🟡 Offline';
   };
 
   const getTooltip = () => {
-    if (dbType === 'mysql') {
-      return 'Database is connected and online. Data is saving to MySQL.';
+    if (isConnected) {
+      return 'Database is connected and online. Data is saving to MongoDB.';
     }
     return 'Database is offline. Data is saving to browser storage (localStorage).';
   };
@@ -94,7 +85,7 @@ const DatabaseStatus = () => {
       >
         {getStatusIcon()}
         <span className="hidden sm:inline">{getStatusText()}</span>
-        <span className="sm:hidden">{dbType === 'mysql' ? '🟢' : '🟡'}</span>
+        <span className="sm:hidden">{isConnected ? '🟢' : '🟡'}</span>
         
         <button
           onClick={handleManualRefresh}
