@@ -31,8 +31,10 @@ import reminderRoutes from '../server/routes/reminders.js';
 import dailyPlanRoutes from '../server/routes/dailyplans.js';
 import accountingRoutes from '../server/routes/accounting.js';
 import checkoutRoutes from '../server/routes/checkout.js';
+import pageStateRoutes from '../server/routes/pagestate.js';
 
 // API Routes
+app.use('/api/page-state', pageStateRoutes);
 app.use('/api/workshops', workshopRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
