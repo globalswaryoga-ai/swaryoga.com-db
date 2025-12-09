@@ -1,0 +1,26 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <circle cx="100" cy="100" r="100" fill="#FFF4E8"/>
+  
+  <!-- Building/Location -->
+  <rect x="45" y="50" width="110" height="100" rx="8" fill="none" stroke="#FF8C00" stroke-width="3"/>
+  
+  <!-- Windows -->
+  <rect x="55" y="60" width="20" height="20" fill="none" stroke="#FF8C00" stroke-width="2"/>
+  <rect x="85" y="60" width="20" height="20" fill="none" stroke="#FF8C00" stroke-width="2"/>
+  <rect x="115" y="60" width="20" height="20" fill="none" stroke="#FF8C00" stroke-width="2"/>
+  
+  <rect x="55" y="90" width="20" height="20" fill="none" stroke="#FF8C00" stroke-width="2"/>
+  <rect x="85" y="90" width="20" height="20" fill="none" stroke="#FF8C00" stroke-width="2"/>
+  <rect x="115" y="90" width="20" height="20" fill="none" stroke="#FF8C00" stroke-width="2"/>
+  
+  <!-- Door -->
+  <rect x="85" y="125" width="30" height="25" fill="none" stroke="#FF8C00" stroke-width="2"/>
+  <circle cx="113" cy="137" r="2" fill="#FF8C00"/>
+  
+  <!-- Roof -->
+  <polygon points="100,40 45,50 155,50" fill="none" stroke="#FF8C00" stroke-width="3"/>
+  
+  <!-- Text -->
+  <text x="100" y="175" font-family="Arial" font-size="16" font-weight="bold" text-anchor="middle" fill="#FF8C00">OFFLINE</text>
+</svg>

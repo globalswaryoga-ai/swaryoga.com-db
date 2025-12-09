@@ -153,11 +153,10 @@ const Header = () => {
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-medium group"
+                    className="flex items-center space-x-2 bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                   >
                     <LogOut className="h-5 w-5" />
                     <span>Logout</span>
-                    <div className="absolute inset-0 rounded-lg bg-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
                   </button>
                 </div>
               ) : (
@@ -165,11 +164,10 @@ const Header = () => {
                   {/* Sign In */}
                   <Link
                     to="/signin"
-                    className="hidden sm:flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-medium group"
+                    className="hidden sm:flex items-center space-x-2 bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                   >
                     <LogIn className="h-5 w-5" />
                     <span>Sign In</span>
-                    <div className="absolute inset-0 rounded-lg bg-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
                   </Link>
 
                   {/* Sign Up */}
