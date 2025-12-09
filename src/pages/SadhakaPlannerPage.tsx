@@ -146,22 +146,22 @@ const SadhakaPlannerPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-purple-50 py-8">
+    <div className="min-h-screen bg-gradient-to-b from-green-50 to-green-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-bold text-gray-800 mb-2">🧘 Life Planner</h1>
-              <p className="text-gray-600">Achieve your transformation journey with mindful planning</p>
+              <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">🧘 Life Planner</h1>
+              <p className="text-sm sm:text-base text-gray-600">Achieve your transformation journey with mindful planning</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
               <button
                 onClick={loadAllData}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                className="flex items-center justify-center gap-2 bg-green-500 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-green-600 flex-1 sm:flex-none text-sm sm:text-base"
               >
                 <RefreshCw className="h-4 w-4" />
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </button>
             </div>
           </div>
@@ -243,14 +243,14 @@ const SadhakaPlannerPage = () => {
         {/* Main Tabs Section */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Tab Navigation */}
-          <div className="flex flex-wrap gap-1 p-2 bg-gray-100 border-b overflow-x-auto">
+          <div className="flex flex-wrap gap-1 p-2 bg-gray-100 border-b overflow-x-auto sm:overflow-visible">
             {tabsList.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium rounded-t whitespace-nowrap transition-all ${
+                className={`px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-t whitespace-nowrap transition-all flex-1 sm:flex-none min-w-max ${
                   activeTab === tab.id
-                    ? 'bg-white text-blue-600 border-b-2 border-blue-600 shadow-sm'
+                    ? 'bg-green-500 text-white border-b-2 border-green-600 shadow-sm'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
