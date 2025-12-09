@@ -4,6 +4,9 @@ import type { IWorkshop } from '../models/Workshop.js';
 
 const router: Router = express.Router();
 
+/**
+ * Type definitions
+ */
 interface WorkshopQuery {
   page?: string | number;
   limit?: string | number;
@@ -19,10 +22,22 @@ interface WorkshopFilter {
   $or?: Array<{ [key: string]: any }>;
 }
 
+/**
+ * Helper function to extract user ID from headers
+ */
 function getUserIdFromHeaders(req: Request): string {
-  return (req.headers['x-user-id'] as string) || 'anonymous';
+  const userId = req.headers['x-user-id'] as string;
+  if (!userId) {
+    console.warn('⚠️ Missing X-User-ID header in workshops route');
+  }
+  return userId || 'anonymous';
 }
 
+/**
+ * GET /api/workshops
+ * Fetch all public workshops with pagination and filtering
+ * Query params: page, limit, isPublic, category, search
+ */
 router.get('/', async (req: Request<any, any, any, WorkshopQuery>, res: Response): Promise<void> => {
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -30,16 +45,20 @@ router.get('/', async (req: Request<any, any, any, WorkshopQuery>, res: Response
     const skip = (page - 1) * limit;
 
     const filter: WorkshopFilter = {};
+    
+    // Filter by public status (default to public)
     if (req.query.isPublic !== undefined) {
       filter.isPublic = req.query.isPublic === 'true';
     } else {
       filter.isPublic = true;
     }
 
+    // Filter by category
     if (req.query.category) {
       filter.category = req.query.category;
     }
 
+    // Search in title and description
     if (req.query.search) {
       filter.$or = [
         { title: { $regex: req.query.search, $options: 'i' } },
@@ -47,14 +66,18 @@ router.get('/', async (req: Request<any, any, any, WorkshopQuery>, res: Response
       ];
     }
 
-    console.log('📖 Fetching workshops with filter:', filter);
+    console.log(`🎓 Fetching workshops | Page: ${page}, Limit: ${limit}, Filters:`, filter);
 
     const [workshops, total] = await Promise.all([
-      Workshop.find(filter).skip(skip).limit(limit).lean().sort({ startDate: -1 }),
+      Workshop.find(filter)
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .sort({ startDate: -1 }),
       Workshop.countDocuments(filter),
     ]);
 
-    console.log(`✅ Retrieved ${workshops.length} workshops from MongoDB`);
+    console.log(`✅ Retrieved ${workshops.length} workshops (Total: ${total})`);
 
     res.json({
       success: true,
@@ -65,14 +88,23 @@ router.get('/', async (req: Request<any, any, any, WorkshopQuery>, res: Response
         total,
         pages: Math.ceil(total / limit),
       },
+      count: workshops.length,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error fetching workshops:', errorMessage);
-    res.status(500).json({ success: false, message: 'Failed to fetch workshops', error: errorMessage });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error fetching workshops:', message);
+    res.status(500).json({
+      success: false,
+      error: message,
+      message: 'Failed to fetch workshops',
+    });
   }
 });
 
+/**
+ * GET /api/workshops/stats/summary
+ * Fetch workshop statistics (total, public, upcoming, enrolled)
+ */
 router.get('/stats/summary', async (req: Request, res: Response): Promise<void> => {
   try {
     console.log('📊 Fetching workshop statistics');
@@ -81,66 +113,118 @@ router.get('/stats/summary', async (req: Request, res: Response): Promise<void> 
       Workshop.countDocuments(),
       Workshop.countDocuments({ isPublic: true }),
       Workshop.countDocuments({ startDate: { $gte: new Date() } }),
-      Workshop.aggregate([{ $group: { _id: null, totalEnrolled: { $sum: '$enrolledCount' } } }]),
+      Workshop.aggregate([
+        { $group: { _id: null, totalEnrolled: { $sum: '$enrolledCount' } } },
+      ]),
     ]);
+
+    const stats = {
+      total,
+      public: public_count,
+      upcoming,
+      totalEnrolled: enrolled_sum[0]?.totalEnrolled || 0,
+    };
+
+    console.log('✅ Workshop statistics:', stats);
 
     res.json({
       success: true,
-      data: {
-        total,
-        public: public_count,
-        upcoming,
-        totalEnrolled: enrolled_sum[0]?.totalEnrolled || 0,
-      },
+      data: stats,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error fetching statistics:', errorMessage);
-    res.status(500).json({ success: false, error: errorMessage });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error fetching statistics:', message);
+    res.status(500).json({
+      success: false,
+      error: message,
+    });
   }
 });
 
+/**
+ * GET /api/workshops/:id
+ * Fetch a single workshop by ID
+ */
 router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log(`📖 Fetching workshop with ID: ${req.params.id}`);
-    const workshop = await Workshop.findById(req.params.id);
+    console.log(`🎓 Fetching workshop: ${req.params.id}`);
+
+    const workshop = await Workshop.findById(req.params.id).lean();
 
     if (!workshop) {
-      res.status(404).json({ success: false, message: 'Workshop not found' });
+      console.warn(`⚠️ Workshop not found: ${req.params.id}`);
+      res.status(404).json({
+        success: false,
+        message: 'Workshop not found',
+        id: req.params.id,
+      });
       return;
     }
 
     console.log(`✅ Retrieved workshop: ${workshop.title}`);
-    res.json({ success: true, data: workshop });
+    res.json({
+      success: true,
+      data: workshop,
+    });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error fetching workshop:', errorMessage);
-    res.status(500).json({ success: false, message: 'Failed to fetch workshop', error: errorMessage });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error fetching workshop:', message);
+    res.status(500).json({
+      success: false,
+      error: message,
+    });
   }
 });
 
+/**
+ * POST /api/workshops
+ * Create a new workshop (typically by admin)
+ */
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = getUserIdFromHeaders(req);
-    console.log(`✍️ Creating workshop by user: ${userId}`);
+    console.log(`✏️ Creating new workshop by user: ${userId}`);
 
+    // Validate required fields
     if (!req.body.title || !req.body.instructor) {
-      res.status(400).json({ success: false, message: 'Title and instructor are required' });
+      res.status(400).json({
+        success: false,
+        message: 'Title and instructor are required',
+      });
       return;
     }
 
-    const workshop = new Workshop({ ...req.body, enrolledCount: 0 });
-    const savedWorkshop = await workshop.save();
-    console.log(`✅ Workshop created in MongoDB: ${savedWorkshop._id}`);
+    const workshop = new Workshop({
+      ...req.body,
+      enrolledCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
-    res.status(201).json({ success: true, data: savedWorkshop, message: 'Workshop created successfully' });
+    const savedWorkshop = await workshop.save();
+
+    console.log(`✅ Workshop created: ${savedWorkshop._id} | Title: ${savedWorkshop.title}`);
+
+    res.status(201).json({
+      success: true,
+      data: savedWorkshop,
+      message: 'Workshop created successfully',
+    });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error creating workshop:', errorMessage);
-    res.status(500).json({ success: false, message: 'Failed to create workshop', error: errorMessage });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error creating workshop:', message);
+    res.status(500).json({
+      success: false,
+      error: message,
+      message: 'Failed to create workshop',
+    });
   }
 });
 
+/**
+ * PUT /api/workshops/:id
+ * Update an existing workshop
+ */
 router.put('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = getUserIdFromHeaders(req);
@@ -148,24 +232,43 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
 
     const workshop = await Workshop.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, updatedAt: new Date() },
+      {
+        ...req.body,
+        updatedAt: new Date(),
+      },
       { new: true, runValidators: true }
     );
 
     if (!workshop) {
-      res.status(404).json({ success: false, message: 'Workshop not found' });
+      console.warn(`⚠️ Workshop not found for update: ${req.params.id}`);
+      res.status(404).json({
+        success: false,
+        message: 'Workshop not found',
+      });
       return;
     }
 
     console.log(`✅ Workshop updated: ${workshop.title}`);
-    res.json({ success: true, data: workshop, message: 'Workshop updated successfully' });
+    res.json({
+      success: true,
+      data: workshop,
+      message: 'Workshop updated successfully',
+    });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error updating workshop:', errorMessage);
-    res.status(500).json({ success: false, message: 'Failed to update workshop', error: errorMessage });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error updating workshop:', message);
+    res.status(500).json({
+      success: false,
+      error: message,
+      message: 'Failed to update workshop',
+    });
   }
 });
 
+/**
+ * DELETE /api/workshops/:id
+ * Delete a workshop
+ */
 router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = getUserIdFromHeaders(req);
@@ -174,19 +277,35 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
     const workshop = await Workshop.findByIdAndDelete(req.params.id);
 
     if (!workshop) {
-      res.status(404).json({ success: false, message: 'Workshop not found' });
+      console.warn(`⚠️ Workshop not found for deletion: ${req.params.id}`);
+      res.status(404).json({
+        success: false,
+        message: 'Workshop not found',
+      });
       return;
     }
 
     console.log(`✅ Workshop deleted: ${workshop.title}`);
-    res.json({ success: true, message: 'Workshop deleted successfully', deletedId: req.params.id });
+    res.json({
+      success: true,
+      message: 'Workshop deleted successfully',
+      deletedId: req.params.id,
+    });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error deleting workshop:', errorMessage);
-    res.status(500).json({ success: false, message: 'Failed to delete workshop', error: errorMessage });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error deleting workshop:', message);
+    res.status(500).json({
+      success: false,
+      error: message,
+      message: 'Failed to delete workshop',
+    });
   }
 });
 
+/**
+ * POST /api/workshops/:id/enroll
+ * Enroll a user in a workshop
+ */
 router.post('/:id/enroll', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = getUserIdFromHeaders(req);
@@ -195,25 +314,95 @@ router.post('/:id/enroll', async (req: Request, res: Response): Promise<void> =>
     const workshop = await Workshop.findById(req.params.id);
 
     if (!workshop) {
-      res.status(404).json({ success: false, message: 'Workshop not found' });
+      console.warn(`⚠️ Workshop not found: ${req.params.id}`);
+      res.status(404).json({
+        success: false,
+        message: 'Workshop not found',
+      });
+      return;
+    }
+
+    // Check if workshop is full
+    const currentEnrolled = workshop.enrolledCount || 0;
+    const maxParticipants = workshop.maxParticipants || 100;
+
+    if (currentEnrolled >= maxParticipants) {
+      console.warn(`⚠️ Workshop is full: ${workshop.title} (${currentEnrolled}/${maxParticipants})`);
+      res.status(400).json({
+        success: false,
+        message: 'Workshop is full',
+        enrolled: currentEnrolled,
+        maxParticipants,
+      });
+      return;
+    }
+
+    // Enroll user
+    workshop.enrolledCount = currentEnrolled + 1;
+    await workshop.save();
+
+    console.log(
+      `✅ User enrolled in ${workshop.title} | New count: ${workshop.enrolledCount}/${maxParticipants}`
+    );
+
+    res.status(201).json({
+      success: true,
+      data: workshop,
+      message: 'Enrolled successfully',
+      enrolled: workshop.enrolledCount,
+      maxParticipants,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error enrolling in workshop:', message);
+    res.status(500).json({
+      success: false,
+      error: message,
+      message: 'Failed to enroll in workshop',
+    });
+  }
+});
+
+/**
+ * POST /api/workshops/:id/unenroll
+ * Unenroll a user from a workshop
+ */
+router.post('/:id/unenroll', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = getUserIdFromHeaders(req);
+    console.log(`❌ User ${userId} unenrolling from workshop ${req.params.id}`);
+
+    const workshop = await Workshop.findById(req.params.id);
+
+    if (!workshop) {
+      res.status(404).json({
+        success: false,
+        message: 'Workshop not found',
+      });
       return;
     }
 
     const currentEnrolled = workshop.enrolledCount || 0;
-    if (currentEnrolled >= (workshop.maxParticipants || 100)) {
-      res.status(400).json({ success: false, message: 'Workshop is full' });
-      return;
+    if (currentEnrolled > 0) {
+      workshop.enrolledCount = currentEnrolled - 1;
+      await workshop.save();
+      console.log(`✅ User unenrolled from ${workshop.title} | New count: ${workshop.enrolledCount}`);
     }
 
-    workshop.enrolledCount = currentEnrolled + 1;
-    await workshop.save();
-
-    console.log(`✅ User enrolled. New count: ${workshop.enrolledCount}`);
-    res.json({ success: true, data: workshop, message: 'Enrolled successfully' });
+    res.json({
+      success: true,
+      data: workshop,
+      message: 'Unenrolled successfully',
+      enrolled: workshop.enrolledCount,
+    });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error enrolling in workshop:', errorMessage);
-    res.status(500).json({ success: false, message: 'Failed to enroll', error: errorMessage });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error unenrolling from workshop:', message);
+    res.status(500).json({
+      success: false,
+      error: message,
+      message: 'Failed to unenroll from workshop',
+    });
   }
 });
 
