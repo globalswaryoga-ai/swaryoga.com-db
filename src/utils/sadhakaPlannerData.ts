@@ -663,7 +663,8 @@ export const milestoneAPI = {
       const response = await apiClient.get('/milestones', {
         headers: { 'X-User-ID': userId }
       });
-      return response.data || [];
+      const milestones = response.data?.data || response.data || [];
+      return Array.isArray(milestones) ? milestones : [];
     } catch (error) {
       console.error('❌ Error fetching milestones:', error);
       return [];
@@ -713,7 +714,8 @@ export const myWordAPI = {
       const response = await apiClient.get('/mywords', {
         headers: { 'X-User-ID': userId }
       });
-      return response.data || [];
+      const words = response.data?.data || response.data || [];
+      return Array.isArray(words) ? words : [];
     } catch (error) {
       console.error('❌ Error fetching words:', error);
       return [];
