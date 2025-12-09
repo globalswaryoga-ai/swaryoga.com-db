@@ -89,47 +89,29 @@ interface BackupRestoreRequest extends Request {
 })();
 
 // ===== CORS CONFIGURATION =====
-const allowedOrigins = [
-  'https://swaryoga.com',
-  'https://www.swaryoga.com',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:5175',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-  'http://127.0.0.1:5175'
-];
-
+// Use permissive CORS policy to allow all origins
 const corsOptions = {
-  origin: function(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      // Allow all origins in production but log them
-      console.log('CORS request from:', origin);
-      callback(null, true);
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  origin: true, // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
     'X-User-ID',
     'X-Admin-ID',
-    'Access-Control-Allow-Origin'
+    'X-Requested-With'
   ],
   credentials: true,
+  optionsSuccessStatus: 200,
   maxAge: 86400 // 24 hours
 };
 
+// Apply CORS to all routes
 app.use(cors(corsOptions));
-app.use(express.json());
 
-// ===== PREFLIGHT REQUEST HANDLER =====
+// Explicit preflight handling for all routes
 app.options('*', cors(corsOptions));
+
+app.use(express.json());
 
 // ===== ROOT ENDPOINT =====
 app.get('/', (req: Request, res: Response): void => {
