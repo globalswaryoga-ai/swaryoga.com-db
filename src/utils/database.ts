@@ -14,7 +14,7 @@ const API_BASE_URL = (() => {
   }
   
   // Default for production - use Vercel backend
-  const fallback = (import.meta as any).env.VITE_PRODUCTION_API_URL || 'https://swar-yoga-latest-dogliiw3r-swar-yoga-projects.vercel.app/api';
+  const fallback = (import.meta as any).env.VITE_PRODUCTION_API_URL || 'https://swar-yoga-latest-76eifolxp-swar-yoga-projects.vercel.app/api';
   console.log('📡 Using production API:', fallback);
   return fallback;
 })();
