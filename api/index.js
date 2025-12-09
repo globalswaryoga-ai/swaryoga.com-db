@@ -67,6 +67,14 @@ import accountingRoutes from '../server/routes/accounting.js';
 import checkoutRoutes from '../server/routes/checkout.js';
 import pageStateRoutes from '../server/routes/pagestate.js';
 
+// ===== WORKSHOP PLATFORM ROUTES =====
+import enrollmentRoutes from '../server/routes/enrollment.js';
+import studentProgressRoutes from '../server/routes/student-progress.js';
+import assignmentRoutes from '../server/routes/assignment.js';
+import zoomMeetingRoutes from '../server/routes/zoom-meeting.js';
+import paymentRoutes from '../server/routes/payment.js';
+import chatRoutes from '../server/routes/chat.js';
+
 // ===== HEALTH CHECK ENDPOINT =====
 app.get('/api/health', (req, res) => {
   res.json({
@@ -110,6 +118,14 @@ app.use('/api/dailyplans', dailyPlanRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/page-state', pageStateRoutes);
+
+// ===== WORKSHOP PLATFORM ROUTES =====
+app.use('/api/enrollment', enrollmentRoutes);
+app.use('/api/student-progress', studentProgressRoutes);
+app.use('/api/assignment', assignmentRoutes);
+app.use('/api/zoom-meeting', zoomMeetingRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/chat', chatRoutes);
 
 // ===== 404 HANDLER =====
 app.use((req, res) => {
