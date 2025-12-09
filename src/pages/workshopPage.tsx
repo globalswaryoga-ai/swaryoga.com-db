@@ -1,44 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Users, Filter, Search, Star, Play, DollarSign, Globe, RefreshCw, ShoppingCart, ArrowRight, ExternalLink } from 'lucide-react';
 import { cartAPI } from '../utils/cartData';
-import { workshopAPI } from '../utils/workshopData';
+import { getPublicWorkshops, type WorkshopBatch } from '../utils/workshopAPI';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import { getPlaceholderDataUrl } from '../utils/placeholderImage';
 
-// Define Workshop type locally
-export interface Workshop {
-  id: string;
-  title: string;
-  instructor: string;
-  startDate: string;
-  endDate: string;
-  duration: string;
-  startTime: string;
-  endTime: string;
-  priceINR: number;
-  priceNPR: number;
-  priceUSD: number;
-  maxParticipants: number;
-  enrolledCount?: number;
-  category: string;
-  mode: string;
-  language: string;
-  level: string;
-  location: string;
-  image?: string;
-  youtubeId?: string;
+// Define Workshop type locally (extends WorkshopBatch with additional fields)
+export interface Workshop extends WorkshopBatch {
   description?: string;
-  paymentLinkINR?: string;
-  paymentLinkNPR?: string;
-  paymentLinkUSD?: string;
-  whatsappGroupLink?: string;
-  prerequisites?: string;
-  learningOutcomes?: string;
-  includedItems?: string;
-  remarks?: string;
-  rating?: number;
 }
 
 // Fallback workshop in case API fails
@@ -66,7 +37,8 @@ const FALLBACK_WORKSHOP: Workshop = {
   paymentLinkINR: 'https://your-payment-link-inr.com',
   paymentLinkNPR: 'https://your-payment-link-npr.com',
   paymentLinkUSD: 'https://your-payment-link-usd.com',
-  whatsappGroupLink: 'https://chat.whatsapp.com/your-group-link'
+  whatsappGroupLink: 'https://chat.whatsapp.com/your-group-link',
+  isPublic: true
 };
 
 const WorkshopPage = () => {
@@ -96,12 +68,12 @@ const WorkshopPage = () => {
       console.log('🔄 === LOADING WORKSHOPS FROM API ===');
       
       // Get all public workshops from the API
-      const workshopsData = await workshopAPI.getPublicWorkshops();
+      const workshopsData = await getPublicWorkshops();
       
       // Convert to Workshop[] format with string IDs for consistency
       const formattedWorkshops: Workshop[] = workshopsData.map(ws => ({
         ...ws,
-        id: ws.id.toString(),
+        id: ws.id?.toString() || '',
         enrolledCount: ws.enrolledCount || 0,
         rating: ws.rating || 5
       })) as Workshop[];

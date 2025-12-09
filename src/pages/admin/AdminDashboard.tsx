@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from '../../components/AdminLayout';
 import { userAPI } from '../../utils/userData';
-import { workshopAPI } from '../../utils/workshopData';
+import { getAllWorkshops } from '../../utils/workshopAPI';
 import { cartAPI } from '../../utils/cartData';
 import { contactAPI } from '../../utils/contactData';
 import { clearDummyData } from '../../utils/clearDummyData';
@@ -58,7 +58,12 @@ const AdminDashboard = () => {
       const userStats = await userAPI.getUserStats();
       
       // Load workshop stats
-      const workshopStats = await workshopAPI.getWorkshopStats();
+      const allWorkshops = await getAllWorkshops();
+      const workshopStats = {
+        totalWorkshops: allWorkshops.length,
+        publicWorkshops: allWorkshops.filter(w => w.isPublic).length,
+        totalEnrollments: allWorkshops.reduce((sum, w) => sum + (w.enrolledCount || 0), 0)
+      };
       
       // Load cart stats by fetching all cart items
       let cartStats = { totalItems: 0, activeUsers: 0 };
