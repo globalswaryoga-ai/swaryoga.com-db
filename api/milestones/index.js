@@ -1,6 +1,6 @@
-// api/tasks/index.js
-// Vercel Serverless Function - Tasks Management
-// Handles CRUD operations for user tasks
+// api/milestones/index.js
+// Vercel Serverless Function - Milestones Management
+// Handles CRUD operations for milestones
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,24 +19,24 @@ module.exports = async (req, res) => {
       success: true,
       data: [],
       count: 0,
-      message: 'Tasks list retrieved (stub - MongoDB connection coming soon)',
+      message: 'Milestones list retrieved (stub backend)',
     });
   } else if (method === 'POST') {
     return res.status(201).json({
       success: true,
-      data: { _id: `task_${Date.now()}`, ...req.body },
-      message: 'Task created successfully (stub backend)',
+      data: { _id: `milestone_${Date.now()}`, ...req.body },
+      message: 'Milestone created successfully (stub backend)',
     });
   } else if (method === 'PUT') {
     return res.status(200).json({
       success: true,
       data: req.body,
-      message: 'Task updated successfully (stub backend)',
+      message: 'Milestone updated successfully (stub backend)',
     });
   } else if (method === 'DELETE') {
     return res.status(200).json({
       success: true,
-      message: 'Task deleted successfully (stub backend)',
+      message: 'Milestone deleted successfully (stub backend)',
     });
   } else {
     res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);

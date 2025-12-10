@@ -12,14 +12,12 @@ module.exports = async (req, res) => {
 
   // Handle preflight CORS requests
   if (method === 'OPTIONS') {
-    res.status(200);
-    return res.json({ ok: true });
+    return res.status(200).json({ ok: true });
   }
 
   if (method === 'GET') {
     // Return health status
-    res.status(200);
-    return res.json({
+    return res.status(200).json({
       status: 'online',
       message: 'Server and Database are live',
       timestamp: new Date().toISOString(),
@@ -30,8 +28,7 @@ module.exports = async (req, res) => {
 
   // Method not allowed
   res.setHeader('Allow', ['GET']);
-  res.status(405);
-  return res.json({
+  return res.status(405).json({
     status: 'error',
     message: `Method ${method} not allowed`,
   });

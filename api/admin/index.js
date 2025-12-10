@@ -8,8 +8,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-ID, X-User-ID');
 
   if (req.method === 'OPTIONS') {
-    res.status(200);
-    return res.json({ ok: true });
+    return res.status(200).json({ ok: true });
   }
 
   const method = req.method || 'GET';
@@ -17,8 +16,7 @@ module.exports = async (req, res) => {
 
   // Check if admin is authenticated
   if (!adminId) {
-    res.status(401);
-    return res.json({
+    return res.status(401).json({
       success: false,
       message: 'Unauthorized: Admin ID required',
     });
@@ -26,8 +24,7 @@ module.exports = async (req, res) => {
 
   if (method === 'GET') {
     // Retrieve admin dashboard data
-    res.status(200);
-    return res.json({
+    return res.status(200).json({
       success: true,
       data: {
         totalUsers: 0,
@@ -40,29 +37,25 @@ module.exports = async (req, res) => {
     });
   } else if (method === 'POST') {
     // Admin action
-    res.status(201);
-    return res.json({
+    return res.status(201).json({
       success: true,
       message: 'Admin action completed successfully (stub backend)',
     });
   } else if (method === 'PUT') {
     // Update admin settings
-    res.status(200);
-    return res.json({
+    return res.status(200).json({
       success: true,
       message: 'Admin settings updated (stub backend)',
     });
   } else if (method === 'DELETE') {
     // Delete admin action
-    res.status(200);
-    return res.json({
+    return res.status(200).json({
       success: true,
       message: 'Admin action deleted (stub backend)',
     });
   } else {
     res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-    res.status(405);
-    return res.json({
+    return res.status(405).json({
       success: false,
       message: `Method ${method} not allowed`,
     });

@@ -1,6 +1,6 @@
-// api/tasks/index.js
-// Vercel Serverless Function - Tasks Management
-// Handles CRUD operations for user tasks
+// api/mywords/index.js
+// Vercel Serverless Function - My Words Management
+// Handles CRUD operations for personal words/quotes
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,24 +19,24 @@ module.exports = async (req, res) => {
       success: true,
       data: [],
       count: 0,
-      message: 'Tasks list retrieved (stub - MongoDB connection coming soon)',
+      message: 'My words list retrieved (stub backend)',
     });
   } else if (method === 'POST') {
     return res.status(201).json({
       success: true,
-      data: { _id: `task_${Date.now()}`, ...req.body },
-      message: 'Task created successfully (stub backend)',
+      data: { _id: `word_${Date.now()}`, ...req.body },
+      message: 'Word created successfully (stub backend)',
     });
   } else if (method === 'PUT') {
     return res.status(200).json({
       success: true,
       data: req.body,
-      message: 'Task updated successfully (stub backend)',
+      message: 'Word updated successfully (stub backend)',
     });
   } else if (method === 'DELETE') {
     return res.status(200).json({
       success: true,
-      message: 'Task deleted successfully (stub backend)',
+      message: 'Word deleted successfully (stub backend)',
     });
   } else {
     res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
