@@ -8,31 +8,31 @@ import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.join(__dirname, '.env') });
 // Import all models
-import User from './models/User.js.js';
-import Vision from './models/Vision.js.js';
-import Goal from './models/Goal.js.js';
-import Task from './models/Task.js.js';
-import Todo from './models/Todo.js.js';
-import MyWord from './models/MyWord.js.js';
-import HealthTracker from './models/HealthTracker.js.js';
-import Milestone from './models/Milestone.js.js';
-import Reminder from './models/Reminder.js.js';
-import DailyPlan from './models/DailyPlan.js.js';
-import Workshop from './models/Workshop.js.js';
-import Cart from './models/Cart.js.js';
-import Contact from './models/Contact.js.js';
-import Admin from './models/Admin.js.js';
-import SignupData from './models/SignupData.js.js';
-import SigninData from './models/SigninData.js.js';
-import Accounting from './models/Accounting.js.js';
-import Enrollment from './models/Enrollment.js.js';
-import StudentProgress from './models/StudentProgress.js.js';
-import Assignment from './models/Assignment.js.js';
-import Payment from './models/Payment.js.js';
-import ChatMessage from './models/ChatMessage.js.js';
-import ZoomMeeting from './models/ZoomMeeting.js.js';
-import Checkout from './models/Checkout.js.js';
-import PageState from './models/PageState.js.js';
+import User from './models/User.js';
+import Vision from './models/Vision.js';
+import Goal from './models/Goal.js';
+import Task from './models/Task.js';
+import Todo from './models/Todo.js';
+import MyWord from './models/MyWord.js';
+import HealthTracker from './models/HealthTracker.js';
+import Milestone from './models/Milestone.js';
+import Reminder from './models/Reminder.js';
+import DailyPlan from './models/DailyPlan.js';
+import Workshop from './models/Workshop.js';
+import Cart from './models/Cart.js';
+import Contact from './models/Contact.js';
+import Admin from './models/Admin.js';
+import SignupData from './models/SignupData.js';
+import SigninData from './models/SigninData.js';
+import { Transaction } from './models/Accounting.js';
+import Enrollment from './models/Enrollment.js';
+import StudentProgress from './models/StudentProgress.js';
+import Assignment from './models/Assignment.js';
+import Payment from './models/Payment.js';
+import ChatMessage from './models/ChatMessage.js';
+import ZoomMeeting from './models/ZoomMeeting.js';
+import Checkout from './models/Checkout.js';
+import PageState from './models/PageState.js';
 const results = [];
 async function testMongoDBConnection() {
     console.log('\n' + '='.repeat(70));
@@ -96,7 +96,7 @@ async function testMongoDBConnection() {
             { name: 'Admin', model: Admin },
             { name: 'SignupData', model: SignupData },
             { name: 'SigninData', model: SigninData },
-            { name: 'Accounting', model: Accounting },
+            { name: 'Transaction', model: Transaction },
             { name: 'Enrollment', model: Enrollment },
             { name: 'StudentProgress', model: StudentProgress },
             { name: 'Assignment', model: Assignment },

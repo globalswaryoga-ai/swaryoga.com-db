@@ -1,5 +1,5 @@
 import express from 'express';
-import Vision from '../models/Vision.js.js';
+import Vision from '../models/Vision.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers

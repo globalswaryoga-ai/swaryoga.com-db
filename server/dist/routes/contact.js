@@ -1,5 +1,5 @@
 import express from 'express';
-import Contact from '../models/Contact.js.js';
+import Contact from '../models/Contact.js';
 import { v4 as uuidv4 } from 'uuid';
 const router = express.Router();
 router.get('/messages', async (req, res) => {

@@ -1,5 +1,5 @@
 import express from 'express';
-import Workshop from '../models/Workshop.js';
+import Workshop from '../models/Workshop';
 const router = express.Router();
 // Get all workshops (public) - accessible at /public
 router.get('/public', async (req, res) => {

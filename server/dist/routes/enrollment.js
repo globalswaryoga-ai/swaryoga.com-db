@@ -1,6 +1,6 @@
 import express from 'express';
-import Enrollment from '../models/Enrollment.js';
-import Workshop from '../models/Workshop.js';
+import Enrollment from '../models/Enrollment';
+import Workshop from '../models/Workshop';
 const router = express.Router();
 // Get all enrollments for a user
 router.get('/user/:userId', async (req, res) => {

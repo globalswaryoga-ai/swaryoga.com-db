@@ -1,5 +1,5 @@
 import express from 'express';
-import MyWord from '../models/MyWord.js.js';
+import MyWord from '../models/MyWord.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers

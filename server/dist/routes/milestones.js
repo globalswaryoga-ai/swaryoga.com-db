@@ -1,5 +1,5 @@
 import express from 'express';
-import Milestone from '../models/Milestone.js.js';
+import Milestone from '../models/Milestone.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers

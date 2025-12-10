@@ -1,5 +1,5 @@
 import express from 'express';
-import HealthTracker from '../models/HealthTracker.js.js';
+import HealthTracker from '../models/HealthTracker.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers

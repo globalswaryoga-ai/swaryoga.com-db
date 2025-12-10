@@ -27,7 +27,7 @@ import Contact from './models/Contact.js';
 import Admin from './models/Admin.js';
 import SignupData from './models/SignupData.js';
 import SigninData from './models/SigninData.js';
-import Accounting from './models/Accounting.js';
+import { Transaction } from './models/Accounting.js';
 import Enrollment from './models/Enrollment.js';
 import StudentProgress from './models/StudentProgress.js';
 import Assignment from './models/Assignment.js';
@@ -113,7 +113,7 @@ async function testMongoDBConnection() {
       { name: 'Admin', model: Admin },
       { name: 'SignupData', model: SignupData },
       { name: 'SigninData', model: SigninData },
-      { name: 'Accounting', model: Accounting },
+      { name: 'Transaction', model: Transaction },
       { name: 'Enrollment', model: Enrollment },
       { name: 'StudentProgress', model: StudentProgress },
       { name: 'Assignment', model: Assignment },
@@ -127,7 +127,7 @@ async function testMongoDBConnection() {
     for (const { name, model } of models) {
       try {
         // Check if collection exists and is accessible
-        const count = await model.countDocuments();
+        const count = await (model as any).countDocuments();
         console.log(`   ✅ ${name.padEnd(20)} - ${count} documents`);
         results.push({
           collection: name,

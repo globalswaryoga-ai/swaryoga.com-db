@@ -236,7 +236,7 @@ const WorkshopSchema = new Schema<IWorkshop>(
 );
 
 // Create slug before saving
-WorkshopSchema.pre<IWorkshop>('save', function(this: IWorkshop, next) {
+WorkshopSchema.pre<IWorkshop>('save', function(this: IWorkshop, next: (err?: Error) => void) {
   if (this.isModified('title')) {
     this.slug = this.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
   }

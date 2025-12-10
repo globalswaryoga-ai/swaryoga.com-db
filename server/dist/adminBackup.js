@@ -1,9 +1,9 @@
-import fs from 'fs/promises.js';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import SignupData from './models/SignupData.js.js';
-import SigninData from './models/SigninData.js.js';
-import Contact from './models/Contact.js.js';
+import SignupData from './models/SignupData.js';
+import SigninData from './models/SigninData.js';
+import Contact from './models/Contact.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKUPS_DIR = path.join(__dirname, '..', 'admin_backups');
 // Ensure backups directory exists

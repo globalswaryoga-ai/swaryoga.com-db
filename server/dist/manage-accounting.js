@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Transaction, Category } from './models/Accounting.js';
+import { Transaction, Category } from './models/Accounting';
 const MONGODB_URI = 'mongodb://admin:MySecurePass123@157.173.221.234:27017/?authSource=admin';
 async function connectDB() {
     try {

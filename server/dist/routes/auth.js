@@ -1,5 +1,5 @@
 import express from 'express';
-import User from '../models/User.js.js';
+import User from '../models/User.js';
 import crypto from 'crypto';
 const router = express.Router();
 function hashPassword(password) {

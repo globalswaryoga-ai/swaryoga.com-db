@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import Checkout from '../models/Checkout.js';
-import Cart from '../models/Cart.js';
+import Checkout from '../models/Checkout';
+import Cart from '../models/Cart';
 const router = Router();
 // Helper to extract userId from headers or request
 const getUserIdFromHeaders = (req) => {

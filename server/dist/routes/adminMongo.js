@@ -1,17 +1,17 @@
 import express from 'express';
-import SignupData from '../models/SignupData.js.js';
-import SigninData from '../models/SigninData.js.js';
-import Contact from '../models/Contact.js.js';
-import Cart from '../models/Cart.js.js';
-import User from '../models/User.js.js';
-import Workshop from '../models/Workshop.js.js';
-import Vision from '../models/Vision.js.js';
-import Goal from '../models/Goal.js.js';
-import Task from '../models/Task.js.js';
-import Todo from '../models/Todo.js.js';
-import Checkout from '../models/Checkout.js.js';
-import { Transaction } from '../models/Accounting.js.js';
-import HealthTracker from '../models/HealthTracker.js.js';
+import SignupData from '../models/SignupData.js';
+import SigninData from '../models/SigninData.js';
+import Contact from '../models/Contact.js';
+import Cart from '../models/Cart.js';
+import User from '../models/User.js';
+import Workshop from '../models/Workshop.js';
+import Vision from '../models/Vision.js';
+import Goal from '../models/Goal.js';
+import Task from '../models/Task.js';
+import Todo from '../models/Todo.js';
+import Checkout from '../models/Checkout.js';
+import { Transaction } from '../models/Accounting.js';
+import HealthTracker from '../models/HealthTracker.js';
 const router = express.Router();
 // ===== DASHBOARD STATS =====
 /**

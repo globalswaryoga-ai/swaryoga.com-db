@@ -104,7 +104,12 @@ export interface Vision {
   description: string;
   priority?: 'High' | 'Medium' | 'Low';
   status?: 'Active' | 'Completed' | 'On Hold' | 'Not Started' | 'In Progress';
-  imageUrl?: string;
+  visualImageUrl?: string;
+  imageUrl?: string; // Legacy support
+  visionStatement?: string;
+  affirmations?: string[];
+  category?: string;
+  timeFrame?: string;
   timelineMonths?: number;
   startDate?: string;
   targetDate?: string;

@@ -8,7 +8,11 @@ export interface IVision {
   description?: string;
   priority?: 'High' | 'Medium' | 'Low';
   status?: 'Active' | 'Completed' | 'On Hold' | 'Not Started' | 'In Progress';
-  imageUrl?: string;
+  visualImageUrl?: string;
+  visionStatement?: string;
+  affirmations?: string[];
+  category?: string;
+  timeFrame?: string;
   timelineMonths?: number;
   startDate?: string;
   targetDate?: string;
@@ -24,7 +28,11 @@ const visionSchema = new Schema<IVision>(
     description: { type: String, default: '' },
     priority: { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },
     status: { type: String, enum: ['Active', 'Completed', 'On Hold', 'Not Started', 'In Progress'], default: 'Active' },
-    imageUrl: { type: String, default: '' },
+    visualImageUrl: { type: String, default: '' },
+    visionStatement: { type: String, default: '' },
+    affirmations: { type: [String], default: [] },
+    category: { type: String, default: '' },
+    timeFrame: { type: String, default: '' },
     timelineMonths: { type: Number, default: 12 },
     startDate: { type: String, default: '' },
     targetDate: { type: String, default: '' },

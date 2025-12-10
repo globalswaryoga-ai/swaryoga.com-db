@@ -1,5 +1,5 @@
 import express from 'express';
-import Reminder from '../models/Reminder.js.js';
+import Reminder from '../models/Reminder.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers

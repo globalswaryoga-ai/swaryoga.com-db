@@ -1,8 +1,8 @@
 import express from 'express';
 import crypto from 'crypto';
-import Admin from '../models/Admin.js.js';
-import Contact from '../models/Contact.js.js';
-import User from '../models/User.js.js';
+import Admin from '../models/Admin.js';
+import Contact from '../models/Contact.js';
+import User from '../models/User.js';
 const router = express.Router();
 // ===== UTILITY FUNCTIONS =====
 /**

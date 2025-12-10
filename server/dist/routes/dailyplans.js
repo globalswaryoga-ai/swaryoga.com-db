@@ -1,5 +1,5 @@
 import express from 'express';
-import DailyPlan from '../models/DailyPlan.js.js';
+import DailyPlan from '../models/DailyPlan.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers

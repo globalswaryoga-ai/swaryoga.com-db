@@ -1,5 +1,5 @@
 import express from 'express';
-import Cart from '../models/Cart.js.js';
+import Cart from '../models/Cart.js';
 const router = express.Router();
 function getUserIdFromHeaders(req) {
     return req.headers['x-user-id'] || req.params.userId || 'anonymous';
