@@ -1,7 +1,7 @@
 import express from 'express';
-import StudentProgress from '../models/StudentProgress';
-import Enrollment from '../models/Enrollment';
-import Workshop from '../models/Workshop';
+import StudentProgress from '../models/StudentProgress.js';
+import Enrollment from '../models/Enrollment.js';
+import Workshop from '../models/Workshop.js';
 const router = express.Router();
 // Get progress by enrollment
 router.get('/enrollment/:enrollmentId', async (req, res) => {

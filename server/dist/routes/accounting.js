@@ -1,5 +1,5 @@
 import express from 'express';
-import { Transaction, Category } from '../models/Accounting';
+import { Transaction, Category } from '../models/Accounting.js';
 const router = express.Router();
 // ===== TRANSACTIONS =====
 // Get all transactions for admin

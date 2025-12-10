@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import Payment from '../models/Payment';
+import Payment from '../models/Payment.js';
 const router = express.Router();
 // PayU Configuration (from environment variables)
 const PAYU_MERCHANT_KEY = process.env.PAYU_MERCHANT_KEY || 'gtKFFx';

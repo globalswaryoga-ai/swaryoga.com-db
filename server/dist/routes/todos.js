@@ -1,5 +1,5 @@
 import express from 'express';
-import Todo from '../models/Todo.js';
+import Todo from '../models/Todo.js.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers

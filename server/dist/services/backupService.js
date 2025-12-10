@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
+import { exec } from 'child_process.js';
 import { promisify } from 'util';
-import Contact from '../models/Contact.js';
-import User from '../models/User.js';
-import Admin from '../models/Admin.js';
+import Contact from '../models/Contact.js.js';
+import User from '../models/User.js.js';
+import Admin from '../models/Admin.js.js';
 const execAsync = promisify(exec);
 /**
  * MongoDB Backup Service

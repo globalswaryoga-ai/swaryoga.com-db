@@ -1,5 +1,5 @@
 import express from 'express';
-import PageState from '../models/PageState.js';
+import PageState from '../models/PageState.js.js';
 const router = express.Router();
 // Get page state for current user
 router.get('/', async (req, res) => {

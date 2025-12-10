@@ -1,5 +1,5 @@
 import express from 'express';
-import ChatMessage from '../models/ChatMessage';
+import ChatMessage from '../models/ChatMessage.js';
 const router = express.Router();
 // Get all messages for a workshop enrollment
 router.get('/enrollment/:enrollmentId', async (req, res) => {

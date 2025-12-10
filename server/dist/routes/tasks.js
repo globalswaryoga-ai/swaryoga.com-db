@@ -1,5 +1,5 @@
 import express from 'express';
-import Task from '../models/Task.js';
+import Task from '../models/Task.js.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers

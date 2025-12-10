@@ -1,5 +1,5 @@
 import express from 'express';
-import ZoomMeeting from '../models/ZoomMeeting';
+import ZoomMeeting from '../models/ZoomMeeting.js';
 const router = express.Router();
 // Get all zoom meetings for a workshop
 router.get('/workshop/:workshopId', async (req, res) => {

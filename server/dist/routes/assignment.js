@@ -1,5 +1,5 @@
 import express from 'express';
-import Assignment from '../models/Assignment';
+import Assignment from '../models/Assignment.js';
 const router = express.Router();
 // Get all assignments for a workshop
 router.get('/workshop/:workshopId', async (req, res) => {

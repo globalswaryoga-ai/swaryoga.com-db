@@ -1,5 +1,5 @@
 import express from 'express';
-import Goal from '../models/Goal.js';
+import Goal from '../models/Goal.js.js';
 const router = express.Router();
 /**
  * Helper function to extract user ID from headers
