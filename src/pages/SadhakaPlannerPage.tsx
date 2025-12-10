@@ -98,13 +98,29 @@ const SadhakaPlannerPage = () => {
   const loadAllData = async () => {
     try {
       setLoading(true);
-      const userId = user?.id || (user as any)?._id || '';
+      let userId = user?.id || (user as any)?._id || '';
+      
+      // If userId not found in context, try to get it from localStorage
+      if (!userId) {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const userObj = JSON.parse(userStr);
+            userId = userObj.id || userObj._id || '';
+            console.log(`✅ Got userId from localStorage: ${userId}`);
+          } catch (e) {
+            console.error('Error parsing user from localStorage:', e);
+          }
+        }
+      }
       
       if (!userId) {
-        console.warn('No userId found');
+        console.warn('❌ No userId found in context or localStorage');
         setLoading(false);
         return;
       }
+      
+      console.log(`📥 Loading data for userId: ${userId}`);
 
       const [
         visionsData,
