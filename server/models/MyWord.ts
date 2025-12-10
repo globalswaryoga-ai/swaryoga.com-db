@@ -4,15 +4,12 @@ import { v4 as uuidv4 } from 'uuid';
 export interface IMyWord {
   _id?: string;
   userId: string;
-  wordText: string;
-  affirmationType?: string;
-  category?: string;
-  source?: string;
-  frequency?: 'Daily' | 'Weekly' | 'Monthly';
-  lastRecited?: Date;
-  recitationCount?: number;
-  impact?: string;
-  tags?: string[];
+  commitment: string;
+  committedDate?: string;
+  completionDeadline?: string;
+  recurrence?: 'Once' | 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
+  status?: 'Pending' | 'In Progress' | 'Completed';
+  isOverdue?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -21,15 +18,12 @@ const mywordSchema = new Schema<IMyWord>(
   {
     _id: { type: String, default: () => uuidv4() },
     userId: { type: String, required: true, index: true },
-    wordText: { type: String, required: true },
-    affirmationType: { type: String, default: '' },
-    category: { type: String, default: '' },
-    source: { type: String, default: '' },
-    frequency: { type: String, enum: ['Daily', 'Weekly', 'Monthly'], default: 'Daily' },
-    lastRecited: { type: Date },
-    recitationCount: { type: Number, default: 0 },
-    impact: { type: String, default: '' },
-    tags: [String],
+    commitment: { type: String, required: true },
+    committedDate: { type: String, default: '' },
+    completionDeadline: { type: String, default: '' },
+    recurrence: { type: String, enum: ['Once', 'Daily', 'Weekly', 'Monthly', 'Yearly'], default: 'Once' },
+    status: { type: String, enum: ['Pending', 'In Progress', 'Completed'], default: 'Pending' },
+    isOverdue: { type: Boolean, default: false },
   },
   { _id: false, timestamps: true }
 );

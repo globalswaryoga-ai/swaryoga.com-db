@@ -3,7 +3,38 @@ import Workshop, { IWorkshop } from '../models/Workshop';
 
 const router = express.Router();
 
-// Get all workshops (public)
+// Get all workshops (public) - accessible at /public
+router.get('/public', async (req: Request, res: Response) => {
+  try {
+    const { isPublished, category, language } = req.query;
+    
+    let filter: any = {};
+    if (isPublished !== undefined) filter.isPublished = true;
+    if (category) filter.category = category;
+    if (language) filter.languages = { $in: [language] };
+    
+    const workshops = await Workshop.find(filter)
+      .select('-sessions')
+      .sort({ createdAt: -1 });
+    
+    console.log(`📚 Found ${workshops.length} public workshops`);
+    res.json({
+      success: true,
+      data: workshops,
+      count: workshops.length
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error fetching public workshops:', message);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching workshops',
+      error: message
+    });
+  }
+});
+
+// Get all workshops (public) - also accessible at / for backwards compatibility
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { isPublished, category, language } = req.query;
