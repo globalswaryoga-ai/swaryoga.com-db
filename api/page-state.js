@@ -2,7 +2,7 @@
 // Vercel Serverless Function - Page State Management
 // Handles saving and retrieving page state for users (stub)
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   const method = req.method || 'GET';
 
   // Enable CORS
@@ -12,7 +12,8 @@ export default async function handler(req, res) {
 
   // Handle preflight CORS requests
   if (method === 'OPTIONS') {
-    return res.status(200).json({ ok: true });
+    res.status(200);
+    return res.json({ ok: true });
   }
 
   if (method === 'POST') {
@@ -20,7 +21,8 @@ export default async function handler(req, res) {
     // We ignore the request body for now
     console.log('📝 Page state save request received at', new Date().toISOString());
 
-    return res.status(200).json({
+    res.status(200);
+    return res.json({
       ok: true,
       message: 'Page state saved successfully (stub backend).',
       timestamp: new Date().toISOString(),
@@ -29,7 +31,8 @@ export default async function handler(req, res) {
 
   if (method === 'GET') {
     // Retrieve page state - currently returns null, later loads from MongoDB
-    return res.status(200).json({
+    res.status(200);
+    return res.json({
       ok: true,
       state: null,
       message: 'Page state retrieval is not implemented yet (stub).',
@@ -39,8 +42,9 @@ export default async function handler(req, res) {
 
   // Method not allowed
   res.setHeader('Allow', ['GET', 'POST']);
-  return res.status(405).json({
+  res.status(405);
+  return res.json({
     ok: false,
     message: `Method ${method} not allowed on /api/page-state`,
   });
-}
+};

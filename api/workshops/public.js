@@ -2,7 +2,7 @@
 // Vercel Serverless Function - Public Workshops Listing
 // Returns publicly available workshops (stub data)
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   const method = req.method || 'GET';
 
   // Enable CORS
@@ -12,12 +12,14 @@ export default async function handler(req, res) {
 
   // Handle preflight CORS requests
   if (method === 'OPTIONS') {
-    return res.status(200).json({ ok: true });
+    res.status(200);
+    return res.json({ ok: true });
   }
 
   if (method !== 'GET') {
     res.setHeader('Allow', ['GET']);
-    return res.status(405).json({
+    res.status(405);
+    return res.json({
       ok: false,
       message: `Method ${method} not allowed on /api/workshops/public`,
     });
@@ -51,10 +53,11 @@ export default async function handler(req, res) {
     },
   ];
 
-  return res.status(200).json({
+  res.status(200);
+  return res.json({
     ok: true,
     data: workshops,
     count: workshops.length,
     message: 'Public workshops retrieved successfully (stub data).',
   });
-}
+};
