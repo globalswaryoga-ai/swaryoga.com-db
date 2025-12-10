@@ -208,9 +208,10 @@ const VisionComponent: React.FC<VisionComponentProps> = ({ onVisionsUpdate }) =>
         ) : (
           filteredVisions.map(vision => {
             const progress = calculateProgress(vision.startDate, vision.targetDate);
+            const visionKey = vision.id || vision._id || `vision-${Math.random()}`;
             return (
               <div
-                key={vision.id}
+                key={visionKey}
                 className={`rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow ${
                   vision.status === 'Completed'
                     ? 'bg-gray-50 border border-gray-200'
