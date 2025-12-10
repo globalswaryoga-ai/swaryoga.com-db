@@ -22,20 +22,17 @@ export default function SignupData() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [adminUser, setAdminUser] = useState('');
   const [signupData, setSignupData] = useState<SignupUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const adminToken = localStorage.getItem('adminToken');
-    const adminUsername = localStorage.getItem('adminUser');
 
     if (!adminToken) {
       router.push('/admin/login');
     } else {
       setIsAuthenticated(true);
-      setAdminUser(adminUsername || '');
       fetchSignupData();
     }
   }, [router]);

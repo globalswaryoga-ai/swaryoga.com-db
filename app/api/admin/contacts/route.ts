@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const db = await connectDB();
+    await connectDB();
     
     // Fetch contact messages from database
     const contacts: any[] = [];

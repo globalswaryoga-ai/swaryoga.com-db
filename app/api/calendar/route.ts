@@ -168,8 +168,6 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const dateParam = searchParams.get('date');
-    const latitude = searchParams.get('latitude');
-    const longitude = searchParams.get('longitude');
     
     let targetDate: Date;
     

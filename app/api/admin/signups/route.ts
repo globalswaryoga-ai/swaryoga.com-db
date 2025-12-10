@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const token = authHeader.substring(7);
     // Token validation would go here
     // For now, we'll accept any token that's present
 
