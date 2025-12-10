@@ -11,10 +11,10 @@
   ],
   "functions": {
     "api/[...path].js": {
-      "maxDuration": 30
+      "maxDuration": 60
     },
     "api/index.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   }
 }
