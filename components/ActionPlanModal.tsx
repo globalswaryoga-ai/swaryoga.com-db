@@ -210,7 +210,7 @@ export default function ActionPlanModal({
               <img
                 src={selectedVision.imageUrl || selectedVision.categoryImageUrl || '/placeholder.png'}
                 alt={selectedVision.title}
-                className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300"
+                className="w-full h-64 object-cover rounded-lg border-2 border-gray-300"
               />
             </div>
           )}
