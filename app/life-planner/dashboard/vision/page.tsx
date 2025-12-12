@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
 import VisionModal from './VisionModal';
+import ActionPlanModal from '@/components/ActionPlanModal';
 
 // Category Color Mapping - 10 colors for 10 vision heads
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -63,6 +64,8 @@ export default function VisionPage() {
   const [editingVision, setEditingVision] = useState<Vision | null>(null);
   const [mounted, setMounted] = useState(false);
   const [sliderIndex, setSliderIndex] = useState(0);
+  const [isActionPlanModalOpen, setIsActionPlanModalOpen] = useState(false);
+  const [selectedVisionForActionPlan, setSelectedVisionForActionPlan] = useState<Vision | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -120,6 +123,20 @@ export default function VisionPage() {
     setIsModalOpen(false);
   };
 
+  const handleAddActionPlanForVision = (vision: Vision) => {
+    setSelectedVisionForActionPlan(vision);
+    setIsActionPlanModalOpen(true);
+  };
+
+  const handleSaveActionPlan = (actionPlan: any) => {
+    const actionPlans = lifePlannerStorage.getActionPlans();
+    actionPlans.push(actionPlan);
+    lifePlannerStorage.saveActionPlans(actionPlans);
+    setIsActionPlanModalOpen(false);
+    setSelectedVisionForActionPlan(null);
+    alert('Action Plan created successfully!');
+  };
+
   if (!mounted) return null;
 
   return (
@@ -157,11 +174,19 @@ export default function VisionPage() {
                       alt={vision.title}
                       className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                     />
-                    {vision.category && (
-                      <div className={`absolute top-3 right-3 ${CATEGORY_COLORS[vision.category]?.bg || 'bg-gray-600'} ${CATEGORY_COLORS[vision.category]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-bold`}>
-                        {vision.category}
-                      </div>
-                    )}
+                    <div className="absolute top-3 right-3 flex flex-col gap-2">
+                      <button
+                        onClick={() => handleAddActionPlanForVision(vision)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-full text-xs font-bold transition"
+                      >
+                        + Action Plan
+                      </button>
+                      {vision.category && (
+                        <div className={`${CATEGORY_COLORS[vision.category]?.bg || 'bg-gray-600'} ${CATEGORY_COLORS[vision.category]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-bold text-center`}>
+                          {vision.category}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="p-5">
@@ -316,6 +341,19 @@ export default function VisionPage() {
           vision={editingVision}
           onSave={handleSaveVision}
           onClose={() => setIsModalOpen(false)}
+        />
+      )}
+
+      {isActionPlanModalOpen && selectedVisionForActionPlan && (
+        <ActionPlanModal
+          isOpen={isActionPlanModalOpen}
+          onClose={() => {
+            setIsActionPlanModalOpen(false);
+            setSelectedVisionForActionPlan(null);
+          }}
+          onSave={handleSaveActionPlan}
+          visions={visions}
+          editingPlan={undefined}
         />
       )}
     </div>
