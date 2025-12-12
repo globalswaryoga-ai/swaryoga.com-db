@@ -2,14 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
-import { ActionPlan, Vision, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+import { ActionPlan, Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
 import ActionPlanModal from '@/components/ActionPlanModal';
-
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
 
 const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
   'not-started': { text: 'text-gray-700', bg: 'bg-gray-100' },
@@ -24,9 +19,6 @@ export default function ActionPlanPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<ActionPlan | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [filterMonth, setFilterMonth] = useState<string>('');
-  const [filterCategory, setFilterCategory] = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState<string>('');
   const [sliderIndex, setSliderIndex] = useState(0);
 
   useEffect(() => {
@@ -67,26 +59,8 @@ export default function ActionPlanPage() {
     );
   };
 
-  // Filter logic
+  // Filter logic - just sort, no filtering
   const filteredPlans = actionPlans
-    .filter(plan => {
-      // Month filter
-      if (filterMonth) {
-        const planMonth = plan.endDate ? new Date(plan.endDate).getMonth() + 1 : null;
-        if (planMonth !== parseInt(filterMonth)) return false;
-      }
-
-      // Category filter - filter by vision's category
-      if (filterCategory) {
-        const planVision = visions.find(v => v.id === plan.visionId);
-        if (planVision?.category !== filterCategory) return false;
-      }
-
-      // Status filter
-      if (filterStatus && plan.status !== filterStatus) return false;
-
-      return true;
-    })
     .sort((a, b) => {
       // Sort by due date (endDate) in ascending order
       const dateA = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_VALUE;
@@ -127,74 +101,6 @@ export default function ActionPlanPage() {
           <Plus className="h-5 w-5" />
           <span>Create Action Plan</span>
         </button>
-      </div>
-
-      {/* Filters */}
-      <div className="mb-8 bg-white rounded-2xl p-6 shadow-md">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">🔍 Filters</h3>
-        
-        {/* Other Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {/* Month Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Month</label>
-            <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Months</option>
-              {MONTH_NAMES.map((month, idx) => (
-                <option key={idx} value={idx + 1}>{month}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Category Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Category</label>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Categories</option>
-              {VISION_CATEGORIES.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Status</option>
-              <option value="not-started">⏳ Not Started</option>
-              <option value="in-progress">⚡ In Progress</option>
-              <option value="completed">✅ Completed</option>
-              <option value="on-hold">⏸️ On Hold</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Clear Filters Button */}
-        {(filterMonth || filterCategory || filterStatus) && (
-          <button
-            onClick={() => {
-              setFilterMonth('');
-              setFilterCategory('');
-              setFilterStatus('');
-            }}
-            className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition"
-          >
-            Clear All Filters
-          </button>
-        )}
       </div>
 
       <div className="mb-12">

@@ -63,9 +63,6 @@ export default function VisionPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVision, setEditingVision] = useState<Vision | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [filterMonth, setFilterMonth] = useState<string>('');
-  const [filterCategory, setFilterCategory] = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState<string>('');
   const [sliderIndex, setSliderIndex] = useState(0);
   const [isActionPlanModalOpen, setIsActionPlanModalOpen] = useState(false);
   const [selectedVisionForActionPlan, setSelectedVisionForActionPlan] = useState<Vision | null>(null);
@@ -96,23 +93,8 @@ export default function VisionPage() {
     setVisions(prev => prev.filter(v => v.id !== id));
   };
 
-  // Filter logic
+  // Filter logic - just sort, no filtering
   const filteredVisions = visions
-    .filter(vision => {
-      // Month filter
-      if (filterMonth) {
-        const visionMonth = vision.endDate ? new Date(vision.endDate).getMonth() + 1 : null;
-        if (visionMonth !== parseInt(filterMonth)) return false;
-      }
-
-      // Category filter
-      if (filterCategory && vision.category !== filterCategory) return false;
-
-      // Status filter
-      if (filterStatus && vision.status !== filterStatus) return false;
-
-      return true;
-    })
     .sort((a, b) => {
       // Sort by due date (endDate) in ascending order
       const dateA = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_VALUE;
@@ -171,88 +153,6 @@ export default function VisionPage() {
           <Plus className="h-5 w-5" />
           <span>Add Vision Plan</span>
         </button>
-      </div>
-
-      {/* Filters */}
-      <div className="mb-8 bg-white rounded-2xl p-6 shadow-md">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">🔍 Filters</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {/* Month Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Month</label>
-            <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            >
-              <option value="">All Months</option>
-              <option value="1">January</option>
-              <option value="2">February</option>
-              <option value="3">March</option>
-              <option value="4">April</option>
-              <option value="5">May</option>
-              <option value="6">June</option>
-              <option value="7">July</option>
-              <option value="8">August</option>
-              <option value="9">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
-            </select>
-          </div>
-
-          {/* Category Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Category</label>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            >
-              <option value="">All Categories</option>
-              <option value="Life">Life</option>
-              <option value="Health">Health</option>
-              <option value="Wealth">Wealth</option>
-              <option value="Success">Success</option>
-              <option value="Respect">Respect</option>
-              <option value="Pleasure">Pleasure</option>
-              <option value="Prosperity">Prosperity</option>
-              <option value="Luxurious">Luxurious</option>
-              <option value="Good Habits">Good Habits</option>
-              <option value="Sadhana">Sadhana</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            >
-              <option value="">All Status</option>
-              <option value="not-started">⏳ Pending</option>
-              <option value="in-progress">⚡ In Progress</option>
-              <option value="completed">✅ Done</option>
-              <option value="on-hold">⏸️ On Hold</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Clear Filters Button */}
-        {(filterMonth || filterCategory || filterStatus) && (
-          <button
-            onClick={() => {
-              setFilterMonth('');
-              setFilterCategory('');
-              setFilterStatus('');
-            }}
-            className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition"
-          >
-            Clear All Filters
-          </button>
-        )}
       </div>
 
       <div className="mb-12">
