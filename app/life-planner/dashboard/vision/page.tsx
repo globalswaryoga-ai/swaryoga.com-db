@@ -144,7 +144,7 @@ export default function VisionPage() {
     <div className="max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">My Visions</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">My Vision Plans</h1>
           <p className="text-gray-600">Your long-term projects with milestones and timelines</p>
         </div>
         <button
@@ -152,7 +152,7 @@ export default function VisionPage() {
           className="flex items-center space-x-2 bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl"
         >
           <Plus className="h-5 w-5" />
-          <span>Add Vision</span>
+          <span>Add Vision Plan</span>
         </button>
       </div>
 
@@ -240,8 +240,8 @@ export default function VisionPage() {
 
       <div className="mb-12">
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-gray-800">Vision Preview Slider</h2>
-          <p className="text-sm text-gray-600">Showing {Math.min(3, filteredVisions.length)} of {filteredVisions.length} visions</p>
+          <h2 className="text-2xl font-bold text-gray-800">Vision Plan Preview Slider</h2>
+          <p className="text-sm text-gray-600">Showing {Math.min(3, filteredVisions.length)} of {filteredVisions.length} vision plans</p>
         </div>
 
         <div className="relative">
@@ -380,14 +380,14 @@ export default function VisionPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No visions found</h3>
-          <p className="text-gray-600 mb-4">Try adjusting your filters or create a new vision.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No vision plans found</h3>
+          <p className="text-gray-600 mb-4">Try adjusting your filters or create a new vision plan.</p>
           <button
             onClick={handleAddVision}
             className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            <span>Add Vision</span>
+            <span>Add Vision Plan</span>
           </button>
         </div>
       )}
@@ -399,14 +399,14 @@ export default function VisionPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No visions yet</h3>
-          <p className="text-gray-600 mb-4">Start by creating your first vision.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No vision plans yet</h3>
+          <p className="text-gray-600 mb-4">Start by creating your first vision plan.</p>
           <button
             onClick={handleAddVision}
             className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            <span>Add Vision</span>
+            <span>Add Vision Plan</span>
           </button>
         </div>
       )}

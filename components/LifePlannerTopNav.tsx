@@ -7,7 +7,7 @@ import HealthTracker from './HealthTracker';
 import ServerStatus from './ServerStatus';
 
 const topTabs = [
-  { href: '/life-planner/dashboard/vision', label: 'Vision', icon: Target },
+  { href: '/life-planner/dashboard/vision', label: 'Vision Plan', icon: Target },
   { href: '/life-planner/dashboard/action-plan', label: 'Action Plan', icon: Flag },
   { href: '/life-planner/dashboard/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/life-planner/dashboard/todos', label: 'Todos', icon: ListChecks },

@@ -73,7 +73,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
         <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-green-200">
           <div className="text-xs text-green-700">
             <p className="font-semibold text-green-900 mb-2">Planner v1 (demo)</p>
-            <p>Vision → Action Plan → Tasks → Reminders</p>
+            <p>Vision Plan → Action Plan → Tasks → Reminders</p>
           </div>
         </div>
       </aside>
