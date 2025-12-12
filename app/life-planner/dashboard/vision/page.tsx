@@ -174,7 +174,7 @@ export default function VisionPage() {
                       alt={vision.title}
                       className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                     />
-                    <div className="absolute top-3 right-3 flex flex-col gap-2">
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
                       <button
                         onClick={() => handleAddActionPlanForVision(vision)}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-full text-xs font-bold transition"
@@ -182,7 +182,7 @@ export default function VisionPage() {
                         + Action Plan
                       </button>
                       {vision.category && (
-                        <div className={`${CATEGORY_COLORS[vision.category]?.bg || 'bg-gray-600'} ${CATEGORY_COLORS[vision.category]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-bold text-center`}>
+                        <div className={`${CATEGORY_COLORS[vision.category]?.bg || 'bg-gray-600'} ${CATEGORY_COLORS[vision.category]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-bold`}>
                           {vision.category}
                         </div>
                       )}
