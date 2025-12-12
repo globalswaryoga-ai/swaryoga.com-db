@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ActionPlan, ActionPlanGoal, Milestone, Vision } from '@/lib/types/lifePlanner';
+import { ActionPlan, ActionPlanGoal, Milestone, Vision, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import GoalSection from '@/components/GoalSection';
 
 interface ActionPlanModalProps {
@@ -20,6 +20,7 @@ export default function ActionPlanModal({
   editingPlan,
 }: ActionPlanModalProps) {
   const [selectedVisionId, setSelectedVisionId] = useState(editingPlan?.visionId || '');
+  const [selectedVisionHead, setSelectedVisionHead] = useState('');
   const [title, setTitle] = useState(editingPlan?.title || '');
   const [description, setDescription] = useState(editingPlan?.description || '');
   const [startDate, setStartDate] = useState(editingPlan?.startDate || '');
@@ -36,6 +37,11 @@ export default function ActionPlanModal({
   const [goals, setGoals] = useState<ActionPlanGoal[]>(editingPlan?.goals || []);
 
   const selectedVision = visions.find(v => v.id === selectedVisionId);
+  
+  // Filter visions by selected head
+  const visionsUnderHead = selectedVisionHead
+    ? visions.filter(v => v.category === selectedVisionHead)
+    : [];
 
   const handleAddMilestone = () => {
     const newMilestone: Milestone = {
@@ -122,6 +128,7 @@ export default function ActionPlanModal({
 
   const resetForm = () => {
     setSelectedVisionId('');
+    setSelectedVisionHead('');
     setTitle('');
     setDescription('');
     setStartDate('');
@@ -152,23 +159,49 @@ export default function ActionPlanModal({
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Vision Selection */}
+          {/* Vision Head Selection - First Level */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Select Vision *
+              Select Vision Plan Head *
             </label>
             <select
-              value={selectedVisionId}
-              onChange={e => setSelectedVisionId(e.target.value)}
+              value={selectedVisionHead}
+              onChange={e => {
+                setSelectedVisionHead(e.target.value);
+                setSelectedVisionId(''); // Reset vision when head changes
+              }}
               className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             >
-              <option value="">Choose a vision...</option>
-              {visions.map(vision => (
-                <option key={vision.id} value={vision.id}>
-                  {vision.title} ({vision.category})
+              <option value="">Choose a vision head...</option>
+              {VISION_CATEGORIES.map(head => (
+                <option key={head} value={head}>
+                  {head}
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Vision Selection - Second Level */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Select Vision Plan *
+            </label>
+            {selectedVisionHead ? (
+              <select
+                value={selectedVisionId}
+                onChange={e => setSelectedVisionId(e.target.value)}
+                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Choose a vision...</option>
+                {visionsUnderHead.map(vision => (
+                  <option key={vision.id} value={vision.id}>
+                    {vision.title}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-gray-500 italic">Please select a vision head first</p>
+            )}
           </div>
 
           {/* Vision Image Preview */}

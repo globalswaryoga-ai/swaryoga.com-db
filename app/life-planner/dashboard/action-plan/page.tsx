@@ -25,7 +25,6 @@ export default function ActionPlanPage() {
   const [editingPlan, setEditingPlan] = useState<ActionPlan | null>(null);
   const [mounted, setMounted] = useState(false);
   const [filterMonth, setFilterMonth] = useState<string>('');
-  const [filterVision, setFilterVision] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [sliderIndex, setSliderIndex] = useState(0);
 
@@ -75,9 +74,6 @@ export default function ActionPlanPage() {
         const planMonth = plan.endDate ? new Date(plan.endDate).getMonth() + 1 : null;
         if (planMonth !== parseInt(filterMonth)) return false;
       }
-
-      // Vision filter
-      if (filterVision && plan.visionId !== filterVision) return false;
 
       // Status filter
       if (filterStatus && plan.status !== filterStatus) return false;
@@ -129,6 +125,8 @@ export default function ActionPlanPage() {
       {/* Filters */}
       <div className="mb-8 bg-white rounded-2xl p-6 shadow-md">
         <h3 className="text-lg font-bold text-gray-800 mb-4">🔍 Filters</h3>
+        
+        {/* Other Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {/* Month Filter */}
           <div>
@@ -141,23 +139,6 @@ export default function ActionPlanPage() {
               <option value="">All Months</option>
               {MONTH_NAMES.map((month, idx) => (
                 <option key={idx} value={idx + 1}>{month}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Vision Filter */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Vision</label>
-            <select
-              value={filterVision}
-              onChange={(e) => setFilterVision(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Visions</option>
-              {visions.map(vision => (
-                <option key={vision.id} value={vision.id}>
-                  {vision.title}
-                </option>
               ))}
             </select>
           </div>
@@ -180,11 +161,10 @@ export default function ActionPlanPage() {
         </div>
 
         {/* Clear Filters Button */}
-        {(filterMonth || filterVision || filterStatus) && (
+        {(filterMonth || filterStatus) && (
           <button
             onClick={() => {
               setFilterMonth('');
-              setFilterVision('');
               setFilterStatus('');
             }}
             className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition"
