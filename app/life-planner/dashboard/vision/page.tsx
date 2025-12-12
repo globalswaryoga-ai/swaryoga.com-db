@@ -167,12 +167,12 @@ export default function VisionPage() {
               filteredVisions.slice(0, 3).map((vision) => (
               <div key={vision.id} className="flex-shrink-0 w-80 h-full">
                 {/* Card */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl hover:scale-105 transition-all duration-300 h-full flex flex-col">
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
                   <div className="relative h-48 overflow-hidden">
                     <img
                       src={vision.imageUrl || 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80'}
                       alt={vision.title}
-                      className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                      className="w-full h-full object-cover transition-transform duration-300"
                     />
                     <div className="absolute top-3 right-3 flex items-center gap-2">
                       <button
