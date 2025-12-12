@@ -8,11 +8,13 @@ import {
   Reminder,
   HealthRoutine,
   DiamondPerson,
+  ActionPlan,
 } from '@/lib/types/lifePlanner';
 
 // Unified storage keys - using consistent naming
 const STORAGE_KEYS = {
-  visions: 'swar-life-planner-visions',  // Changed to match existing key
+  visions: 'swar-life-planner-visions',
+  actionPlans: 'swar-life-planner-action-plans',
   goals: 'swar-life-planner-goals',
   tasks: 'swar-life-planner-tasks',
   todos: 'swar-life-planner-todos',
@@ -37,6 +39,22 @@ export const lifePlannerStorage = {
   saveVisions: (visions: Vision[]) => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEYS.visions, JSON.stringify(visions));
+  },
+
+  // Action Plans
+  getActionPlans: (): ActionPlan[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.actionPlans);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveActionPlans: (actionPlans: ActionPlan[]) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.actionPlans, JSON.stringify(actionPlans));
   },
 
   // Goals

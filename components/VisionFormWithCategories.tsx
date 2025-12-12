@@ -112,9 +112,14 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
         id: Date.now().toString(),
         title: newMilestone.title,
         description: newMilestone.description || undefined,
-        dueDate: newMilestone.dueDate,
+        startDate: newMilestone.dueDate,
+        endDate: newMilestone.dueDate,
+        workingHoursStart: '09:00',
+        workingHoursEnd: '17:00',
+        place: '',
         status: newMilestone.status,
-        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       setFormData(prev => ({
         ...prev,
@@ -414,7 +419,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
                     <div className="flex-1">
                       <p className="font-medium text-gray-800">{milestone.title}</p>
                       {milestone.description && <p className="text-sm text-gray-600">{milestone.description}</p>}
-                      <p className="text-xs text-gray-500">Due: {new Date(milestone.dueDate).toLocaleDateString()} • {milestone.status}</p>
+                      <p className="text-xs text-gray-500">Due: {new Date(milestone.endDate).toLocaleDateString()} • {milestone.status}</p>
                     </div>
                     <button
                       type="button"

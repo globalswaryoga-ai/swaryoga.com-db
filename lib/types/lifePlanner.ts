@@ -42,11 +42,55 @@ export interface Vision {
 
 export interface Milestone {
   id: string;
-  title: string;
+  title?: string; // Optional milestone title
   description?: string;
-  dueDate: string; // YYYY-MM-DD
-  status: 'not-started' | 'in-progress' | 'completed';
-  completed: boolean;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  workingHoursStart: string; // HH:MM
+  workingHoursEnd: string; // HH:MM
+  place: string; // Working location/place name
+  status?: 'not-started' | 'in-progress' | 'completed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ActionPlan is a breakdown of a Vision into actionable milestones and goals
+export interface ActionPlan {
+  id: string;
+  visionId: string; // Parent vision
+  title: string;
+  description: string;
+  imageUrl?: string; // Vision's image
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  workingHoursStart: string; // HH:MM
+  workingHoursEnd: string; // HH:MM
+  place: string; // Primary working location
+  expectedAmount?: number; // Budget/expected cost
+  milestones: Milestone[]; // 1st milestone, 2nd, etc.
+  goals: ActionPlanGoal[]; // Goals to achieve for this action plan
+  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
+  progress?: number; // 0-100
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Goal specifically within an ActionPlan context
+export interface ActionPlanGoal {
+  id: string;
+  title: string;
+  description: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  workingTimeStart: string; // HH:MM
+  workingTimeEnd: string; // HH:MM
+  place: string; // Location for this goal
+  expectedAmount?: number; // Budget
+  status: 'not-started' | 'working' | 'pending' | 'done';
+  priority?: 'low' | 'medium' | 'high';
+  progress?: number; // 0-100
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Goal {

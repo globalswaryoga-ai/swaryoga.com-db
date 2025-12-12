@@ -98,7 +98,7 @@ export default function VisionsBlogPage() {
     if (totalItems === 0) return 0;
 
     const completedItems = 
-      (vision.milestones?.filter(m => m.completed).length || 0) +
+      (vision.milestones?.filter(m => m.status === 'completed').length || 0) +
       (vision.goals?.filter(g => g.status === 'completed').length || 0) +
       (vision.tasks?.filter(t => t.completed).length || 0) +
       (vision.todos?.filter(t => t.completed).length || 0);

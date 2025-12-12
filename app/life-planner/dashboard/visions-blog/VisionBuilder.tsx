@@ -87,9 +87,14 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
       id: generateUniqueId(),
       title: '',
       description: '',
-      dueDate: '',
+      startDate: '',
+      endDate: '',
+      workingHoursStart: '09:00',
+      workingHoursEnd: '17:00',
+      place: '',
       status: 'not-started',
-      completed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     // debug: show new id in console for verification
     console.debug('[VisionBuilder] addMilestone -> id:', newMilestone.id);
@@ -555,8 +560,14 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <input
                         type="date"
-                        value={m.dueDate}
-                        onChange={(e) => updateMilestone(m.id, 'dueDate', e.target.value)}
+                        value={m.startDate}
+                        onChange={(e) => updateMilestone(m.id, 'startDate', e.target.value)}
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      />
+                      <input
+                        type="date"
+                        value={m.endDate}
+                        onChange={(e) => updateMilestone(m.id, 'endDate', e.target.value)}
                         className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       />
                       <select
