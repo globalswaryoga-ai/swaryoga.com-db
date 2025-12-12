@@ -1,15 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { addCartItem, CartCurrency } from '@/lib/cart';
+import { getCurrencyForLanguage } from '@/lib/paymentLinkHelper';
 
-export default function SignUp() {
+export const dynamic = 'force-dynamic';
+
+function SignUpInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect') || '/';
+  const workshop = searchParams.get('workshop') || 'swar-yoga-basic';
+  const mode = searchParams.get('mode') || 'online';
+  const language = searchParams.get('language') || 'hindi';
+
+  const currency = (getCurrencyForLanguage(language) as CartCurrency) || 'INR';
+
+  const workshopDisplayName = workshop
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -31,6 +45,43 @@ export default function SignUp() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
+
+  // Auto-detect user's country based on geolocation
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        const detectedCountry = data.country_name;
+        
+        if (detectedCountry) {
+          setFormData(prev => ({ ...prev, country: detectedCountry }));
+          
+          // Auto-set country code if detected country matches
+          const countryCodeMap: Record<string, string> = {
+            'India': '+91',
+            'United States': '+1',
+            'United Kingdom': '+44',
+            'Australia': '+61',
+            'Nepal': '+977',
+            'Singapore': '+65',
+            'United Arab Emirates': '+971'
+          };
+          
+          if (countryCodeMap[detectedCountry]) {
+            setFormData(prev => ({ ...prev, countryCode: countryCodeMap[detectedCountry] }));
+          }
+        }
+      } catch (error) {
+        // Avoid noisy console logs in production; location detection is best-effort.
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('Could not detect location:', error);
+        }
+      }
+    };
+
+    detectCountry();
+  }, []);
 
   const countryCodes = [
     { code: '+91', country: 'India' },
@@ -118,6 +169,32 @@ export default function SignUp() {
       newErrors.email = 'Please enter a valid email address';
     }
 
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    }
+
+    if (!formData.country) {
+      newErrors.country = 'Country is required';
+    }
+
+    if (!formData.state) {
+      newErrors.state = 'State/Province is required';
+    }
+
+    if (!formData.gender) {
+      newErrors.gender = 'Gender is required';
+    }
+
+    if (!formData.age) {
+      newErrors.age = 'Age is required';
+    } else if (parseInt(formData.age) < 13) {
+      newErrors.age = 'You must be at least 13 years old';
+    }
+
+    if (!formData.profession.trim()) {
+      newErrors.profession = 'Profession is required';
+    }
+
     if (!formData.password.trim()) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
@@ -151,44 +228,70 @@ export default function SignUp() {
 
     try {
       // API call to backend
+      const payload = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        countryCode: formData.countryCode || '+91',
+        country: formData.country.trim(),
+        state: formData.state.trim(),
+        gender: formData.gender.trim(),
+        age: formData.age.toString(),  // Convert to string like curl does
+        profession: formData.profession.trim(),
+        password: formData.password,
+      };
+
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          countryCode: formData.countryCode,
-          country: formData.country,
-          state: formData.state,
-          gender: formData.gender,
-          age: formData.age,
-          profession: formData.profession,
-          password: formData.password,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        throw new Error('Signup failed');
-      }
-
       const data = await response.json();
+      
+      if (!response.ok) {
+        const errorMessage = data.error || 'Signup failed';
+        console.error('❌ Signup error:', errorMessage);
+        setErrors({ general: errorMessage });
+        setSubmitStatus('error');
+        throw new Error(errorMessage);
+      }
       setSubmitStatus('success');
 
-      // Store token in localStorage
+      // Store token and user data in localStorage
       if (data.token) {
         localStorage.setItem('token', data.token);
       }
 
-      // Redirect after success
-      setTimeout(() => {
-        if (redirectPath && redirectPath !== '/') {
-          router.push(redirectPath);
-        } else {
-          router.push('/');
-        }
-      }, 1500);
-    } catch (error) {
+      const storedUser = {
+        id: data.user?.id || '',
+        name: data.user?.name || formData.name.trim(),
+        email: data.user?.email || formData.email.trim(),
+        phone: data.user?.phone || formData.phone.trim(),
+        countryCode: data.user?.countryCode || formData.countryCode || '+91'
+      };
+
+      localStorage.setItem('user', JSON.stringify(storedUser));
+      localStorage.setItem('userName', storedUser.name);
+      localStorage.setItem('userEmail', storedUser.email);
+      localStorage.setItem('userPhone', storedUser.phone);
+      localStorage.setItem('userCountryCode', storedUser.countryCode);
+
+      // Add the workshop to cart so user can pay from cart page
+      addCartItem({
+        id: `${workshop}-${mode}-${language}`,
+        name: `${workshopDisplayName} (${mode.charAt(0).toUpperCase() + mode.slice(1)} - ${language.charAt(0).toUpperCase() + language.slice(1)})`,
+        price: currency === 'USD' ? 29 : 999,
+        quantity: 1,
+        currency,
+        workshop,
+        mode,
+        language,
+      });
+
+      router.push('/cart');
+    } catch (err) {
+      console.error('Sign-up error:', err);
       setErrors({ general: 'An error occurred. Please try again.' });
       setSubmitStatus('error');
     } finally {
@@ -595,5 +698,13 @@ export default function SignUp() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function SignUp() {
+  return (
+    <Suspense fallback={null}>
+      <SignUpInner />
+    </Suspense>
   );
 }

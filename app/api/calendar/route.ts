@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// IMPORTANT:
+// We intentionally keep this API route free of native dependencies.
+// The @bidyashish/panchang package depends on a native swisseph addon which may not bundle cleanly.
+// So we use our in-repo (client-safe) approximation logic as the server source of truth for now.
+import { calculateTithiAccurate } from '@/lib/calendarCalculations';
+
 interface HinduCalendarDate {
   date: string;
   day: string;
   tithi: string;
+  paksha: 'Shukla Paksha' | 'Krishna Paksha';
   nakshatra: string;
   yoga: string;
   karana: string;
@@ -60,15 +67,25 @@ const festivals: Record<string, string[]> = {
   '12-25': ['Christmas']
 };
 
+const DEFAULT_LATITUDE = 28.7041;
+const DEFAULT_LONGITUDE = 77.1025;
+const DEFAULT_TIMEZONE = 5.5;
+
+const parseNumericParam = (value: string | number | null | undefined, fallback: number): number => {
+  if (value === undefined || value === null) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 // Calculate Hindu calendar values based on Gregorian date
 function getHinduCalendarData(date: Date): HinduCalendarDate {
-  // These are simplified calculations
-  // For production, use Prokerala API with your API key from env
-  
   const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 86400000);
-  
-  // Simplified Tithi calculation (lunar day)
-  const tithiIndex = Math.floor((dayOfYear * 0.985) % 15);
+
+  // Use improved moon-phase based approximation from our calendar module.
+  // This is significantly more accurate than the previous day-of-year modulo logic.
+  const tithiData = calculateTithiAccurate(date);
+  const paksha: 'Shukla Paksha' | 'Krishna Paksha' = tithiData.paksha;
+  const tithiIndex = Math.max(1, Math.min(15, tithiData.tithi1to15)) - 1;
   
   // Simplified Nakshatra calculation (lunar mansion)
   const nakshatraIndex = Math.floor((dayOfYear * 0.985) % 27);
@@ -92,7 +109,9 @@ function getHinduCalendarData(date: Date): HinduCalendarDate {
   return {
     date: date.toISOString().split('T')[0],
     day: date.toLocaleDateString('en-US', { weekday: 'long' }),
-    tithi: tithiNames[tithiIndex],
+    // Prefer calculated tithi name if available from accurate algo
+    tithi: tithiData.tithiName || tithiNames[tithiIndex],
+    paksha,
     nakshatra: nakshatraNames[nakshatraIndex],
     yoga: yogaNames[yogaIndex],
     karana: `Karana ${Math.floor((dayOfYear * 0.985) % 60)}`,
@@ -106,7 +125,12 @@ function getHinduCalendarData(date: Date): HinduCalendarDate {
 }
 
 // Call external Hindu Calendar API if API key is provided
-async function fetchFromExternalAPI(date: Date): Promise<HinduCalendarDate | null> {
+async function fetchFromExternalAPI(
+  date: Date,
+  latitude: number,
+  longitude: number,
+  timezone: number
+): Promise<HinduCalendarDate | null> {
   const apiKey = process.env.HINDU_CALENDAR_API_KEY;
   const apiUrl = process.env.HINDU_CALENDAR_API_URL;
   
@@ -114,14 +138,16 @@ async function fetchFromExternalAPI(date: Date): Promise<HinduCalendarDate | nul
     console.log('Hindu Calendar API key not configured, using local calculation');
     return null;
   }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Skipping Hindu Calendar API fetch in non-production environment');
+    return null;
+  }
   
   try {
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const latitude = 28.7041; // Default: Delhi (can be made configurable)
-    const longitude = 77.1025;
-    const timezone = 5.5; // IST
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
     
     const response = await fetch(
       `${apiUrl}?day=${day}&month=${month}&year=${year}&latitude=${latitude}&longitude=${longitude}&timezone=${timezone}`,
@@ -145,6 +171,7 @@ async function fetchFromExternalAPI(date: Date): Promise<HinduCalendarDate | nul
         date: date.toISOString().split('T')[0],
         day: date.toLocaleDateString('en-US', { weekday: 'long' }),
         tithi: data.result.tithi?.name || 'Unknown',
+        paksha: (data.result.tithi?.paksha?.includes('Krishna') ? 'Krishna Paksha' : 'Shukla Paksha'),
         nakshatra: data.result.nakshatra?.name || 'Unknown',
         yoga: data.result.yoga?.name || 'Unknown',
         karana: data.result.karana?.name || 'Unknown',
@@ -182,9 +209,13 @@ export async function GET(request: NextRequest) {
     } else {
       targetDate = new Date();
     }
+
+    const latitude = parseNumericParam(searchParams.get('lat'), DEFAULT_LATITUDE);
+    const longitude = parseNumericParam(searchParams.get('lng'), DEFAULT_LONGITUDE);
+    const timezone = parseNumericParam(searchParams.get('timezone'), DEFAULT_TIMEZONE);
     
     // Try to fetch from external API first
-    let hinduCalendarData = await fetchFromExternalAPI(targetDate);
+    let hinduCalendarData = await fetchFromExternalAPI(targetDate, latitude, longitude, timezone);
     
     // Fallback to local calculation if API not available
     if (!hinduCalendarData) {
@@ -195,6 +226,13 @@ export async function GET(request: NextRequest) {
       {
         success: true,
         data: hinduCalendarData,
+        // Back-compat for older client parsing (expects top-level fields)
+        ...hinduCalendarData,
+        // Also provide a nested tithi object for clearer parsing
+        tithi: {
+          name: hinduCalendarData.tithi,
+          paksha: hinduCalendarData.paksha
+        },
         message: 'Hindu calendar data retrieved successfully'
       },
       { status: 200 }
@@ -211,8 +249,11 @@ export async function GET(request: NextRequest) {
 // POST endpoint to get multiple dates
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { startDate, endDate } = body;
+  const body = await request.json();
+  const { startDate, endDate } = body;
+  const latitude = parseNumericParam(body.latitude, DEFAULT_LATITUDE);
+  const longitude = parseNumericParam(body.longitude, DEFAULT_LONGITUDE);
+  const timezone = parseNumericParam(body.timezone, DEFAULT_TIMEZONE);
     
     if (!startDate || !endDate) {
       return NextResponse.json(
@@ -236,7 +277,7 @@ export async function POST(request: NextRequest) {
     
     while (current <= end) {
       // Try external API first, fallback to local
-      let calendarData = await fetchFromExternalAPI(new Date(current));
+      let calendarData = await fetchFromExternalAPI(new Date(current), latitude, longitude, timezone);
       if (!calendarData) {
         calendarData = getHinduCalendarData(new Date(current));
       }

@@ -64,7 +64,7 @@ export default function AdminLogin() {
         });
         setSubmitStatus('error');
       }
-    } catch (error) {
+    } catch (_err) {
       setErrors({ general: 'An error occurred. Please try again.' });
       setSubmitStatus('error');
     } finally {

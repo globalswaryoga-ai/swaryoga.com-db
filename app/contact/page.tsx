@@ -21,25 +21,38 @@ export default function Contact() {
   // Check if user is signed in and auto-fill form
   useEffect(() => {
     const userToken = localStorage.getItem('token');
-    if (userToken) {
-      try {
-        // Try to get user data from localStorage
-        const userName = localStorage.getItem('userName');
-        const userEmail = localStorage.getItem('userEmail');
-        const userPhone = localStorage.getItem('userPhone');
-        const userCountryCode = localStorage.getItem('userCountryCode');
+    if (!userToken) return;
 
-        setFormData(prev => ({
-          ...prev,
-          name: userName || '',
-          email: userEmail || '',
-          phone: userPhone || '',
-          countryCode: userCountryCode || '+91'
-        }));
+    let userName = '';
+    let userEmail = '';
+    let userPhone = '';
+    let userCountryCode = '';
+
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        userName = parsed.name || '';
+        userEmail = parsed.email || '';
+        userPhone = parsed.phone || '';
+        userCountryCode = parsed.countryCode || '';
       } catch (error) {
-        console.error('Error parsing user data:', error);
+        console.debug('Unable to parse stored user profile:', error);
       }
     }
+
+    userName = userName || localStorage.getItem('userName') || '';
+    userEmail = userEmail || localStorage.getItem('userEmail') || '';
+    userPhone = userPhone || localStorage.getItem('userPhone') || '';
+    userCountryCode = userCountryCode || localStorage.getItem('userCountryCode') || '+91';
+
+    setFormData(prev => ({
+      ...prev,
+      name: userName,
+      email: userEmail,
+      phone: userPhone,
+      countryCode: userCountryCode
+    }));
   }, []);
 
   const countryCodes = [
@@ -171,7 +184,7 @@ export default function Contact() {
       <Navigation />
       <main className="min-h-screen bg-white">
         {/* Hero Section with Background Image */}
-        <section className="relative py-16 sm:py-20 px-4 sm:px-6">
+        <section className="relative h-80 sm:h-96 md:h-[500px] px-4 sm:px-6 flex items-center overflow-hidden">
           <div className="absolute inset-0 z-0">
             <img
               src="https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
@@ -186,7 +199,7 @@ export default function Contact() {
               Get in <span className="text-green-400">Touch</span>
             </h1>
             <p className="text-lg sm:text-xl text-gray-200 leading-relaxed">
-              Have questions? We'd love to hear from you. Reach out anytime!
+              Have questions? We&apos;d love to hear from you. Reach out anytime!
             </p>
           </div>
         </section>
@@ -234,6 +247,9 @@ export default function Contact() {
                 <p className="text-gray-600 text-sm">
                   We typically respond to all inquiries within 24 hours during business days.
                 </p>
+                <p className="text-gray-700 text-sm mt-3">
+                  💬 <strong>Check your responses in your <a href="/profile" className="text-green-600 hover:text-green-700 font-semibold underline">profile messages</a></strong>
+                </p>
               </div>
             </div>
 
@@ -246,7 +262,7 @@ export default function Contact() {
                 {submitStatus === 'success' && (
                   <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3">
                     <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span className="text-green-800">Message sent successfully! We'll get back to you soon.</span>
+                    <span className="text-green-800">Message sent successfully! We&apos;ll get back to you soon.</span>
                   </div>
                 )}
 

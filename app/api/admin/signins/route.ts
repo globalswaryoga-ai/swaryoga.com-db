@@ -1,5 +1,7 @@
-import { connectDB } from '@/lib/db';
+import { connectDB, Signin } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,7 +17,7 @@ export async function GET(req: NextRequest) {
     await connectDB();
     
     // Fetch signin data from database
-    const signins: any[] = [];
+    const signins = await Signin.find().sort({ createdAt: -1 });
 
     return NextResponse.json(signins, { status: 200 });
   } catch (error) {

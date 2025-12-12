@@ -1,10 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { ArrowLeft } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { CartItem, getStoredCart } from '@/lib/cart';
 
-export default function Checkout() {
+export const dynamic = 'force-dynamic';
+
+function CheckoutInner() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -14,44 +22,220 @@ export default function Checkout() {
     city: '',
     state: '',
     zip: '',
-    cardName: '',
-    cardNumber: '',
-    expiry: '',
-    cvv: '',
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const searchParams = useSearchParams();
+  const supportedCurrencies = ['INR', 'USD', 'NPR'] as const;
+  const normalizedQueryCurrency = (searchParams.get('currency') || '').toUpperCase();
+  const isSupportedQueryCurrency = supportedCurrencies.includes(normalizedQueryCurrency as typeof supportedCurrencies[number]);
+  const [selectedCurrency, setSelectedCurrency] = useState<CartItem['currency']>(
+    isSupportedQueryCurrency ? (normalizedQueryCurrency as CartItem['currency']) : 'INR'
+  );
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isCartLoaded, setIsCartLoaded] = useState(false);
+
+  useEffect(() => {
+    const items = getStoredCart();
+    setCartItems(items);
+    setIsCartLoaded(true);
+    if (items.length && !items.some((item) => item.currency === selectedCurrency)) {
+      setSelectedCurrency(items[0].currency);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!cartItems.length || !isSupportedQueryCurrency) return;
+    if (cartItems.some((item) => item.currency === normalizedQueryCurrency) && selectedCurrency !== normalizedQueryCurrency) {
+      setSelectedCurrency(normalizedQueryCurrency as CartItem['currency']);
+    }
+  }, [cartItems, normalizedQueryCurrency, isSupportedQueryCurrency, selectedCurrency]);
+
+  const summaryItems = cartItems.filter((item) => item.currency === selectedCurrency);
+  const summarySubtotal = summaryItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const summaryTax = Number((summarySubtotal * 0.08).toFixed(2));
+  const summaryTotal = Number((summarySubtotal + summaryTax).toFixed(2));
+  const summaryQuantity = summaryItems.reduce((sum, item) => sum + item.quantity, 0);
+  const availableCurrencies = Array.from(new Set(cartItems.map((item) => item.currency)));
+  const currencyOverview = availableCurrencies.map((code) => {
+    const items = cartItems.filter((item) => item.currency === code);
+    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const quantity = items.reduce((sum, item) => sum + item.quantity, 0);
+    return { code, total, quantity };
+  });
+  const hasItemsForSelectedCurrency = summaryItems.length > 0;
+  const showEmptyCartNotice = isCartLoaded && cartItems.length === 0;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setError('');
+  };
+
+  const generateOrderId = () => {
+    return `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
 
     try {
-      // API call will be added here
-      console.log('Checkout with:', formData);
-      // Redirect to thank you page
-      window.location.href = '/thankyou';
-    } catch (error) {
-      console.error('Error processing checkout:', error);
-    } finally {
+      // Validate all required fields
+      if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone ||
+          !formData.address || !formData.city || !formData.state || !formData.zip) {
+        setError('Please fill in all required fields');
+        setLoading(false);
+        return;
+      }
+
+      if (!hasItemsForSelectedCurrency) {
+        setError('Your cart does not have any items for this currency.');
+        setLoading(false);
+        return;
+      }
+
+      // Handle different payment methods
+      if (selectedCurrency === 'NPR') {
+        // For Nepali Rs - Show QR code (user will provide URL)
+        const qrUrl = process.env.NEXT_PUBLIC_NEPALI_QR_URL;
+        if (!qrUrl) {
+          setError('QR payment is not configured. Please use INR or USD.');
+          setLoading(false);
+          return;
+        }
+        // Open QR code in new window
+        window.open(qrUrl, '_blank');
+        setLoading(false);
+        return;
+      }
+
+      const orderId = generateOrderId();
+      const amount = Number(summaryTotal.toFixed(2));
+      const productInfo = summaryItems
+        .map((item) => `${item.name} x${item.quantity}`)
+        .join(', ')
+        .slice(0, 90) || 'Swar Yoga Workshops';
+
+      // Call PayU initiation endpoint for INR and USD
+      const response = await fetch('/api/payments/payu/initiate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: amount,
+          currency: selectedCurrency,
+          productInfo: productInfo,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip,
+          orderId: orderId,
+          successUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/payu/callback`,
+          failureUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/payu/callback`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to initiate payment');
+      }
+
+      const { paymentUrl, params } = await response.json();
+
+      // Create hidden form for PayU submission
+      if (formRef.current) {
+        // Clear previous form if exists
+        const existingForm = document.getElementById('payu-form');
+        if (existingForm) {
+          existingForm.remove();
+        }
+
+        // Create new form
+        const form = document.createElement('form');
+        form.id = 'payu-form';
+        form.method = 'POST';
+        form.action = paymentUrl;
+        form.style.display = 'none';
+
+        // Add all PayU parameters to form
+        Object.entries(params).forEach(([key, value]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = String(value);
+          form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+      }
+      setLoading(false);
+    } catch (err) {
+      console.error('Error processing payment:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process payment. Please try again.');
       setLoading(false);
     }
   };
 
-  const subtotal = 249.97;
-  const tax = 19.98;
-  const shipping = 10;
-  const total = subtotal + tax + shipping;
+  const getCurrencySymbol = (curr: string) => {
+    switch(curr) {
+      case 'INR': return '₹';
+      case 'USD': return '$';
+      case 'NPR': return 'Rs';
+      default: return '₹';
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+
+      const parsed = JSON.parse(storedUser);
+      const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
+      const nameParts = name ? name.split(/\s+/) : [];
+      const [firstName = '', ...rest] = nameParts;
+      const lastName = rest.join(' ');
+
+      setFormData((prev) => ({
+        ...prev,
+        firstName: prev.firstName || firstName,
+        lastName: prev.lastName || lastName,
+        email: prev.email || parsed.email || '',
+        phone: prev.phone || parsed.phone || '',
+      }));
+    } catch (error) {
+      console.error('Failed to load stored user for checkout autofill:', error);
+    }
+  }, []);
 
   return (
     <>
       <Navigation />
       <main className="min-h-screen pt-20">
         <div className="container py-20">
+          <button
+            onClick={() => router.back()}
+            className="mb-6 flex items-center gap-2 text-yoga-600 hover:text-yoga-700 font-semibold transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </button>
+          {showEmptyCartNotice && (
+            <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800">
+              Your cart is empty. Visit the <a href="/workshops" className="underline font-semibold">workshops page</a> to add a program before proceeding to PayU.
+            </div>
+          )}
           <h1 className="text-5xl font-bold mb-12 text-yoga-700">Checkout</h1>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -168,71 +352,84 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                {/* Payment Information */}
+                {/* Payment Information - Currency & Method */}
                 <div className="bg-white rounded-lg shadow-md p-8">
-                  <h2 className="text-2xl font-bold mb-6 text-yoga-700">Payment Information</h2>
-                  
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="md:col-span-2">
-                      <label className="block text-gray-700 font-bold mb-2">Cardholder Name</label>
-                      <input
-                        type="text"
-                        name="cardName"
-                        value={formData.cardName}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="John Doe"
-                      />
-                    </div>
+                  <h2 className="text-2xl font-bold mb-4 text-yoga-700">Payment Method</h2>
+                  {cartItems.length === 0 ? (
+                    <p className="text-gray-600">
+                      Add a workshop to your cart to enable PayU checkout.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-gray-600 mb-3">
+                        Your order will be processed in{' '}
+                        <span className="font-semibold text-yoga-700">{selectedCurrency}</span>. Pick a different currency below if you have multiple payment groups.
+                      </p>
+                      <div className="flex flex-wrap gap-3 mb-4">
+                        {availableCurrencies.map((code) => {
+                          const isActive = code === selectedCurrency;
+                          const overview = currencyOverview.find((entry) => entry.code === code);
+                          return (
+                            <button
+                              key={code}
+                              type="button"
+                              onClick={() => setSelectedCurrency(code as CartItem['currency'])}
+                              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                                isActive
+                                  ? 'bg-yoga-600 text-white border-yoga-600 shadow-md'
+                                  : 'bg-white text-yoga-700 border-yoga-200 hover:border-yoga-400'
+                              }`}
+                            >
+                              {code}
+                              {overview && (
+                                <span className="ml-2 text-xs font-normal">
+                                  ({overview.quantity} item{overview.quantity === 1 ? '' : 's'})
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {selectedCurrency === 'NPR'
+                          ? 'You will receive the configured QR/UPI option for Nepali Rupees.'
+                          : 'Pay via PayU using debit/credit card, net banking, or international options.'}
+                      </div>
+                      {currencyOverview.length > 1 && (
+                        <div className="mt-6 border-t border-gray-200 pt-4">
+                          <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">All payment groups</p>
+                          <div className="space-y-2">
+                            {currencyOverview.map(({ code, total, quantity }) => (
+                              <div key={code} className="flex justify-between text-sm text-gray-600">
+                                <span>{code} • {quantity} item{quantity === 1 ? '' : 's'}</span>
+                                <span className="font-semibold">{getCurrencySymbol(code)}{total.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
 
-                    <div className="md:col-span-2">
-                      <label className="block text-gray-700 font-bold mb-2">Card Number</label>
-                      <input
-                        type="text"
-                        name="cardNumber"
-                        value={formData.cardNumber}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="1234 5678 9012 3456"
-                      />
+                  {error && (
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-6">
+                      {error}
                     </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">Expiry Date</label>
-                      <input
-                        type="text"
-                        name="expiry"
-                        value={formData.expiry}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="MM/YY"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">CVV</label>
-                      <input
-                        type="text"
-                        name="cvv"
-                        value={formData.cvv}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="123"
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full bg-yoga-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-yoga-700 transition disabled:opacity-50"
+                  disabled={loading || !hasItemsForSelectedCurrency}
+                  className={`w-full bg-yoga-600 text-white py-4 rounded-lg font-bold text-lg transition ${
+                    loading || !hasItemsForSelectedCurrency ? 'opacity-50 cursor-not-allowed' : 'hover:bg-yoga-700'
+                  }`}
                 >
-                  {loading ? 'Processing...' : 'Place Order'}
+                  {loading
+                    ? 'Redirecting to PayU...'
+                    : hasItemsForSelectedCurrency
+                      ? `Pay ${getCurrencySymbol(selectedCurrency)}${summaryTotal.toFixed(2)}`
+                      : 'Select a currency with items'}
                 </button>
               </form>
             </div>
@@ -243,34 +440,39 @@ export default function Checkout() {
                 <h2 className="text-2xl font-bold mb-6 text-yoga-700">Order Summary</h2>
                 
                 <div className="space-y-4 mb-6 border-b border-yoga-200 pb-6">
-                  <div className="flex justify-between">
-                    <span className="text-gray-700">Yoga Mat Premium x1</span>
-                    <span className="font-semibold">$99.99</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-700">Meditation Cushion x2</span>
-                    <span className="font-semibold">$99.98</span>
-                  </div>
+                  {hasItemsForSelectedCurrency ? (
+                    summaryItems.map((item) => (
+                      <div key={`${item.id}-${item.currency}`} className="flex justify-between">
+                        <div>
+                          <p className="text-gray-800 font-semibold">{item.name}</p>
+                          <p className="text-xs text-gray-500">Qty {item.quantity}</p>
+                        </div>
+                        <span className="font-semibold">{getCurrencySymbol(selectedCurrency)}{(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No items available for {selectedCurrency}. Switch currency above or return to the cart.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-3 mb-6 border-b border-yoga-200 pb-6">
                   <div className="flex justify-between text-gray-700">
                     <span>Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>{getCurrencySymbol(selectedCurrency)}{summarySubtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-gray-700">
-                    <span>Tax</span>
-                    <span>${tax.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-700">
-                    <span>Shipping</span>
-                    <span>${shipping.toFixed(2)}</span>
+                    <span>Tax (8%)</span>
+                    <span>{getCurrencySymbol(selectedCurrency)}{summaryTax.toFixed(2)}</span>
                   </div>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-xl font-bold text-yoga-700">Total</span>
-                  <span className="text-2xl font-bold text-yoga-600">${total.toFixed(2)}</span>
+                  <span className="text-xl font-bold text-yoga-700">
+                    Total{summaryQuantity ? ` (${summaryQuantity} item${summaryQuantity === 1 ? '' : 's'})` : ''}
+                  </span>
+                  <span className="text-2xl font-bold text-yoga-600">{getCurrencySymbol(selectedCurrency)}{summaryTotal.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -279,5 +481,13 @@ export default function Checkout() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function Checkout() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutInner />
+    </Suspense>
   );
 }

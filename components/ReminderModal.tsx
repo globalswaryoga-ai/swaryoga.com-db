@@ -1,0 +1,85 @@
+'use client';
+
+import React from 'react';
+import { X, Bell } from 'lucide-react';
+import { Reminder } from '@/lib/types/lifePlanner';
+
+interface ReminderModalProps {
+  reminders: Reminder[];
+  onDismiss: (reminderId: string) => void;
+}
+
+export default function ReminderModal({ reminders, onDismiss }: ReminderModalProps) {
+  if (reminders.length === 0) return null;
+
+  const reminder = reminders[0]; // Show one at a time, or could show all in a queue
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 animate-in fade-in slide-in-from-bottom-4">
+        {/* Header with X button */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-full ${
+              reminder.priority === 'high' ? 'bg-red-100' :
+              reminder.priority === 'medium' ? 'bg-orange-100' :
+              'bg-green-100'
+            }`}>
+              <Bell className={`h-6 w-6 ${
+                reminder.priority === 'high' ? 'text-red-600' :
+                reminder.priority === 'medium' ? 'text-orange-600' :
+                'text-green-600'
+              }`} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Reminder</h3>
+              <p className="text-xs text-gray-500">
+                {new Date(reminder.dueDate).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric'
+                })}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onDismiss(reminder.id)}
+            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            aria-label="Close reminder"
+          >
+            <X className="h-6 w-6 text-gray-400 hover:text-gray-600" />
+          </button>
+        </div>
+
+        {/* Reminder Content */}
+        <div className="mb-6">
+          <h4 className="text-xl font-semibold text-gray-900 mb-2">{reminder.title}</h4>
+          {reminder.description && (
+            <p className="text-gray-600 leading-relaxed">{reminder.description}</p>
+          )}
+        </div>
+
+        {/* Metadata */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+            reminder.priority === 'high' ? 'bg-red-100 text-red-700' :
+            reminder.priority === 'medium' ? 'bg-orange-100 text-orange-700' :
+            'bg-green-100 text-green-700'
+          }`}>
+            {reminder.priority.charAt(0).toUpperCase() + reminder.priority.slice(1)} Priority
+          </span>
+          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+            {reminder.frequency.charAt(0).toUpperCase() + reminder.frequency.slice(1)}
+          </span>
+        </div>
+
+        {/* Close Button */}
+        <button
+          onClick={() => onDismiss(reminder.id)}
+          className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-3 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all"
+        >
+          Got it ✓
+        </button>
+      </div>
+    </div>
+  );
+}

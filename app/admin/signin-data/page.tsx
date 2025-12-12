@@ -8,10 +8,17 @@ import AdminSidebar from '@/components/AdminSidebar';
 interface SigninLog {
   _id: string;
   email: string;
-  ipAddress: string;
-  userAgent: string;
-  loginTime: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt?: string;
+  loginTime?: string;
 }
+
+const formatSigninTimestamp = (timestamp?: string) => {
+  if (!timestamp) return 'N/A';
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString();
+};
 
 export default function SigninData() {
   const router = useRouter();
@@ -65,7 +72,12 @@ export default function SigninData() {
     const csv = [
       ['Email', 'IP Address', 'User Agent', 'Login Time'].join(','),
       ...signinData.map(log =>
-        [log.email, log.ipAddress, log.userAgent, new Date(log.loginTime).toLocaleString()].join(',')
+        [
+          log.email,
+          log.ipAddress ?? 'N/A',
+          log.userAgent ?? 'N/A',
+          formatSigninTimestamp(log.createdAt ?? log.loginTime)
+        ].join(',')
       )
     ].join('\n');
 
@@ -151,9 +163,11 @@ export default function SigninData() {
                     {signinData.map((log, index) => (
                       <tr key={log._id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="px-6 py-4 text-sm text-gray-800">{log.email}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{log.ipAddress}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600 truncate max-w-xs">{log.userAgent}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(log.loginTime).toLocaleString()}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{log.ipAddress ?? 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 truncate max-w-xs">{log.userAgent ?? 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {formatSigninTimestamp(log.createdAt ?? log.loginTime)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

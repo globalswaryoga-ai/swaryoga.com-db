@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, User } from '@/lib/db';
+import { connectDB, User, Signin } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
@@ -40,8 +40,38 @@ export async function POST(request: NextRequest) {
       email: user.email,
     });
 
+    // Log signin attempt
+    try {
+      const signin = new Signin({
+        email: user.email,
+        userId: user._id,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+        userAgent: request.headers.get('user-agent'),
+      });
+      await signin.save();
+    } catch (signinError) {
+      console.error('Error logging signin:', signinError);
+      // Don't fail the login if signin logging fails
+    }
+
     return NextResponse.json(
-      { message: 'Login successful', token, user: { id: user._id, name: user.name, email: user.email } },
+      { 
+        message: 'Login successful', 
+        token, 
+        user: { 
+          id: user._id, 
+          profileId: user.profileId,
+          name: user.name, 
+          email: user.email,
+          phone: user.phone,
+          country: user.country,
+          state: user.state,
+          gender: user.gender,
+          age: user.age,
+          profession: user.profession,
+          profileImage: user.profileImage
+        } 
+      },
       { status: 200 }
     );
   } catch (error) {

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogIn, MessageSquare, X } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -34,6 +34,24 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       label: 'Contact Messages',
       href: '/admin/contact-messages',
       color: 'text-orange-600'
+    },
+    {
+      icon: Mail,
+      label: 'Workshop Enquiries',
+      href: '/admin/enquiries',
+      color: 'text-pink-600'
+    },
+    {
+      icon: Gift,
+      label: 'Send Offers',
+      href: '/admin/offers',
+      color: 'text-red-600'
+    },
+    {
+      icon: Calculator,
+      label: 'Accounting',
+      href: '/admin/accounting',
+      color: 'text-indigo-600'
     }
   ];
 

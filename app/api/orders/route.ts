@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,18 +49,29 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    const userId = request.nextUrl.searchParams.get('userId');
-
-    if (!userId) {
+    
+    // Verify token
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
-    const orders = await Order.find({ userId });
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token);
+    
+    if (!decoded || !decoded.userId) {
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      );
+    }
 
-    return NextResponse.json({ orders }, { status: 200 });
+    const orders = await Order.find({ userId: decoded.userId }).sort({ createdAt: -1 });
+
+    return NextResponse.json(orders, { status: 200 });
   } catch (error) {
     console.error('Fetch orders error:', error);
     return NextResponse.json(

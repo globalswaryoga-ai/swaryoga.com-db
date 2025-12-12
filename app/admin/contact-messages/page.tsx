@@ -9,8 +9,10 @@ interface ContactMessage {
   _id: string;
   name: string;
   email: string;
+  phone?: string;
   subject: string;
   message: string;
+  status?: string;
   isRead: boolean;
   createdAt: string;
 }
@@ -24,6 +26,9 @@ export default function ContactMessages() {
   const [error, setError] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [replySubject, setReplySubject] = useState('');
+  const [replyMessage, setReplyMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const adminToken = localStorage.getItem('adminToken');
@@ -83,7 +88,51 @@ export default function ContactMessages() {
 
   const handleViewMessage = (msg: ContactMessage) => {
     setSelectedMessage(msg);
+    setReplySubject(`Re: ${msg.subject}`);
+    setReplyMessage('');
     setShowModal(true);
+  };
+
+  const handleSendReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMessage || !replyMessage.trim()) return;
+
+    setSubmitting(true);
+    const adminToken = localStorage.getItem('adminToken');
+
+    try {
+      const response = await fetch('/api/admin/reply-contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          contactId: selectedMessage._id,
+          userEmail: selectedMessage.email,
+          subject: replySubject || `Re: ${selectedMessage.subject}`,
+          reply: replyMessage,
+        }),
+      });
+
+      if (response.ok) {
+        alert('Reply sent successfully!');
+        setReplyMessage('');
+        setReplySubject('');
+        setShowModal(false);
+        setSelectedMessage(null);
+        // Refresh messages
+        fetchMessages();
+      } else {
+        const error = await response.json();
+        alert('Failed to send reply: ' + (error.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error sending reply:', error);
+      alert('Error sending reply');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleMarkAsRead = async (id: string) => {
@@ -264,6 +313,55 @@ export default function ContactMessages() {
                   <label className="text-sm font-medium text-gray-600">Date</label>
                   <p className="mt-1 text-gray-800">{new Date(selectedMessage.createdAt).toLocaleString()}</p>
                 </div>
+                {selectedMessage.phone && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Phone</label>
+                    <p className="mt-1 text-gray-800">{selectedMessage.phone}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Reply Form */}
+              <div className="mt-6 border-t pt-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Send Reply</h3>
+                <form onSubmit={handleSendReply} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Subject
+                    </label>
+                    <input
+                      type="text"
+                      value={replySubject}
+                      onChange={(e) => setReplySubject(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Reply subject..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Your Reply Message
+                    </label>
+                    <textarea
+                      value={replyMessage}
+                      onChange={(e) => setReplyMessage(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={5}
+                      placeholder="Type your reply message here..."
+                      required
+                    />
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors font-medium"
+                    >
+                      {submitting ? 'Sending...' : 'Send Reply'}
+                    </button>
+                  </div>
+                </form>
               </div>
 
               <div className="mt-6 flex space-x-3">

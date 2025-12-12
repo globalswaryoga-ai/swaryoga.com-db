@@ -1,278 +1,52 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowRight, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import { workshopCatalog, WorkshopOverview } from '@/lib/workshopsData';
 
-interface Workshop {
-  id: number;
-  name: string;
-  slug: string;
-  image: string;
-  description: string;
-  duration: string;
-  level: string;
-  category: string;
-  mode?: string[];
-  language?: string[];
-  currency?: string[];
-  batches?: Batch[];
-}
+export const dynamic = 'force-dynamic';
 
-interface Batch {
-  id: string;
-  startDate: string;
-  mode: string;
-  language: string;
-  status: 'open' | 'closed';
-  price: number;
-  currency: string;
-}
+const workshopFilterOptions = workshopCatalog.map((workshop) => ({
+  slug: workshop.slug,
+  name: workshop.name
+}));
 
-export default function WorkshopsPage() {
+function WorkshopsPageInner() {
   const [currentPage, setCurrentPage] = useState(1);
   const workshopsPerPage = 3;
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedWorkshop, setSelectedWorkshop] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const queryString = searchParams?.toString() ?? '';
+  const totalWorkshops = workshopCatalog.length;
+  const activeWorkshopLabel = selectedWorkshop
+    ? workshopCatalog.find((workshop) => workshop.slug === selectedWorkshop)?.name
+    : null;
 
   useEffect(() => {
     if (!searchParams) return;
-    setSelectedMode(searchParams.get('mode') || null);
-    setSelectedLanguage(searchParams.get('language') || null);
-    setSelectedPayment(searchParams.get('currency') || null);
-    setSelectedCategory(searchParams.get('category') || null);
+  setSelectedMode(searchParams.get('mode') || null);
+  setSelectedLanguage(searchParams.get('language') || null);
+  setSelectedPayment(searchParams.get('currency') || null);
+  setSelectedWorkshop(searchParams.get('workshop') || null);
     setCurrentPage(1);
   }, [queryString, searchParams]);
 
-  const workshops: Workshop[] = [
-    {
-      id: 1,
-      name: 'Swar Yoga Basic Workshop',
-      slug: 'swar-yoga-basic',
-      image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
-      description: 'Foundation of Swar Yoga practice',
-      duration: '3 days',
-      level: 'Beginner',
-      category: 'Swar Yoga',
-      mode: ['Online', 'Offline', 'Residential'],
-      language: ['Hindi', 'English', 'Marathi'],
-      currency: ['INR', 'USD', 'NPR'],
-      batches: [
-        { id: 'b1', startDate: '19th Dec 2025', mode: 'Online', language: 'Hindi', status: 'open', price: 2999, currency: 'INR' },
-        { id: 'b2', startDate: '22nd Dec 2025', mode: 'Offline', language: 'English', status: 'open', price: 3499, currency: 'INR' },
-        { id: 'b3', startDate: '25th Dec 2025', mode: 'Residential', language: 'Marathi', status: 'closed', price: 4999, currency: 'INR' },
-        { id: 'b4', startDate: '2nd Jan 2026', mode: 'Online', language: 'Hindi', status: 'open', price: 2999, currency: 'INR' }
-      ]
-    },
-    {
-      id: 2,
-      name: 'Swar Yoga Level-1 Workshop',
-      slug: 'swar-yoga-level-1',
-      image: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
-      description: 'First level comprehensive Swar Yoga training',
-      duration: '15 days',
-      level: 'Beginner',
-      category: 'Swar Yoga',
-      mode: ['Online', 'Residential'],
-      language: ['Hindi', 'English'],
-      currency: ['INR', 'USD'],
-      batches: [
-        { id: 'b1', startDate: '20th Dec 2025', mode: 'Online', language: 'Hindi', status: 'open', price: 9999, currency: 'INR' },
-        { id: 'b2', startDate: '5th Jan 2026', mode: 'Residential', language: 'English', status: 'open', price: 12999, currency: 'INR' },
-        { id: 'b3', startDate: '15th Jan 2026', mode: 'Online', language: 'English', status: 'closed', price: 9999, currency: 'INR' }
-      ]
-    },
-    {
-      id: 3,
-      name: 'Swar Yoga Youth Program',
-      slug: 'swar-yoga-youth',
-      image: 'https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg',
-      description: 'Specially designed for young practitioners',
-      duration: '10 days',
-      level: 'Beginner',
-      category: 'Youth',
-      mode: ['Online', 'Offline'],
-      language: ['Hindi', 'English', 'Marathi'],
-      currency: ['INR', 'NPR']
-    },
-    {
-      id: 4,
-      name: 'Weight Loss Program',
-      slug: 'weight-loss-program',
-      image: 'https://images.pexels.com/photos/1624365/pexels-photo-1624365.jpeg',
-      description: 'Transform your body through Swar Yoga',
-      duration: '90 days',
-      level: 'Intermediate',
-      category: 'Health',
-      mode: ['Online', 'Offline', 'Recorded'],
-      language: ['Hindi', 'English'],
-      currency: ['INR', 'USD']
-    },
-    {
-      id: 5,
-      name: 'Meditation Program',
-      slug: 'meditation-program',
-      image: 'https://images.pexels.com/photos/3807517/pexels-photo-3807517.jpeg',
-      description: 'Deep meditation and mindfulness training',
-      duration: '15 days',
-      level: 'All Levels',
-      category: 'Health',
-      mode: ['Online', 'Offline', 'Residential'],
-      language: ['Hindi', 'English', 'Marathi'],
-      currency: ['INR', 'NPR', 'USD']
-    },
-    {
-      id: 6,
-      name: 'Amrut Aahar (Natural Diet) Program',
-      slug: 'amrut-aahar-diet',
-      image: 'https://images.pexels.com/photos/3807507/pexels-photo-3807507.jpeg',
-      description: 'Complete natural diet and nutrition guidance',
-      duration: '45 days',
-      level: 'All Levels',
-      category: 'Health',
-      mode: ['Online', 'Offline'],
-      language: ['Hindi', 'Marathi'],
-      currency: ['INR']
-    },
-    {
-      id: 7,
-      name: 'Swar Yoga Level-2 Wealth Program',
-      slug: 'swar-yoga-level-2-wealth',
-      image: 'https://images.pexels.com/photos/3873033/pexels-photo-3873033.jpeg',
-      description: 'Advanced Swar Yoga for wealth creation and prosperity',
-      duration: '15 days',
-      level: 'Intermediate',
-      category: 'Swar Yoga',
-      mode: ['Online', 'Residential'],
-      language: ['Hindi'],
-      currency: ['INR']
-    },
-    {
-      id: 8,
-      name: 'Astavakra Dhyan Program (L-3)',
-      slug: 'astavakra-dhyan-level-3',
-      image: 'https://images.pexels.com/photos/3807516/pexels-photo-3807516.jpeg',
-      description: 'Level-3 advanced meditation and wisdom',
-      duration: '10 days',
-      level: 'Advanced',
-      category: 'Swar Yoga',
-      mode: ['Residential'],
-      language: ['Hindi', 'English'],
-      currency: ['INR', 'USD']
-    },
-    {
-      id: 9,
-      name: 'Pre Pregnancy Program',
-      slug: 'pre-pregnancy-program',
-      image: 'https://images.pexels.com/photos/3807521/pexels-photo-3807521.jpeg',
-      description: 'Safe yoga practice for expecting mothers',
-      duration: '36 days (2 days/week)',
-      level: 'All Levels',
-      category: 'Health',
-      mode: ['Online', 'Offline'],
-      language: ['Hindi', 'English', 'Marathi'],
-      currency: ['INR', 'NPR']
-    },
-    {
-      id: 10,
-      name: 'Swar Yoga Children Program',
-      slug: 'swar-yoga-children',
-      image: 'https://images.pexels.com/photos/3807518/pexels-photo-3807518.jpeg',
-      description: 'Yoga training for children and teenagers',
-      duration: '10 days',
-      level: 'Beginner',
-      category: 'Youth',
-      mode: ['Offline', 'Online'],
-      language: ['Hindi', 'English', 'Marathi'],
-      currency: ['INR']
-    },
-    {
-      id: 11,
-      name: 'Complete Health Program',
-      slug: 'complete-health-program',
-      image: 'https://images.pexels.com/photos/3807519/pexels-photo-3807519.jpeg',
-      description: 'Holistic cure for BP, diabetes, heart, liver, kidney, migraine & hormonal balance',
-      duration: '45 days',
-      level: 'All Levels',
-      category: 'Health',
-      mode: ['Online', 'Offline', 'Recorded'],
-      language: ['Hindi', 'English', 'Marathi'],
-      currency: ['INR', 'USD', 'NPR']
-    },
-    {
-      id: 12,
-      name: 'Business Swar Yoga - Plan & Earn',
-      slug: 'business-swar-yoga-earn',
-      image: 'https://images.pexels.com/photos/3807520/pexels-photo-3807520.jpeg',
-      description: 'Business opportunity and personal development',
-      duration: '60 days (2 days/week)',
-      level: 'Intermediate',
-      category: 'Corporate',
-      mode: ['Online'],
-      language: ['Hindi', 'English'],
-      currency: ['INR', 'USD']
-    },
-    {
-      id: 13,
-      name: 'Corporate Swar Yoga - Management',
-      slug: 'corporate-swar-yoga-management',
-      image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
-      description: 'Stress management and productivity for corporate professionals',
-      duration: '10 days',
-      level: 'Intermediate',
-      category: 'Corporate',
-      mode: ['Online', 'Offline'],
-      language: ['English', 'Hindi'],
-      currency: ['INR', 'USD']
-    },
-    {
-      id: 14,
-      name: 'Self Awareness - Level-4',
-      slug: 'self-awareness-level-4',
-      image: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
-      description: 'Ultimate self-discovery and spiritual transformation',
-      duration: '30 days',
-      level: 'Advanced',
-      category: 'Swar Yoga',
-      mode: ['Residential'],
-      language: ['Hindi', 'English'],
-      currency: ['INR', 'USD', 'NPR']
-    },
-    {
-      id: 15,
-      name: 'Happy Married Life',
-      slug: 'happy-married-life',
-      image: 'https://images.pexels.com/photos/3807512/pexels-photo-3807512.jpeg',
-      description: 'Transform your married life with Swar Yoga techniques',
-      duration: '36 days (2 days/week)',
-      level: 'All Levels',
-      category: 'Health',
-      mode: ['Online', 'Offline'],
-      language: ['Hindi', 'English', 'Marathi'],
-      currency: ['INR', 'USD', 'NPR'],
-      batches: [
-        { id: 'b1', startDate: '10th Jan 2026', mode: 'Online', language: 'Hindi', status: 'open', price: 7999, currency: 'INR' },
-        { id: 'b2', startDate: '24th Jan 2026', mode: 'Offline', language: 'English', status: 'open', price: 8999, currency: 'INR' },
-        { id: 'b3', startDate: '7th Feb 2026', mode: 'Online', language: 'Marathi', status: 'closed', price: 7999, currency: 'INR' }
-      ]
-    }
-  ];
-
   // Filter workshops based on selected filters
-  const filteredWorkshops = workshops.filter((workshop) => {
-    const categoryMatch = !selectedCategory || workshop.category === selectedCategory;
+  const filteredWorkshops = workshopCatalog.filter((workshop: WorkshopOverview) => {
+    const workshopMatch = !selectedWorkshop || workshop.slug === selectedWorkshop;
     const modeMatch = !selectedMode || (workshop.mode && workshop.mode.includes(selectedMode));
     const languageMatch = !selectedLanguage || (workshop.language && workshop.language.includes(selectedLanguage));
     const currencyMatch = !selectedPayment || (workshop.currency && workshop.currency.includes(selectedPayment));
-    
-    return categoryMatch && modeMatch && languageMatch && currencyMatch;
+
+    return workshopMatch && modeMatch && languageMatch && currencyMatch;
   });
 
   const totalPages = Math.ceil(filteredWorkshops.length / workshopsPerPage);
@@ -285,12 +59,15 @@ export default function WorkshopsPage() {
       <Navigation />
       <main>
         {/* Hero Section */}
-        <section className="relative h-96 md:h-screen flex items-center overflow-hidden mt-20">
+        <section className="relative min-h-[60vh] flex items-center overflow-hidden mt-20">
           <div className="absolute inset-0 z-0">
-            <img
+            <Image
               src="https://images.pexels.com/photos/3807512/pexels-photo-3807512.jpeg"
               alt="Workshops hero"
-              className="w-full h-full object-cover"
+              fill
+              priority
+              className="object-cover"
+              sizes="100vw"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/40" />
           </div>
@@ -308,7 +85,7 @@ export default function WorkshopsPage() {
               </div>
 
               <p className="text-lg md:text-xl text-gray-200 leading-relaxed max-w-2xl mb-8">
-                Choose from 12 comprehensive workshops designed to elevate your yoga practice and transform your life through the science of breath.
+                Choose from {totalWorkshops} comprehensive workshops designed to elevate your yoga practice and transform your life through the science of breath.
               </p>
 
               <Link
@@ -336,31 +113,41 @@ export default function WorkshopsPage() {
 
             {/* Filters Section */}
             <div className="bg-white rounded-xl shadow-lg p-8 mb-12">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6">Filter Workshops</h3>
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-700">Filter Our Workshops</h3>
+                <p className="text-sm text-gray-500">Find the perfect workshop for your yoga journey</p>
+              </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Our Workshop Filter Dropdown */}
                 <div>
-                  <label className="block text-lg font-semibold text-gray-700 mb-3">Our Workshop</label>
+                  <label className="block text-lg font-semibold text-gray-700 mb-3">Our Workshops</label>
                   <select
-                    value={selectedCategory || ''}
-                    onChange={(e) => setSelectedCategory(e.target.value || null)}
+                    value={selectedWorkshop || ''}
+                    onChange={(e) => {
+                      setSelectedWorkshop(e.target.value || null);
+                      setCurrentPage(1);
+                    }}
                     className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300"
                   >
                     <option value="">All Workshops</option>
-                    <option value="Swar Yoga">Swar Yoga Programs</option>
-                    <option value="Health">Health & Wellness</option>
-                    <option value="Corporate">Corporate Programs</option>
-                    <option value="Youth">Youth Programs</option>
+                    {workshopFilterOptions.map((option) => (
+                      <option key={option.slug} value={option.slug}>
+                        {option.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 {/* Mode Filter Dropdown */}
                 <div>
-                  <label className="block text-lg font-semibold text-gray-700 mb-3">Mode of Learning</label>
+                  <label className="block text-lg font-semibold text-gray-700 mb-3">Mode</label>
                   <select
                     value={selectedMode || ''}
-                    onChange={(e) => setSelectedMode(e.target.value || null)}
+                    onChange={(e) => {
+                      setSelectedMode(e.target.value || null);
+                      setCurrentPage(1);
+                    }}
                     className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300"
                   >
                     <option value="">All Modes</option>
@@ -376,7 +163,10 @@ export default function WorkshopsPage() {
                   <label className="block text-lg font-semibold text-gray-700 mb-3">Language</label>
                   <select
                     value={selectedLanguage || ''}
-                    onChange={(e) => setSelectedLanguage(e.target.value || null)}
+                    onChange={(e) => {
+                      setSelectedLanguage(e.target.value || null);
+                      setCurrentPage(1);
+                    }}
                     className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300"
                   >
                     <option value="">All Languages</option>
@@ -388,34 +178,71 @@ export default function WorkshopsPage() {
 
                 {/* Payment Currency Filter Dropdown */}
                 <div>
-                  <label className="block text-lg font-semibold text-gray-700 mb-3">Payment Currency</label>
+                  <label className="block text-lg font-semibold text-gray-700 mb-3">Currency</label>
                   <select
                     value={selectedPayment || ''}
-                    onChange={(e) => setSelectedPayment(e.target.value || null)}
+                    onChange={(e) => {
+                      setSelectedPayment(e.target.value || null);
+                      setCurrentPage(1);
+                    }}
                     className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300"
                   >
                     <option value="">All Currencies</option>
-                    <option value="INR">₹ INR (Indian Rupee)</option>
-                    <option value="USD">$ USD (US Dollar)</option>
-                    <option value="NPR">Rs NPR (Nepali Rupee)</option>
+                    <option value="INR">₹ INR</option>
+                    <option value="USD">$ USD</option>
+                    <option value="NPR">Rs NPR</option>
                   </select>
                 </div>
               </div>
 
               {/* Clear Filters Button */}
-              {(selectedMode || selectedLanguage || selectedPayment || selectedCategory) && (
+              <div className="mt-6">
+                  {(selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) ? (
+                    <button
+                      onClick={() => {
+                        setSelectedMode(null);
+                        setSelectedLanguage(null);
+                        setSelectedPayment(null);
+                        setSelectedWorkshop(null);
+                        setCurrentPage(1);
+                      }}
+                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300"
+                    >
+                      ✕ Clear
+                    </button>
+                  ) : null}
+                </div>
+
+              {/* Filter Summary */}
+              {(selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
-                  <button
-                    onClick={() => {
-                      setSelectedMode(null);
-                      setSelectedLanguage(null);
-                      setSelectedPayment(null);
-                      setSelectedCategory(null);
-                    }}
-                    className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105"
-                  >
-                    ✕ Clear All Filters
-                  </button>
+                  <p className="text-gray-700 font-semibold mb-3">Active Filters:</p>
+                  <div className="flex flex-wrap gap-3">
+                    {activeWorkshopLabel && (
+                      <span className="inline-flex items-center gap-2 bg-primary-100 text-primary-700 px-4 py-2 rounded-full font-semibold">
+                        📚 {activeWorkshopLabel}
+                        <button onClick={() => setSelectedWorkshop(null)} className="hover:text-primary-900">✕</button>
+                      </span>
+                    )}
+                    {selectedMode && (
+                      <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full font-semibold">
+                        🎯 {selectedMode}
+                        <button onClick={() => setSelectedMode(null)} className="hover:text-blue-900">✕</button>
+                      </span>
+                    )}
+                    {selectedLanguage && (
+                      <span className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full font-semibold">
+                        🗣️ {selectedLanguage}
+                        <button onClick={() => setSelectedLanguage(null)} className="hover:text-green-900">✕</button>
+                      </span>
+                    )}
+                    {selectedPayment && (
+                      <span className="inline-flex items-center gap-2 bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full font-semibold">
+                        💰 {selectedPayment}
+                        <button onClick={() => setSelectedPayment(null)} className="hover:text-yellow-900">✕</button>
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -429,10 +256,12 @@ export default function WorkshopsPage() {
                 >
                   {/* Workshop Image */}
                   <div className="relative h-64 md:h-72 overflow-hidden bg-gray-200">
-                    <img
+                    <Image
                       src={workshop.image}
                       alt={workshop.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      fill
+                      className="object-cover group-hover:scale-110 transition-transform duration-500"
+                      sizes="(min-width: 768px) 33vw, 100vw"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
@@ -545,5 +374,13 @@ export default function WorkshopsPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function WorkshopsPage() {
+  return (
+    <Suspense fallback={null}>
+      <WorkshopsPageInner />
+    </Suspense>
   );
 }

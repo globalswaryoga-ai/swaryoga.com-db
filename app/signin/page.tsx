@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 
-export default function SignIn() {
+export const dynamic = 'force-dynamic';
+
+function SignInInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect') || '/';
@@ -66,9 +68,28 @@ export default function SignIn() {
       const data = await response.json();
       setSubmitStatus('success');
 
-      // Store token in localStorage
+      // Store token and user data in localStorage
       if (data.token) {
         localStorage.setItem('token', data.token);
+      }
+      if (data.user) {
+        const storedUser = {
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          phone: data.user.phone || '',
+          countryCode: data.user.countryCode || '+91'
+        };
+
+        localStorage.setItem('user', JSON.stringify(storedUser));
+        localStorage.setItem('userName', storedUser.name);
+        localStorage.setItem('userEmail', storedUser.email);
+        if (storedUser.phone) {
+          localStorage.setItem('userPhone', storedUser.phone);
+        }
+        if (storedUser.countryCode) {
+          localStorage.setItem('userCountryCode', storedUser.countryCode);
+        }
       }
 
       // Redirect after success
@@ -79,7 +100,8 @@ export default function SignIn() {
           router.push('/');
         }
       }, 1500);
-    } catch (error) {
+    } catch (err) {
+      console.error('Sign-in error:', err);
       setErrors({ general: 'Invalid email or password. Please try again.' });
       setSubmitStatus('error');
     } finally {
@@ -253,5 +275,13 @@ export default function SignIn() {
       </main>
       <Footer />
     </>
+  );
+}
+
+export default function SignIn() {
+  return (
+    <Suspense fallback={null}>
+      <SignInInner />
+    </Suspense>
   );
 }

@@ -8,45 +8,113 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Primary Green (Nature & Wellness)
+        // ===== SWAR YOGA WELLNESS PALETTE (Global Design Standards) =====
+        
+        // PRIMARY: Forest Green (Healing, Growth, Trust, Nature)
+        // Used for: Main UI, navigation, headers, primary CTAs
+        'forest-green': {
+          50: '#e8f5e9',
+          100: '#c8e6c9',
+          200: '#a5d6a7',
+          300: '#81c784',
+          400: '#66bb6a',
+          500: '#2D6A4F', // PRIMARY - Tetradic balance
+          600: '#259d4d',
+          700: '#1b7e4a',
+          800: '#155e47',
+          900: '#0d4437',
+          950: '#05342a',
+        },
+        
+        // SECONDARY: Teal (Calm, Clarity, Tranquility, Water)
+        // Used for: Secondary buttons, links, calm sections, accents
+        'teal-accent': {
+          50: '#e0f7f6',
+          100: '#b3e5e2',
+          200: '#80d4ce',
+          300: '#4dc3ba',
+          400: '#4ECDC4', // SECONDARY - Tetradic balance
+          500: '#35b8a9',
+          600: '#2a9b93',
+          700: '#1f7d7d',
+          800: '#156768',
+          900: '#0b4f52',
+          950: '#052c2e',
+        },
+        
+        // ACCENT: Coral-Rose (Energy, Vitality, Prana, Life Force)
+        // Used for: Important CTAs, alerts, motivation, energy sections
+        'coral-rose': {
+          50: '#ffe8e0',
+          100: '#ffc9ba',
+          200: '#ffaa94',
+          300: '#ff8b6e',
+          400: '#E07B69', // ACCENT - Tetradic balance
+          500: '#d66b58',
+          600: '#cc5b47',
+          700: '#b84a36',
+          800: '#a43a25',
+          900: '#902a14',
+          950: '#7c1f09',
+        },
+        
+        // BASE: Earth Brown (Stability, Grounding, Trust, Foundation)
+        // Used for: Body text, base elements, grounding accents
+        'earth-brown': {
+          50: '#f5f5f0',
+          100: '#e8e0d5',
+          200: '#d4c4b0',
+          300: '#bfa88b',
+          400: '#a78c66',
+          500: '#6F4E37', // BASE - Tetradic balance
+          600: '#664132',
+          700: '#56362d',
+          800: '#462b28',
+          900: '#362023',
+          950: '#2b181d',
+        },
+        
+        // NEUTRALS: Cream & White (Light, Clean, Professional)
+        'cream': '#f5f5f0',
+        'off-white': '#fafaf8',
+        
+        // ===== LEGACY SUPPORT (For compatibility) =====
         primary: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          200: '#bbf7d0',
-          300: '#86efac',
-          400: '#4ade80',
-          500: '#22c55e', // Main Green
-          600: '#16a34a',
-          700: '#15803d',
-          800: '#166534',
-          900: '#145231',
-          950: '#0c2818',
+          50: '#e8f5e9',
+          100: '#c8e6c9',
+          200: '#a5d6a7',
+          300: '#81c784',
+          400: '#66bb6a',
+          500: '#2D6A4F', // Mapped to Forest Green
+          600: '#259d4d',
+          700: '#1b7e4a',
+          800: '#155e47',
+          900: '#0d4437',
+          950: '#05342a',
         },
-        // Secondary Teal (Ocean & Calm)
         secondary: {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6', // Teal Accent
-          600: '#0d9488',
-          700: '#0f766e',
-          800: '#155e75',
-          900: '#134e4a',
+          50: '#e0f7f6',
+          100: '#b3e5e2',
+          200: '#80d4ce',
+          300: '#4dc3ba',
+          400: '#4ECDC4', // Mapped to Teal
+          500: '#35b8a9',
+          600: '#2a9b93',
+          700: '#1f7d7d',
+          800: '#156768',
+          900: '#0b4f52',
         },
-        // Accent Gold (Warmth & Prosperity)
         accent: {
-          50: '#fefce8',
-          100: '#fef9c3',
-          200: '#fef08a',
-          300: '#fde047',
-          400: '#facc15',
-          500: '#eab308', // Gold Accent
-          600: '#ca8a04',
-          700: '#a16207',
-          800: '#854d0e',
-          900: '#713f12',
+          50: '#ffe8e0',
+          100: '#ffc9ba',
+          200: '#ffaa94',
+          300: '#ff8b6e',
+          400: '#E07B69', // Mapped to Coral-Rose
+          500: '#d66b58',
+          600: '#cc5b47',
+          700: '#b84a36',
+          800: '#a43a25',
+          900: '#902a14',
         },
         // Neutral (Professional Look)
         neutral: {
