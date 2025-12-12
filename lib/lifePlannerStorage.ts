@@ -10,15 +10,16 @@ import {
   DiamondPerson,
 } from '@/lib/types/lifePlanner';
 
+// Unified storage keys - using consistent naming
 const STORAGE_KEYS = {
-  visions: 'lifeplanner_visions',
-  goals: 'lifeplanner_goals',
-  tasks: 'lifeplanner_tasks',
-  todos: 'lifeplanner_todos',
-  words: 'lifeplanner_words',
-  reminders: 'lifeplanner_reminders',
-  healthRoutines: 'lifeplanner_health_routines',
-  diamondPeople: 'lifeplanner_diamond_people',
+  visions: 'swar-life-planner-visions',  // Changed to match existing key
+  goals: 'swar-life-planner-goals',
+  tasks: 'swar-life-planner-tasks',
+  todos: 'swar-life-planner-todos',
+  words: 'swar-life-planner-words',
+  reminders: 'swar-life-planner-reminders',
+  healthRoutines: 'swar-life-planner-health-routines',
+  diamondPeople: 'swar-life-planner-diamond-people',
 };
 
 export const lifePlannerStorage = {

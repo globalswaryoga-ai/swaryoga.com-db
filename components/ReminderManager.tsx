@@ -31,6 +31,7 @@ export default function ReminderManager({
     dueDate: new Date().toISOString().split('T')[0],
     dueTime: '11:00',
     budget: undefined,
+    category: 'life',
     frequency: 'once',
     priority: 'medium',
     active: true,
@@ -46,6 +47,7 @@ export default function ReminderManager({
       dueDate: new Date().toISOString().split('T')[0],
       dueTime: '11:00',
       budget: undefined,
+      category: 'life',
       frequency: 'once',
       priority: 'medium',
       active: true,
@@ -86,6 +88,7 @@ export default function ReminderManager({
       dueDate: reminder.dueDate,
       dueTime: reminder.dueTime,
       budget: reminder.budget,
+      category: reminder.category,
       frequency: reminder.frequency,
       priority: reminder.priority,
       active: reminder.active,
@@ -288,6 +291,34 @@ export default function ReminderManager({
                   step="0.01"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      category: e.target.value as any
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="life">🌍 Life</option>
+                  <option value="health">💪 Health</option>
+                  <option value="wealth">💰 Wealth</option>
+                  <option value="success">🏆 Success</option>
+                  <option value="respect">👑 Respect</option>
+                  <option value="pleasure">😊 Pleasure</option>
+                  <option value="prosperity">✨ Prosperity</option>
+                  <option value="luxuries">💎 Luxuries</option>
+                  <option value="good-habits">🌟 Good Habits</option>
+                  <option value="self-sadhana">🧘 Self Sadhana</option>
+                </select>
               </div>
 
               {/* Frequency, Priority, Active */}

@@ -15,7 +15,7 @@ export interface Todo {
   imageUrl: string;
   createdAt: string;
   completed: boolean;
-  category: 'work' | 'personal' | 'health' | 'learning' | 'family';
+  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
 }
 
 interface TodoFormProps {
@@ -34,7 +34,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
     time: initialData?.time || '',
     estimatedMinutes: initialData?.estimatedMinutes || 30,
     imageUrl: initialData?.imageUrl || '',
-    category: initialData?.category || 'personal' as const
+    category: initialData?.category || 'life' as const
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -165,11 +165,16 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
           onChange={handleChange}
           className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
         >
-          <option value="work">💼 Work</option>
-          <option value="personal">👤 Personal</option>
-          <option value="health">💪 Health</option>
-          <option value="learning">📚 Learning</option>
-          <option value="family">👨‍👩‍👧‍👦 Family</option>
+          <option value="life">🌍 Life</option>
+          <option value="health">� Health</option>
+          <option value="wealth">� Wealth</option>
+          <option value="success">🏆 Success</option>
+          <option value="respect">👑 Respect</option>
+          <option value="pleasure">� Pleasure</option>
+          <option value="prosperity">✨ Prosperity</option>
+          <option value="luxuries">💎 Luxuries</option>
+          <option value="good-habits">🌟 Good Habits</option>
+          <option value="self-sadhana">🧘 Self Sadhana</option>
         </select>
       </div>
 

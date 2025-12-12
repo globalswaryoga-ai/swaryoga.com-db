@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Plus, Trash2, Eye } from 'lucide-react';
 import { Vision, Milestone, Reminder, Goal, Task, Todo, Word, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
@@ -38,6 +38,21 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
   });
 
   const [showCategoryImageEditor, setShowCategoryImageEditor] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const objectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setPreviewUrl(formData.imageUrl || '');
+  }, [formData.imageUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (vision) {
@@ -79,6 +94,16 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
   const handleCategoryImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target;
     setFormData(prev => ({ ...prev, categoryImageUrl: value }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    setPreviewUrl(url);
+    setFormData(prev => ({ ...prev, imageUrl: url }));
   };
 
   const handleAddMilestone = () => {
@@ -241,11 +266,22 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="https://example.com/image.jpg"
             />
-            {formData.imageUrl && (
+            {(previewUrl || formData.imageUrl) && (
               <div className="mt-3 rounded-lg overflow-hidden h-40 border border-gray-300">
-                <img src={formData.imageUrl} alt="Custom Vision" className="w-full h-full object-cover" onError={() => {}} />
+                <img
+                  src={previewUrl || formData.imageUrl}
+                  alt="Custom Vision"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = 'https://via.placeholder.com/400x200?text=Image+Not+Found';
+                  }}
+                />
               </div>
             )}
+            <div className="mt-2">
+              <label className="block text-xs text-gray-500 mb-1">Or upload an image</label>
+              <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm" />
+            </div>
             <p className="text-xs text-gray-500 mt-2">💡 If you add a custom image, both images will be used in different contexts</p>
           </div>
 

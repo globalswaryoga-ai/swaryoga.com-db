@@ -12,11 +12,12 @@ export interface Goal {
   startDate: string;
   endDate: string;
   amount: string;
-  category: 'health' | 'wealth' | 'education' | 'career' | 'relationships' | 'spirituality';
+  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
   imageUrl: string;
   createdAt: string;
   completed: boolean;
   priority: 'high' | 'medium' | 'low';
+  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold' | 'cancelled';
 }
 
 interface GoalFormProps {
@@ -36,7 +37,8 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
     amount: initialData?.amount || '',
     category: initialData?.category || 'health' as const,
     imageUrl: initialData?.imageUrl || '',
-    priority: initialData?.priority || 'medium' as const
+    priority: initialData?.priority || 'medium' as const,
+    status: initialData?.status || 'not-started' as const
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -88,6 +90,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
       category: formData.category,
       imageUrl: formData.imageUrl,
       priority: formData.priority,
+      status: formData.status,
       createdAt: initialData?.createdAt || new Date().toISOString(),
       completed: initialData?.completed || false
     };
@@ -173,15 +176,40 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
             onChange={handleChange}
             className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           >
+            <option value="life">🌍 Life</option>
             <option value="health">💪 Health</option>
             <option value="wealth">💰 Wealth</option>
-            <option value="education">📚 Education</option>
-            <option value="career">💼 Career</option>
-            <option value="relationships">❤️ Relationships</option>
-            <option value="spirituality">🧘 Spirituality</option>
+            <option value="success">🏆 Success</option>
+            <option value="respect">👑 Respect</option>
+            <option value="pleasure">� Pleasure</option>
+            <option value="prosperity">✨ Prosperity</option>
+            <option value="luxuries">💎 Luxuries</option>
+            <option value="good-habits">🌟 Good Habits</option>
+            <option value="self-sadhana">🧘 Self Sadhana</option>
           </select>
         </div>
 
+        <div>
+          <label className="block text-sm font-semibold text-gray-900 mb-2">
+            Status
+          </label>
+          <select
+            name="status"
+            value={formData.status}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          >
+            <option value="not-started">📋 Not Started</option>
+            <option value="in-progress">⏳ In Progress</option>
+            <option value="completed">✅ Completed</option>
+            <option value="on-hold">⏸️ On Hold</option>
+            <option value="cancelled">❌ Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Priority Grid */}
+      <div className="grid grid-cols-1 gap-4">
         <div>
           <label className="block text-sm font-semibold text-gray-900 mb-2">
             Priority

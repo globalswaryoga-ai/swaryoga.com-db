@@ -11,6 +11,7 @@ export interface Task {
   goalTitle?: string; // Display goal title
   startDate: string;
   endDate: string;
+  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
   priority: 'high' | 'medium' | 'low';
   imageUrl: string;
   createdAt: string;
@@ -32,6 +33,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
     goalId: initialData?.goalId || '',
     startDate: initialData?.startDate || '',
     endDate: initialData?.endDate || '',
+    category: initialData?.category || 'life' as const,
     priority: initialData?.priority || 'medium' as const,
     imageUrl: initialData?.imageUrl || '',
     progress: initialData?.progress || 0
@@ -82,6 +84,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
       goalTitle: selectedGoal?.title || undefined,
       startDate: formData.startDate,
       endDate: formData.endDate,
+      category: formData.category,
       priority: formData.priority,
       imageUrl: formData.imageUrl,
       progress: formData.progress,
@@ -172,6 +175,30 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
           <option value="high">🔴 High - Urgent</option>
           <option value="medium">🟡 Medium - Important</option>
           <option value="low">🟢 Low - Can Wait</option>
+        </select>
+      </div>
+
+      {/* Category */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-900 mb-2">
+          Category
+        </label>
+        <select
+          name="category"
+          value={formData.category}
+          onChange={handleChange}
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+        >
+          <option value="life">🌍 Life</option>
+          <option value="health">💪 Health</option>
+          <option value="wealth">💰 Wealth</option>
+          <option value="success">🏆 Success</option>
+          <option value="respect">👑 Respect</option>
+          <option value="pleasure">😊 Pleasure</option>
+          <option value="prosperity">✨ Prosperity</option>
+          <option value="luxuries">💎 Luxuries</option>
+          <option value="good-habits">🌟 Good Habits</option>
+          <option value="self-sadhana">🧘 Self Sadhana</option>
         </select>
       </div>
 

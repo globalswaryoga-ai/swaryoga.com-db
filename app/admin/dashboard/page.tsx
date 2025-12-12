@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LayoutDashboard, Users, LogOut, Menu, X, TrendingUp, ShoppingCart, DollarSign } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
+import ServerStatus from '@/components/ServerStatus';
 
 interface DashboardData {
   totalUsers: number;
@@ -120,6 +121,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex items-center space-x-4">
+              <ServerStatus />
               <div className="text-right">
                 <p className="text-sm text-gray-600">Welcome back</p>
                 <p className="font-semibold text-gray-800 capitalize">{adminUser}</p>

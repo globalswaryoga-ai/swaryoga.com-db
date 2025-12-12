@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
 import { Vision, Milestone, Goal, Task, Todo, Word, Reminder } from '@/lib/types/lifePlanner';
 
@@ -12,9 +12,16 @@ interface VisionBuilderProps {
 
 const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, onCancel }) => {
   const [activeTab, setActiveTab] = useState<'vision' | 'milestones' | 'goals' | 'tasks' | 'todos' | 'words' | 'reminders'>('vision');
+  const [uniqueCounter, setUniqueCounter] = useState(0);
+  
+  const generateUniqueId = () => {
+    const newCounter = uniqueCounter + 1;
+    setUniqueCounter(newCounter);
+    return `${Date.now()}-${newCounter}`;
+  };
   const [vision, setVision] = useState<Vision>(
     initialVision || {
-      id: Date.now().toString(),
+      id: generateUniqueId(),
       title: '',
       description: '',
       startDate: '',
@@ -49,15 +56,43 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
     onSave({ ...vision, updatedAt: new Date().toISOString() });
   };
 
+  const [previewUrl, setPreviewUrl] = useState<string>(vision.imageUrl || '');
+  const objectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setPreviewUrl(vision.imageUrl || '');
+  }, [vision.imageUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    setPreviewUrl(url);
+    setVision(prev => ({ ...prev, imageUrl: url }));
+  };
+
   const addMilestone = () => {
     const newMilestone: Milestone = {
-      id: Date.now().toString(),
+      id: generateUniqueId(),
       title: '',
       description: '',
       dueDate: '',
       status: 'not-started',
       completed: false,
     };
+    // debug: show new id in console for verification
+    console.debug('[VisionBuilder] addMilestone -> id:', newMilestone.id);
     setVision(prev => ({
       ...prev,
       milestones: [...prev.milestones, newMilestone],
@@ -82,7 +117,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
   const addGoal = () => {
     const newGoal: Goal = {
-      id: Date.now().toString(),
+      id: generateUniqueId(),
       title: '',
       description: '',
       startDate: '',
@@ -93,6 +128,8 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    // debug: show new id in console for verification
+    console.debug('[VisionBuilder] addGoal -> id:', newGoal.id);
     setVision(prev => ({
       ...prev,
       goals: [...prev.goals, newGoal],
@@ -117,7 +154,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
   const addTask = () => {
     const newTask: Task = {
-      id: Date.now().toString(),
+      id: generateUniqueId(),
       title: '',
       description: '',
       startDate: new Date().toISOString().split('T')[0],
@@ -128,6 +165,8 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    // debug: show new id in console for verification
+    console.debug('[VisionBuilder] addTask -> id:', newTask.id);
     setVision(prev => ({
       ...prev,
       tasks: [...prev.tasks, newTask],
@@ -152,7 +191,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
   const addTodo = () => {
     const newTodo: Todo = {
-      id: Date.now().toString(),
+      id: generateUniqueId(),
       title: '',
       description: '',
       startDate: new Date().toISOString().split('T')[0],
@@ -162,6 +201,8 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    // debug: show new id in console for verification
+    console.debug('[VisionBuilder] addTodo -> id:', newTodo.id);
     setVision(prev => ({
       ...prev,
       todos: [...prev.todos, newTodo],
@@ -186,7 +227,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
   const addWord = () => {
     const newWord: Word = {
-      id: Date.now().toString(),
+      id: generateUniqueId(),
       title: '',
       content: '',
       category: 'Mantra',
@@ -194,6 +235,8 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    // debug: show new id in console for verification
+    console.debug('[VisionBuilder] addWord -> id:', newWord.id);
     setVision(prev => ({
       ...prev,
       words: [...prev.words, newWord],
@@ -218,11 +261,12 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
   const addReminder = () => {
     const newReminder: Reminder = {
-      id: Date.now().toString(),
+      id: generateUniqueId(),
       title: '',
       description: '',
       startDate: new Date().toISOString().split('T')[0],
       dueDate: '',
+      category: 'life',
       frequency: 'once',
       priority: 'medium',
       active: true,
@@ -230,6 +274,8 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    // debug: show new id in console for verification
+    console.debug('[VisionBuilder] addReminder -> id:', newReminder.id);
     setVision(prev => ({
       ...prev,
       reminders: [...prev.reminders, newReminder],
@@ -253,28 +299,28 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-8 flex items-center justify-between">
-          <h1 className="text-3xl sm:text-4xl font-black text-white">
+        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 sm:p-6 md:p-8 flex items-center justify-between gap-3">
+          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white truncate">
             {initialVision ? '✏️ Edit Vision' : '🌟 Create New Vision'}
           </h1>
           <button
             onClick={onCancel}
-            className="p-3 hover:bg-white/20 rounded-full transition"
+            className="p-2 sm:p-3 hover:bg-white/20 rounded-full transition flex-shrink-0"
           >
-            <X className="h-6 w-6 text-white" />
+            <X className="h-5 sm:h-6 w-5 sm:w-6 text-white" />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50">
+        {/* Tabs - Scrollable on mobile */}
+        <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50 scrollbar-hide">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-shrink-0 px-4 sm:px-6 py-3 font-bold transition-all whitespace-nowrap ${
+              className={`flex-shrink-0 px-2 sm:px-4 md:px-6 py-2 sm:py-3 text-xs sm:text-sm md:text-base font-bold transition-all whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-white border-b-4 border-purple-600 text-purple-600'
                   : 'text-gray-600 hover:text-gray-900'
@@ -286,70 +332,144 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Vision Tab */}
             {activeTab === 'vision' && (
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <label className="block text-lg font-bold text-gray-900 mb-3">
+                  <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">
                     Vision Title (BIG AND BOLD)
                   </label>
                   <input
                     type="text"
                     value={vision.title}
                     onChange={(e) => setVision({ ...vision, title: e.target.value })}
-                    className="w-full px-6 py-4 border-3 border-gray-300 rounded-2xl text-2xl font-bold focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-lg sm:text-2xl font-bold focus:outline-none focus:border-purple-600"
                     placeholder="e.g., Master Advanced Yoga & Transform Life"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-lg font-bold text-gray-900 mb-3">
+                  <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">
                     Vision Image URL
                   </label>
-                  <input
-                    type="url"
-                    value={vision.imageUrl || ''}
-                    onChange={(e) => setVision({ ...vision, imageUrl: e.target.value })}
-                    className="w-full px-6 py-4 border-3 border-gray-300 rounded-2xl text-lg focus:outline-none focus:border-purple-600"
-                    placeholder="https://..."
-                  />
-                  {vision.imageUrl && (
-                    <img src={vision.imageUrl} alt="Preview" className="mt-4 w-full h-60 object-cover rounded-2xl" />
+                  <div className="space-y-3 sm:space-y-4">
+                    <input
+                      type="url"
+                      value={vision.imageUrl || ''}
+                      onChange={(e) => setVision({ ...vision, imageUrl: e.target.value })}
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      placeholder="https://example.com/image.jpg"
+                    />
+                    <div className="text-xs sm:text-sm text-gray-600 bg-blue-50 p-2 sm:p-3 rounded-lg border-l-4 border-blue-400">
+                      💡 Paste a URL and the preview will appear below. Or upload an image file.
+                    </div>
+                    <div>
+                      <label className="block text-xs sm:text-sm text-gray-500 mb-2 font-semibold">Upload Image File</label>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleFileChange} 
+                        className="text-xs sm:text-sm px-3 sm:px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg w-full cursor-pointer hover:border-purple-600 transition" 
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Image Preview */}
+                  {(previewUrl || vision.imageUrl) && (
+                    <div className="mt-4 sm:mt-6 space-y-2 sm:space-y-3">
+                      <div className="text-xs sm:text-sm font-bold text-gray-700">📸 Preview</div>
+                      <div className="relative bg-gray-100 rounded-lg sm:rounded-2xl overflow-hidden border-2 sm:border-3 border-gray-200 shadow-lg">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={previewUrl || vision.imageUrl || ''}
+                          alt="Vision Preview"
+                          className="w-full h-40 sm:h-64 object-cover"
+                          onError={(e) => {
+                            const img = e.currentTarget as HTMLImageElement;
+                            img.style.display = 'none';
+                            const container = img.parentElement;
+                            if (container) {
+                              const errorMsg = container.querySelector('[data-error-msg]') as HTMLDivElement;
+                              if (errorMsg) {
+                                errorMsg.style.display = 'flex';
+                              }
+                            }
+                          }}
+                          onLoad={(e) => {
+                            const img = e.currentTarget as HTMLImageElement;
+                            const container = img.parentElement;
+                            if (container) {
+                              const errorMsg = container.querySelector('[data-error-msg]') as HTMLDivElement;
+                              if (errorMsg) {
+                                errorMsg.style.display = 'none';
+                              }
+                            }
+                          }}
+                        />
+                        
+                        {/* Error Message */}
+                        <div
+                          data-error-msg
+                          className="absolute inset-0 flex flex-col items-center justify-center bg-red-50 text-red-600 p-4"
+                          style={{ display: 'flex' }}
+                        >
+                          <div className="text-2xl sm:text-4xl mb-2">❌</div>
+                          <div className="text-center text-xs sm:text-sm font-bold">
+                            Image could not be loaded
+                          </div>
+                          <div className="text-xs text-red-500 mt-1">
+                            Check if the URL is correct and accessible
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        ℹ️ Image URL: {vision.imageUrl ? vision.imageUrl.substring(0, 40) + '...' : 'File upload'}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Empty State */}
+                  {!previewUrl && !vision.imageUrl && (
+                    <div className="mt-4 sm:mt-6 p-4 sm:p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg sm:rounded-2xl border-2 border-dashed border-purple-200 text-center">
+                      <div className="text-3xl sm:text-5xl mb-2">🖼️</div>
+                      <div className="text-xs sm:text-sm font-bold text-gray-700">No Image Yet</div>
+                      <div className="text-xs text-gray-600 mt-1">Paste a URL or upload a file to see preview</div>
+                    </div>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-lg font-bold text-gray-900 mb-3">
+                  <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">
                     Description
                   </label>
                   <textarea
                     value={vision.description}
                     onChange={(e) => setVision({ ...vision, description: e.target.value })}
-                    rows={5}
-                    className="w-full px-6 py-4 border-3 border-gray-300 rounded-2xl text-lg focus:outline-none focus:border-purple-600"
+                    rows={4}
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                     placeholder="Describe your big vision in detail..."
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                   <div>
-                    <label className="block text-lg font-bold text-gray-900 mb-3">Category</label>
+                    <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">Category</label>
                     <input
                       type="text"
                       value={vision.category || ''}
                       onChange={(e) => setVision({ ...vision, category: e.target.value as any })}
-                      className="w-full px-6 py-4 border-3 border-gray-300 rounded-2xl text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       placeholder="e.g., Health, Wealth, Personal"
                     />
                   </div>
                   <div>
-                    <label className="block text-lg font-bold text-gray-900 mb-3">Priority</label>
+                    <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">Priority</label>
                     <select
                       value={vision.priority || 'medium'}
                       onChange={(e) => setVision({ ...vision, priority: e.target.value as any })}
-                      className="w-full px-6 py-4 border-3 border-gray-300 rounded-2xl text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                     >
                       <option value="low">🟢 Low</option>
                       <option value="medium">🟡 Medium</option>
@@ -358,33 +478,33 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                   <div>
-                    <label className="block text-lg font-bold text-gray-900 mb-3">Start Date</label>
+                    <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">Start Date</label>
                     <input
                       type="date"
                       value={vision.startDate}
                       onChange={(e) => setVision({ ...vision, startDate: e.target.value })}
-                      className="w-full px-6 py-4 border-3 border-gray-300 rounded-2xl text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                     />
                   </div>
                   <div>
-                    <label className="block text-lg font-bold text-gray-900 mb-3">End Date</label>
+                    <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">End Date</label>
                     <input
                       type="date"
                       value={vision.endDate}
                       onChange={(e) => setVision({ ...vision, endDate: e.target.value })}
-                      className="w-full px-6 py-4 border-3 border-gray-300 rounded-2xl text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-lg font-bold text-gray-900 mb-3">Status</label>
+                  <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">Status</label>
                   <select
                     value={vision.status || 'not-started'}
                     onChange={(e) => setVision({ ...vision, status: e.target.value as any })}
-                    className="w-full px-6 py-4 border-3 border-gray-300 rounded-2xl text-lg focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                   >
                     <option value="not-started">⏳ Not Started</option>
                     <option value="in-progress">⚡ In Progress</option>
@@ -397,52 +517,52 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
             {/* Milestones Tab */}
             {activeTab === 'milestones' && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-6">
                 <button
                   type="button"
                   onClick={addMilestone}
-                  className="w-full flex items-center justify-center gap-3 bg-purple-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-purple-700 transition"
+                  className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-purple-600 text-white px-4 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-2xl font-bold text-sm sm:text-lg hover:bg-purple-700 transition"
                 >
-                  <Plus className="h-6 w-6" />
+                  <Plus className="h-5 sm:h-6 w-5 sm:w-6" />
                   Add Milestone
                 </button>
                 {vision.milestones.map((m, idx) => (
-                  <div key={m.id} className="bg-purple-50 border-3 border-purple-200 rounded-2xl p-6 space-y-4">
+                  <div key={m.id} className="bg-purple-50 border-2 sm:border-3 border-purple-200 rounded-lg sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-2xl font-bold text-purple-900">Milestone {idx + 1}</h3>
+                      <h3 className="text-lg sm:text-2xl font-bold text-purple-900">Milestone {idx + 1}</h3>
                       <button
                         type="button"
                         onClick={() => deleteMilestone(m.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
                       >
-                        <Trash2 className="h-6 w-6" />
+                        <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
                     </div>
                     <input
                       type="text"
                       value={m.title}
                       onChange={(e) => updateMilestone(m.id, 'title', e.target.value)}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       placeholder="Milestone title"
                     />
                     <textarea
                       value={m.description || ''}
                       onChange={(e) => updateMilestone(m.id, 'description', e.target.value)}
                       rows={3}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       placeholder="Description"
                     />
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <input
                         type="date"
                         value={m.dueDate}
                         onChange={(e) => updateMilestone(m.id, 'dueDate', e.target.value)}
-                        className="px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-purple-600"
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       />
                       <select
                         value={m.status}
                         onChange={(e) => updateMilestone(m.id, 'status', e.target.value)}
-                        className="px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-purple-600"
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       >
                         <option value="not-started">⏳ Not Started</option>
                         <option value="in-progress">⚡ In Progress</option>
@@ -456,86 +576,117 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
             {/* Goals Tab */}
             {activeTab === 'goals' && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-6">
                 <button
                   type="button"
                   onClick={addGoal}
-                  className="w-full flex items-center justify-center gap-3 bg-pink-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-pink-700 transition"
+                  className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-pink-600 text-white px-4 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-2xl font-bold text-sm sm:text-lg hover:bg-pink-700 transition"
                 >
-                  <Plus className="h-6 w-6" />
+                  <Plus className="h-5 sm:h-6 w-5 sm:w-6" />
                   Add Goal
                 </button>
                 {vision.goals.map((g, idx) => (
-                  <div key={g.id} className="bg-pink-50 border-3 border-pink-200 rounded-2xl p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-2xl font-bold text-pink-900">Goal {idx + 1}</h3>
+                  <div key={g.id} className="bg-pink-50 border-2 sm:border-3 border-pink-200 rounded-lg sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
+                    <div className="flex items-center justify-between mb-2 sm:mb-4">
+                      <h3 className="text-lg sm:text-2xl font-bold text-pink-900">Goal {idx + 1}</h3>
                       <button
                         type="button"
                         onClick={() => deleteGoal(g.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
                       >
-                        <Trash2 className="h-6 w-6" />
+                        <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
                     </div>
+
+                    {/* Goal Title */}
                     <input
                       type="text"
                       value={g.title}
                       onChange={(e) => updateGoal(g.id, 'title', e.target.value)}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-pink-600"
-                      placeholder="Goal title"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-pink-600"
+                      placeholder="Goal title (e.g., Complete Advanced Certification)"
                     />
+
+                    {/* Goal Description */}
                     <textarea
                       value={g.description}
                       onChange={(e) => updateGoal(g.id, 'description', e.target.value)}
-                      rows={3}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-pink-600"
-                      placeholder="Goal description"
+                      rows={2}
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-pink-600"
+                      placeholder="Describe your goal in detail..."
                     />
-                    <div className="grid grid-cols-2 gap-4">
+
+                    {/* Dates & Budget */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-sm font-bold text-gray-700 mb-1 block">Start Date</label>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
                         <input
                           type="date"
                           value={g.startDate}
                           onChange={(e) => updateGoal(g.id, 'startDate', e.target.value)}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-bold text-gray-700 mb-1 block">Priority</label>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Target Date</label>
+                        <input
+                          type="date"
+                          value={g.targetDate}
+                          onChange={(e) => updateGoal(g.id, 'targetDate', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">💰 Budget</label>
+                        <input
+                          type="number"
+                          value={g.budget || ''}
+                          onChange={(e) => updateGoal(g.id, 'budget', e.target.value ? parseFloat(e.target.value) : undefined)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                          placeholder="Amount"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Priority, Status, Progress */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Priority</label>
                         <select
                           value={g.priority}
                           onChange={(e) => updateGoal(g.id, 'priority', e.target.value)}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
                         >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
+                          <option value="low">🟢 Low</option>
+                          <option value="medium">🟡 Medium</option>
+                          <option value="high">🔴 High</option>
                         </select>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <input
-                        type="date"
-                        value={g.startDate}
-                        onChange={(e) => updateGoal(g.id, 'startDate', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600"
-                      />
-                      <input
-                        type="date"
-                        value={g.targetDate}
-                        onChange={(e) => updateGoal(g.id, 'targetDate', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600"
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={g.progress}
-                        onChange={(e) => updateGoal(g.id, 'progress', parseInt(e.target.value))}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600"
-                        placeholder="Progress %"
-                      />
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Status</label>
+                        <select
+                          value={g.status}
+                          onChange={(e) => updateGoal(g.id, 'status', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                        >
+                          <option value="not-started">⏳ Not Started</option>
+                          <option value="in-progress">⚡ In Progress</option>
+                          <option value="completed">✅ Completed</option>
+                          <option value="on-hold">⏸️ On Hold</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Progress %</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={g.progress}
+                          onChange={(e) => updateGoal(g.id, 'progress', parseInt(e.target.value) || 0)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                          placeholder="0-100"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -544,68 +695,98 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
             {/* Tasks Tab */}
             {activeTab === 'tasks' && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-6">
                 <button
                   type="button"
                   onClick={addTask}
-                  className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition"
+                  className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-blue-600 text-white px-4 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-2xl font-bold text-sm sm:text-lg hover:bg-blue-700 transition"
                 >
-                  <Plus className="h-6 w-6" />
+                  <Plus className="h-5 sm:h-6 w-5 sm:w-6" />
                   Add Task
                 </button>
                 {vision.tasks.map((t, idx) => (
-                  <div key={t.id} className="bg-blue-50 border-3 border-blue-200 rounded-2xl p-6 space-y-4">
+                  <div key={t.id} className="bg-blue-50 border-2 sm:border-3 border-blue-200 rounded-lg sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-2xl font-bold text-blue-900">Task {idx + 1}</h3>
+                      <h3 className="text-lg sm:text-2xl font-bold text-blue-900">Task {idx + 1}</h3>
                       <button
                         type="button"
                         onClick={() => deleteTask(t.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
                       >
-                        <Trash2 className="h-6 w-6" />
+                        <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
                     </div>
                     <input
                       type="text"
                       value={t.title}
                       onChange={(e) => updateTask(t.id, 'title', e.target.value)}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-blue-600"
-                      placeholder="Task title"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-blue-600"
+                      placeholder="Task title (e.g., Research providers)"
                     />
                     <textarea
                       value={t.description || ''}
                       onChange={(e) => updateTask(t.id, 'description', e.target.value)}
-                      rows={3}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-blue-600"
-                      placeholder="Task description"
+                      rows={2}
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-blue-600"
+                      placeholder="Task description..."
                     />
-                    <div className="grid grid-cols-3 gap-4">
-                      <input
-                        type="date"
-                        value={t.dueDate}
-                        onChange={(e) => updateTask(t.id, 'dueDate', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
-                      />
-                      <select
-                        value={t.priority}
-                        onChange={(e) => updateTask(t.id, 'priority', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
-                      >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                      </select>
-                      <select
-                        value={t.status}
-                        onChange={(e) => updateTask(t.id, 'status', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600"
-                      >
-                        <option value="not-started">Not Started</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="pending">Pending</option>
-                        <option value="overdue">Overdue</option>
-                      </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
+                        <input
+                          type="date"
+                          value={t.startDate}
+                          onChange={(e) => updateTask(t.id, 'startDate', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Due Date</label>
+                        <input
+                          type="date"
+                          value={t.dueDate}
+                          onChange={(e) => updateTask(t.id, 'dueDate', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">💰 Budget</label>
+                        <input
+                          type="number"
+                          value={t.budget || ''}
+                          onChange={(e) => updateTask(t.id, 'budget', e.target.value ? parseFloat(e.target.value) : undefined)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          placeholder="Amount"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Priority</label>
+                        <select
+                          value={t.priority}
+                          onChange={(e) => updateTask(t.id, 'priority', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                        >
+                          <option value="low">🟢 Low</option>
+                          <option value="medium">🟡 Medium</option>
+                          <option value="high">🔴 High</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Status</label>
+                        <select
+                          value={t.status}
+                          onChange={(e) => updateTask(t.id, 'status', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                        >
+                          <option value="not-started">⏳ Not Started</option>
+                          <option value="in-progress">⚡ In Progress</option>
+                          <option value="completed">✅ Completed</option>
+                          <option value="pending">⏳ Pending</option>
+                          <option value="overdue">⚠️ Overdue</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -614,66 +795,81 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
             {/* Todos Tab */}
             {activeTab === 'todos' && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-6">
                 <button
                   type="button"
                   onClick={addTodo}
-                  className="w-full flex items-center justify-center gap-3 bg-orange-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-orange-700 transition"
+                  className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-orange-600 text-white px-4 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-2xl font-bold text-sm sm:text-lg hover:bg-orange-700 transition"
                 >
-                  <Plus className="h-6 w-6" />
+                  <Plus className="h-5 sm:h-6 w-5 sm:w-6" />
                   Add Todo
                 </button>
                 {vision.todos.map((to, idx) => (
-                  <div key={to.id} className="bg-orange-50 border-3 border-orange-200 rounded-2xl p-6 space-y-4">
+                  <div key={to.id} className="bg-orange-50 border-2 sm:border-3 border-orange-200 rounded-lg sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-2xl font-bold text-orange-900">Todo {idx + 1}</h3>
+                      <h3 className="text-lg sm:text-2xl font-bold text-orange-900">Todo {idx + 1}</h3>
                       <button
                         type="button"
                         onClick={() => deleteTodo(to.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
                       >
-                        <Trash2 className="h-6 w-6" />
+                        <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
                     </div>
                     <input
                       type="text"
                       value={to.title}
                       onChange={(e) => updateTodo(to.id, 'title', e.target.value)}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-orange-600"
-                      placeholder="Todo title"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-orange-600"
+                      placeholder="Todo title (e.g., Call provider)"
                     />
                     <textarea
                       value={to.description || ''}
                       onChange={(e) => updateTodo(to.id, 'description', e.target.value)}
                       rows={2}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-orange-600"
-                      placeholder="Todo description"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-orange-600"
+                      placeholder="Todo description..."
                     />
-                    <div className="grid grid-cols-2 gap-4">
-                      <input
-                        type="date"
-                        value={to.dueDate}
-                        onChange={(e) => updateTodo(to.id, 'dueDate', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600"
-                      />
-                      <select
-                        value={to.priority}
-                        onChange={(e) => updateTodo(to.id, 'priority', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600"
-                      >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                      </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
+                        <input
+                          type="date"
+                          value={to.startDate}
+                          onChange={(e) => updateTodo(to.id, 'startDate', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Due Date</label>
+                        <input
+                          type="date"
+                          value={to.dueDate}
+                          onChange={(e) => updateTodo(to.id, 'dueDate', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Priority</label>
+                        <select
+                          value={to.priority}
+                          onChange={(e) => updateTodo(to.id, 'priority', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
+                        >
+                          <option value="low">🟢 Low</option>
+                          <option value="medium">🟡 Medium</option>
+                          <option value="high">🔴 High</option>
+                        </select>
+                      </div>
                     </div>
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={to.completed}
                         onChange={(e) => updateTodo(to.id, 'completed', e.target.checked)}
-                        className="w-5 h-5"
+                        className="w-4 sm:w-5 h-4 sm:h-5"
                       />
-                      <span className="font-bold text-gray-900">Mark as completed</span>
+                      <span className="font-bold text-gray-900 text-sm sm:text-base">Mark as completed</span>
                     </label>
                   </div>
                 ))}
@@ -682,58 +878,71 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
             {/* Words Tab */}
             {activeTab === 'words' && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-6">
                 <button
                   type="button"
                   onClick={addWord}
-                  className="w-full flex items-center justify-center gap-3 bg-yellow-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-yellow-700 transition"
+                  className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-yellow-600 text-white px-4 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-2xl font-bold text-sm sm:text-lg hover:bg-yellow-700 transition"
                 >
-                  <Plus className="h-6 w-6" />
-                  Add Word
+                  <Plus className="h-5 sm:h-6 w-5 sm:w-6" />
+                  Add Word/Mantra
                 </button>
                 {vision.words.map((w, idx) => (
-                  <div key={w.id} className="bg-yellow-50 border-3 border-yellow-200 rounded-2xl p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-2xl font-bold text-yellow-900">Word {idx + 1}</h3>
+                  <div key={w.id} className="bg-yellow-50 border-2 sm:border-3 border-yellow-200 rounded-lg sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
+                    <div className="flex items-center justify-between mb-2 sm:mb-4">
+                      <h3 className="text-lg sm:text-2xl font-bold text-yellow-900">Word {idx + 1}</h3>
                       <button
                         type="button"
                         onClick={() => deleteWord(w.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
                       >
-                        <Trash2 className="h-6 w-6" />
+                        <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
                     </div>
                     <input
                       type="text"
                       value={w.title}
                       onChange={(e) => updateWord(w.id, 'title', e.target.value)}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-yellow-600"
-                      placeholder="Word/Mantra title"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-yellow-600"
+                      placeholder="Title/Mantra name"
                     />
                     <textarea
                       value={w.content}
                       onChange={(e) => updateWord(w.id, 'content', e.target.value)}
                       rows={4}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-yellow-600"
-                      placeholder="Full content/mantra/affirmation"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-yellow-600"
+                      placeholder="Full content, mantra, affirmation or commitment..."
                     />
-                    <div className="grid grid-cols-2 gap-4">
-                      <select
-                        value={w.category}
-                        onChange={(e) => updateWord(w.id, 'category', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-yellow-600"
-                      >
-                        <option value="Mantra">Mantra</option>
-                        <option value="Affirmation">Affirmation</option>
-                        <option value="Commitment">Commitment</option>
-                        <option value="Rule">Rule</option>
-                      </select>
-                      <input
-                        type="color"
-                        value={w.color || '#FCD34D'}
-                        onChange={(e) => updateWord(w.id, 'color', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Type</label>
+                        <select
+                          value={w.category}
+                          onChange={(e) => updateWord(w.id, 'category', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-yellow-600 text-xs sm:text-base"
+                        >
+                          <option value="Mantra">🕉️ Mantra</option>
+                          <option value="Affirmation">✨ Affirmation</option>
+                          <option value="Commitment">🤝 Commitment</option>
+                          <option value="Rule">📜 Rule</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Color</label>
+                        <input
+                          type="color"
+                          value={w.color || '#FCD34D'}
+                          onChange={(e) => updateWord(w.id, 'color', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <div
+                          className="w-full h-10 rounded-lg border-2 border-gray-300"
+                          style={{ backgroundColor: w.color || '#FCD34D' }}
+                          title="Color preview"
+                        ></div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -742,77 +951,147 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
             {/* Reminders Tab */}
             {activeTab === 'reminders' && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-6">
                 <button
                   type="button"
                   onClick={addReminder}
-                  className="w-full flex items-center justify-center gap-3 bg-red-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-red-700 transition"
+                  className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-red-600 text-white px-4 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-2xl font-bold text-sm sm:text-lg hover:bg-red-700 transition"
                 >
-                  <Plus className="h-6 w-6" />
+                  <Plus className="h-5 sm:h-6 w-5 sm:w-6" />
                   Add Reminder
                 </button>
                 {vision.reminders.map((r, idx) => (
-                  <div key={r.id} className="bg-red-50 border-3 border-red-200 rounded-2xl p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-2xl font-bold text-red-900">Reminder {idx + 1}</h3>
+                  <div key={r.id} className="bg-red-50 border-2 sm:border-3 border-red-200 rounded-lg sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
+                    <div className="flex items-center justify-between mb-2 sm:mb-4">
+                      <h3 className="text-lg sm:text-2xl font-bold text-red-900">Reminder {idx + 1}</h3>
                       <button
                         type="button"
                         onClick={() => deleteReminder(r.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
                       >
-                        <Trash2 className="h-6 w-6" />
+                        <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
                     </div>
+
+                    {/* Title & Description */}
                     <input
                       type="text"
                       value={r.title}
                       onChange={(e) => updateReminder(r.id, 'title', e.target.value)}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-red-600"
-                      placeholder="Reminder title"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-red-600"
+                      placeholder="Reminder title (e.g., Morning meditation)"
                     />
                     <textarea
                       value={r.description || ''}
                       onChange={(e) => updateReminder(r.id, 'description', e.target.value)}
                       rows={2}
-                      className="w-full px-6 py-3 border-2 border-gray-300 rounded-xl text-lg focus:outline-none focus:border-red-600"
-                      placeholder="Reminder description"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-red-600"
+                      placeholder="Reminder description..."
                     />
-                    <div className="grid grid-cols-3 gap-4">
-                      <input
-                        type="date"
-                        value={r.dueDate}
-                        onChange={(e) => updateReminder(r.id, 'dueDate', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600"
-                      />
-                      <input
-                        type="time"
-                        value={r.dueTime || ''}
-                        onChange={(e) => updateReminder(r.id, 'dueTime', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600"
-                      />
-                      <select
-                        value={r.frequency}
-                        onChange={(e) => updateReminder(r.id, 'frequency', e.target.value)}
-                        className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600"
-                      >
-                        <option value="once">Once</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="yearly">Yearly</option>
-                      </select>
+
+                    {/* Dates & Times */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
+                        <input
+                          type="date"
+                          value={r.startDate}
+                          onChange={(e) => updateReminder(r.id, 'startDate', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Due Date</label>
+                        <input
+                          type="date"
+                          value={r.dueDate}
+                          onChange={(e) => updateReminder(r.id, 'dueDate', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Time</label>
+                        <input
+                          type="time"
+                          value={r.dueTime || ''}
+                          onChange={(e) => updateReminder(r.id, 'dueTime', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-4 pt-4 border-t-2 border-red-200">
-                      <input
-                        type="checkbox"
-                        id={`reminder-completed-${r.id}`}
-                        checked={r.completed || false}
-                        onChange={(e) => updateReminder(r.id, 'completed', e.target.checked)}
-                        className="w-6 h-6 rounded border-2 border-red-400 text-red-600 cursor-pointer focus:ring-2 focus:ring-red-500"
-                      />
-                      <label htmlFor={`reminder-completed-${r.id}`} className="text-lg font-semibold text-red-900 cursor-pointer">
-                        Mark as Completed
-                      </label>
+
+                    {/* Category, Frequency, Priority */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Category</label>
+                        <select
+                          value={r.category}
+                          onChange={(e) => updateReminder(r.id, 'category', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                        >
+                          <option value="life">🌍 Life</option>
+                          <option value="health">💪 Health</option>
+                          <option value="wealth">💰 Wealth</option>
+                          <option value="success">🏆 Success</option>
+                          <option value="respect">👑 Respect</option>
+                          <option value="pleasure">😊 Pleasure</option>
+                          <option value="prosperity">✨ Prosperity</option>
+                          <option value="luxuries">💎 Luxuries</option>
+                          <option value="good-habits">🌟 Good Habits</option>
+                          <option value="self-sadhana">🧘 Self Sadhana</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Frequency</label>
+                        <select
+                          value={r.frequency}
+                          onChange={(e) => updateReminder(r.id, 'frequency', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                        >
+                          <option value="once">Once</option>
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="yearly">Yearly</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Priority</label>
+                        <select
+                          value={r.priority}
+                          onChange={(e) => updateReminder(r.id, 'priority', e.target.value)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                        >
+                          <option value="low">🟢 Low</option>
+                          <option value="medium">🟡 Medium</option>
+                          <option value="high">🔴 High</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Budget & Status */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">💰 Budget (Optional)</label>
+                        <input
+                          type="number"
+                          value={r.budget || ''}
+                          onChange={(e) => updateReminder(r.id, 'budget', e.target.value ? parseFloat(e.target.value) : undefined)}
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                          placeholder="Amount"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <label className="flex items-center gap-2 sm:gap-3 w-full cursor-pointer p-2 bg-white rounded-lg border-2 border-red-300 hover:bg-red-100 transition">
+                          <input
+                            type="checkbox"
+                            checked={r.completed || false}
+                            onChange={(e) => updateReminder(r.id, 'completed', e.target.checked)}
+                            className="w-4 sm:w-5 h-4 sm:h-5"
+                          />
+                          <span className="font-bold text-red-900 text-sm sm:text-base">Completed</span>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -822,18 +1101,18 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
         </div>
 
         {/* Footer Actions */}
-        <div className="border-t border-gray-200 bg-gray-50 p-8 flex gap-4 justify-end">
+        <div className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 flex gap-2 sm:gap-4 justify-end flex-wrap sm:flex-nowrap">
           <button
             onClick={onCancel}
-            className="px-8 py-4 border-3 border-gray-300 rounded-xl font-bold text-lg hover:bg-gray-100 transition"
+            className="px-4 sm:px-8 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg hover:bg-gray-100 transition"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:shadow-lg transition"
+            className="px-4 sm:px-8 py-2 sm:py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg hover:shadow-lg transition"
           >
-            {initialVision ? '✏️ Update Vision' : '🌟 Save Vision'}
+            {initialVision ? '✏️ Update' : '🌟 Save Vision'}
           </button>
         </div>
       </div>

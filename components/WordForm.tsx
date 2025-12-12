@@ -13,7 +13,7 @@ export interface Word {
   customDays?: number;
   imageUrl: string;
   createdAt: string;
-  category: 'affirmation' | 'mantra' | 'quote' | 'motivation' | 'wisdom' | 'prayer';
+  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
   favorited: boolean;
 }
 
@@ -32,7 +32,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
     frequency: initialData?.frequency || 'daily' as const,
     customDays: initialData?.customDays || 1,
     imageUrl: initialData?.imageUrl || '',
-    category: initialData?.category || 'affirmation' as const
+    category: initialData?.category || 'life' as const
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -102,21 +102,29 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
   }, [formData, initialData, onSubmit, reminders]);
 
   const categoryEmojis = {
-    affirmation: '✨',
-    mantra: '🧘',
-    quote: '💭',
-    motivation: '🚀',
-    wisdom: '🧠',
-    prayer: '🙏'
+    life: '🌍',
+    health: '💪',
+    wealth: '💰',
+    success: '🏆',
+    respect: '👑',
+    pleasure: '�',
+    prosperity: '✨',
+    luxuries: '�',
+    'good-habits': '🌟',
+    'self-sadhana': '🧘'
   };
 
   const categoryDescriptions = {
-    affirmation: 'Positive statements to boost confidence',
-    mantra: 'Repeated phrases for meditation/focus',
-    quote: 'Inspirational quotes and sayings',
-    motivation: 'Motivational messages and encouragement',
-    wisdom: 'Wise insights and life lessons',
-    prayer: 'Spiritual prayers and devotions'
+    life: 'Words about overall life and purpose',
+    health: 'Words about health and wellness',
+    wealth: 'Words about financial abundance',
+    success: 'Words about achievement and goals',
+    respect: 'Words about respect and dignity',
+    pleasure: 'Words about joy and happiness',
+    prosperity: 'Words about thriving and growth',
+    luxuries: 'Words about luxury and comfort',
+    'good-habits': 'Words about positive habits',
+    'self-sadhana': 'Words about spiritual practice'
   };
 
   return (
@@ -167,7 +175,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition ${
             errors.title ? 'border-red-500' : 'border-gray-300'
           }`}
-          placeholder={`e.g., "${formData.category === 'affirmation' ? 'I am capable' : 'I am open to abundance'}"`}
+          placeholder={`e.g., "${formData.category === 'life' ? 'Purpose' : formData.category === 'health' ? 'Wellness' : 'Growth'}"`}
           required
         />
         {errors.title && <p className="text-red-600 text-xs mt-1">{errors.title}</p>}

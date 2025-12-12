@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Calendar, DollarSign, Target, Image } from 'lucide-react';
+import { getCategoryImageUrl } from '@/lib/categoryImageMap';
 
 export interface Vision {
   id: string;
@@ -9,7 +10,7 @@ export interface Vision {
   description: string;
   targetDate: string;
   amount: string;
-  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxury';
+  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
   imageUrl: string;
   createdAt: string;
   completed: boolean;
@@ -32,10 +33,38 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [previewUrl, setPreviewUrl] = useState<string>(formData.imageUrl || '');
+  const objectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // keep previewUrl in sync when user types a URL
+    setPreviewUrl(formData.imageUrl || '');
+  }, [formData.imageUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Auto-populate imageUrl when category changes
+    if (name === 'category') {
+      const category = value as 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
+      setFormData(prev => ({ 
+        ...prev, 
+        category,
+        imageUrl: getCategoryImageUrl(category) // Auto-set image URL based on category
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+    
     // Clear error for this field when user starts typing
     if (errors[name]) {
       setErrors(prev => {
@@ -78,6 +107,20 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
     onSubmit(visionData);
   }, [formData, initialData, onSubmit]);
 
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // revoke previous
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+    }
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    setPreviewUrl(url);
+    // store preview URL in imageUrl field so submit includes it (frontend-only)
+    setFormData(prev => ({ ...prev, imageUrl: url }));
+  }, []);
+
   const categoryColors: Record<string, { bg: string; text: string }> = {
     life: { bg: 'bg-purple-50', text: 'text-purple-700' },
     health: { bg: 'bg-green-50', text: 'text-green-700' },
@@ -86,18 +129,22 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
     respect: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
     pleasure: { bg: 'bg-pink-50', text: 'text-pink-700' },
     prosperity: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
-    luxury: { bg: 'bg-amber-50', text: 'text-amber-700' }
+    luxuries: { bg: 'bg-amber-50', text: 'text-amber-700' },
+    'good-habits': { bg: 'bg-yellow-50', text: 'text-yellow-700' },
+    'self-sadhana': { bg: 'bg-rose-50', text: 'text-rose-700' }
   };
 
   const categoryIcons: Record<string, string> = {
-    life: '🎯',
+    life: '�',
     health: '💪',
     wealth: '💰',
     success: '🏆',
-    respect: '🙏',
+    respect: '�',
     pleasure: '😊',
     prosperity: '✨',
-    luxury: '👑'
+    luxuries: '�',
+    'good-habits': '🌟',
+    'self-sadhana': '🧘'
   };
 
   const colors = categoryColors[formData.category];
@@ -154,14 +201,16 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
           onChange={handleChange}
           className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
         >
-          <option value="life">🎯 Life Vision</option>
+          <option value="life">� Life Vision</option>
           <option value="health">💪 Health Vision</option>
           <option value="wealth">💰 Wealth Vision</option>
           <option value="success">🏆 Success Vision</option>
-          <option value="respect">🙏 Respect & Seva Vision</option>
+          <option value="respect">� Respect Vision</option>
           <option value="pleasure">😊 Pleasure Vision</option>
           <option value="prosperity">✨ Prosperity Vision</option>
-          <option value="luxury">👑 Luxury Vision</option>
+          <option value="luxuries">� Luxuries Vision</option>
+          <option value="good-habits">🌟 Good Habits Vision</option>
+          <option value="self-sadhana">🧘 Self Sadhana Vision</option>
         </select>
         <div className={`mt-2 px-3 py-2 rounded-lg text-sm font-medium ${colors.bg} ${colors.text}`}>
           {categoryIcons[formData.category]} {formData.category.charAt(0).toUpperCase() + formData.category.slice(1)} Vision
@@ -214,14 +263,22 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
           className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
           placeholder="https://example.com/image.jpg"
         />
-        {formData.imageUrl && (
+
+        {/* File upload for local images (provides preview via createObjectURL) */}
+        <div className="mt-2">
+          <label className="block text-xs text-gray-500 mb-1">Or upload an image</label>
+          <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm" />
+        </div>
+
+        {(previewUrl || formData.imageUrl) && (
           <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm">
-            <img 
-              src={formData.imageUrl} 
-              alt="Vision preview" 
+            <img
+              src={previewUrl || formData.imageUrl}
+              alt="Vision preview"
               className="w-full h-full object-cover"
               onError={(e) => {
-                e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Image+Not+Found';
+                // fallback placeholder
+                (e.currentTarget as HTMLImageElement).src = 'https://via.placeholder.com/400x200?text=Image+Not+Found';
               }}
             />
           </div>

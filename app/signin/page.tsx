@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { setSession } from '@/lib/sessionManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,28 +69,18 @@ function SignInInner() {
       const data = await response.json();
       setSubmitStatus('success');
 
-      // Store token and user data in localStorage
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-      }
-      if (data.user) {
-        const storedUser = {
-          id: data.user.id,
-          name: data.user.name,
-          email: data.user.email,
-          phone: data.user.phone || '',
-          countryCode: data.user.countryCode || '+91'
-        };
-
-        localStorage.setItem('user', JSON.stringify(storedUser));
-        localStorage.setItem('userName', storedUser.name);
-        localStorage.setItem('userEmail', storedUser.email);
-        if (storedUser.phone) {
-          localStorage.setItem('userPhone', storedUser.phone);
-        }
-        if (storedUser.countryCode) {
-          localStorage.setItem('userCountryCode', storedUser.countryCode);
-        }
+      // Use session manager to store token with 2-day expiry
+      if (data.token && data.user) {
+        setSession({
+          token: data.token,
+          user: {
+            id: data.user.id,
+            name: data.user.name,
+            email: data.user.email,
+            phone: data.user.phone || '',
+            countryCode: data.user.countryCode || '+91'
+          }
+        });
       }
 
       // Redirect after success

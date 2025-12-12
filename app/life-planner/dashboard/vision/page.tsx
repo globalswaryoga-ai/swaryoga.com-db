@@ -1,16 +1,71 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, CheckCircle2, Circle } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
 import VisionModal from './VisionModal';
+
+// Category Color Mapping - 10 colors for 10 vision heads
+const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  'Life': { bg: 'bg-purple-600', text: 'text-white' },
+  'Health': { bg: 'bg-green-600', text: 'text-white' },
+  'Wealth': { bg: 'bg-red-600', text: 'text-white' },
+  'Success': { bg: 'bg-blue-600', text: 'text-white' },
+  'Respect': { bg: 'bg-orange-600', text: 'text-white' },
+  'Pleasure': { bg: 'bg-pink-600', text: 'text-white' },
+  'Prosperity': { bg: 'bg-indigo-600', text: 'text-white' },
+  'Luxurious': { bg: 'bg-yellow-600', text: 'text-white' },
+  'Good Habits': { bg: 'bg-teal-600', text: 'text-white' },
+  'Sadhana': { bg: 'bg-cyan-600', text: 'text-white' },
+};
+
+type SliderCard = {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  badge?: string;
+  metadata: string[];
+  vision?: Vision;
+};
+
+const PLACEHOLDER_VISION_CARDS: SliderCard[] = [
+  {
+    id: 'placeholder-1',
+    title: 'Swar Yoga Children Program',
+    description: 'Yoga training for children and teenagers with gentle guidance.',
+    imageUrl: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80',
+    badge: 'Beginner',
+    metadata: ['Duration: 10 days', 'Language: English', 'Mode: Studio + Online'],
+  },
+  {
+    id: 'placeholder-2',
+    title: 'Complete Health Program',
+    description: 'Holistic cure for BP, diabetes, heart, liver, kidney, migraine & hormonal balance.',
+    imageUrl: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=900&q=80',
+    badge: 'All Levels',
+    metadata: ['Duration: 45 days', 'Language: English', 'Mode: Retreat + Online'],
+  },
+  {
+    id: 'placeholder-3',
+    title: 'Business Swar Yoga',
+    description: 'Business opportunity and personal development for conscious leaders.',
+    imageUrl: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=900&q=80',
+    badge: 'Intermediate',
+    metadata: ['Duration: 60 days', 'Language: Multilingual', 'Mode: Hybrid'],
+  },
+];
 
 export default function VisionPage() {
   const [visions, setVisions] = useState<Vision[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVision, setEditingVision] = useState<Vision | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [filterMonth, setFilterMonth] = useState<string>('');
+  const [filterCategory, setFilterCategory] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [sliderIndex, setSliderIndex] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -38,6 +93,30 @@ export default function VisionPage() {
     setVisions(prev => prev.filter(v => v.id !== id));
   };
 
+  // Filter logic
+  const filteredVisions = visions
+    .filter(vision => {
+      // Month filter
+      if (filterMonth) {
+        const visionMonth = vision.endDate ? new Date(vision.endDate).getMonth() + 1 : null;
+        if (visionMonth !== parseInt(filterMonth)) return false;
+      }
+
+      // Category filter
+      if (filterCategory && vision.category !== filterCategory) return false;
+
+      // Status filter
+      if (filterStatus && vision.status !== filterStatus) return false;
+
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort by due date (endDate) in ascending order
+      const dateA = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_VALUE;
+      const dateB = b.endDate ? new Date(b.endDate).getTime() : Number.MAX_VALUE;
+      return dateA - dateB;
+    });
+
   const handleSaveVision = (visionData: Omit<Vision, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingVision) {
       setVisions(prev =>
@@ -59,9 +138,6 @@ export default function VisionPage() {
     setIsModalOpen(false);
   };
 
-  const completedMilestones = visions.reduce((sum, v) => sum + v.milestones.filter(m => m.completed).length, 0);
-  const totalMilestones = visions.reduce((sum, v) => sum + v.milestones.length, 0);
-
   if (!mounted) return null;
 
   return (
@@ -80,101 +156,243 @@ export default function VisionPage() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-pink-50 rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-red-600 mb-1">{visions.length}</div>
-          <div className="text-gray-600 text-sm">Total Visions</div>
-        </div>
-        <div className="bg-pink-50 rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-red-600 mb-1">{totalMilestones}</div>
-          <div className="text-gray-600 text-sm">Total Milestones</div>
-        </div>
-        <div className="bg-pink-50 rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-red-600 mb-1">
-            {totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0}%
+      {/* Filters */}
+      <div className="mb-8 bg-white rounded-2xl p-6 shadow-md">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">🔍 Filters</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {/* Month Filter */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Month</label>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              <option value="">All Months</option>
+              <option value="1">January</option>
+              <option value="2">February</option>
+              <option value="3">March</option>
+              <option value="4">April</option>
+              <option value="5">May</option>
+              <option value="6">June</option>
+              <option value="7">July</option>
+              <option value="8">August</option>
+              <option value="9">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
           </div>
-          <div className="text-gray-600 text-sm">Completion</div>
+
+          {/* Category Filter */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Category</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              <option value="">All Categories</option>
+              <option value="Life">Life</option>
+              <option value="Health">Health</option>
+              <option value="Wealth">Wealth</option>
+              <option value="Success">Success</option>
+              <option value="Respect">Respect</option>
+              <option value="Pleasure">Pleasure</option>
+              <option value="Prosperity">Prosperity</option>
+              <option value="Luxurious">Luxurious</option>
+              <option value="Good Habits">Good Habits</option>
+              <option value="Sadhana">Sadhana</option>
+            </select>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              <option value="">All Status</option>
+              <option value="not-started">⏳ Pending</option>
+              <option value="in-progress">⚡ In Progress</option>
+              <option value="completed">✅ Done</option>
+              <option value="on-hold">⏸️ On Hold</option>
+            </select>
+          </div>
         </div>
+
+        {/* Clear Filters Button */}
+        {(filterMonth || filterCategory || filterStatus) && (
+          <button
+            onClick={() => {
+              setFilterMonth('');
+              setFilterCategory('');
+              setFilterStatus('');
+            }}
+            className="mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition"
+          >
+            Clear All Filters
+          </button>
+        )}
       </div>
 
-      {/* Visions Grid */}
-      <div className="grid gap-6">
-        {visions.map(vision => (
-          <div key={vision.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden">
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-gray-800 mb-2">{vision.title}</h3>
-                  <p className="text-gray-600 mb-4">{vision.description}</p>
-                  <div className="flex items-center space-x-6 text-sm text-gray-600">
-                    <div>📅 Start: {new Date(vision.startDate).toLocaleDateString()}</div>
-                    <div>🎯 End: {new Date(vision.endDate).toLocaleDateString()}</div>
+      <div className="mb-12">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-2xl font-bold text-gray-800">Vision Preview Slider</h2>
+          <p className="text-sm text-gray-600">Showing {Math.min(3, filteredVisions.length)} of {filteredVisions.length} visions</p>
+        </div>
+
+        <div className="relative">
+          <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
+            {filteredVisions.slice(0, 3).length > 0 ? (
+              filteredVisions.slice(0, 3).map((vision) => (
+              <div key={vision.id} className="flex-shrink-0 w-80 h-full">
+                {/* Card */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl hover:scale-105 transition-all duration-300 h-full flex flex-col">
+                  <div className="relative h-48 overflow-hidden">
+                    <img
+                      src={vision.imageUrl || 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80'}
+                      alt={vision.title}
+                      className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                    />
+                    {vision.category && (
+                      <div className={`absolute top-3 right-3 ${CATEGORY_COLORS[vision.category]?.bg || 'bg-gray-600'} ${CATEGORY_COLORS[vision.category]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-bold`}>
+                        {vision.category}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-5">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{vision.title}</h3>
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{vision.description}</p>
+
+                    <div className="space-y-2 text-xs text-gray-700">
+                      {vision.place && <div className="flex items-center gap-2">📍 {vision.place}</div>}
+                      {vision.endDate && (
+                        <div className="flex items-center gap-2">
+                          📅 {new Date(vision.endDate).toLocaleDateString()}
+                          {vision.time && ` @ ${vision.time}`}
+                        </div>
+                      )}
+                      {vision.budget && <div className="flex items-center gap-2">💰 Rs. {vision.budget}</div>}
+                    </div>
+
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition"
+                      >
+                        Done
+                      </button>
+                      <button
+                        onClick={() => handleEditVision(vision)}
+                        className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteVision(vision.id)}
+                        className="flex-1 px-3 py-2 bg-red-100 text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handleEditVision(vision)}
-                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Edit className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteVision(vision.id)}
-                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
-                </div>
               </div>
-
-              {/* Vision Image */}
-              {vision.imageUrl && (
-                <div className="mb-6 rounded-lg overflow-hidden h-48">
-                  <img src={vision.imageUrl} alt={vision.title} className="w-full h-full object-cover" />
-                </div>
-              )}
-
-              {/* Milestones */}
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                  Milestones ({vision.milestones.filter(m => m.completed).length}/{vision.milestones.length})
-                </h4>
-                <div className="space-y-3">
-                  {vision.milestones.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No milestones added yet.</p>
-                  ) : (
-                    vision.milestones.map((milestone, idx) => (
-                      <div key={idx} className="flex items-start space-x-3 p-3 bg-pink-50 rounded-lg">
-                        <button className="mt-1 text-red-600">
-                          {milestone.completed ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-                        </button>
-                        <div className="flex-1">
-                          <p className={`font-medium ${milestone.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                            {milestone.title}
-                          </p>
-                          {milestone.description && <p className="text-sm text-gray-600 mt-1">{milestone.description}</p>}
-                          <p className="text-xs text-gray-500 mt-1">Due: {new Date(milestone.dueDate).toLocaleDateString()}</p>
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          milestone.status === 'completed' ? 'bg-green-100 text-green-800' :
-                          milestone.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {milestone.status}
-                        </span>
+            ))
+          ) : (
+            PLACEHOLDER_VISION_CARDS.map(card => (
+              <div key={card.id} className="flex-shrink-0 w-80 h-full">
+                {/* Placeholder Card */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden opacity-60 h-full flex flex-col">
+                  <div className="relative h-48 overflow-hidden">
+                    <img src={card.imageUrl} alt={card.title} className="w-full h-full object-cover" />
+                    {card.badge && (
+                      <div className="absolute top-3 right-3 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                        {card.badge}
                       </div>
-                    ))
-                  )}
+                    )}
+                  </div>
+
+                  <div className="p-5">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{card.title}</h3>
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{card.description}</p>
+                    <div className="space-y-1 text-xs text-gray-600">
+                      {card.metadata.map((item, i) => (
+                        <div key={i}>{item}</div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            ))
+          )}
           </div>
-        ))}
+
+        {/* Navigation Buttons */}
+        {filteredVisions.length > 3 && (
+          <div className="flex justify-center items-center gap-2 mt-8">
+            {/* Previous Button */}
+            <button
+              onClick={() => setSliderIndex(Math.max(0, sliderIndex - 3))}
+              disabled={sliderIndex === 0}
+              className="px-4 py-2 text-emerald-600 font-semibold hover:text-emerald-700 disabled:text-gray-300 disabled:cursor-not-allowed transition"
+            >
+              Previous
+            </button>
+
+            {/* Page Numbers */}
+            <div className="flex gap-2">
+              {Array.from({ length: Math.ceil(filteredVisions.length / 3) }).map((_, pageIndex) => (
+                <button
+                  key={pageIndex}
+                  onClick={() => setSliderIndex(pageIndex * 3)}
+                  className={`w-10 h-10 rounded-lg font-semibold transition ${
+                    Math.floor(sliderIndex / 3) === pageIndex
+                      ? 'bg-emerald-600 text-white shadow-lg'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  {pageIndex + 1}
+                </button>
+              ))}
+            </div>
+
+            {/* Next Button */}
+            <button
+              onClick={() => setSliderIndex(Math.min(filteredVisions.length - 3, sliderIndex + 3))}
+              disabled={sliderIndex + 3 >= filteredVisions.length}
+              className="px-4 py-2 text-emerald-600 font-semibold hover:text-emerald-700 disabled:text-gray-300 disabled:cursor-not-allowed transition"
+            >
+              Next
+            </button>
+          </div>
+        )}
+        </div>
       </div>
 
-      {visions.length === 0 && (
+      {filteredVisions.length === 0 && (
+        <div className="text-center py-12">
+          <div className="text-gray-400 mb-4">
+            <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No visions found</h3>
+          <p className="text-gray-600 mb-4">Try adjusting your filters or create a new vision.</p>
+          <button
+            onClick={handleAddVision}
+            className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Vision</span>
+          </button>
+        </div>
+      )}
+
+      {visions.length === 0 && filteredVisions.length === 0 && (
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -182,7 +400,7 @@ export default function VisionPage() {
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No visions yet</h3>
-          <p className="text-gray-600 mb-4">Start by creating your first vision with milestones.</p>
+          <p className="text-gray-600 mb-4">Start by creating your first vision.</p>
           <button
             onClick={handleAddVision}
             className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"

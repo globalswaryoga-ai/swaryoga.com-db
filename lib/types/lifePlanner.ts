@@ -23,6 +23,9 @@ export interface Vision {
   categoryImageUrl?: string; // Default category image URL (auto-populated from category, editable)
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
+  time?: string; // HH:MM
+  place?: string;
+  budget?: number;
   category: VisionCategory; // Must be one of the defined heads
   priority?: 'low' | 'medium' | 'high'; // Overall priority
   status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
@@ -111,6 +114,7 @@ export interface Reminder {
   dueDate: string; // YYYY-MM-DD
   dueTime?: string; // HH:MM
   budget?: number; // Amount (optional)
+  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
   priority: 'low' | 'medium' | 'high';
   active: boolean;

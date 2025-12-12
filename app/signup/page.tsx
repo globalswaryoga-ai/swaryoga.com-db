@@ -7,6 +7,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { addCartItem, CartCurrency } from '@/lib/cart';
 import { getCurrencyForLanguage } from '@/lib/paymentLinkHelper';
+import { setSession } from '@/lib/sessionManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -258,11 +259,7 @@ function SignUpInner() {
       }
       setSubmitStatus('success');
 
-      // Store token and user data in localStorage
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-      }
-
+      // Use session manager to store token with 2-day expiry
       const storedUser = {
         id: data.user?.id || '',
         name: data.user?.name || formData.name.trim(),
@@ -271,11 +268,12 @@ function SignUpInner() {
         countryCode: data.user?.countryCode || formData.countryCode || '+91'
       };
 
-      localStorage.setItem('user', JSON.stringify(storedUser));
-      localStorage.setItem('userName', storedUser.name);
-      localStorage.setItem('userEmail', storedUser.email);
-      localStorage.setItem('userPhone', storedUser.phone);
-      localStorage.setItem('userCountryCode', storedUser.countryCode);
+      if (data.token) {
+        setSession({
+          token: data.token,
+          user: storedUser
+        });
+      }
 
       // Add the workshop to cart so user can pay from cart page
       addCartItem({

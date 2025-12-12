@@ -4,11 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye } from 'lucide-react';
 import { Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
+import VisionBuilder from './VisionBuilder';
 
 export default function VisionsBlogPage() {
   const [visions, setVisions] = useState<Vision[]>([]);
   const [mounted, setMounted] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'not-started' | 'in-progress' | 'completed'>('all');
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [editingVision, setEditingVision] = useState<Vision | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -23,13 +26,25 @@ export default function VisionsBlogPage() {
   }, [visions, mounted]);
 
   const handleAddVision = () => {
-    // TODO: Navigate to create vision page
-    console.log('Add vision');
+    setEditingVision(null);
+    setShowBuilder(true);
   };
 
   const handleEditVision = (vision: Vision) => {
-    // TODO: Navigate to edit vision page
-    console.log('Edit vision', vision.id);
+    setEditingVision(vision);
+    setShowBuilder(true);
+  };
+
+  const handleSaveVision = (vision: Vision) => {
+    if (editingVision) {
+      // Update existing vision
+      setVisions(prev => prev.map(v => v.id === vision.id ? vision : v));
+    } else {
+      // Add new vision
+      setVisions(prev => [...prev, vision]);
+    }
+    setShowBuilder(false);
+    setEditingVision(null);
   };
 
   const handleDeleteVision = (id: string) => {
@@ -39,8 +54,8 @@ export default function VisionsBlogPage() {
   };
 
   const handleViewDetails = (vision: Vision) => {
-    // TODO: Navigate to vision details page or open modal
-    console.log('View details for vision:', vision.id);
+    setEditingVision(vision);
+    setShowBuilder(true);
   };
 
   const filteredVisions = filterStatus === 'all' 
@@ -318,6 +333,18 @@ export default function VisionsBlogPage() {
           </div>
         )}
       </div>
+
+      {/* Vision Builder Modal */}
+      {showBuilder && (
+        <VisionBuilder
+          initialVision={editingVision}
+          onSave={handleSaveVision}
+          onCancel={() => {
+            setShowBuilder(false);
+            setEditingVision(null);
+          }}
+        />
+      )}
     </div>
   );
 }

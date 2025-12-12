@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
-import { Vision, Milestone, Reminder, Goal, Task, Todo, Word, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+import React, { useState, useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
+import { Vision, VisionCategory, Milestone, Reminder, Goal, Task, Todo, Word, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+
+const LANDSCAPE_IMAGE = 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1280&q=80';
 
 interface VisionModalProps {
   vision: Vision | null;
@@ -10,17 +12,40 @@ interface VisionModalProps {
   onClose: () => void;
 }
 
+type VisionFormState = {
+  title: string;
+  description: string;
+  imageUrl: string;
+  category: VisionCategory;
+  priority: 'low' | 'medium' | 'high';
+  status: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
+  startDate: string;
+  endDate: string;
+  time: string;
+  place: string;
+  budget: string;
+  milestones: Milestone[];
+  reminders: Reminder[];
+  goals: Goal[];
+  tasks: Task[];
+  todos: Todo[];
+  words: Word[];
+};
+
 const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) => {
-  const [formData, setFormData] = useState({
+  const today = new Date().toISOString().split('T')[0];
+  const [formData, setFormData] = useState<VisionFormState>({
     title: '',
     description: '',
-    imageUrl: '',
-    categoryImageUrl: '',
-    category: 'Life' as typeof VISION_CATEGORIES[number],
+    imageUrl: LANDSCAPE_IMAGE,
+    category: VISION_CATEGORIES[0],
     priority: 'medium' as 'low' | 'medium' | 'high',
     status: 'not-started' as 'not-started' | 'in-progress' | 'completed' | 'on-hold',
-    startDate: '',
+    startDate: today,
     endDate: '',
+    time: '11:00',
+    place: '',
+    budget: '',
     milestones: [] as Milestone[],
     reminders: [] as Reminder[],
     goals: [] as Goal[],
@@ -29,25 +54,36 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
     words: [] as Word[],
   });
 
-  const [newMilestone, setNewMilestone] = useState({
-    title: '',
-    description: '',
-    dueDate: '',
-    status: 'not-started' as 'not-started' | 'in-progress' | 'completed',
-  });
+  const [previewUrl, setPreviewUrl] = useState<string>(LANDSCAPE_IMAGE);
+  const objectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setPreviewUrl(formData.imageUrl || LANDSCAPE_IMAGE);
+  }, [formData.imageUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (vision) {
       setFormData({
         title: vision.title,
         description: vision.description,
-        imageUrl: vision.imageUrl || '',
-        categoryImageUrl: vision.categoryImageUrl || '',
+        imageUrl: vision.imageUrl || LANDSCAPE_IMAGE,
         category: vision.category,
         priority: vision.priority || 'medium',
         status: vision.status || 'not-started',
-        startDate: vision.startDate,
+        startDate: vision.startDate || today,
         endDate: vision.endDate,
+        time: vision.time || '11:00',
+        place: vision.place || '',
+        budget: vision.budget ? vision.budget.toString() : '',
         milestones: vision.milestones,
         reminders: vision.reminders || [],
         goals: vision.goals || [],
@@ -56,45 +92,49 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
         words: vision.words || [],
       });
     }
-  }, [vision]);
+  }, [vision, today]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'category') {
-      setFormData(prev => ({ ...prev, category: value as typeof VISION_CATEGORIES[number] }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData(prev => ({ ...prev, category: value as VisionCategory }));
+      return;
     }
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddMilestone = () => {
-    if (newMilestone.title.trim()) {
-      const milestone: Milestone = {
-        id: Date.now().toString(),
-        title: newMilestone.title,
-        description: newMilestone.description || undefined,
-        dueDate: newMilestone.dueDate,
-        status: newMilestone.status,
-        completed: false,
-      };
-      setFormData(prev => ({
-        ...prev,
-        milestones: [...prev.milestones, milestone],
-      }));
-      setNewMilestone({ title: '', description: '', dueDate: '', status: 'not-started' });
-    }
-  };
-
-  const handleRemoveMilestone = (id: string) => {
-    setFormData(prev => ({
-      ...prev,
-      milestones: prev.milestones.filter(m => m.id !== id),
-    }));
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    setPreviewUrl(url);
+    setFormData(prev => ({ ...prev, imageUrl: url }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    const payload: Omit<Vision, 'id' | 'createdAt' | 'updatedAt'> = {
+      title: formData.title,
+      description: formData.description,
+      imageUrl: formData.imageUrl,
+      category: formData.category,
+      priority: formData.priority,
+      status: formData.status,
+      startDate: formData.startDate,
+      endDate: formData.endDate,
+      time: formData.time,
+      place: formData.place,
+      budget: formData.budget ? Number(formData.budget) : undefined,
+      milestones: formData.milestones,
+      reminders: formData.reminders,
+      goals: formData.goals,
+      tasks: formData.tasks,
+      todos: formData.todos,
+      words: formData.words,
+    };
+    onSave(payload);
   };
 
   return (
@@ -113,190 +153,140 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Title and Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Vision Title *</label>
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              placeholder="e.g., Build a Meditation Practice"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              placeholder="What is this vision about?"
-            />
-          </div>
-
-          {/* Category Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Vision Head (Category) *</label>
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            >
-              {VISION_CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Image URL */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
-            <input
-              type="url"
-              name="imageUrl"
-              value={formData.imageUrl}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              placeholder="https://example.com/image.jpg"
-            />
-            {formData.imageUrl && (
-              <div className="mt-4 rounded-lg overflow-hidden h-40">
-                <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" onError={() => {}} />
-              </div>
-            )}
-          </div>
-
-          {/* Dates */}
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">My Vision *</label>
               <input
-                type="date"
-                name="startDate"
-                value={formData.startDate}
+                type="text"
+                name="title"
+                value={formData.title}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-2xl text-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="Describe your dream outcome"
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">End Date *</label>
-              <input
-                type="date"
-                name="endDate"
-                value={formData.endDate}
+              <label className="block text-sm font-semibold text-gray-800 mb-2">My Vision Head (Category) *</label>
+              <select
+                name="category"
+                value={formData.category}
                 onChange={handleChange}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              />
+                className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              >
+                {VISION_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Choose from 10 vision heads to focus your energy.</p>
             </div>
-          </div>
 
-          {/* Milestones */}
-          <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Milestones</h3>
-
-            {/* Add Milestone Form */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Milestone Title</label>
-                <input
-                  type="text"
-                  value={newMilestone.title}
-                  onChange={(e) => setNewMilestone(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  placeholder="e.g., Complete 30-day meditation challenge"
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Image URL</label>
+              <input
+                type="url"
+                name="imageUrl"
+                value={formData.imageUrl}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="https://images.unsplash.com/..."
+              />
+              <p className="text-xs text-gray-500 mt-1">Landscape images work best; a default has already been chosen.</p>
+              <div className="mt-4 rounded-2xl overflow-hidden h-44 border border-dashed border-gray-200">
+                <img
+                  src={previewUrl}
+                  alt="Vision preview"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = 'https://via.placeholder.com/800x400?text=Beautiful+Vision';
+                  }}
                 />
               </div>
+              <div className="mt-3 text-xs text-gray-500">
+                <label className="font-medium">Upload a file</label>
+                <input type="file" accept="image/*" onChange={handleFileChange} className="block mt-1 text-xs" />
+              </div>
+            </div>
 
+            <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <label className="block text-sm font-semibold text-gray-800 mb-2">My Vision - Due Date *</label>
                 <input
-                  type="text"
-                  value={newMilestone.description}
-                  onChange={(e) => setNewMilestone(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  placeholder="Additional details (optional)"
+                  type="date"
+                  name="endDate"
+                  value={formData.endDate}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-2">Vision - Time (default 11:00 AM)</label>
+                <input
+                  type="time"
+                  name="time"
+                  value={formData.time}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+            </div>
 
-              <div className="grid md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-2">My Vision Place</label>
+                <input
+                  type="text"
+                  name="place"
+                  value={formData.place}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  placeholder="e.g., Rishikesh Ashram"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-800 mb-2">Vision Budget - Rs.</label>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500">Rs.</span>
                   <input
-                    type="date"
-                    value={newMilestone.dueDate}
-                    onChange={(e) => setNewMilestone(prev => ({ ...prev, dueDate: e.target.value }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    type="number"
+                    name="budget"
+                    min="0"
+                    step="100"
+                    value={formData.budget}
+                    onChange={handleChange}
+                    placeholder="0"
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                  <select
-                    value={newMilestone.status}
-                    onChange={(e) => setNewMilestone(prev => ({ ...prev, status: e.target.value as 'not-started' | 'in-progress' | 'completed' }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  >
-                    <option value="not-started">Not Started</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
               </div>
-
-              <button
-                type="button"
-                onClick={handleAddMilestone}
-                className="w-full flex items-center justify-center space-x-2 bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Milestone</span>
-              </button>
             </div>
 
-            {/* Milestones List */}
-            <div className="space-y-2">
-              {formData.milestones.length === 0 ? (
-                <p className="text-gray-500 text-sm">No milestones added yet.</p>
-              ) : (
-                formData.milestones.map((milestone) => (
-                  <div key={milestone.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-800">{milestone.title}</p>
-                      {milestone.description && <p className="text-sm text-gray-600">{milestone.description}</p>}
-                      <p className="text-xs text-gray-500">Due: {new Date(milestone.dueDate).toLocaleDateString()} • {milestone.status}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveMilestone(milestone.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))
-              )}
+            <div>
+              <label className="block text-sm font-semibold text-gray-800 mb-2">Description</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows={4}
+                className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="Describe how this vision will change your life"
+              />
             </div>
           </div>
 
-          {/* Form Actions */}
           <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+              className="px-6 py-2 rounded-full bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition"
             >
               {vision ? 'Update Vision' : 'Add Vision'}
             </button>

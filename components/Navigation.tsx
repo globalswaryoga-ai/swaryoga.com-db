@@ -5,19 +5,25 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import HeaderReminders from './HeaderReminders';
 import { Reminder } from '@/lib/types/lifePlanner';
+import { initializeAutoLogin, shouldPreventLogout } from '@/lib/autoLoginManager';
 
 export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [preventLogout, setPreventLogout] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    // Initialize auto-login
+    initializeAutoLogin();
+
     // Check if user is logged in
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
+        setPreventLogout(shouldPreventLogout());
       } catch (err) {
         console.log('Error parsing user data:', err);
       }
@@ -42,6 +48,12 @@ export default function Navigation() {
   }, []);
 
   const handleLogout = () => {
+    // Prevent logout for auto-login user
+    if (preventLogout) {
+      alert('This user cannot be logged out.');
+      return;
+    }
+
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     setUser(null);
@@ -98,12 +110,15 @@ export default function Navigation() {
               <Link href="/profile" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base">
                 👤 <span className="hidden lg:inline">{user.name}</span>
               </Link>
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 text-white px-3 lg:px-6 py-2 rounded-lg hover:bg-red-700 transition shadow-eco font-medium text-sm lg:text-base whitespace-nowrap"
-              >
-                Logout
-              </button>
+              {/* Hide logout button for auto-login user */}
+              {!preventLogout && (
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-600 text-white px-3 lg:px-6 py-2 rounded-lg hover:bg-red-700 transition shadow-eco font-medium text-sm lg:text-base whitespace-nowrap"
+                >
+                  Logout
+                </button>
+              )}
             </div>
           ) : (
             <Link href="/signin" className="bg-primary-600 text-white px-3 lg:px-6 py-2 rounded-lg hover:bg-primary-700 transition shadow-eco font-medium text-sm lg:text-base whitespace-nowrap ml-2 lg:ml-4">
@@ -142,12 +157,15 @@ export default function Navigation() {
                 <Link href="/profile" className="text-neutral-700 hover:text-primary-600 font-medium py-2">
                   👤 Profile ({user.name})
                 </Link>
-                <button
-                  onClick={handleLogout}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg text-center hover:bg-red-700 transition font-medium"
-                >
-                  Logout
-                </button>
+                {/* Hide logout button for auto-login user */}
+                {!preventLogout && (
+                  <button
+                    onClick={handleLogout}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg text-center hover:bg-red-700 transition font-medium"
+                  >
+                    Logout
+                  </button>
+                )}
               </div>
             ) : (
               <Link href="/signin" className="bg-primary-600 text-white px-4 py-2 rounded-lg text-center hover:bg-primary-700 transition font-medium">

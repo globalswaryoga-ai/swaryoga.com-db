@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, LogOut, Target, Flag, CheckSquare, ListChecks, Bell, NotebookPen, HeartPulse, Gem, BarChart3, User } from 'lucide-react';
 import HealthTracker from './HealthTracker';
+import ServerStatus from './ServerStatus';
 
 const topTabs = [
   { href: '/life-planner/dashboard/vision', label: 'Vision', icon: Target },
@@ -51,6 +52,7 @@ export default function LifePlannerTopNav({
 
         <div className="flex items-center gap-3">
           <HealthTracker />
+          <ServerStatus />
           
           <Link
             href="/life-planner/profile"
