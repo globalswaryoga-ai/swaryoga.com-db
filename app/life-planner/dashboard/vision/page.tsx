@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
 import VisionModal from './VisionModal';
+import ActionPlanModal from '@/components/ActionPlanModal';
 
 // Category Color Mapping - 10 colors for 10 vision heads
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -66,6 +67,8 @@ export default function VisionPage() {
   const [filterCategory, setFilterCategory] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [sliderIndex, setSliderIndex] = useState(0);
+  const [isActionPlanModalOpen, setIsActionPlanModalOpen] = useState(false);
+  const [selectedVisionForActionPlan, setSelectedVisionForActionPlan] = useState<Vision | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -136,6 +139,20 @@ export default function VisionPage() {
       setVisions(prev => [...prev, newVision]);
     }
     setIsModalOpen(false);
+  };
+
+  const handleAddActionPlanForVision = (vision: Vision) => {
+    setSelectedVisionForActionPlan(vision);
+    setIsActionPlanModalOpen(true);
+  };
+
+  const handleSaveActionPlan = (actionPlan: any) => {
+    const actionPlans = lifePlannerStorage.getActionPlans();
+    actionPlans.push(actionPlan);
+    lifePlannerStorage.saveActionPlans(actionPlans);
+    setIsActionPlanModalOpen(false);
+    setSelectedVisionForActionPlan(null);
+    alert('Action Plan created successfully!');
   };
 
   if (!mounted) return null;
@@ -281,9 +298,10 @@ export default function VisionPage() {
 
                     <div className="mt-4 flex gap-2">
                       <button
+                        onClick={() => handleAddActionPlanForVision(vision)}
                         className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition"
                       >
-                        Done
+                        Add Action Plan
                       </button>
                       <button
                         onClick={() => handleEditVision(vision)}
@@ -416,6 +434,19 @@ export default function VisionPage() {
           vision={editingVision}
           onSave={handleSaveVision}
           onClose={() => setIsModalOpen(false)}
+        />
+      )}
+
+      {isActionPlanModalOpen && selectedVisionForActionPlan && (
+        <ActionPlanModal
+          isOpen={isActionPlanModalOpen}
+          onClose={() => {
+            setIsActionPlanModalOpen(false);
+            setSelectedVisionForActionPlan(null);
+          }}
+          onSave={handleSaveActionPlan}
+          visions={visions}
+          editingPlan={undefined}
         />
       )}
     </div>
