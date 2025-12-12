@@ -8,7 +8,7 @@ import ServerStatus from './ServerStatus';
 
 const topTabs = [
   { href: '/life-planner/dashboard/vision', label: 'Vision', icon: Target },
-  { href: '/life-planner/dashboard/goals', label: 'Goals', icon: Flag },
+  { href: '/life-planner/dashboard/action-plan', label: 'Action Plan', icon: Flag },
   { href: '/life-planner/dashboard/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/life-planner/dashboard/todos', label: 'Todos', icon: ListChecks },
   { href: '/life-planner/dashboard/words', label: 'Words', icon: NotebookPen },
