@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogOut, Target, Flag, CheckSquare, ListChecks, Bell, NotebookPen, HeartPulse, Gem, BarChart3, User } from 'lucide-react';
+import { Menu, X, LogOut, Target, Flag, CheckSquare, Bell, NotebookPen, HeartPulse, Gem, BarChart3, User } from 'lucide-react';
 import HealthTracker from './HealthTracker';
 import ServerStatus from './ServerStatus';
 
@@ -10,7 +10,6 @@ const topTabs = [
   { href: '/life-planner/dashboard/vision', label: 'Vision Plan', icon: Target },
   { href: '/life-planner/dashboard/action-plan', label: 'Action Plan', icon: Flag },
   { href: '/life-planner/dashboard/tasks', label: 'Tasks', icon: CheckSquare },
-  { href: '/life-planner/dashboard/todos', label: 'Todos', icon: ListChecks },
   { href: '/life-planner/dashboard/words', label: 'Words', icon: NotebookPen },
   { href: '/life-planner/dashboard/reminders', label: 'Reminders', icon: Bell },
   { href: '/life-planner/dashboard/health-routines', label: 'Health', icon: HeartPulse },
@@ -30,6 +29,7 @@ export default function LifePlannerTopNav({
 
   const logout = () => {
     localStorage.removeItem('lifePlannerUser');
+      localStorage.removeItem('lifePlannerToken');
     router.push('/life-planner/login');
   };
 

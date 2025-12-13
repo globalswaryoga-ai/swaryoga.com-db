@@ -12,6 +12,7 @@ interface GoalModalProps {
 
 const GoalModal: React.FC<GoalModalProps> = ({ goal, onSave, onClose }) => {
   const [formData, setFormData] = useState({
+    visionId: '',
     title: '',
     description: '',
     startDate: '',
@@ -24,13 +25,14 @@ const GoalModal: React.FC<GoalModalProps> = ({ goal, onSave, onClose }) => {
   useEffect(() => {
     if (goal) {
       setFormData({
+        visionId: goal.visionId,
         title: goal.title,
-        description: goal.description,
-        startDate: goal.startDate,
-        targetDate: goal.targetDate,
+        description: goal.description || '',
+        startDate: goal.startDate || '',
+        targetDate: goal.targetDate || '',
         priority: goal.priority,
         status: goal.status,
-        progress: goal.progress,
+        progress: goal.progress ?? 0,
       });
     }
   }, [goal]);

@@ -1,27 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, User } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
+
+function getAuthedEmail(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader) return null;
+  const [scheme, token] = authHeader.split(' ');
+  if (scheme !== 'Bearer' || !token) return null;
+  const payload = verifyToken(token);
+  return payload?.email ?? null;
+}
 
 // GET Life Planner data for a user
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    // Get email from query params
+    // Auth: derive email from token
+    const email = getAuthedEmail(request);
     const searchParams = request.nextUrl.searchParams;
-    const email = searchParams.get('email');
     const dataType = searchParams.get('type'); // vision, goals, tasks, etc.
 
     if (!email) {
       return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
     // Find user
-    const user = await User.findOne({ email: email.trim() });
+  const user = await User.findOne({ email: email.trim() });
 
     if (!user) {
       return NextResponse.json(
@@ -41,6 +51,7 @@ export async function GET(request: NextRequest) {
     // Return all Life Planner data
     return NextResponse.json({
       visions: user.lifePlannerVisions || [],
+      actionPlans: user.lifePlannerActionPlans || [],
       goals: user.lifePlannerGoals || [],
       tasks: user.lifePlannerTasks || [],
       todos: user.lifePlannerTodos || [],
@@ -65,11 +76,19 @@ export async function PUT(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { email, type, data } = body;
+    const { type, data } = body;
+    const email = getAuthedEmail(request);
 
-    if (!email || !type) {
+    if (!email) {
       return NextResponse.json(
-        { error: 'Email and type are required' },
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    if (!type) {
+      return NextResponse.json(
+        { error: 'Type is required' },
         { status: 400 }
       );
     }

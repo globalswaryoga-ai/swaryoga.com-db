@@ -127,23 +127,22 @@ export default function UserProfile() {
 
   const fetchMessages = async (token: string) => {
     try {
-      const response = await fetch('/api/messages', {
+      const response = await fetch('/api/messages?limit=200&page=1', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
       if (response.ok) {
-        const data = await response.json();
-        // Filter messages exchanged with this user's email
+        const payload = await response.json();
+        // API already filters to this user; keep a legacy fallback just in case.
+        const data = Array.isArray(payload) ? payload : payload?.data;
+
         const userEmail = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).email : '';
         const filteredMessages = Array.isArray(data)
-          ? data.filter(
-              (msg) =>
-                msg.recipientEmail === userEmail ||
-                msg.senderEmail === userEmail
-            )
+          ? data.filter((msg) => msg.recipientEmail === userEmail || msg.senderEmail === userEmail)
           : [];
+
         setMessages(filteredMessages);
       }
     } catch (error) {

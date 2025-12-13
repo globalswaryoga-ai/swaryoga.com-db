@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Eye } from 'lucide-react';
 import { Vision } from '@/lib/types/lifePlanner';
-import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import VisionBuilder from './VisionBuilder';
 
 export default function VisionsBlogPage() {
@@ -15,14 +15,17 @@ export default function VisionsBlogPage() {
 
   useEffect(() => {
     setMounted(true);
-    const saved = lifePlannerStorage.getVisions();
-    setVisions(saved);
+    (async () => {
+      const saved = await lifePlannerStorage.getVisions();
+      setVisions(saved);
+    })();
   }, []);
 
   useEffect(() => {
-    if (mounted) {
-      lifePlannerStorage.saveVisions(visions);
-    }
+    if (!mounted) return;
+    (async () => {
+      await lifePlannerStorage.saveVisions(visions);
+    })();
   }, [visions, mounted]);
 
   const handleAddVision = () => {
@@ -235,13 +238,17 @@ export default function VisionsBlogPage() {
                       <div className="bg-blue-50 rounded-xl p-4">
                         <div className="text-sm font-bold text-blue-600 mb-1">📅 Start</div>
                         <div className="text-lg font-black text-blue-900">
-                          {new Date(vision.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {vision.startDate
+                            ? new Date(vision.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            : '—'}
                         </div>
                       </div>
                       <div className="bg-pink-50 rounded-xl p-4">
                         <div className="text-sm font-bold text-pink-600 mb-1">🎯 End</div>
                         <div className="text-lg font-black text-pink-900">
-                          {new Date(vision.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {vision.endDate
+                            ? new Date(vision.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            : '—'}
                         </div>
                       </div>
                       <div className="bg-green-50 rounded-xl p-4">

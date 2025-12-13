@@ -2,6 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order } from '@/lib/db';
 import { verifyPayUResponseHash } from '@/lib/payments/payu';
 
+function getBaseUrl(request: NextRequest): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL;
+  if (configured && configured.trim()) return configured.trim().replace(/\/$/, '');
+
+  const origin = request.headers.get('origin');
+  if (origin) return origin.replace(/\/$/, '');
+
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  if (host) return `${proto}://${host}`.replace(/\/$/, '');
+
+  return '';
+}
+
+function buildRedirectUrl(baseUrl: string, pathOrAbsoluteUrl: string, params: Record<string, string | undefined>) {
+  const isAbsolute = /^https?:\/\//i.test(pathOrAbsoluteUrl);
+  const url = new URL(isAbsolute ? pathOrAbsoluteUrl : `${baseUrl}${pathOrAbsoluteUrl.startsWith('/') ? '' : '/'}${pathOrAbsoluteUrl}`);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value == null || value === '') return;
+    url.searchParams.set(key, value);
+  });
+  return url.toString();
+}
+
 // Handle PayU success callback (POST)
 export async function POST(request: NextRequest) {
   try {
@@ -15,21 +39,29 @@ export async function POST(request: NextRequest) {
       console.log('PayU Response:', payuData);
     }
 
+    const baseUrl = getBaseUrl(request);
+
+    const successTarget = process.env.NEXT_PUBLIC_PAYMENT_SUCCESS_URL || '/payment-successful';
+    const failureTarget = process.env.NEXT_PUBLIC_PAYMENT_FAILED_URL || '/payment-failed';
+
     // Verify hash
     if (!verifyPayUResponseHash(payuData)) {
       console.error('Invalid PayU hash');
-      return NextResponse.json(
-        { error: 'Invalid payment signature' },
-        { status: 400 }
-      );
+      const redirectUrl = baseUrl
+        ? buildRedirectUrl(baseUrl, failureTarget, {
+            status: 'failure',
+            error: 'Invalid payment signature. Please try again.',
+          })
+        : '/payment-failed?status=failure&error=' + encodeURIComponent('Invalid payment signature. Please try again.');
+      return NextResponse.redirect(redirectUrl);
     }
 
     await connectDB();
 
     // Extract relevant data
     const orderId = payuData.txnid;
-    const transactionId = payuData.payuMoneyId;
-    const status = payuData.status; // 'success' or 'failed'
+    const transactionId = payuData.mihpayid || payuData.payuMoneyId;
+    const status = (payuData.status || '').toLowerCase(); // 'success' | 'failure' | 'pending'
     const amount = parseFloat(payuData.amount);
     const email = payuData.email;
 
@@ -37,10 +69,16 @@ export async function POST(request: NextRequest) {
     const order = await Order.findOne({ _id: orderId });
     
     if (!order) {
-      return NextResponse.json(
-        { error: 'Order not found' },
-        { status: 404 }
-      );
+      const redirectUrl = baseUrl
+        ? buildRedirectUrl(baseUrl, failureTarget, {
+            status: 'failure',
+            orderId,
+            txnid: orderId,
+            mihpayid: transactionId,
+            error: 'Order not found. Please contact support.',
+          })
+        : '/payment-failed?status=failure&error=' + encodeURIComponent('Order not found. Please contact support.');
+      return NextResponse.redirect(redirectUrl);
     }
 
     // Update order with payment status
@@ -49,7 +87,7 @@ export async function POST(request: NextRequest) {
       order.paymentStatus = 'completed';
       order.transactionId = transactionId;
       order.paymentMethod = 'payu';
-    } else if (status === 'failed') {
+    } else if (status === 'failure' || status === 'failed') {
       order.status = 'failed';
       order.paymentStatus = 'failed';
       order.failureReason = payuData.error_Message || 'Payment failed';
@@ -72,18 +110,41 @@ export async function POST(request: NextRequest) {
     }
 
     // Redirect to appropriate page based on status
-    if (status === 'success') {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/thankyou?orderId=${orderId}`);
-    } else {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/checkout?error=Payment failed. Please try again.&orderId=${orderId}`);
+    if (!baseUrl) {
+      return NextResponse.json({ ok: true, status });
     }
+
+    if (status === 'success') {
+      return NextResponse.redirect(
+        buildRedirectUrl(baseUrl, successTarget, {
+          status: 'success',
+          orderId,
+          txnid: orderId,
+          mihpayid: transactionId,
+          amount: Number.isFinite(amount) ? amount.toFixed(2) : undefined,
+          email,
+        })
+      );
+    }
+
+    // failure / failed / pending
+    return NextResponse.redirect(
+      buildRedirectUrl(baseUrl, failureTarget, {
+        status: status || 'failure',
+        orderId,
+        txnid: orderId,
+        mihpayid: transactionId,
+        amount: Number.isFinite(amount) ? amount.toFixed(2) : undefined,
+        email,
+        error: payuData.error_Message || (status === 'pending' ? 'Payment pending. Please check again later.' : 'Payment failed. Please try again.'),
+      })
+    );
 
   } catch (error) {
     console.error('Error processing PayU callback:', error);
-    return NextResponse.json(
-      { error: 'Failed to process payment' },
-      { status: 500 }
-    );
+    // If we can, redirect to failure page; otherwise return JSON.
+    const fallback = '/payment-failed?status=failure&error=' + encodeURIComponent('Failed to process payment. Please try again.');
+    return NextResponse.redirect(fallback);
   }
 }
 

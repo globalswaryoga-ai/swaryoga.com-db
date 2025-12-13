@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { ActionPlan, Vision } from '@/lib/types/lifePlanner';
-import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import ActionPlanModal from '@/components/ActionPlanModal';
 
 const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
@@ -13,27 +14,55 @@ const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
   'on-hold': { text: 'text-yellow-700', bg: 'bg-yellow-100' },
 };
 
+const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  'Life': { bg: 'bg-purple-600', text: 'text-white' },
+  'Health': { bg: 'bg-green-600', text: 'text-white' },
+  'Wealth': { bg: 'bg-red-600', text: 'text-white' },
+  'Success': { bg: 'bg-blue-600', text: 'text-white' },
+  'Respect': { bg: 'bg-orange-600', text: 'text-white' },
+  'Pleasure': { bg: 'bg-pink-600', text: 'text-white' },
+  'Prosperity': { bg: 'bg-indigo-600', text: 'text-white' },
+  'Luxurious': { bg: 'bg-yellow-600', text: 'text-white' },
+  'Good Habits': { bg: 'bg-teal-600', text: 'text-white' },
+  'Sadhana': { bg: 'bg-cyan-600', text: 'text-white' },
+};
+
 export default function ActionPlanPage() {
+  const router = useRouter();
+
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
   const [visions, setVisions] = useState<Vision[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<ActionPlan | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [sliderIndex, setSliderIndex] = useState(0);
+
+  // Filters (UI-only; never persisted)
+  const [filterHead, setFilterHead] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
     setMounted(true);
-    const savedPlans = lifePlannerStorage.getActionPlans();
-    const savedVisions = lifePlannerStorage.getVisions();
-    setActionPlans(savedPlans);
-    setVisions(savedVisions);
+    (async () => {
+      const savedPlans = await lifePlannerStorage.getActionPlans();
+      const savedVisions = await lifePlannerStorage.getVisions();
+      setActionPlans(savedPlans);
+      setVisions(savedVisions);
+      setHasLoaded(true);
+    })();
   }, []);
 
   useEffect(() => {
-    if (mounted) {
-      lifePlannerStorage.saveActionPlans(actionPlans);
-    }
-  }, [actionPlans, mounted]);
+    if (!mounted || !hasLoaded) return;
+    // Prevent overwriting Mongo data with an empty array due to transient initial state.
+    if (actionPlans.length === 0) return;
+    (async () => {
+      await lifePlannerStorage.saveActionPlans(actionPlans);
+    })();
+  }, [actionPlans, mounted, hasLoaded]);
 
   const handleAddPlan = () => {
     setEditingPlan(null);
@@ -59,8 +88,38 @@ export default function ActionPlanPage() {
     );
   };
 
-  // Filter logic - just sort, no filtering
+  const getVisionTitle = (visionId: string): string => {
+    return visions.find(v => v.id === visionId)?.title || 'Unknown Vision';
+  };
+
+  const getVisionCategory = (visionId: string): string | undefined => {
+    return visions.find(v => v.id === visionId)?.category;
+  };
+
+  const uniqueHeads = Array.from(
+    new Set(visions.map(v => v.category).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b));
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+  const normalizedSearch = searchText.trim().toLowerCase();
+
   const filteredPlans = actionPlans
+    .filter((p) => {
+      const head = getVisionCategory(p.visionId);
+      const matchesHead = filterHead === 'all' || head === filterHead;
+      const matchesStatus = filterStatus === 'all' || (p.status || 'not-started') === filterStatus;
+
+      const monthIdx = filterMonth === 'all' ? null : MONTHS.indexOf(filterMonth as any);
+      const dateStr = p.endDate || p.startDate;
+      const date = dateStr ? new Date(dateStr) : null;
+      const matchesMonth = monthIdx === null || (date && !Number.isNaN(date.getTime()) && date.getMonth() === monthIdx);
+
+      const haystack = `${p.title || ''} ${p.description || ''} ${getVisionTitle(p.visionId)}`.toLowerCase();
+      const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+
+      return matchesHead && matchesStatus && matchesMonth && matchesSearch;
+    })
     .sort((a, b) => {
       // Sort by due date (endDate) in ascending order
       const dateA = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_VALUE;
@@ -79,10 +138,6 @@ export default function ActionPlanPage() {
       setActionPlans(prev => [...prev, planData]);
     }
     setIsModalOpen(false);
-  };
-
-  const getVisionTitle = (visionId: string): string => {
-    return visions.find(v => v.id === visionId)?.title || 'Unknown Vision';
   };
 
   if (!mounted) return null;
@@ -106,7 +161,92 @@ export default function ActionPlanPage() {
       <div className="mb-12">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-bold text-gray-800">Action Plan Cards</h2>
-          <p className="text-sm text-gray-600">Showing {Math.min(3, filteredPlans.length)} of {filteredPlans.length} plans</p>
+          <p className="text-sm text-gray-600">Showing {filteredPlans.length} of {actionPlans.length} plans</p>
+        </div>
+
+        {/* Filters */}
+        <div className="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+              <input
+                value={searchText}
+                onChange={(e) => {
+                  setSearchText(e.target.value);
+                  setSliderIndex(0);
+                }}
+                placeholder="Search plan / vision name"
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-200"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Vision Head</label>
+              <select
+                value={filterHead}
+                onChange={(e) => {
+                  setFilterHead(e.target.value);
+                  setSliderIndex(0);
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
+              >
+                <option value="all">All</option>
+                {uniqueHeads.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value);
+                  setSliderIndex(0);
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
+              >
+                <option value="all">All</option>
+                <option value="not-started">not-started</option>
+                <option value="in-progress">in-progress</option>
+                <option value="completed">completed</option>
+                <option value="on-hold">on-hold</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+              <select
+                value={filterMonth}
+                onChange={(e) => {
+                  setFilterMonth(e.target.value);
+                  setSliderIndex(0);
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
+              >
+                <option value="all">All</option>
+                {MONTHS.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <button
+                onClick={() => {
+                  setSearchText('');
+                  setFilterHead('all');
+                  setFilterStatus('all');
+                  setFilterMonth('all');
+                  setSliderIndex(0);
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="relative">
@@ -115,14 +255,14 @@ export default function ActionPlanPage() {
               filteredPlans.slice(sliderIndex, sliderIndex + 3).map((plan) => (
                 <div key={plan.id} className="flex-shrink-0 w-80">
                   {/* Card - Increased Height */}
-                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl hover:scale-105 transition-all duration-300 h-96 flex flex-col">
+                  <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 h-auto flex flex-col" style={{maxHeight: '600px'}}>
                     {/* Header with Image and Status */}
-                    <div className="relative h-40 overflow-hidden">
+                    <div className="relative h-64 overflow-hidden">
                       {plan.imageUrl && (
                         <img
                           src={plan.imageUrl}
                           alt={plan.title}
-                          className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                          className="w-full h-full object-cover transition-transform duration-300"
                         />
                       )}
                       {!plan.imageUrl && (
@@ -130,18 +270,64 @@ export default function ActionPlanPage() {
                           <span className="text-white text-3xl">📋</span>
                         </div>
                       )}
-                      <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[plan.status || 'not-started'].bg} ${STATUS_COLORS[plan.status || 'not-started'].text}`}>
-                        {plan.status === 'not-started' ? '⏳ Not Started' : 
-                         plan.status === 'in-progress' ? '⚡ In Progress' :
-                         plan.status === 'completed' ? '✅ Done' : '⏸️ On Hold'}
+                      <div className="absolute top-3 left-3">
+                        {plan.goals && plan.goals.length > 0 && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 bg-black/55 backdrop-blur text-white px-3 py-1 rounded-full text-xs font-extrabold border border-white/20 hover:bg-black/65 transition"
+                            title="Open Tasks"
+                            onClick={() => {
+                              const head = getVisionCategory(plan.visionId);
+                              const firstGoalId = plan.goals?.[0]?.id || '';
+                              const params = new URLSearchParams();
+                              params.set('openTaskForm', '1');
+                              if (head) params.set('head', head);
+                              if (firstGoalId) params.set('goalId', firstGoalId);
+                              router.push(`/life-planner/dashboard/tasks?${params.toString()}`);
+                            }}
+                          >
+                            <span className="text-sm">🎯</span>
+                            <span>Goals</span>
+                            <span className="text-[11px] font-black bg-white/20 rounded-full px-2 py-0.5">
+                              {plan.goals.length}
+                            </span>
+                          </button>
+                        )}
                       </div>
+
+                      {/* Head + Status moved into the row below the image */}
                     </div>
 
                     {/* Card Content */}
-                    <div className="p-4 flex-grow flex flex-col overflow-hidden">
+                    <div className="p-4 flex-grow flex flex-col overflow-y-auto">
                       {/* Title and Vision */}
                       <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-2">{plan.title}</h3>
                       <p className="text-xs text-blue-600 font-semibold mb-2">Vision: {getVisionTitle(plan.visionId)}</p>
+
+                      {/* Row: Goals / Head / Status */}
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-gray-800 text-xs font-bold">
+                          <span>🎯 Goals</span>
+                          <span className="text-[11px] font-black bg-white rounded-full px-2 py-0.5 border border-gray-200">
+                            {plan.goals?.length || 0}
+                          </span>
+                        </div>
+
+                        {getVisionCategory(plan.visionId) && (
+                          <div
+                            className={`${CATEGORY_COLORS[getVisionCategory(plan.visionId)!]?.bg || 'bg-gray-600'} ${CATEGORY_COLORS[getVisionCategory(plan.visionId)!]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-bold`}
+                            title="Vision Head"
+                          >
+                            {getVisionCategory(plan.visionId)}
+                          </div>
+                        )}
+
+                        <div className={`px-3 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[plan.status || 'not-started'].bg} ${STATUS_COLORS[plan.status || 'not-started'].text}`}>
+                          {plan.status === 'not-started' ? '⏳ Not Started' :
+                           plan.status === 'in-progress' ? '⚡ In Progress' :
+                           plan.status === 'completed' ? '✅ Done' : '⏸️ On Hold'}
+                        </div>
+                      </div>
 
                       {/* Description */}
                       <p className="text-sm text-gray-600 mb-3 line-clamp-2">{plan.description}</p>
@@ -176,11 +362,86 @@ export default function ActionPlanPage() {
                         </div>
                       </div>
 
-                      {/* Milestones and Goals Count */}
-                      <div className="text-xs text-gray-600 mb-3">
-                        <span className="mr-3">📌 {plan.milestones?.length || 0} milestones</span>
-                        <span>🎯 {plan.goals?.length || 0} goals</span>
-                      </div>
+                      {/* Milestones Section */}
+                      {plan.milestones && plan.milestones.length > 0 && (
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 text-blue-700 px-3 py-1 text-sm font-extrabold border border-blue-100">
+                              <span className="text-base">📌</span>
+                              <span>Milestones</span>
+                              <span className="text-xs font-black bg-blue-600 text-white rounded-full px-2 py-0.5">{plan.milestones.length}</span>
+                            </div>
+                          </div>
+                          <div className="h-px bg-gradient-to-r from-blue-200 via-gray-200 to-transparent mb-2" />
+                          <div className="space-y-2 max-h-24 overflow-y-auto">
+                            {plan.milestones.map((milestone) => (
+                              <div key={milestone.id} className="text-xs bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                                <p className="font-bold text-gray-900">
+                                  {milestone.title?.trim() ? milestone.title : 'Milestone'}
+                                </p>
+                                {(milestone.startDate || milestone.endDate) && (
+                                  <p className="text-[11px] text-gray-700 mt-0.5">
+                                    📅 {milestone.startDate ? new Date(milestone.startDate).toLocaleDateString() : '—'}
+                                    {'  '}–{'  '}
+                                    {milestone.endDate ? new Date(milestone.endDate).toLocaleDateString() : '—'}
+                                  </p>
+                                )}
+                                {(milestone.workingHoursStart || milestone.workingHoursEnd) && (
+                                  <p className="text-[11px] text-gray-700">
+                                    ⏰ {milestone.workingHoursStart || '—'} - {milestone.workingHoursEnd || '—'}
+                                  </p>
+                                )}
+                                {milestone.place && (
+                                  <p className="text-[11px] text-gray-700">📍 {milestone.place}</p>
+                                )}
+                                {milestone.description?.trim() && (
+                                  <p className="text-gray-600 mt-1 line-clamp-2">{milestone.description}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Goals Section */}
+                      {plan.goals && plan.goals.length > 0 && (
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 text-emerald-700 px-3 py-1 text-sm font-extrabold border border-emerald-100">
+                              <span className="text-base">🎯</span>
+                              <span>Goals</span>
+                              <span className="text-xs font-black bg-emerald-600 text-white rounded-full px-2 py-0.5">{plan.goals.length}</span>
+                            </div>
+                          </div>
+                          <div className="h-px bg-gradient-to-r from-emerald-200 via-gray-200 to-transparent mb-2" />
+                          <div className="space-y-2 max-h-24 overflow-y-auto">
+                            {plan.goals.map((goal) => (
+                              <div key={goal.id} className="text-xs bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                                <p className="font-bold text-gray-900">{goal.title || 'Goal'}</p>
+                                {(goal.startDate || goal.endDate) && (
+                                  <p className="text-[11px] text-gray-700 mt-0.5">
+                                    📅 {goal.startDate ? new Date(goal.startDate).toLocaleDateString() : '—'}
+                                    {'  '}–{'  '}
+                                    {goal.endDate ? new Date(goal.endDate).toLocaleDateString() : '—'}
+                                  </p>
+                                )}
+                                {(goal.workingTimeStart || goal.workingTimeEnd) && (
+                                  <p className="text-[11px] text-gray-700">
+                                    ⏰ {goal.workingTimeStart || '—'} - {goal.workingTimeEnd || '—'}
+                                  </p>
+                                )}
+                                {goal.place && (
+                                  <p className="text-[11px] text-gray-700">📍 {goal.place}</p>
+                                )}
+                                {goal.description?.trim() && (
+                                  <p className="text-gray-600 mt-1 line-clamp-2">{goal.description}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                     </div>
 
                     {/* Action Buttons */}
@@ -222,6 +483,8 @@ export default function ActionPlanPage() {
             )}
           </div>
 
+        </div>
+
           {/* Navigation Buttons */}
           {filteredPlans.length > 3 && (
             <div className="flex justify-center items-center gap-2 mt-8">
@@ -261,7 +524,6 @@ export default function ActionPlanPage() {
               </button>
             </div>
           )}
-        </div>
       </div>
 
       {/* No Visions Warning */}

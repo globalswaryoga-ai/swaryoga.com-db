@@ -1,94 +1,97 @@
-// Vision Categories/Heads
-export const VISION_CATEGORIES = [
-  'Life',
-  'Health',
-  'Wealth',
-  'Success',
-  'Respect',
-  'Pleasure',
-  'Prosperity',
-  'Luxurious',
-  'Good Habits',
-  'Sadhana'
-] as const;
+// Vision Category Type
+export type VisionCategory = 'Life' | 'Health' | 'Wealth' | 'Success' | 'Respect' | 'Pleasure' | 'Prosperity' | 'Luxurious' | 'Good Habits' | 'Sadhana';
 
-export type VisionCategory = typeof VISION_CATEGORIES[number];
+// Export array of vision categories for UI
+export const VISION_CATEGORIES: VisionCategory[] = [
+  'Life', 'Health', 'Wealth', 'Success', 'Respect', 'Pleasure', 'Prosperity', 'Luxurious', 'Good Habits', 'Sadhana'
+];
 
-// Life Planner Data Models
 export interface Vision {
   id: string;
   title: string;
-  description: string;
-  imageUrl?: string; // Custom image URL (editable)
-  categoryImageUrl?: string; // Default category image URL (auto-populated from category, editable)
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-  time?: string; // HH:MM
+  category: VisionCategory;
+  description?: string;
+  imageUrl?: string;
+  // Legacy/back-compat: some components store a derived category image URL separately
+  categoryImageUrl?: string;
+  // Extended fields used by dashboard vision form
+  priority?: 'low' | 'medium' | 'high';
+  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
+  // Some screens store/computed a summary progress percentage
+  progress?: number;
+  startDate?: string;
+  endDate?: string;
+  time?: string;
   place?: string;
   budget?: number;
-  category: VisionCategory; // Must be one of the defined heads
-  priority?: 'low' | 'medium' | 'high'; // Overall priority
-  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
-  milestones: Milestone[];
-  goals: Goal[];
-  tasks: Task[];
-  todos: Todo[];
-  words: Word[]; // Mantras, affirmations, commitments
-  reminders: Reminder[]; // Notification reminders
-  progress?: number; // 0-100 overall progress
+  milestones?: Milestone[];
+  reminders?: Reminder[];
+  goals?: Goal[];
+  tasks?: Task[];
+  todos?: Todo[];
+  words?: Word[];
   createdAt: string;
   updatedAt: string;
 }
+
+export type MiniTodo = {
+  id: string;
+  title: string;
+  dueDate?: string;
+  dueTime?: string;
+  completed: boolean;
+};
 
 export interface Milestone {
   id: string;
-  title?: string; // Optional milestone title
-  description?: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-  workingHoursStart: string; // HH:MM
-  workingHoursEnd: string; // HH:MM
-  place: string; // Working location/place name
-  status?: 'not-started' | 'in-progress' | 'completed';
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ActionPlan is a breakdown of a Vision into actionable milestones and goals
-export interface ActionPlan {
-  id: string;
-  visionId: string; // Parent vision
   title: string;
-  description: string;
-  imageUrl?: string; // Vision's image
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-  workingHoursStart: string; // HH:MM
-  workingHoursEnd: string; // HH:MM
-  place: string; // Primary working location
-  expectedAmount?: number; // Budget/expected cost
-  milestones: Milestone[]; // 1st milestone, 2nd, etc.
-  goals: ActionPlanGoal[]; // Goals to achieve for this action plan
+  description?: string;
+  startDate: string;
+  endDate: string;
+  workingHoursStart?: string;
+  workingHoursEnd?: string;
+  place?: string;
   status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
-  progress?: number; // 0-100
   createdAt: string;
   updatedAt: string;
 }
 
-// Goal specifically within an ActionPlan context
 export interface ActionPlanGoal {
   id: string;
   title: string;
-  description: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-  workingTimeStart: string; // HH:MM
-  workingTimeEnd: string; // HH:MM
-  place: string; // Location for this goal
-  expectedAmount?: number; // Budget
-  status: 'not-started' | 'working' | 'pending' | 'done';
+  description?: string;
+  startDate: string;
+  endDate: string;
+  workingTimeStart?: string;
+  workingTimeEnd?: string;
+  place?: string;
+  expectedAmount?: number;
+  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
   priority?: 'low' | 'medium' | 'high';
-  progress?: number; // 0-100
+  progress?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActionPlan {
+  id: string;
+  title: string;
+  visionId: string;
+  goal?: string;
+  description?: string;
+  imageUrl?: string;
+  startDate?: string;
+  endDate?: string;
+  workingHoursStart?: string;
+  workingHoursEnd?: string;
+  place?: string;
+  expectedAmount?: number;
+  milestones?: Milestone[];
+  goals?: ActionPlanGoal[];
+  todos?: MiniTodo[];
+  status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
+  progress?: number;
+  actionItems?: Array<{ id: string; title: string; completed: boolean }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -96,55 +99,20 @@ export interface ActionPlanGoal {
 export interface Goal {
   id: string;
   title: string;
-  description: string;
-  visionId?: string; // Optional parent vision
-  startDate: string; // YYYY-MM-DD
-  targetDate: string; // YYYY-MM-DD
-  budget?: number; // Amount (optional)
+  visionId: string;
+  description?: string;
   priority: 'low' | 'medium' | 'high';
   status: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
-  progress: number; // 0-100
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  goalId?: string; // Optional parent goal
-  startDate: string; // YYYY-MM-DD
-  dueDate: string; // YYYY-MM-DD
-  budget?: number; // Amount (optional)
-  priority: 'low' | 'medium' | 'high';
-  status: 'not-started' | 'in-progress' | 'pending' | 'completed' | 'overdue';
-  repeat?: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-  completed: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Todo {
-  id: string;
-  title: string;
-  description?: string;
-  taskId?: string; // Optional parent task
-  startDate: string; // YYYY-MM-DD
-  dueDate: string; // YYYY-MM-DD
-  budget?: number; // Amount (optional)
-  priority: 'low' | 'medium' | 'high';
-  completed: boolean;
-  category?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Word {
-  id: string;
-  title: string;
-  content: string; // Rich text / commitment / rule
-  category: string; // 'Commitment', 'Rule', 'Mantra', 'Affirmation'
-  color?: string; // Hex color
+  startDate?: string;
+  targetDate?: string;
+  budget?: number;
+  progress?: number;
+  milestones?: Array<{
+    id: string;
+    title: string;
+    dueDate: string;
+    completed: boolean;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -153,17 +121,53 @@ export interface Reminder {
   id: string;
   title: string;
   description?: string;
-  visionId?: string; // Optional parent vision
-  startDate: string; // YYYY-MM-DD
-  dueDate: string; // YYYY-MM-DD
-  dueTime?: string; // HH:MM
-  budget?: number; // Amount (optional)
-  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
-  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-  priority: 'low' | 'medium' | 'high';
-  active: boolean;
-  completed?: boolean; // Track if reminder has been completed
-  lastShown?: string; // YYYY-MM-DD - tracks when reminder popup was shown
+  // Linkage (optional)
+  visionId?: string;
+  goalId?: string;
+  // Optional metadata used in some dashboards
+  category?: string;
+  priority?: 'low' | 'medium' | 'high';
+  // Back-compat + UI usage
+  reminderType?: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  nextDueDate?: string;
+  time?: string;
+  startDate?: string;
+  dueDate?: string;
+  dueTime?: string;
+  budget?: number;
+  frequency?: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  // Whether the reminder is enabled/active (used by some UIs)
+  active?: boolean;
+  completed: boolean;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Word {
+  id: string;
+  title: string;
+  description?: string;
+  // Legacy/alternate field name used in some dashboards
+  content?: string;
+  // optional legacy field (still used in filters)
+  type?: 'affirmation' | 'mantra' | 'quote' | 'motivation';
+  // Vision Head
+  category?: VisionCategory | string;
+  imageUrl?: string;
+  // UI accent color used in some pages
+  color?: string;
+  startDate?: string;
+  endDate?: string;
+  timeStart?: string;
+  timeEnd?: string;
+  priority?: 'low' | 'medium' | 'high';
+  // Optional status used by dashboards (Done / Active)
+  status?: 'active' | 'completed' | 'on-hold';
+  // Repeat / Frequency (expanded)
+  frequency?: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  customDays?: number;
+  todos?: MiniTodo[];
   createdAt: string;
   updatedAt: string;
 }
@@ -172,11 +176,17 @@ export interface HealthRoutine {
   id: string;
   title: string;
   description?: string;
-  category: 'exercise' | 'meditation' | 'nutrition' | 'sleep' | 'other';
-  frequency: 'daily' | 'weekly' | 'custom';
-  targetDays?: string[]; // ['Mon', 'Tue', etc.] for weekly
-  completedDates: string[]; // YYYY-MM-DD
-  streak: number; // consecutive days
+  // Category/type (both used in different parts of the app)
+  category?: 'exercise' | 'meditation' | 'nutrition' | 'sleep' | 'other' | string;
+  type?: 'yoga' | 'meditation' | 'exercise' | 'diet' | 'sleep' | 'other';
+  frequency: 'daily' | 'weekly' | 'monthly';
+  duration?: number;
+  daysOfWeek?: string[];
+  startDate?: string;
+  endDate?: string;
+  // Habit tracking
+  completedDates: string[];
+  streak: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -184,35 +194,106 @@ export interface HealthRoutine {
 export interface DiamondPerson {
   id: string;
   name: string;
-  mobile: string;
-  profession: string;
-  country: string;
-  state: string;
-  address: string;
-  email: string;
+  // Relationship metadata
+  relationship: 'professional' | 'personal' | 'family' | 'friend' | string;
+  category?: string;
+
+  // Contact details (expanded)
+  mobile?: string;
+  email?: string;
+  address?: string;
+  country?: string;
+  state?: string;
+  profession?: string;
+
+  // Legacy / optional fields
+  description?: string;
+  contact?: string;
+  lastContact?: string;
   notes?: string;
-  category: string; // 'Spiritual Mentor', 'Health Professional', 'Personal Development', 'Family', 'Friends'
-  relationship: 'professional' | 'personal' | 'family' | 'friend';
-  lastContact: string; // YYYY-MM-DD
   createdAt: string;
   updatedAt: string;
 }
 
+export interface ActionItem {
+  id: string;
+  title: string;
+  visionId?: string;
+  goalId?: string;
+  visionHead?: VisionCategory;
+  imageUrl?: string;
+  status: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
+  startDate: string;
+  targetDate: string;
+  budget?: number;
+  priority: 'low' | 'medium' | 'high';
+  progress: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Todo {
+  id: string;
+  title: string;
+  description?: string;
+  taskId?: string;
+  startDate: string;
+  dueDate: string;
+  budget?: number;
+  priority: 'low' | 'medium' | 'high';
+  completed: boolean;
+  category?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  visionHead?: VisionCategory;
+  visionId?: string;
+  goalId?: string;
+  imageUrl?: string;
+  timeStart?: string;
+  timeEnd?: string;
+  place?: string;
+  todos?: MiniTodo[];
+  startDate: string;
+  dueDate: string;
+  budget?: number;
+  priority: 'low' | 'medium' | 'high';
+  status: 'not-started' | 'in-progress' | 'pending' | 'completed' | 'overdue';
+  repeat?: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskFormState {
+  title: string;
+  description: string;
+  visionHead: string;
+  visionId: string;
+  goalId: string;
+  startDate: string;
+  dueDate: string;
+  timeStart: string;
+  timeEnd: string;
+  place: string;
+  imageUrl: string;
+  todos: MiniTodo[];
+}
+
+// Back-compat: some storage layers persist a separate progress report collection.
+// The app currently derives progress stats on the fly, so keep this intentionally flexible.
 export interface ProgressReport {
-  period: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  date: string; // YYYY-MM-DD
-  tasksCompleted: number;
-  tasksTotal: number;
-  todosCompleted: number;
-  todosTotal: number;
-  goalsProgress: number; // average progress percentage
-  visionsMilestones: {
-    visionId: string;
-    milestonesCompleted: number;
-    milestonesTotal: number;
-  }[];
-  healthRoutineStreak: {
-    routineId: string;
-    streak: number;
-  }[];
+  id: string;
+  period?: 'daily' | 'weekly' | 'monthly' | 'yearly' | string;
+  date?: string;
+  title?: string;
+  metrics?: Record<string, number>;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }

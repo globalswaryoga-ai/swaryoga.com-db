@@ -21,6 +21,18 @@ export type WorkshopOverview = {
 
 // Workshop metadata (displayed on main pages and catalog)
 const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
+  'basic-workshop-50': {
+    name: 'Basic Workshop (₹50 Test)',
+    slug: 'basic-workshop-50',
+    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    description: 'A small ₹50 workshop item for payment gateway testing.',
+    duration: '1 day',
+    level: 'All Levels',
+    category: 'Test',
+    mode: ['Online'],
+    language: ['Hindi', 'English'],
+    currency: ['INR']
+  },
   'swar-yoga-basic': {
     name: 'Swar Yoga Basic Workshop',
     slug: 'swar-yoga-basic',
@@ -268,6 +280,26 @@ export interface WorkshopDetail {
 }
 
 export const workshopDetails: Record<string, WorkshopDetail> = {
+  'basic-workshop-50': {
+    id: 999,
+    name: 'Basic Workshop (₹50 Test)',
+    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    duration: '1 day',
+    level: 'All Levels',
+    price: '₹50',
+    schedules: [
+      {
+        id: 't1',
+        mode: 'online',
+        startDate: '2025-12-15',
+        endDate: '2025-12-15',
+        time: '7:00 PM - 8:00 PM',
+        seats: 999,
+        price: 50,
+        currency: 'INR'
+      }
+    ]
+  },
   'swar-yoga-basic': {
     id: 1,
     name: 'Swar Yoga Basic Workshop',

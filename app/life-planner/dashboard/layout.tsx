@@ -12,7 +12,13 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
 
   useEffect(() => {
     const session = localStorage.getItem('lifePlannerUser');
+    const token = localStorage.getItem('lifePlannerToken');
     if (!session) {
+      router.push('/life-planner/login');
+      return;
+    }
+    if (!token) {
+      // Token is required for Mongo-backed persistence; without it the API returns 401.
       router.push('/life-planner/login');
       return;
     }

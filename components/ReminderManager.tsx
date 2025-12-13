@@ -109,7 +109,7 @@ export default function ReminderManager({
     return visions.find((v) => v.id === visionId)?.title || 'Unknown Vision';
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority?: string) => {
     switch (priority) {
       case 'high':
         return 'bg-red-100 text-red-700 border-red-200';
@@ -122,7 +122,7 @@ export default function ReminderManager({
     }
   };
 
-  const getFrequencyColor = (frequency: string) => {
+  const getFrequencyColor = (frequency?: string) => {
     switch (frequency) {
       case 'once':
         return 'bg-gray-100 text-gray-700';
@@ -505,11 +505,11 @@ export default function ReminderManager({
 
                   {/* Badges */}
                   <div className="flex gap-2 flex-wrap mt-3">
-                    <span className={`px-3 py-1 rounded text-xs font-medium border ${getFrequencyColor(reminder.frequency)}`}>
-                      {reminder.frequency.toUpperCase()}
+                    <span className={`px-3 py-1 rounded text-xs font-medium border ${getFrequencyColor(reminder.frequency ?? 'once')}`}>
+                      {(reminder.frequency ?? 'once').toUpperCase()}
                     </span>
-                    <span className={`px-3 py-1 rounded text-xs font-medium border ${getPriorityColor(reminder.priority)}`}>
-                      {reminder.priority.toUpperCase()}
+                    <span className={`px-3 py-1 rounded text-xs font-medium border ${getPriorityColor(reminder.priority ?? 'medium')}`}>
+                      {(reminder.priority ?? 'medium').toUpperCase()}
                     </span>
                     <span
                       className={`px-3 py-1 rounded text-xs font-medium ${

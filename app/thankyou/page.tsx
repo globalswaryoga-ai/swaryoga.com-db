@@ -24,14 +24,46 @@ interface RegistrationData {
   registrationDate: string;
 }
 
+interface OrderData {
+  _id: string;
+  items: Array<{ productId: string; name: string; price: number; quantity: number }>;
+  total: number;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  transactionId: string;
+  failureReason: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 function ThankYouInner() {
   const searchParams = useSearchParams();
   const registrationId = searchParams.get('registrationId');
   const email = searchParams.get('email');
+  const orderId = searchParams.get('orderId') || searchParams.get('txnid');
   const [registration, setRegistration] = useState<RegistrationData | null>(null);
+  const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Prefer PayU order success view if orderId is present.
+    if (orderId) {
+      fetch(`/api/orders/${encodeURIComponent(orderId)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.success && data?.order) {
+            setOrder(data.order as OrderData);
+          }
+          setLoading(false);
+        })
+        .catch((error) => {
+          console.error('Error fetching order:', error);
+          setLoading(false);
+        });
+      return;
+    }
+
     if (email) {
       // Fetch registration details
       fetch(`/api/workshops/registrations?email=${email}`)
@@ -50,7 +82,7 @@ function ThankYouInner() {
     } else {
       setLoading(false);
     }
-  }, [email]);
+  }, [email, orderId]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -101,13 +133,62 @@ function ThankYouInner() {
 
             <h1 className="text-5xl font-bold mb-4 text-green-700">Thank You!</h1>
             <p className="text-2xl text-gray-600 mb-4">
-              Your workshop registration is confirmed
+              {orderId ? 'Your payment is confirmed' : 'Your workshop registration is confirmed'}
             </p>
           </div>
 
           {loading ? (
             <div className="text-center py-12">
               <p className="text-gray-600">Loading registration details...</p>
+            </div>
+          ) : order ? (
+            <div className="bg-green-50 rounded-lg p-8 mb-8 border-2 border-green-200">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Payment Details</h2>
+
+              <div className="space-y-4 mb-6">
+                <div className="flex items-start gap-4">
+                  <div className="text-2xl">🧾</div>
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Order ID</p>
+                    <p className="text-lg text-gray-900 font-mono break-all">{order._id}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="text-2xl">✅</div>
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Status</p>
+                    <p className="text-lg text-gray-900">{order.paymentStatus || order.status}</p>
+                  </div>
+                </div>
+
+                {order.transactionId ? (
+                  <div className="flex items-start gap-4">
+                    <div className="text-2xl">🔁</div>
+                    <div>
+                      <p className="text-sm text-gray-600 font-semibold">Transaction ID</p>
+                      <p className="text-lg text-gray-900 font-mono break-all">{order.transactionId}</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="flex items-start gap-4">
+                  <div className="text-2xl">💰</div>
+                  <div>
+                    <p className="text-sm text-gray-600 font-semibold">Total</p>
+                    <p className="text-lg font-bold text-green-600">₹ {Number(order.total || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-green-300 pt-6">
+                <p className="text-gray-700">
+                  If you have any questions, please contact our team at{' '}
+                  <a href="mailto:support@swaryoga.com" className="text-green-600 font-bold hover:text-green-700">
+                    support@swaryoga.com
+                  </a>
+                </p>
+              </div>
             </div>
           ) : registration ? (
             <div className="bg-green-50 rounded-lg p-8 mb-8 border-2 border-green-200">

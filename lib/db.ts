@@ -40,6 +40,7 @@ const userSchema = new mongoose.Schema({
   
   // Life Planner Data
   lifePlannerVisions: [mongoose.Schema.Types.Mixed],
+  lifePlannerActionPlans: [mongoose.Schema.Types.Mixed],
   lifePlannerGoals: [mongoose.Schema.Types.Mixed],
   lifePlannerTasks: [mongoose.Schema.Types.Mixed],
   lifePlannerTodos: [mongoose.Schema.Types.Mixed],
@@ -77,7 +78,8 @@ export const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 // Order Schema
 const orderSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  // Optional for guest/one-off purchases (e.g., workshop checkout)
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
   items: [
     {
       productId: String,
@@ -88,6 +90,10 @@ const orderSchema = new mongoose.Schema({
   ],
   total: { type: Number, required: true },
   status: { type: String, default: 'pending' },
+  paymentStatus: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  paymentMethod: { type: String },
+  transactionId: { type: String },
+  failureReason: { type: String },
   shippingAddress: {
     firstName: String,
     lastName: String,

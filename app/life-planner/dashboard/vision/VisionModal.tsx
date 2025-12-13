@@ -42,7 +42,7 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
     priority: 'medium' as 'low' | 'medium' | 'high',
     status: 'not-started' as 'not-started' | 'in-progress' | 'completed' | 'on-hold',
     startDate: today,
-    endDate: '',
+    endDate: today,
     time: '11:00',
     place: '',
     budget: '',
@@ -74,17 +74,17 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
     if (vision) {
       setFormData({
         title: vision.title,
-        description: vision.description,
+        description: vision.description || '',
         imageUrl: vision.imageUrl || LANDSCAPE_IMAGE,
         category: vision.category,
         priority: vision.priority || 'medium',
         status: vision.status || 'not-started',
         startDate: vision.startDate || today,
-        endDate: vision.endDate,
+        endDate: vision.endDate || today,
         time: vision.time || '11:00',
         place: vision.place || '',
         budget: vision.budget ? vision.budget.toString() : '',
-        milestones: vision.milestones,
+        milestones: vision.milestones || [],
         reminders: vision.reminders || [],
         goals: vision.goals || [],
         tasks: vision.tasks || [],
@@ -135,6 +135,69 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
       words: formData.words,
     };
     onSave(payload);
+  };
+
+  const addGoal = () => {
+    const newGoal: Goal = {
+      id: `goal-${Date.now()}`,
+      title: '',
+      visionId: vision?.id || '',
+      description: '',
+      priority: 'medium',
+      status: 'not-started',
+      startDate: formData.startDate || today,
+      targetDate: formData.endDate || '',
+      progress: 0,
+      milestones: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setFormData(prev => ({ ...prev, goals: [...(prev.goals || []), newGoal] }));
+  };
+
+  const updateGoal = (id: string, patch: Partial<Goal>) => {
+    setFormData(prev => ({
+      ...prev,
+      goals: (prev.goals || []).map(g => (g.id === id ? { ...g, ...patch, updatedAt: new Date().toISOString() } : g)),
+    }));
+  };
+
+  const deleteGoal = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      goals: (prev.goals || []).filter(g => g.id !== id),
+    }));
+  };
+
+  const addTodo = () => {
+    const newTodo: Todo = {
+      id: `todo-${Date.now()}`,
+      title: '',
+      description: '',
+      startDate: formData.startDate || today,
+      dueDate: formData.endDate || today,
+      budget: undefined,
+      priority: 'medium',
+      completed: false,
+      category: String(formData.category || ''),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setFormData(prev => ({ ...prev, todos: [...(prev.todos || []), newTodo] }));
+  };
+
+  const updateTodo = (id: string, patch: Partial<Todo>) => {
+    setFormData(prev => ({
+      ...prev,
+      todos: (prev.todos || []).map(t => (t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t)),
+    }));
+  };
+
+  const deleteTodo = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      todos: (prev.todos || []).filter(t => t.id !== id),
+    }));
   };
 
   return (
@@ -273,6 +336,164 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
                 className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="Describe how this vision will change your life"
               />
+            </div>
+
+            {/* Goals */}
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-emerald-900">🎯 Goals</h3>
+                  <p className="text-xs text-emerald-800">Add goals under this vision.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addGoal}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition"
+                >
+                  + Add Goal
+                </button>
+              </div>
+
+              {(formData.goals || []).length === 0 ? (
+                <div className="mt-3 text-sm text-emerald-800 bg-white border border-emerald-200 rounded-lg px-4 py-3">
+                  No goals yet.
+                </div>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {(formData.goals || []).map((g) => (
+                    <div key={g.id} className="bg-white border border-emerald-200 rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 space-y-2">
+                          <input
+                            type="text"
+                            value={g.title || ''}
+                            onChange={(e) => updateGoal(g.id, { title: e.target.value })}
+                            className="w-full px-3 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            placeholder="Goal title"
+                          />
+                          <textarea
+                            value={g.description || ''}
+                            onChange={(e) => updateGoal(g.id, { description: e.target.value })}
+                            className="w-full px-3 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            rows={2}
+                            placeholder="Goal description (optional)"
+                          />
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <select
+                              value={g.priority || 'medium'}
+                              onChange={(e) => updateGoal(g.id, { priority: e.target.value as any })}
+                              className="px-3 py-2 border border-emerald-200 rounded-lg bg-white"
+                            >
+                              <option value="low">low</option>
+                              <option value="medium">medium</option>
+                              <option value="high">high</option>
+                            </select>
+                            <select
+                              value={g.status || 'not-started'}
+                              onChange={(e) => updateGoal(g.id, { status: e.target.value as any })}
+                              className="px-3 py-2 border border-emerald-200 rounded-lg bg-white"
+                            >
+                              <option value="not-started">not-started</option>
+                              <option value="in-progress">in-progress</option>
+                              <option value="completed">completed</option>
+                              <option value="on-hold">on-hold</option>
+                            </select>
+                            <input
+                              type="date"
+                              value={g.targetDate || ''}
+                              onChange={(e) => updateGoal(g.id, { targetDate: e.target.value })}
+                              className="px-3 py-2 border border-emerald-200 rounded-lg"
+                              title="Target date"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => deleteGoal(g.id)}
+                          className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Todos */}
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-blue-900">📌 Todos</h3>
+                  <p className="text-xs text-blue-800">Break the vision into small checkbox items.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addTodo}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                >
+                  + Add Todo
+                </button>
+              </div>
+
+              {(formData.todos || []).length === 0 ? (
+                <div className="mt-3 text-sm text-blue-800 bg-white border border-blue-200 rounded-lg px-4 py-3">
+                  No todos yet.
+                </div>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {(formData.todos || []).map((t) => (
+                    <div key={t.id} className="bg-white border border-blue-200 rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={t.title || ''}
+                            onChange={(e) => updateTodo(t.id, { title: e.target.value })}
+                            className={`w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${t.completed ? 'line-through text-gray-500' : ''}`}
+                            placeholder="Todo title"
+                          />
+                          <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <input
+                              type="date"
+                              value={t.dueDate || ''}
+                              onChange={(e) => updateTodo(t.id, { dueDate: e.target.value })}
+                              className="px-3 py-2 border border-blue-200 rounded-lg"
+                              title="Due date"
+                            />
+                            <select
+                              value={t.priority || 'medium'}
+                              onChange={(e) => updateTodo(t.id, { priority: e.target.value as any })}
+                              className="px-3 py-2 border border-blue-200 rounded-lg bg-white"
+                            >
+                              <option value="low">low</option>
+                              <option value="medium">medium</option>
+                              <option value="high">high</option>
+                            </select>
+                            <label className="inline-flex items-center gap-2 px-3 py-2 border border-blue-200 rounded-lg bg-white">
+                              <input
+                                type="checkbox"
+                                checked={!!t.completed}
+                                onChange={(e) => updateTodo(t.id, { completed: e.target.checked })}
+                                className="rounded border-gray-300"
+                              />
+                              <span className="text-sm text-gray-700">Done</span>
+                            </label>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => deleteTodo(t.id)}
+                          className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

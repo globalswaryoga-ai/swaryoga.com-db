@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BarChart3 } from 'lucide-react';
-import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 
 export default function ProgressReportPage() {
   const [stats, setStats] = useState({
@@ -25,17 +25,20 @@ export default function ProgressReportPage() {
     calculateStats();
   }, []);
 
-  const calculateStats = () => {
-    const tasks = lifePlannerStorage.getTasks();
-    const todos = lifePlannerStorage.getTodos();
-    const goals = lifePlannerStorage.getGoals();
-    const visions = lifePlannerStorage.getVisions();
-    const diamondPeople = lifePlannerStorage.getDiamondPeople();
-    const healthRoutines = lifePlannerStorage.getHealthRoutines();
+  const calculateStats = async () => {
+    const tasks = await lifePlannerStorage.getTasks();
+    const todos = await lifePlannerStorage.getTodos();
+    const goals = await lifePlannerStorage.getGoals();
+    const visions = await lifePlannerStorage.getVisions();
+    const diamondPeople = await lifePlannerStorage.getDiamondPeople();
+    const healthRoutines = await lifePlannerStorage.getHealthRoutines();
 
     const tasksCompleted = tasks.filter(t => t.completed).length;
     const todosCompleted = todos.filter(t => t.completed).length;
-    const goalsAvgProgress = goals.length > 0 ? Math.round(goals.reduce((sum, g) => sum + g.progress, 0) / goals.length) : 0;
+    const goalsAvgProgress =
+      goals.length > 0
+        ? Math.round(goals.reduce((sum, g) => sum + (g.progress ?? 0), 0) / goals.length)
+        : 0;
     const healthRoutineStreak = Math.max(...healthRoutines.map(r => r.streak), 0);
 
     const weeklyCompletion = tasks.length > 0 ? Math.round((tasksCompleted / tasks.length) * 100) : 0;

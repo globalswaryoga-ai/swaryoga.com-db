@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, CheckCircle2, Circle, Heart } from 'lucide-react';
 import { HealthRoutine } from '@/lib/types/lifePlanner';
-import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 
 export default function HealthRoutinesPage() {
   const [routines, setRoutines] = useState<HealthRoutine[]>([]);
@@ -11,14 +11,23 @@ export default function HealthRoutinesPage() {
 
   useEffect(() => {
     setMounted(true);
-    const saved = lifePlannerStorage.getHealthRoutines();
-    setRoutines(saved.length > 0 ? saved : []);
+    (async () => {
+      const saved = await lifePlannerStorage.getHealthRoutines();
+      const normalized = (Array.isArray(saved) ? saved : []).map(r => {
+        const completedDates = Array.isArray((r as any).completedDates) ? (r as any).completedDates : [];
+        const streak = typeof (r as any).streak === 'number' ? (r as any).streak : 0;
+        const category = (r as any).category || (r as any).type || 'other';
+        return { ...r, completedDates, streak, category };
+      });
+      setRoutines(normalized.length > 0 ? normalized : []);
+    })();
   }, []);
 
   useEffect(() => {
-    if (mounted) {
-      lifePlannerStorage.saveHealthRoutines(routines);
-    }
+    if (!mounted) return;
+    (async () => {
+      await lifePlannerStorage.saveHealthRoutines(routines);
+    })();
   }, [routines, mounted]);
 
   const handleAddRoutine = () => {

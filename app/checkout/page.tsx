@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
@@ -25,7 +25,6 @@ function CheckoutInner() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const formRef = useRef<HTMLFormElement>(null);
 
   const searchParams = useSearchParams();
   const supportedCurrencies = ['INR', 'USD', 'NPR'] as const;
@@ -74,10 +73,6 @@ function CheckoutInner() {
     setError('');
   };
 
-  const generateOrderId = () => {
-    return `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -113,12 +108,23 @@ function CheckoutInner() {
         return;
       }
 
-      const orderId = generateOrderId();
       const amount = Number(summaryTotal.toFixed(2));
       const productInfo = summaryItems
         .map((item) => `${item.name} x${item.quantity}`)
         .join(', ')
         .slice(0, 90) || 'Swar Yoga Workshops';
+
+      const lineItems = summaryItems.map((item) => ({
+        productId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+
+      const origin = typeof window !== 'undefined'
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_APP_URL || '');
+      const callbackUrl = `${origin}/api/payments/payu/callback`;
 
       // Call PayU initiation endpoint for INR and USD
       const response = await fetch('/api/payments/payu/initiate', {
@@ -138,45 +144,46 @@ function CheckoutInner() {
           city: formData.city,
           state: formData.state,
           zip: formData.zip,
-          orderId: orderId,
-          successUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/payu/callback`,
-          failureUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/payu/callback`,
+          items: lineItems,
+          successUrl: callbackUrl,
+          failureUrl: callbackUrl,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to initiate payment');
+        const data = await response.json().catch(() => null);
+        const message = data?.error || 'Failed to initiate payment';
+        throw new Error(message);
       }
 
       const { paymentUrl, params } = await response.json();
 
-      // Create hidden form for PayU submission
-      if (formRef.current) {
-        // Clear previous form if exists
-        const existingForm = document.getElementById('payu-form');
-        if (existingForm) {
-          existingForm.remove();
-        }
-
-        // Create new form
-        const form = document.createElement('form');
-        form.id = 'payu-form';
-        form.method = 'POST';
-        form.action = paymentUrl;
-        form.style.display = 'none';
-
-        // Add all PayU parameters to form
-        Object.entries(params).forEach(([key, value]) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = String(value);
-          form.appendChild(input);
-        });
-
-        document.body.appendChild(form);
-        form.submit();
+      if (!paymentUrl || !params) {
+        throw new Error('Invalid PayU initiation response');
       }
+
+      // Create hidden form for PayU submission
+      const existingForm = document.getElementById('payu-form');
+      if (existingForm) {
+        existingForm.remove();
+      }
+
+      const form = document.createElement('form');
+      form.id = 'payu-form';
+      form.method = 'POST';
+      form.action = paymentUrl;
+      form.style.display = 'none';
+
+      Object.entries(params).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = String(value);
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
       setLoading(false);
     } catch (err) {
       console.error('Error processing payment:', err);

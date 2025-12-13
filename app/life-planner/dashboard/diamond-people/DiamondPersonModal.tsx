@@ -29,16 +29,16 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
     if (person) {
       setFormData({
         name: person.name,
-        mobile: person.mobile,
-        profession: person.profession,
-        country: person.country,
-        state: person.state,
-        address: person.address,
-        email: person.email,
+        mobile: person.mobile || '',
+        profession: person.profession || '',
+        country: person.country || '',
+        state: person.state || '',
+        address: person.address || '',
+        email: person.email || '',
         notes: person.notes || '',
-        category: person.category,
-        relationship: person.relationship,
-        lastContact: person.lastContact,
+        category: person.category || 'Spiritual Mentor',
+        relationship: (person.relationship || 'professional') as any,
+        lastContact: person.lastContact || new Date().toISOString().split('T')[0],
       });
     }
   }, [person]);

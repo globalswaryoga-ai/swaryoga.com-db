@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Vision } from '@/lib/types/lifePlanner';
-import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import VisionModal from './VisionModal';
 import ActionPlanModal from '@/components/ActionPlanModal';
 
@@ -63,21 +63,34 @@ export default function VisionPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVision, setEditingVision] = useState<Vision | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [sliderIndex, setSliderIndex] = useState(0);
   const [isActionPlanModalOpen, setIsActionPlanModalOpen] = useState(false);
   const [selectedVisionForActionPlan, setSelectedVisionForActionPlan] = useState<Vision | null>(null);
 
+  // Filters (UI-only; never persisted)
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [searchText, setSearchText] = useState('');
+
   useEffect(() => {
     setMounted(true);
-    const saved = lifePlannerStorage.getVisions();
-    setVisions(saved.length > 0 ? saved : []);
+    (async () => {
+      const saved = await lifePlannerStorage.getVisions();
+      setVisions(saved.length > 0 ? saved : []);
+      setHasLoaded(true);
+    })();
   }, []);
 
   useEffect(() => {
-    if (mounted) {
-      lifePlannerStorage.saveVisions(visions);
-    }
-  }, [visions, mounted]);
+    if (!mounted || !hasLoaded) return;
+    // Prevent overwriting Mongo data with empty array due to any transient state.
+    if (visions.length === 0) return;
+    (async () => {
+      await lifePlannerStorage.saveVisions(visions);
+    })();
+  }, [visions, mounted, hasLoaded]);
 
   const handleAddVision = () => {
     setEditingVision(null);
@@ -93,8 +106,33 @@ export default function VisionPage() {
     setVisions(prev => prev.filter(v => v.id !== id));
   };
 
-  // Filter logic - just sort, no filtering
+  const uniqueCategories = Array.from(
+    new Set(visions.map(v => v.category).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b));
+
+  const uniqueStatuses = Array.from(
+    new Set(visions.map(v => v.status).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b));
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+  const normalizedSearch = searchText.trim().toLowerCase();
+
   const filteredVisions = visions
+    .filter(v => {
+      const matchesCategory = filterCategory === 'all' || v.category === filterCategory;
+      const matchesStatus = filterStatus === 'all' || (v.status || 'not-started') === filterStatus;
+
+      const monthIdx = filterMonth === 'all' ? null : MONTHS.indexOf(filterMonth as any);
+      const dateStr = v.endDate || v.startDate;
+      const date = dateStr ? new Date(dateStr) : null;
+      const matchesMonth = monthIdx === null || (date && !Number.isNaN(date.getTime()) && date.getMonth() === monthIdx);
+
+      const haystack = `${v.title || ''} ${v.description || ''} ${v.place || ''}`.toLowerCase();
+      const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+
+      return matchesCategory && matchesStatus && matchesMonth && matchesSearch;
+    })
     .sort((a, b) => {
       // Sort by due date (endDate) in ascending order
       const dateA = a.endDate ? new Date(a.endDate).getTime() : Number.MAX_VALUE;
@@ -128,10 +166,10 @@ export default function VisionPage() {
     setIsActionPlanModalOpen(true);
   };
 
-  const handleSaveActionPlan = (actionPlan: any) => {
-    const actionPlans = lifePlannerStorage.getActionPlans();
+  const handleSaveActionPlan = async (actionPlan: any) => {
+    const actionPlans = await lifePlannerStorage.getActionPlans();
     actionPlans.push(actionPlan);
-    lifePlannerStorage.saveActionPlans(actionPlans);
+    await lifePlannerStorage.saveActionPlans(actionPlans);
     setIsActionPlanModalOpen(false);
     setSelectedVisionForActionPlan(null);
     alert('Action Plan created successfully!');
@@ -153,6 +191,100 @@ export default function VisionPage() {
           <Plus className="h-5 w-5" />
           <span>Add Vision Plan</span>
         </button>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <input
+              value={searchText}
+              onChange={(e) => {
+                setSearchText(e.target.value);
+                setSliderIndex(0);
+              }}
+              placeholder="Search title / description / place"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-200"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Vision Head</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => {
+                setFilterCategory(e.target.value);
+                setSliderIndex(0);
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+            >
+              <option value="all">All</option>
+              {uniqueCategories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => {
+                setFilterStatus(e.target.value);
+                setSliderIndex(0);
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+            >
+              <option value="all">All</option>
+              {/* common values first */}
+              <option value="not-started">not-started</option>
+              <option value="in-progress">in-progress</option>
+              <option value="completed">completed</option>
+              <option value="on-hold">on-hold</option>
+              {/* any custom values from data */}
+              {uniqueStatuses
+                .filter(s => !['not-started', 'in-progress', 'completed', 'on-hold'].includes(s))
+                .map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <select
+              value={filterMonth}
+              onChange={(e) => {
+                setFilterMonth(e.target.value);
+                setSliderIndex(0);
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+            >
+              <option value="all">All</option>
+              {MONTHS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <button
+              onClick={() => {
+                setSearchText('');
+                setFilterCategory('all');
+                setFilterStatus('all');
+                setFilterMonth('all');
+                setSliderIndex(0);
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+
+        <p className="mt-3 text-sm text-gray-600">Showing {filteredVisions.length} of {visions.length} vision plans</p>
       </div>
 
       <div className="mb-12">

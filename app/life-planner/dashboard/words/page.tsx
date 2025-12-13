@@ -1,148 +1,885 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
-import { Word } from '@/lib/types/lifePlanner';
-import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
-import WordModal from './WordModal';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+import type { Word, VisionCategory, MiniTodo } from '@/lib/types/lifePlanner';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
+import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
+
+type WordFormState = {
+  title: string;
+  description: string;
+  category: VisionCategory | '';
+  imageUrl: string;
+  startDate: string;
+  endDate: string;
+  timeStart: string;
+  timeEnd: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'active' | 'completed' | 'on-hold';
+  repeat: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  customDays: number;
+  todos: MiniTodo[];
+};
+
+const todayIso = () => new Date().toISOString().split('T')[0];
+
+const emptyWordForm = (): WordFormState => ({
+  title: '',
+  description: '',
+  category: '',
+  imageUrl: '',
+  startDate: todayIso(),
+  endDate: '',
+  timeStart: '',
+  timeEnd: '',
+  priority: 'medium',
+  status: 'active',
+  repeat: 'once',
+  customDays: 1,
+  todos: [],
+});
+
+function getWordImageUrl(word: Word): string {
+  const img = (word as any).imageUrl;
+  if (typeof img === 'string' && img.trim()) return img.trim();
+  const head = (word as any).category;
+  return getDefaultCategoryImage(String(head || 'Life'));
+}
+
+function getPriorityBadge(priority: unknown) {
+  const p = typeof priority === 'string' ? priority : 'medium';
+  if (p === 'high') return { label: 'high', className: 'bg-red-600 text-white' };
+  if (p === 'low') return { label: 'low', className: 'bg-emerald-600 text-white' };
+  return { label: 'medium', className: 'bg-amber-600 text-white' };
+}
+
+function getStatusBadge(status: unknown) {
+  const s = typeof status === 'string' ? status : 'active';
+  if (s === 'completed') return { label: 'completed', className: 'bg-green-700 text-white' };
+  if (s === 'on-hold') return { label: 'on-hold', className: 'bg-gray-700 text-white' };
+  return { label: 'active', className: 'bg-blue-700 text-white' };
+}
+
+function normalizeRepeatFromFrequency(
+  frequency: unknown,
+  customDays: unknown
+): Pick<WordFormState, 'repeat' | 'customDays'> {
+  const freq = typeof frequency === 'string' ? frequency : '';
+  if (freq === 'daily') return { repeat: 'daily', customDays: 1 };
+  if (freq === 'weekly') return { repeat: 'weekly', customDays: 7 };
+  if (freq === 'monthly') return { repeat: 'monthly', customDays: 30 };
+  if (freq === 'yearly') return { repeat: 'yearly', customDays: 365 };
+  if (freq === 'once') return { repeat: 'once', customDays: 1 };
+  if (freq === 'custom') {
+    const n = typeof customDays === 'number' ? customDays : Number(customDays);
+    return { repeat: 'custom', customDays: Number.isFinite(n) && n > 0 ? n : 1 };
+  }
+  return { repeat: 'once', customDays: 1 };
+}
 
 export default function WordsPage() {
   const [words, setWords] = useState<Word[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingWord, setEditingWord] = useState<Word | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<WordFormState>(emptyWordForm());
+
+  // Filters
+  const [searchText, setSearchText] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterFrequency, setFilterFrequency] = useState<string>('all');
 
   useEffect(() => {
     setMounted(true);
-    const saved = lifePlannerStorage.getWords();
-    setWords(saved.length > 0 ? saved : []);
+    (async () => {
+      try {
+        const saved = await lifePlannerStorage.getWords();
+        setWords(Array.isArray(saved) ? saved : []);
+      } catch (error) {
+        console.error('Error loading words:', error);
+        setWords([]);
+      }
+    })();
   }, []);
 
   useEffect(() => {
-    if (mounted) {
-      lifePlannerStorage.saveWords(words);
-    }
+    if (!mounted) return;
+    (async () => {
+      try {
+        await lifePlannerStorage.saveWords(words);
+      } catch (error) {
+        console.error('Error saving words:', error);
+      }
+    })();
   }, [words, mounted]);
 
-  const handleAddWord = () => {
-    setEditingWord(null);
-    setIsModalOpen(true);
+  const uniqueCategories = useMemo(
+    () =>
+      Array.from(new Set(words.map(w => w.category).filter(Boolean) as string[])).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    [words]
+  );
+
+  const filteredWords = useMemo(() => {
+    const normalizedSearch = searchText.trim().toLowerCase();
+    return words.filter(word => {
+      const haystack = `${word.title || ''} ${word.description || ''} ${word.category || ''}`.toLowerCase();
+      const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+      const matchesType = filterType === 'all' || (word.type || '') === filterType;
+      const matchesCategory = filterCategory === 'all' || (word.category || '') === filterCategory;
+      const matchesFrequency =
+        filterFrequency === 'all' || (word.frequency || '') === filterFrequency;
+      return matchesSearch && matchesType && matchesCategory && matchesFrequency;
+    });
+  }, [words, searchText, filterType, filterCategory, filterFrequency]);
+
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyWordForm());
+    setIsFormOpen(true);
   };
 
-  const handleEditWord = (word: Word) => {
-    setEditingWord(word);
-    setIsModalOpen(true);
+  const openEdit = (word: Word) => {
+    const { repeat, customDays } = normalizeRepeatFromFrequency(
+      word.frequency,
+      (word as any).customDays
+    );
+    setEditingId(word.id);
+    setForm({
+      title: word.title || '',
+      description: word.description || '',
+      category: ((word.category as any) || '') as any,
+      imageUrl: (word as any).imageUrl || '',
+      startDate: (word as any).startDate || todayIso(),
+      endDate: (word as any).endDate || '',
+      timeStart: (word as any).timeStart || '',
+      timeEnd: (word as any).timeEnd || '',
+      priority: (((word as any).priority as any) || 'medium') as any,
+      status: (((word as any).status as any) || 'active') as any,
+      repeat,
+      customDays,
+      todos: (((word as any).todos as any) || []) as MiniTodo[],
+    });
+    setIsFormOpen(true);
   };
 
-  const handleDeleteWord = (id: string) => {
-    setWords(prev => prev.filter(w => w.id !== id));
+  const closeForm = () => {
+    setIsFormOpen(false);
+    setEditingId(null);
+    setForm(emptyWordForm());
   };
 
-  const handleSaveWord = (wordData: Omit<Word, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (editingWord) {
-      setWords(prev =>
-        prev.map(w =>
-          w.id === editingWord.id
-            ? { ...w, ...wordData, updatedAt: new Date().toISOString() }
-            : w
-        )
-      );
-    } else {
-      const newWord: Word = {
-        ...wordData,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setWords(prev => [...prev, newWord]);
+  const handleSave = () => {
+    if (!form.title.trim()) {
+      alert('Please enter a word title');
+      return;
     }
-    setIsModalOpen(false);
+    if (!form.category) {
+      alert('Please choose a head (category)');
+      return;
+    }
+    if (!form.startDate || !form.endDate) {
+      alert('Please choose start date and end date');
+      return;
+    }
+    if (form.repeat === 'custom' && (!form.customDays || form.customDays < 1)) {
+      alert('Custom repeat must be at least 1 day');
+      return;
+    }
+
+    const next: Word = {
+      id: editingId || `word-${Date.now()}`,
+      title: form.title,
+      description: form.description,
+      type: (editingId
+        ? (words.find(w => w.id === editingId)?.type || 'affirmation')
+        : 'affirmation') as any,
+      category: form.category as any,
+      frequency: form.repeat as any,
+      status: form.status as any,
+      createdAt: editingId
+        ? words.find(w => w.id === editingId)?.createdAt || new Date().toISOString()
+        : new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      imageUrl: form.imageUrl,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      timeStart: form.timeStart,
+      timeEnd: form.timeEnd,
+      priority: form.priority as any,
+      customDays: form.repeat === 'custom' ? form.customDays : undefined,
+      todos: form.todos,
+    } as Word;
+
+    setWords(prev => {
+      if (editingId) return prev.map(w => (w.id === editingId ? next : w));
+      return [...prev, next];
+    });
+    closeForm();
   };
 
-  const categories = [...new Set(words.map(w => w.category))];
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this word?')) {
+      setWords(prev => prev.filter(w => w.id !== id));
+    }
+  };
 
-  if (!mounted) return null;
+  const updateWordStatus = (id: string, status: Word['status']) => {
+    setWords(prev => prev.map(w => (w.id === id ? ({ ...w, status, updatedAt: new Date().toISOString() } as Word) : w)));
+  };
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading words...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-6 p-6">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">My Words</h1>
-          <p className="text-gray-600">Personal commitments, rules, and affirmations</p>
+          <h1 className="text-3xl font-bold text-gray-800">Words of Inspiration</h1>
+          <p className="text-sm text-gray-600">Head → Title → Dates/Time → Priority → Repeat → Todos</p>
         </div>
         <button
-          onClick={handleAddWord}
-          className="flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3 rounded-lg hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg"
+          onClick={openCreate}
+          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition"
         >
-          <Plus className="h-5 w-5" />
-          <span>Add Word</span>
+          <Plus size={20} />
+          Add Word
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-emerald-600 mb-1">{words.length}</div>
-          <div className="text-gray-600 text-sm">Total Words</div>
-        </div>
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="text-2xl font-bold text-blue-600 mb-1">{categories.length}</div>
-          <div className="text-gray-600 text-sm">Categories</div>
-        </div>
-      </div>
+      <div className="mb-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search title / description / category"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-200"
+            />
+          </div>
 
-      {/* Words Grid */}
-      <div className="grid gap-6">
-        {words.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No words yet</h3>
-            <p className="text-gray-600 mb-4">Add your first commitment, rule, or affirmation.</p>
-            <button
-              onClick={handleAddWord}
-              className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Type</label>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
-              <Plus className="h-4 w-4" />
-              <span>Add Word</span>
+              <option value="all">All</option>
+              <option value="affirmation">affirmation</option>
+              <option value="mantra">mantra</option>
+              <option value="quote">quote</option>
+              <option value="motivation">motivation</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Head</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            >
+              <option value="all">All</option>
+              {VISION_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+              {uniqueCategories
+                .filter(c => !VISION_CATEGORIES.includes(c as any))
+                .map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Repeat</label>
+            <select
+              value={filterFrequency}
+              onChange={(e) => setFilterFrequency(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            >
+              <option value="all">All</option>
+              <option value="once">once</option>
+              <option value="daily">daily</option>
+              <option value="weekly">weekly</option>
+              <option value="monthly">monthly</option>
+              <option value="yearly">yearly</option>
+              <option value="custom">custom</option>
+            </select>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchText('');
+                setFilterType('all');
+                setFilterCategory('all');
+                setFilterFrequency('all');
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+            >
+              Clear
             </button>
           </div>
-        ) : (
-          words.map(word => (
-            <div key={word.id} className="bg-white rounded-xl p-6 shadow hover:shadow-lg transition-all" style={{ borderLeft: `4px solid ${word.color || '#10b981'}` }}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">{word.title}</h3>
-                  <p className="text-gray-600 mb-4 whitespace-pre-wrap">{word.content}</p>
-                  <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-medium">
-                    {word.category}
-                  </span>
+        </div>
+
+        <p className="mt-3 text-sm text-gray-600">Showing {filteredWords.length} of {words.length} words</p>
+      </div>
+
+      {filteredWords.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
+          <p className="text-gray-500 mb-4">No words found.</p>
+          <button
+            onClick={openCreate}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg transition"
+          >
+            Create your first word
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredWords.map(word => (
+            <div key={word.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="relative h-40 bg-gray-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={getWordImageUrl(word)}
+                  alt={(word.title || 'Word') + ' image'}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const fallback = getDefaultCategoryImage(String((word as any).category || 'Life'));
+                    (e.currentTarget as HTMLImageElement).src = fallback || 'https://via.placeholder.com/800x400?text=Image+Not+Found';
+                  }}
+                />
+
+                <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+
+                {/* Left overlay: Priority + Buttons */}
+                <div className="absolute top-3 left-3 flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold ${getPriorityBadge((word as any).priority).className}`}
+                      title="Priority"
+                    >
+                      {getPriorityBadge((word as any).priority).label}
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold ${getStatusBadge((word as any).status).className}`}
+                      title="Status"
+                    >
+                      {getStatusBadge((word as any).status).label}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateWordStatus(word.id, (word as any).status === 'completed' ? 'active' : 'completed')}
+                      className="px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white text-gray-900 text-[11px] font-bold"
+                      title="Done"
+                    >
+                      Done
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEdit(word)}
+                      className="px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white text-gray-900 text-[11px] font-bold inline-flex items-center gap-1"
+                      title="Edit"
+                    >
+                      <Edit2 size={14} /> Edit
+                    </button>
+                    <select
+                      value={((word as any).status || 'active') as any}
+                      onChange={(e) => updateWordStatus(word.id, e.target.value as any)}
+                      className="px-2 py-1 rounded-lg bg-white/90 hover:bg-white text-gray-900 text-[11px] font-bold"
+                      title="Status"
+                    >
+                      <option value="active">active</option>
+                      <option value="completed">completed</option>
+                      <option value="on-hold">on-hold</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex gap-2 flex-shrink-0 ml-4">
+
+                {/* Right overlay: Delete */}
+                <div className="absolute top-3 right-3">
                   <button
-                    onClick={() => handleEditWord(word)}
-                    className="p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                    type="button"
+                    onClick={() => handleDelete(word.id)}
+                    className="p-2 rounded-xl bg-white/90 hover:bg-white text-red-600"
+                    title="Delete"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Trash2 size={16} />
                   </button>
+                </div>
+
+                <div className="absolute bottom-3 left-3 right-3">
+                  <h3 className="text-lg font-extrabold text-white truncate">{word.title}</h3>
+                  <p className="text-[11px] text-white/90 mt-1">
+                    {(word.category as any) || 'No head'} • {(word.type as any) || 'affirmation'} • {(word.frequency as any) || 'once'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-5">
+
+              {(word.description || '').trim() && (
+                <p className="text-gray-700 text-sm mt-3 line-clamp-3">{word.description}</p>
+              )}
+
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <span className="font-semibold">Start:</span> {(word as any).startDate || '-'}
+                </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <span className="font-semibold">End:</span> {(word as any).endDate || '-'}
+                </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <span className="font-semibold">Priority:</span> {(word as any).priority || 'medium'}
+                </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <span className="font-semibold">Todos:</span> {(((word as any).todos as any[]) || []).length}
+                </div>
+              </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isFormOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <WordModal
+            editingId={editingId}
+            form={form}
+            setForm={setForm}
+            onSave={handleSave}
+            onClose={closeForm}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WordModal({
+  editingId,
+  form,
+  setForm,
+  onSave,
+  onClose,
+}: {
+  editingId: string | null;
+  form: WordFormState;
+  setForm: React.Dispatch<React.SetStateAction<WordFormState>>;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [showTodosEditor, setShowTodosEditor] = useState(false);
+  const [newTodoTitle, setNewTodoTitle] = useState('');
+  const [newTodoDueDate, setNewTodoDueDate] = useState('');
+  const [newTodoDueTime, setNewTodoDueTime] = useState('11:00');
+
+  const computedDefaultImageUrl = useMemo(() => {
+    if (form.imageUrl?.trim()) return form.imageUrl.trim();
+    if (form.category?.trim()) return getDefaultCategoryImage(String(form.category));
+    return getDefaultCategoryImage('Life');
+  }, [form.imageUrl, form.category]);
+
+  const addTodo = () => {
+    const title = newTodoTitle.trim();
+    if (!title) return;
+
+    const fallbackDate = form.endDate || form.startDate || todayIso();
+    const dueDate = (newTodoDueDate || fallbackDate).trim();
+    const dueTime = (newTodoDueTime || '11:00').trim();
+
+    setForm(prev => ({
+      ...prev,
+      todos: [
+        ...(prev.todos || []),
+        { id: `todo-${Date.now()}`, title, dueDate, dueTime, completed: false },
+      ],
+    }));
+    setNewTodoTitle('');
+    setNewTodoDueDate('');
+    setNewTodoDueTime('11:00');
+  };
+
+  const toggleTodo = (id: string) => {
+    setForm(prev => ({
+      ...prev,
+      todos: (prev.todos || []).map(t => (t.id === id ? { ...t, completed: !t.completed } : t)),
+    }));
+  };
+
+  const updateTodo = (id: string, patch: Partial<Pick<MiniTodo, 'title' | 'dueDate' | 'dueTime'>>) => {
+    setForm(prev => ({
+      ...prev,
+      todos: (prev.todos || []).map(t => (t.id === id ? { ...t, ...patch } : t)),
+    }));
+  };
+
+  const deleteTodo = (id: string) => {
+    setForm(prev => ({
+      ...prev,
+      todos: (prev.todos || []).filter(t => t.id !== id),
+    }));
+  };
+
+  return (
+    <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-white">{editingId ? 'Edit Word' : 'Create New Word'}</h2>
+        <button
+          onClick={onClose}
+          className="text-2xl font-bold hover:scale-110 transition-transform"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="p-6 space-y-5">
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Head / Category *</label>
+          <select
+            value={form.category}
+            onChange={(e) => setForm(prev => ({ ...prev, category: e.target.value as any }))}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Select a head...</option>
+            {VISION_CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Word Title *</label>
+          <input
+            type="text"
+            value={form.title}
+            onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Enter word title"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date *</label>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setForm(prev => ({ ...prev, startDate: e.target.value }))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">End Date (Due) *</label>
+            <input
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm(prev => ({ ...prev, endDate: e.target.value }))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+            <input
+              type="time"
+              value={form.timeStart}
+              onChange={(e) => setForm(prev => ({ ...prev, timeStart: e.target.value }))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+            <input
+              type="time"
+              value={form.timeEnd}
+              onChange={(e) => setForm(prev => ({ ...prev, timeEnd: e.target.value }))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
+            rows={3}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Enter description"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+            <select
+              value={form.priority}
+              onChange={(e) => setForm(prev => ({ ...prev, priority: e.target.value as any }))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Repeat</label>
+            <select
+              value={form.repeat}
+              onChange={(e) => setForm(prev => ({ ...prev, repeat: e.target.value as any }))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="once">once</option>
+              <option value="daily">daily</option>
+              <option value="weekly">weekly</option>
+              <option value="monthly">monthly</option>
+              <option value="yearly">yearly</option>
+              <option value="custom">custom</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+          <select
+            value={form.status}
+            onChange={(e) => setForm(prev => ({ ...prev, status: e.target.value as any }))}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="active">active</option>
+            <option value="completed">completed</option>
+            <option value="on-hold">on-hold</option>
+          </select>
+        </div>
+
+        {form.repeat === 'custom' && (
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Custom (days)</label>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={form.customDays}
+              onChange={(e) => setForm(prev => ({ ...prev, customDays: Number(e.target.value) || 1 }))}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+        )}
+
+        <div>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <label className="block text-sm font-bold text-gray-800">Default Image (Editable)</label>
+            <button
+              type="button"
+              onClick={() => setShowImageEditor(v => !v)}
+              className="text-sm font-medium text-emerald-700 hover:text-emerald-800"
+            >
+              {showImageEditor ? 'Hide' : 'Edit'}
+            </button>
+          </div>
+
+          <div className="rounded-lg overflow-hidden h-48 border-2 border-gray-200 bg-gray-50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={computedDefaultImageUrl}
+              alt="Word visual"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src =
+                  'https://via.placeholder.com/800x400?text=Image+Not+Found';
+              }}
+            />
+          </div>
+
+          {showImageEditor && (
+            <div className="mt-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 p-4">
+              <label className="block text-sm font-semibold text-emerald-900 mb-2">
+                Custom Image URL (optional)
+              </label>
+              <input
+                type="url"
+                value={form.imageUrl}
+                onChange={(e) => setForm(prev => ({ ...prev, imageUrl: e.target.value }))}
+                className="w-full px-4 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
+                placeholder="https://..."
+              />
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, imageUrl: '' }))}
+                  className="px-4 py-2 rounded-lg border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 transition"
+                >
+                  Use default
+                </button>
+                <p className="text-xs text-emerald-800">Default comes from the selected Head image.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-blue-900">Todos</h3>
+              <p className="text-xs text-blue-800">Title + due date/time (default 11:00) + checkbox.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowTodosEditor(v => !v)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {showTodosEditor ? 'Hide Todos' : 'Todos'}
+            </button>
+          </div>
+
+          {showTodosEditor && (
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl border border-blue-200 bg-white p-3">
+                <input
+                  type="text"
+                  value={newTodoTitle}
+                  onChange={(e) => setNewTodoTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTodo();
+                    }
+                  }}
+                  className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  placeholder="Todo title"
+                />
+
+                <div className="mt-2 flex flex-col md:flex-row gap-2">
+                  <input
+                    type="date"
+                    value={newTodoDueDate || form.endDate || ''}
+                    onChange={(e) => setNewTodoDueDate(e.target.value)}
+                    className="w-full md:w-auto md:flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    title="Due date"
+                  />
+                  <input
+                    type="time"
+                    value={newTodoDueTime}
+                    onChange={(e) => setNewTodoDueTime(e.target.value)}
+                    className="w-full md:w-44 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    title="Due time (default 11:00)"
+                  />
                   <button
-                    onClick={() => handleDeleteWord(word.id)}
-                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    type="button"
+                    onClick={addTodo}
+                    className="w-full md:w-28 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    Add
                   </button>
                 </div>
               </div>
-            </div>
-          ))
-        )}
-      </div>
 
-      {isModalOpen && (
-        <WordModal
-          word={editingWord}
-          onSave={handleSaveWord}
-          onClose={() => setIsModalOpen(false)}
-        />
-      )}
+              {(form.todos || []).length === 0 ? (
+                <div className="text-sm text-blue-800 bg-white border border-blue-200 rounded-lg px-4 py-3">
+                  No todos yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(form.todos || []).map(todo => (
+                    <div key={todo.id} className="bg-white border border-blue-200 rounded-xl px-3 py-3">
+                      <input
+                        type="text"
+                        value={todo.title}
+                        onChange={(e) => updateTodo(todo.id, { title: e.target.value })}
+                        className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                      />
+
+                      <div className="mt-2 flex flex-col md:flex-row md:items-center gap-2">
+                        <label className="inline-flex items-center gap-2 text-sm text-gray-700 md:mr-1">
+                          <input
+                            type="checkbox"
+                            checked={!!todo.completed}
+                            onChange={() => toggleTodo(todo.id)}
+                            className="rounded border-gray-300"
+                          />
+                          <span className="text-xs">Done</span>
+                        </label>
+
+                        <input
+                          type="date"
+                          value={todo.dueDate || ''}
+                          onChange={(e) => updateTodo(todo.id, { dueDate: e.target.value })}
+                          className="w-full md:w-auto md:flex-1 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+
+                        <input
+                          type="time"
+                          value={todo.dueTime || '11:00'}
+                          onChange={(e) => updateTodo(todo.id, { dueTime: e.target.value })}
+                          className="w-full md:w-44 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => deleteTodo(todo.id)}
+                          className="w-full md:w-auto px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition inline-flex items-center justify-center"
+                          title="Remove"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-0 pt-5 pb-5 border-t-2 border-blue-200 bg-gradient-to-r from-blue-50 via-white to-emerald-50 sticky bottom-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            {editingId ? 'Update Word' : 'Create Word'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

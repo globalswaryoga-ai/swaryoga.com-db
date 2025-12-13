@@ -21,9 +21,9 @@ const WordModal: React.FC<WordModalProps> = ({ word, onSave, onClose }) => {
   useEffect(() => {
     if (word) {
       setFormData({
-        title: word.title,
-        content: word.content,
-        category: word.category,
+        title: word.title || '',
+        content: word.content || '',
+        category: word.category || '',
         color: word.color || '#10b981',
       });
     }

@@ -42,7 +42,15 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
     updatedAt: new Date().toISOString(),
   });
 
-  const [newMilestone, setNewMilestone] = useState({ title: '', description: '', dueDate: '' });
+  const [newMilestone, setNewMilestone] = useState({
+    title: '',
+    description: '',
+    startDate: '',
+    endDate: '',
+    workingHoursStart: '',
+    workingHoursEnd: '',
+    place: ''
+  });
   const [newGoal, setNewGoal] = useState({ title: '', description: '', category: '', targetDate: '', priority: 'medium' as const });
   const [newTask, setNewTask] = useState({ title: '', description: '', dueDate: '', priority: 'medium' as const, repeat: 'once' as const });
   const [newTodo, setNewTodo] = useState({ title: '', dueDate: '', priority: 'medium' as const });
@@ -58,27 +66,40 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
     if (newMilestone.title.trim()) {
       setFormData(prev => ({
         ...prev,
-        milestones: [...prev.milestones, {
+        milestones: [...(prev.milestones ?? []), {
           id: Date.now().toString(),
           title: newMilestone.title,
           description: newMilestone.description,
-          dueDate: newMilestone.dueDate,
+          startDate: newMilestone.startDate || new Date().toISOString().split('T')[0],
+          endDate: newMilestone.endDate || newMilestone.startDate || new Date().toISOString().split('T')[0],
+          workingHoursStart: newMilestone.workingHoursStart || '09:00',
+          workingHoursEnd: newMilestone.workingHoursEnd || '17:00',
+          place: newMilestone.place || '',
           status: 'not-started',
-          completed: false
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         }]
       }));
-      setNewMilestone({ title: '', description: '', dueDate: '' });
+      setNewMilestone({
+        title: '',
+        description: '',
+        startDate: '',
+        endDate: '',
+        workingHoursStart: '',
+        workingHoursEnd: '',
+        place: ''
+      });
     }
   };
 
   const removeMilestone = (id: string) => {
-    setFormData(prev => ({ ...prev, milestones: prev.milestones.filter(m => m.id !== id) }));
+    setFormData(prev => ({ ...prev, milestones: (prev.milestones ?? []).filter(m => m.id !== id) }));
   };
 
   const updateMilestone = (id: string, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
-      milestones: prev.milestones.map(m => m.id === id ? { ...m, [field]: value } : m)
+      milestones: (prev.milestones ?? []).map(m => m.id === id ? { ...m, [field]: value } : m)
     }));
   };
 
@@ -87,13 +108,13 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
     if (newGoal.title.trim()) {
       setFormData(prev => ({
         ...prev,
-        goals: [...prev.goals, {
+        goals: [...(prev.goals ?? []), {
           id: Date.now().toString(),
           title: newGoal.title,
+          visionId: prev.id,
           description: newGoal.description,
-          category: newGoal.category,
-          startDate: formData.startDate,
-          targetDate: newGoal.targetDate,
+          startDate: formData.startDate || undefined,
+          targetDate: newGoal.targetDate || undefined,
           priority: newGoal.priority,
           status: 'not-started',
           progress: 0,
@@ -106,13 +127,13 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
   };
 
   const removeGoal = (id: string) => {
-    setFormData(prev => ({ ...prev, goals: prev.goals.filter(g => g.id !== id) }));
+    setFormData(prev => ({ ...prev, goals: (prev.goals ?? []).filter(g => g.id !== id) }));
   };
 
   const updateGoal = (id: string, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
-      goals: prev.goals.map(g => g.id === id ? { ...g, [field]: value, updatedAt: new Date().toISOString() } : g)
+      goals: (prev.goals ?? []).map(g => g.id === id ? { ...g, [field]: value, updatedAt: new Date().toISOString() } : g)
     }));
   };
 
@@ -121,7 +142,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
     if (newTask.title.trim()) {
       setFormData(prev => ({
         ...prev,
-        tasks: [...prev.tasks, {
+        tasks: [...(prev.tasks ?? []), {
           id: Date.now().toString(),
           title: newTask.title,
           description: newTask.description,
@@ -140,13 +161,13 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
   };
 
   const removeTask = (id: string) => {
-    setFormData(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }));
+    setFormData(prev => ({ ...prev, tasks: (prev.tasks ?? []).filter(t => t.id !== id) }));
   };
 
   const updateTask = (id: string, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
-      tasks: prev.tasks.map(t => t.id === id ? { ...t, [field]: value, updatedAt: new Date().toISOString() } : t)
+      tasks: (prev.tasks ?? []).map(t => t.id === id ? { ...t, [field]: value, updatedAt: new Date().toISOString() } : t)
     }));
   };
 
@@ -155,7 +176,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
     if (newTodo.title.trim()) {
       setFormData(prev => ({
         ...prev,
-        todos: [...prev.todos, {
+        todos: [...(prev.todos ?? []), {
           id: Date.now().toString(),
           title: newTodo.title,
           startDate: new Date().toISOString().split('T')[0],
@@ -171,13 +192,13 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
   };
 
   const removeTodo = (id: string) => {
-    setFormData(prev => ({ ...prev, todos: prev.todos.filter(t => t.id !== id) }));
+    setFormData(prev => ({ ...prev, todos: (prev.todos ?? []).filter(t => t.id !== id) }));
   };
 
   const updateTodo = (id: string, field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
-      todos: prev.todos.map(t => t.id === id ? { ...t, [field]: value, updatedAt: new Date().toISOString() } : t)
+      todos: (prev.todos ?? []).map(t => t.id === id ? { ...t, [field]: value, updatedAt: new Date().toISOString() } : t)
     }));
   };
 
@@ -186,7 +207,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
     if (newWord.title.trim() && newWord.content.trim()) {
       setFormData(prev => ({
         ...prev,
-        words: [...prev.words, {
+        words: [...(prev.words ?? []), {
           id: Date.now().toString(),
           title: newWord.title,
           content: newWord.content,
@@ -201,7 +222,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
   };
 
   const removeWord = (id: string) => {
-    setFormData(prev => ({ ...prev, words: prev.words.filter(w => w.id !== id) }));
+    setFormData(prev => ({ ...prev, words: (prev.words ?? []).filter(w => w.id !== id) }));
   };
 
   // Reminder handlers
@@ -209,7 +230,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
     if (newReminder.title.trim() && newReminder.dueDate) {
       setFormData(prev => ({
         ...prev,
-        reminders: [...prev.reminders, {
+        reminders: [...(prev.reminders ?? []), {
           id: Date.now().toString(),
           title: newReminder.title,
           description: newReminder.description,
@@ -228,17 +249,17 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
   };
 
   const removeReminder = (id: string) => {
-    setFormData(prev => ({ ...prev, reminders: prev.reminders.filter(r => r.id !== id) }));
+    setFormData(prev => ({ ...prev, reminders: (prev.reminders ?? []).filter(r => r.id !== id) }));
   };
 
   const calculateProgress = () => {
-    const total = formData.milestones.length + formData.goals.length + formData.tasks.length + formData.todos.length;
+    const total = (formData.milestones ?? []).length + (formData.goals ?? []).length + (formData.tasks ?? []).length + (formData.todos ?? []).length;
     if (total === 0) return 0;
     const completed = 
-      formData.milestones.filter(m => m.completed).length +
-      formData.goals.filter(g => g.status === 'completed').length +
-      formData.tasks.filter(t => t.completed).length +
-      formData.todos.filter(t => t.completed).length;
+      (formData.milestones ?? []).filter(m => m.status === 'completed').length +
+      (formData.goals ?? []).filter(g => g.status === 'completed').length +
+      (formData.tasks ?? []).filter(t => t.completed).length +
+      (formData.todos ?? []).filter(t => t.completed).length;
     return Math.round((completed / total) * 100);
   };
 
@@ -420,7 +441,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
             <div className="space-y-6">
               {/* Milestones */}
               <div className="space-y-4">
-                <SectionHeader title="🏁 Milestones" section="milestones" count={formData.milestones.length} />
+                <SectionHeader title="🏁 Milestones" section="milestones" count={(formData.milestones ?? []).length} />
                 {expandedSections.milestones && (
                   <div className="space-y-4 pl-4 border-l-4 border-purple-300">
                     <div className="bg-purple-50 p-4 rounded-lg space-y-3">
@@ -440,8 +461,8 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       />
                       <input
                         type="date"
-                        value={newMilestone.dueDate}
-                        onChange={(e) => setNewMilestone(prev => ({ ...prev, dueDate: e.target.value }))}
+                        value={newMilestone.endDate}
+                        onChange={(e) => setNewMilestone(prev => ({ ...prev, endDate: e.target.value }))}
                         className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                       />
                       <button
@@ -453,7 +474,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {formData.milestones.map((milestone) => (
+                      {(formData.milestones ?? []).map((milestone) => (
                         <div key={milestone.id} className="flex items-center justify-between p-3 bg-white border-2 border-purple-200 rounded-lg">
                           <div className="flex-1">
                             <input
@@ -462,7 +483,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                               onChange={(e) => updateMilestone(milestone.id, 'title', e.target.value)}
                               className="font-medium text-gray-900 w-full"
                             />
-                            <div className="text-sm text-gray-600 mt-1">Due: {milestone.dueDate}</div>
+                            <div className="text-sm text-gray-600 mt-1">End: {milestone.endDate}</div>
                           </div>
                           <button
                             type="button"
@@ -480,7 +501,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
 
               {/* Goals */}
               <div className="space-y-4">
-                <SectionHeader title="🎯 Goals" section="goals" count={formData.goals.length} />
+                <SectionHeader title="🎯 Goals" section="goals" count={(formData.goals ?? []).length} />
                 {expandedSections.goals && (
                   <div className="space-y-4 pl-4 border-l-4 border-blue-300">
                     <div className="bg-blue-50 p-4 rounded-lg space-y-3">
@@ -522,7 +543,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {formData.goals.map((goal) => (
+                      {(formData.goals ?? []).map((goal) => (
                         <div key={goal.id} className="flex items-center justify-between p-3 bg-white border-2 border-blue-200 rounded-lg">
                           <div className="flex-1">
                             <input
@@ -549,7 +570,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
 
               {/* Tasks */}
               <div className="space-y-4">
-                <SectionHeader title="✓ Tasks" section="tasks" count={formData.tasks.length} />
+                <SectionHeader title="✓ Tasks" section="tasks" count={(formData.tasks ?? []).length} />
                 {expandedSections.tasks && (
                   <div className="space-y-4 pl-4 border-l-4 border-green-300">
                     <div className="bg-green-50 p-4 rounded-lg space-y-3">
@@ -587,7 +608,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {formData.tasks.map((task) => (
+                      {(formData.tasks ?? []).map((task) => (
                         <div key={task.id} className="flex items-center justify-between p-3 bg-white border-2 border-green-200 rounded-lg">
                           <div className="flex-1">
                             <input
@@ -614,7 +635,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
 
               {/* Todos */}
               <div className="space-y-4">
-                <SectionHeader title="📌 Daily Todos" section="todos" count={formData.todos.length} />
+                <SectionHeader title="📌 Daily Todos" section="todos" count={(formData.todos ?? []).length} />
                 {expandedSections.todos && (
                   <div className="space-y-4 pl-4 border-l-4 border-orange-300">
                     <div className="bg-orange-50 p-4 rounded-lg space-y-3">
@@ -640,7 +661,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {formData.todos.map((todo) => (
+                      {(formData.todos ?? []).map((todo) => (
                         <div key={todo.id} className="flex items-center justify-between p-3 bg-white border-2 border-orange-200 rounded-lg">
                           <div className="flex-1">
                             <input
@@ -672,7 +693,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
             <div className="space-y-6">
               {/* Words/Mantras */}
               <div className="space-y-4">
-                <SectionHeader title="✨ Mantras & Affirmations" section="words" count={formData.words.length} />
+                <SectionHeader title="✨ Mantras & Affirmations" section="words" count={(formData.words ?? []).length} />
                 {expandedSections.words && (
                   <div className="space-y-4 pl-4 border-l-4 border-yellow-300">
                     <div className="bg-yellow-50 p-4 rounded-lg space-y-3">
@@ -709,7 +730,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {formData.words.map((word) => (
+                      {(formData.words ?? []).map((word) => (
                         <div key={word.id} className="flex items-start justify-between p-4 bg-white border-2 border-yellow-200 rounded-lg">
                           <div className="flex-1">
                             <div className="font-semibold text-gray-900 text-sm">{word.title}</div>
@@ -732,7 +753,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
 
               {/* Reminders */}
               <div className="space-y-4">
-                <SectionHeader title="🔔 Reminders" section="reminders" count={formData.reminders.length} />
+                <SectionHeader title="🔔 Reminders" section="reminders" count={(formData.reminders ?? []).length} />
                 {expandedSections.reminders && (
                   <div className="space-y-4 pl-4 border-l-4 border-red-300">
                     <div className="bg-red-50 p-4 rounded-lg space-y-3">
@@ -784,7 +805,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       </button>
                     </div>
                     <div className="space-y-2">
-                      {formData.reminders.map((reminder) => (
+                      {(formData.reminders ?? []).map((reminder) => (
                         <div key={reminder.id} className="flex items-center justify-between p-3 bg-white border-2 border-red-200 rounded-lg">
                           <div className="flex-1">
                             <div className="font-medium text-gray-900 text-sm">{reminder.title}</div>

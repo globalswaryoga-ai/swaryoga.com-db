@@ -1,8 +1,10 @@
 import Link from 'next/link';
+import LifePlannerRestoreBackup from '@/components/LifePlannerRestoreBackup';
 
 export default function LifePlannerDashboardHome() {
   return (
     <div className="space-y-6">
+      <LifePlannerRestoreBackup />
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">Welcome back</h2>

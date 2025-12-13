@@ -199,7 +199,7 @@ export default function GoalManager({
                 <select
                   value={formData.visionId || ''}
                   onChange={(e) =>
-                    setFormData({ ...formData, visionId: e.target.value || undefined })
+                    setFormData({ ...formData, visionId: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >

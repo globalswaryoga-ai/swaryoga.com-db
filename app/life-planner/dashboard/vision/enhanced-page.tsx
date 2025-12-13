@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Calendar, CheckCircle2 } from 'lucide-react';
 import { Vision } from '@/lib/types/lifePlanner';
-import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import EnhancedVisionBuilder from '@/components/EnhancedVisionBuilder';
 
 export default function EnhancedVisionDashboard() {
@@ -15,14 +15,17 @@ export default function EnhancedVisionDashboard() {
 
   useEffect(() => {
     setMounted(true);
-    const saved = lifePlannerStorage.getVisions();
-    setVisions(saved.length > 0 ? saved : []);
+    (async () => {
+      const saved = await lifePlannerStorage.getVisions();
+      setVisions(saved.length > 0 ? saved : []);
+    })();
   }, []);
 
   useEffect(() => {
-    if (mounted) {
-      lifePlannerStorage.saveVisions(visions);
-    }
+    if (!mounted) return;
+    (async () => {
+      await lifePlannerStorage.saveVisions(visions);
+    })();
   }, [visions, mounted]);
 
   const handleAddVision = () => {
@@ -54,28 +57,36 @@ export default function EnhancedVisionDashboard() {
   };
 
   const calculateStats = (vision: Vision) => {
+    const milestones = vision.milestones ?? [];
+    const goals = vision.goals ?? [];
+    const tasks = vision.tasks ?? [];
+    const todos = vision.todos ?? [];
+    const words = vision.words ?? [];
+    const reminders = vision.reminders ?? [];
+
+    const completedMilestones = milestones.filter(m => m.status === 'completed').length;
     const totalItems = 
-      vision.milestones.length + 
-      vision.goals.length + 
-      vision.tasks.length + 
-      vision.todos.length;
+      milestones.length + 
+      goals.length + 
+      tasks.length + 
+      todos.length;
     
     const completedItems = 
-      vision.milestones.filter(m => m.completed).length +
-      vision.goals.filter(g => g.status === 'completed').length +
-      vision.tasks.filter(t => t.completed).length +
-      vision.todos.filter(t => t.completed).length;
+      completedMilestones +
+      goals.filter(g => g.status === 'completed').length +
+      tasks.filter(t => t.completed).length +
+      todos.filter(td => td.completed).length;
     
     return {
       totalItems,
       completedItems,
       progress: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
-      milestonesCount: vision.milestones.length,
-      goalsCount: vision.goals.length,
-      tasksCount: vision.tasks.length,
-      todosCount: vision.todos.length,
-      wordsCount: vision.words.length,
-      remindersCount: vision.reminders.length,
+      milestonesCount: milestones.length,
+      goalsCount: goals.length,
+      tasksCount: tasks.length,
+      todosCount: todos.length,
+      wordsCount: words.length,
+      remindersCount: reminders.length,
     };
   };
 
@@ -125,19 +136,21 @@ export default function EnhancedVisionDashboard() {
           </div>
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 shadow-lg border border-blue-200">
             <div className="text-3xl font-bold text-blue-600 mb-1">
-              {visions.reduce((sum, v) => sum + v.milestones.length, 0)}
+              {visions.reduce((sum, v) => sum + (v.milestones?.length ?? 0), 0)}
             </div>
             <div className="text-gray-600 text-sm">Total Milestones</div>
           </div>
           <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 shadow-lg border border-green-200">
             <div className="text-3xl font-bold text-green-600 mb-1">
-              {visions.reduce((sum, v) => sum + v.goals.length, 0)}
+              {visions.reduce((sum, v) => sum + (v.goals?.length ?? 0), 0)}
             </div>
             <div className="text-gray-600 text-sm">Total Goals</div>
           </div>
           <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 shadow-lg border border-orange-200">
             <div className="text-3xl font-bold text-orange-600 mb-1">
-              {Math.round(visions.reduce((sum, v) => sum + (v.progress || 0), 0) / (visions.length || 1))}%
+              {Math.round(
+                visions.reduce((sum, v) => sum + calculateStats(v).progress, 0) / (visions.length || 1)
+              )}%
             </div>
             <div className="text-gray-600 text-sm">Avg Progress</div>
           </div>
@@ -211,15 +224,15 @@ export default function EnhancedVisionDashboard() {
                 {/* Stats Grid */}
                 <div className="grid grid-cols-3 gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
                   <div className="text-center">
-                    <div className="text-lg font-bold text-purple-600">{vision.milestones.length}</div>
+                    <div className="text-lg font-bold text-purple-600">{vision.milestones?.length ?? 0}</div>
                     <div className="text-xs text-gray-600">Milestones</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-bold text-blue-600">{vision.goals.length}</div>
+                    <div className="text-lg font-bold text-blue-600">{vision.goals?.length ?? 0}</div>
                     <div className="text-xs text-gray-600">Goals</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-bold text-green-600">{vision.todos.length}</div>
+                    <div className="text-lg font-bold text-green-600">{vision.todos?.length ?? 0}</div>
                     <div className="text-xs text-gray-600">Todos</div>
                   </div>
                 </div>
@@ -368,35 +381,35 @@ export default function EnhancedVisionDashboard() {
                     <div className="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
                       <div
                         className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all"
-                        style={{ width: `${selectedVision.progress || 0}%` }}
+                        style={{ width: `${calculateStats(selectedVision).progress}%` }}
                       />
                     </div>
                   </div>
-                  <div className="text-3xl font-bold text-purple-600">{selectedVision.progress || 0}%</div>
+                  <div className="text-3xl font-bold text-purple-600">{calculateStats(selectedVision).progress}%</div>
                 </div>
               </div>
 
               {/* Sections */}
-              {selectedVision.milestones.length > 0 && (
+              {(selectedVision.milestones?.length ?? 0) > 0 && (
                 <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🏁 Milestones ({selectedVision.milestones.length})</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🏁 Milestones ({selectedVision.milestones?.length ?? 0})</h2>
                   <div className="space-y-2">
-                    {selectedVision.milestones.map(m => (
+                    {(selectedVision.milestones ?? []).map(m => (
                       <div key={m.id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
-                        {m.completed ? <CheckCircle2 size={20} className="text-green-600" /> : <div className="w-5 h-5 border-2 border-purple-400 rounded-full" />}
-                        <span className={m.completed ? 'line-through text-gray-500' : 'text-gray-900'}>{m.title}</span>
-                        <span className="ml-auto text-xs text-gray-600">{m.dueDate}</span>
+                        {m.status === 'completed' ? <CheckCircle2 size={20} className="text-green-600" /> : <div className="w-5 h-5 border-2 border-purple-400 rounded-full" />}
+                        <span className={m.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}>{m.title}</span>
+                        <span className="ml-auto text-xs text-gray-600">{m.endDate}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {selectedVision.goals.length > 0 && (
+              {(selectedVision.goals?.length ?? 0) > 0 && (
                 <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🎯 Goals ({selectedVision.goals.length})</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🎯 Goals ({selectedVision.goals?.length ?? 0})</h2>
                   <div className="space-y-2">
-                    {selectedVision.goals.map(g => (
+                    {(selectedVision.goals ?? []).map(g => (
                       <div key={g.id} className="p-3 bg-blue-50 rounded-lg">
                         <div className="font-medium text-gray-900">{g.title}</div>
                         <div className="text-xs text-gray-600 mt-1">{g.targetDate}</div>
@@ -406,29 +419,31 @@ export default function EnhancedVisionDashboard() {
                 </div>
               )}
 
-              {selectedVision.todos.length > 0 && (
+              {(selectedVision.todos?.length ?? 0) > 0 && (
                 <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">📌 Todos ({selectedVision.todos.length})</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">📌 Todos ({selectedVision.todos?.length ?? 0})</h2>
                   <div className="space-y-2">
-                    {selectedVision.todos.slice(0, 5).map(t => (
+                    {(selectedVision.todos ?? []).slice(0, 5).map(t => (
                       <div key={t.id} className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
                         {t.completed ? <CheckCircle2 size={20} className="text-green-600" /> : <div className="w-5 h-5 border-2 border-orange-400 rounded-full" />}
                         <span className={t.completed ? 'line-through text-gray-500' : 'text-gray-900'}>{t.title}</span>
                       </div>
                     ))}
-                    {selectedVision.todos.length > 5 && <div className="text-sm text-gray-600 mt-2">+{selectedVision.todos.length - 5} more todos</div>}
+                    {(selectedVision.todos?.length ?? 0) > 5 && (
+                      <div className="text-sm text-gray-600 mt-2">+{(selectedVision.todos?.length ?? 0) - 5} more todos</div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {selectedVision.words.length > 0 && (
+              {(selectedVision.words?.length ?? 0) > 0 && (
                 <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">✨ Mantras & Affirmations ({selectedVision.words.length})</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">✨ Mantras & Affirmations ({selectedVision.words?.length ?? 0})</h2>
                   <div className="space-y-3">
-                    {selectedVision.words.map(w => (
+                    {(selectedVision.words ?? []).map(w => (
                       <div key={w.id} className="p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
                         <div className="font-medium text-gray-900">{w.title}</div>
-                        <div className="text-gray-700 italic mt-2">{w.content}</div>
+                        <div className="text-gray-700 italic mt-2">{w.description || ''}</div>
                         <div className="text-xs text-gray-600 mt-2">📌 {w.category}</div>
                       </div>
                     ))}
@@ -436,11 +451,11 @@ export default function EnhancedVisionDashboard() {
                 </div>
               )}
 
-              {selectedVision.reminders.length > 0 && (
+              {(selectedVision.reminders?.length ?? 0) > 0 && (
                 <div className="mb-8">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🔔 Reminders ({selectedVision.reminders.length})</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🔔 Reminders ({selectedVision.reminders?.length ?? 0})</h2>
                   <div className="space-y-2">
-                    {selectedVision.reminders.map(r => (
+                    {(selectedVision.reminders ?? []).map(r => (
                       <div key={r.id} className="p-3 bg-red-50 rounded-lg">
                         <div className="font-medium text-gray-900">{r.title}</div>
                         <div className="text-xs text-gray-600 mt-1">{r.dueDate} {r.dueTime ? `• ${r.dueTime}` : ''} • {r.frequency}</div>

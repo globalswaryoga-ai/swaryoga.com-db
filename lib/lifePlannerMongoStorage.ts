@@ -3,7 +3,7 @@
  * Replaces localStorage with persistent MongoDB storage
  */
 
-import { Reminder, Vision, Goal, Task, Todo, Word, HealthRoutine, DiamondPerson, ProgressReport } from '@/lib/types/lifePlanner';
+import { Reminder, Vision, Goal, Task, Todo, Word, HealthRoutine, DiamondPerson, ProgressReport, ActionPlan } from '@/lib/types/lifePlanner';
 
 class LifePlannerMongoStorage {
   private getEmail(): string | null {
@@ -18,11 +18,34 @@ class LifePlannerMongoStorage {
     }
   }
 
+  private getToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('lifePlannerToken');
+  }
+
+  private authHeaders(): Record<string, string> {
+    const token = this.getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  private handleUnauthorized(): void {
+    if (typeof window === 'undefined') return;
+    // Clear invalid session so UI routes the user to login.
+    localStorage.removeItem('lifePlannerToken');
+    // Keep lifePlannerUser so the email stays prefilled/known, but auth must be renewed.
+  }
+
   async getVisions(): Promise<Vision[]> {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=visions`);
+      const response = await fetch(`/api/life-planner/data?type=visions`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -31,15 +54,50 @@ class LifePlannerMongoStorage {
     }
   }
 
+  async getActionPlans(): Promise<ActionPlan[]> {
+    const email = this.getEmail();
+    if (!email) return [];
+    try {
+      const response = await fetch(`/api/life-planner/data?type=actionPlans`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
+      if (!response.ok) return [];
+      const result = await response.json();
+      return result.data || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async saveActionPlans(actionPlans: ActionPlan[]): Promise<void> {
+    const email = this.getEmail();
+    if (!email) return;
+    try {
+      const response = await fetch('/api/life-planner/data', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'actionPlans', data: actionPlans }),
+      });
+      if (response.status === 401) this.handleUnauthorized();
+    } catch {
+      console.error('Failed to save action plans');
+    }
+  }
+
   async saveVisions(visions: Vision[]): Promise<void> {
     const email = this.getEmail();
     if (!email) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'visions', data: visions }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'visions', data: visions }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save visions');
     }
@@ -49,7 +107,13 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=goals`);
+      const response = await fetch(`/api/life-planner/data?type=goals`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -62,11 +126,12 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'goals', data: goals }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'goals', data: goals }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save goals');
     }
@@ -76,7 +141,13 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=tasks`);
+      const response = await fetch(`/api/life-planner/data?type=tasks`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -89,11 +160,12 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'tasks', data: tasks }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'tasks', data: tasks }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save tasks');
     }
@@ -103,7 +175,13 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=todos`);
+      const response = await fetch(`/api/life-planner/data?type=todos`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -116,11 +194,12 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'todos', data: todos }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'todos', data: todos }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save todos');
     }
@@ -130,7 +209,13 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=words`);
+      const response = await fetch(`/api/life-planner/data?type=words`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -143,11 +228,12 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'words', data: words }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'words', data: words }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save words');
     }
@@ -157,7 +243,13 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=reminders`);
+      const response = await fetch(`/api/life-planner/data?type=reminders`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -170,11 +262,12 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'reminders', data: reminders }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'reminders', data: reminders }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save reminders');
     }
@@ -184,7 +277,13 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=healthRoutines`);
+      const response = await fetch(`/api/life-planner/data?type=healthRoutines`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -197,11 +296,12 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'healthRoutines', data: routines }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'healthRoutines', data: routines }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save health routines');
     }
@@ -211,7 +311,13 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=diamondPeople`);
+      const response = await fetch(`/api/life-planner/data?type=diamondPeople`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -224,11 +330,12 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'diamondPeople', data: people }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'diamondPeople', data: people }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save diamond people');
     }
@@ -238,7 +345,9 @@ class LifePlannerMongoStorage {
     const email = this.getEmail();
     if (!email) return [];
     try {
-      const response = await fetch(`/api/life-planner/data?email=${encodeURIComponent(email)}&type=progress`);
+      const response = await fetch(`/api/life-planner/data?type=progress`, {
+        headers: this.authHeaders(),
+      });
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -253,8 +362,8 @@ class LifePlannerMongoStorage {
     try {
       await fetch('/api/life-planner/data', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'progress', data: progress }),
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'progress', data: progress }),
       });
     } catch {
       console.error('Failed to save progress');

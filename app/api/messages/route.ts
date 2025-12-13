@@ -114,14 +114,42 @@ export async function GET(request: NextRequest) {
     }
 
     // Get messages for this user (either sent to or from this user)
-    const messages = await Message.find({
+    const { searchParams } = new URL(request.url);
+    const limitParam = Number(searchParams.get('limit') || '200');
+    const pageParam = Number(searchParams.get('page') || '1');
+
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 500) : 200;
+    const page = Number.isFinite(pageParam) ? Math.max(pageParam, 1) : 1;
+    const skip = (page - 1) * limit;
+
+    const query = {
       $or: [
         { recipientEmail: user.email },
         { senderEmail: user.email },
       ],
-    }).sort({ createdAt: -1 });
+    };
 
-    return NextResponse.json(messages, { status: 200 });
+    const [messages, total] = await Promise.all([
+      Message.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('senderEmail senderName senderRole recipientEmail subject message contactId isRead createdAt'),
+      Message.countDocuments(query),
+    ]);
+
+    return NextResponse.json(
+      {
+        data: messages,
+        meta: {
+          total,
+          page,
+          limit,
+          hasMore: skip + messages.length < total,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error fetching messages:', error);
     return NextResponse.json(

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { ActionPlan, ActionPlanGoal, Milestone, Vision, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+import { useEffect, useMemo, useState } from 'react';
+import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
+import type { ActionPlan, ActionPlanGoal, Milestone, Vision, MiniTodo } from '@/lib/types/lifePlanner';
 import GoalSection from '@/components/GoalSection';
 
 interface ActionPlanModalProps {
@@ -19,24 +20,75 @@ export default function ActionPlanModal({
   visions,
   editingPlan,
 }: ActionPlanModalProps) {
-  const [selectedVisionId, setSelectedVisionId] = useState(editingPlan?.visionId || '');
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const [selectedVisionId, setSelectedVisionId] = useState('');
   const [selectedVisionHead, setSelectedVisionHead] = useState('');
-  const [title, setTitle] = useState(editingPlan?.title || '');
-  const [description, setDescription] = useState(editingPlan?.description || '');
-  const [startDate, setStartDate] = useState(editingPlan?.startDate || '');
-  const [endDate, setEndDate] = useState(editingPlan?.endDate || '');
-  const [workingHoursStart, setWorkingHoursStart] = useState(
-    editingPlan?.workingHoursStart || '09:00'
-  );
-  const [workingHoursEnd, setWorkingHoursEnd] = useState(
-    editingPlan?.workingHoursEnd || '17:00'
-  );
-  const [place, setPlace] = useState(editingPlan?.place || '');
-  const [expectedAmount, setExpectedAmount] = useState(editingPlan?.expectedAmount || 0);
-  const [milestones, setMilestones] = useState<Milestone[]>(editingPlan?.milestones || []);
-  const [goals, setGoals] = useState<ActionPlanGoal[]>(editingPlan?.goals || []);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [workingHoursStart, setWorkingHoursStart] = useState('11:00');
+  const [workingHoursEnd, setWorkingHoursEnd] = useState('11:00');
+  const [place, setPlace] = useState('');
+  const [expectedAmount, setExpectedAmount] = useState(0);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [goals, setGoals] = useState<ActionPlanGoal[]>([]);
+  const [todos, setTodos] = useState<MiniTodo[]>([]);
+  const [showTodosEditor, setShowTodosEditor] = useState(false);
+  const [newTodoTitle, setNewTodoTitle] = useState('');
+  const [newTodoDueDate, setNewTodoDueDate] = useState('');
+  const [newTodoDueTime, setNewTodoDueTime] = useState('11:00');
 
   const selectedVision = visions.find(v => v.id === selectedVisionId);
+
+  // When opening the modal (or switching editingPlan), preload all fields.
+  // Without this, React state initialized via useState() won't update when editingPlan changes.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (editingPlan) {
+      const v = visions.find(vv => vv.id === editingPlan.visionId);
+      const head = v?.category ? String(v.category) : '';
+      setSelectedVisionHead(head);
+      setSelectedVisionId(editingPlan.visionId || '');
+      setTitle(editingPlan.title || '');
+      setDescription(editingPlan.description || '');
+      setStartDate(editingPlan.startDate || today);
+      setEndDate(editingPlan.endDate || today);
+      setWorkingHoursStart(editingPlan.workingHoursStart || '11:00');
+      setWorkingHoursEnd(editingPlan.workingHoursEnd || '11:00');
+      setPlace(editingPlan.place || '');
+      setExpectedAmount(editingPlan.expectedAmount || 0);
+      setMilestones(editingPlan.milestones || []);
+      setGoals(editingPlan.goals || []);
+      setTodos(editingPlan.todos || []);
+      setShowTodosEditor(false);
+      setNewTodoTitle('');
+      setNewTodoDueDate('');
+      setNewTodoDueTime('11:00');
+      return;
+    }
+
+    // Create mode defaults
+    setSelectedVisionHead('');
+    setSelectedVisionId('');
+    setTitle('');
+    setDescription('');
+    setStartDate(today);
+    setEndDate(today);
+    setWorkingHoursStart('11:00');
+    setWorkingHoursEnd('11:00');
+    setPlace('');
+    setExpectedAmount(0);
+    setMilestones([]);
+    setGoals([]);
+    setTodos([]);
+    setShowTodosEditor(false);
+    setNewTodoTitle('');
+    setNewTodoDueDate('');
+    setNewTodoDueTime('11:00');
+  }, [isOpen, editingPlan?.id, editingPlan?.visionId, visions, today]);
   
   // Filter visions by selected head
   const visionsUnderHead = selectedVisionHead
@@ -48,10 +100,10 @@ export default function ActionPlanModal({
       id: Date.now().toString(),
       title: '',
       description: '',
-      startDate: '',
-      endDate: '',
-      workingHoursStart: '09:00',
-      workingHoursEnd: '17:00',
+      startDate: startDate || today,
+      endDate: endDate || today,
+      workingHoursStart: '11:00',
+      workingHoursEnd: '11:00',
       place: '',
       status: 'not-started',
       createdAt: new Date().toISOString(),
@@ -73,10 +125,10 @@ export default function ActionPlanModal({
       id: Date.now().toString(),
       title: '',
       description: '',
-      startDate: '',
-      endDate: '',
-      workingTimeStart: '09:00',
-      workingTimeEnd: '17:00',
+      startDate: startDate || today,
+      endDate: endDate || today,
+      workingTimeStart: '11:00',
+      workingTimeEnd: '11:00',
       place: '',
       expectedAmount: 0,
       status: 'not-started',
@@ -94,6 +146,33 @@ export default function ActionPlanModal({
 
   const handleDeleteGoal = (id: string) => {
     setGoals(goals.filter(g => g.id !== id));
+  };
+
+  const addTodo = () => {
+    const titleTrimmed = newTodoTitle.trim();
+    if (!titleTrimmed) return;
+    const fallbackDate = endDate || startDate || new Date().toISOString().split('T')[0];
+    const dueDate = (newTodoDueDate || fallbackDate).trim();
+    const dueTime = (newTodoDueTime || '11:00').trim();
+    setTodos(prev => [
+      ...prev,
+      { id: `todo-${Date.now()}`, title: titleTrimmed, dueDate, dueTime, completed: false },
+    ]);
+    setNewTodoTitle('');
+    setNewTodoDueDate('');
+    setNewTodoDueTime('11:00');
+  };
+
+  const toggleTodo = (id: string) => {
+    setTodos(prev => prev.map(t => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  };
+
+  const updateTodo = (id: string, patch: Partial<Pick<MiniTodo, 'title' | 'dueDate' | 'dueTime'>>) => {
+    setTodos(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)));
+  };
+
+  const deleteTodo = (id: string) => {
+    setTodos(prev => prev.filter(t => t.id !== id));
   };
 
   const handleSave = () => {
@@ -116,6 +195,7 @@ export default function ActionPlanModal({
       expectedAmount: expectedAmount || undefined,
       milestones,
       goals,
+      todos,
       status: editingPlan?.status || 'not-started',
       progress: editingPlan?.progress || 0,
       createdAt: editingPlan?.createdAt || new Date().toISOString(),
@@ -131,14 +211,19 @@ export default function ActionPlanModal({
     setSelectedVisionHead('');
     setTitle('');
     setDescription('');
-    setStartDate('');
-    setEndDate('');
-    setWorkingHoursStart('09:00');
-    setWorkingHoursEnd('17:00');
+    setStartDate(today);
+    setEndDate(today);
+    setWorkingHoursStart('11:00');
+    setWorkingHoursEnd('11:00');
     setPlace('');
     setExpectedAmount(0);
     setMilestones([]);
     setGoals([]);
+    setTodos([]);
+    setShowTodosEditor(false);
+    setNewTodoTitle('');
+    setNewTodoDueDate('');
+    setNewTodoDueTime('11:00');
   };
 
   if (!isOpen) return null;
@@ -147,7 +232,7 @@ export default function ActionPlanModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-screen overflow-y-auto">
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white flex justify-between items-center">
-          <h2 className="text-2xl font-bold">
+          <h2 className="text-2xl font-bold text-white">
             {editingPlan ? 'Edit Action Plan' : 'Create Action Plan'}
           </h2>
           <button
@@ -367,6 +452,124 @@ export default function ActionPlanModal({
                 />
               ))}
             </div>
+          </div>
+
+          {/* Todos Section */}
+          <div className="border-t-2 pt-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Todos</h3>
+                <p className="text-xs text-gray-600">Small checkbox items under this action plan.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTodosEditor(v => !v)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                {showTodosEditor ? 'Hide Todos' : '+ Todos'}
+              </button>
+            </div>
+
+            {showTodosEditor && (
+              <div className="space-y-3">
+                {/* Add todo (2-line layout) */}
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                  <input
+                    type="text"
+                    value={newTodoTitle}
+                    onChange={(e) => setNewTodoTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addTodo();
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    placeholder="Todo title"
+                  />
+
+                  <div className="mt-2 flex flex-col md:flex-row gap-2">
+                    <input
+                      type="date"
+                      value={newTodoDueDate || endDate || ''}
+                      onChange={(e) => setNewTodoDueDate(e.target.value)}
+                      className="w-full md:w-auto md:flex-1 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                      title="Due date"
+                    />
+                    <input
+                      type="time"
+                      value={newTodoDueTime}
+                      onChange={(e) => setNewTodoDueTime(e.target.value)}
+                      className="w-full md:w-44 px-4 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                      title="Due time (default 11:00)"
+                    />
+                    <button
+                      type="button"
+                      onClick={addTodo}
+                      className="w-full md:w-28 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {todos.length === 0 ? (
+                  <div className="text-sm text-blue-800 bg-white border border-blue-200 rounded-lg px-4 py-3">
+                    No todos yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {todos.map((todo) => (
+                      <div key={todo.id} className="bg-white border border-blue-200 rounded-xl px-3 py-3">
+                        {/* Line 1: title */}
+                        <input
+                          type="text"
+                          value={todo.title}
+                          onChange={(e) => updateTodo(todo.id, { title: e.target.value })}
+                          className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                        />
+
+                        {/* Line 2: date + time + checkbox + remove */}
+                        <div className="mt-2 flex flex-col md:flex-row md:items-center gap-2">
+                          <label className="inline-flex items-center gap-2 text-sm text-gray-700 md:mr-1">
+                            <input
+                              type="checkbox"
+                              checked={!!todo.completed}
+                              onChange={() => toggleTodo(todo.id)}
+                              className="rounded border-gray-300"
+                            />
+                            <span className="text-xs">Done</span>
+                          </label>
+
+                          <input
+                            type="date"
+                            value={todo.dueDate || ''}
+                            onChange={(e) => updateTodo(todo.id, { dueDate: e.target.value })}
+                            className="w-full md:w-auto md:flex-1 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+
+                          <input
+                            type="time"
+                            value={todo.dueTime || '11:00'}
+                            onChange={(e) => updateTodo(todo.id, { dueTime: e.target.value })}
+                            className="w-full md:w-44 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => deleteTodo(todo.id)}
+                            className="w-full md:w-auto px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition inline-flex items-center justify-center gap-2"
+                            title="Remove"
+                          >
+                            <span className="text-sm font-medium">Remove</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}

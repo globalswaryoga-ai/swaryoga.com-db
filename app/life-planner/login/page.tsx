@@ -6,9 +6,12 @@ import { Eye, EyeOff } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 
-function setPlannerSession(email: string) {
+function setPlannerSession(email: string, token?: string) {
   // Client-side session storage
   localStorage.setItem('lifePlannerUser', JSON.stringify({ email, createdAt: Date.now() }));
+  if (token) {
+    localStorage.setItem('lifePlannerToken', token);
+  }
 }
 
 export default function LifePlannerLoginPage() {
@@ -23,13 +26,26 @@ export default function LifePlannerLoginPage() {
   // Check if already logged in, redirect to dashboard
   useEffect(() => {
     const userSession = localStorage.getItem('lifePlannerUser');
-    if (userSession) {
-      // User is already logged in, redirect to dashboard
-      router.push('/life-planner/dashboard');
-    } else {
-      setMounted(true);
+    const token = localStorage.getItem('lifePlannerToken');
+
+    // Prefill email if available
+    if (userSession && !email) {
+      try {
+        const parsed = JSON.parse(userSession);
+        if (parsed?.email) setEmail(parsed.email);
+      } catch {
+        // ignore
+      }
     }
-  }, [router]);
+
+    // Only redirect if both session and token exist.
+    if (userSession && token) {
+      router.push('/life-planner/dashboard');
+      return;
+    }
+
+    setMounted(true);
+  }, [router, email]);
 
   const canSubmit = useMemo(() => email.trim().length > 3 && password.trim().length > 3, [email, password]);
 
@@ -53,8 +69,9 @@ export default function LifePlannerLoginPage() {
         return;
       }
 
-      // Success - set session and redirect
-      setPlannerSession(email.trim());
+  // Success - set session and redirect
+  const data = await response.json();
+  setPlannerSession(email.trim(), data?.token);
       router.push('/life-planner/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during login.');

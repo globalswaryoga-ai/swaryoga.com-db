@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Clock, AlertCircle, Plus, X } from 'lucide-react';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
+import type { Reminder as DbReminder } from '@/lib/types/lifePlanner';
 
-interface Reminder {
+type UiReminder = {
   id: string;
   text: string;
   date: string;
@@ -11,19 +13,71 @@ interface Reminder {
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
   customDays?: number;
   completed?: boolean;
+};
+
+function dbToUiReminder(r: DbReminder): UiReminder {
+  return {
+    id: r.id,
+    text: r.title || r.description || '',
+    date: r.dueDate || r.startDate || '',
+    time: r.dueTime || '11:00',
+    frequency: (r.frequency as UiReminder['frequency']) || 'once',
+    completed: Boolean(r.completed),
+  };
+}
+
+function uiToDbReminder(r: UiReminder): DbReminder {
+  return {
+    id: r.id,
+    title: r.text,
+    description: '',
+    startDate: r.date,
+    dueDate: r.date,
+    // Keep both fields for back-compat across screens
+    time: r.time,
+    dueTime: r.time,
+    frequency: (r.frequency as DbReminder['frequency']) || 'once',
+    completed: Boolean(r.completed),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export default function RemindersPage() {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminders, setReminders] = useState<UiReminder[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [formData, setFormData] = useState({
     text: '',
     date: '',
-    time: '',
+    time: '11:00',
     frequency: 'once' as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
     customDays: 1,
   });
   const [error, setError] = useState<string | null>(null);
+
+  // Filters (UI-only; never persisted)
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
+  const [filterFrequency, setFilterFrequency] = useState<'all' | UiReminder['frequency']>('all');
+  const [filterMonth, setFilterMonth] = useState<string>('all');
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+  useEffect(() => {
+    const load = async () => {
+      const saved = await lifePlannerStorage.getReminders();
+      setReminders(saved.map(dbToUiReminder));
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    const save = async () => {
+      await lifePlannerStorage.saveReminders(reminders.map(uiToDbReminder));
+    };
+    save();
+  }, [reminders]);
 
   const isFormValid = useMemo(
     () => formData.text.trim().length > 0 && formData.date && formData.time,
@@ -36,7 +90,7 @@ export default function RemindersPage() {
       return;
     }
 
-    const newReminder: Reminder = {
+    const newReminder: UiReminder = {
       id: Date.now().toString(),
       text: formData.text,
       date: formData.date,
@@ -45,7 +99,7 @@ export default function RemindersPage() {
       customDays: formData.frequency === 'custom' ? formData.customDays : undefined,
     };
 
-    setReminders([...reminders, newReminder]);
+    setReminders(prev => [...prev, newReminder]);
     setFormData({
       text: '',
       date: '',
@@ -58,8 +112,8 @@ export default function RemindersPage() {
   }, [formData, isFormValid]);
 
   const handleDeleteReminder = useCallback((id: string) => {
-    setReminders(reminders.filter((r) => r.id !== id));
-  }, [reminders]);
+    setReminders(prev => prev.filter((r) => r.id !== id));
+  }, []);
 
   const frequencyLabels: Record<string, string> = {
     once: 'Once',
@@ -70,6 +124,24 @@ export default function RemindersPage() {
     custom: 'Custom',
   };
 
+  const normalizedSearch = searchText.trim().toLowerCase();
+  const filteredReminders = reminders.filter((r) => {
+    const haystack = `${r.text || ''} ${frequencyLabels[r.frequency] || r.frequency}`.toLowerCase();
+    const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+
+    const matchesStatus =
+      filterStatus === 'all' ||
+      (filterStatus === 'completed' ? Boolean(r.completed) : !Boolean(r.completed));
+
+    const matchesFrequency = filterFrequency === 'all' || r.frequency === filterFrequency;
+
+    const monthIdx = filterMonth === 'all' ? null : MONTHS.indexOf(filterMonth as any);
+    const date = r.date ? new Date(r.date) : null;
+    const matchesMonth = monthIdx === null || (date && !Number.isNaN(date.getTime()) && date.getMonth() === monthIdx);
+
+    return matchesSearch && matchesStatus && matchesFrequency && matchesMonth;
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -79,7 +151,15 @@ export default function RemindersPage() {
           <p className="text-gray-600 mt-1">Set up reminders for important tasks and events</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(true);
+            setError(null);
+            setFormData((prev) => ({
+              ...prev,
+              date: prev.date || today,
+              time: prev.time || '11:00',
+            }));
+          }}
           className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
         >
           <Plus className="h-5 w-5" />
@@ -87,119 +167,211 @@ export default function RemindersPage() {
         </button>
       </div>
 
-      {/* Add Reminder Form */}
+      {/* Add Reminder Modal (Task-form style, keep pink theme) */}
       {showForm && (
-        <div className="rounded-3xl border border-pink-200 bg-white p-6 shadow-lg">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New Reminder</h2>
-
-          {error && (
-            <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {/* Reminder Text */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Reminder Text *</label>
-              <textarea
-                value={formData.text}
-                onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-                placeholder="What should you be reminded about?"
-                className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
-                rows={3}
-              />
-            </div>
-
-            {/* Date and Time */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
-                <input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
-                <input
-                  type="time"
-                  value={formData.time}
-                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
-                />
-              </div>
-            </div>
-
-            {/* Frequency */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Frequency</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {(['once', 'daily', 'weekly', 'monthly', 'yearly', 'custom'] as const).map((freq) => (
-                  <label key={freq} className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="frequency"
-                      value={freq}
-                      checked={formData.frequency === freq}
-                      onChange={(e) => setFormData({ ...formData, frequency: e.target.value as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom' })}
-                      className="h-5 w-5 rounded-full border-2 border-pink-300 text-red-600 focus:ring-2 focus:ring-red-500 cursor-pointer"
-                    />
-                    <span className="text-sm text-gray-700 font-medium">{frequencyLabels[freq]}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Custom Days */}
-            {formData.frequency === 'custom' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Repeat every (days)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={formData.customDays}
-                  onChange={(e) => setFormData({ ...formData, customDays: parseInt(e.target.value) || 1 })}
-                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
-                />
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
-              <button
-                onClick={handleAddReminder}
-                className="flex-1 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
-              >
-                Create Reminder
-              </button>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-red-500 to-pink-500 p-6 text-white flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white">Create New Reminder</h2>
               <button
                 onClick={() => {
                   setShowForm(false);
                   setError(null);
-                  setFormData({
-                    text: '',
-                    date: '',
-                    time: '',
-                    frequency: 'once',
-                    customDays: 1,
-                  });
                 }}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 font-semibold hover:bg-gray-50 transition"
+                className="text-2xl font-bold hover:scale-110 transition-transform"
+                aria-label="Close"
               >
-                Cancel
+                ✕
               </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {error && (
+                <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reminder Text *</label>
+                <textarea
+                  value={formData.text}
+                  onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                  placeholder="What should you be reminded about?"
+                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
+                  <input
+                    type="time"
+                    value={formData.time}
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Frequency</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {(['once', 'daily', 'weekly', 'monthly', 'yearly', 'custom'] as const).map((freq) => (
+                    <label key={freq} className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value={freq}
+                        checked={formData.frequency === freq}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            frequency: e.target.value as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
+                          })
+                        }
+                        className="h-5 w-5 rounded-full border-2 border-pink-300 text-red-600 focus:ring-2 focus:ring-red-500 cursor-pointer"
+                      />
+                      <span className="text-sm text-gray-700 font-medium">{frequencyLabels[freq]}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {formData.frequency === 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Repeat every (days)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={formData.customDays}
+                    onChange={(e) => setFormData({ ...formData, customDays: parseInt(e.target.value) || 1 })}
+                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-5 pb-5 border-t-2 border-pink-200 bg-gradient-to-r from-pink-50 via-white to-red-50 sticky bottom-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false);
+                    setError(null);
+                    setFormData({
+                      text: '',
+                      date: today,
+                      time: '11:00',
+                      frequency: 'once',
+                      customDays: 1,
+                    });
+                  }}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddReminder}
+                  className="px-6 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-colors disabled:opacity-60"
+                >
+                  Create Reminder
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* Filters */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search reminder text"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-200"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+            >
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Frequency</label>
+            <select
+              value={filterFrequency}
+              onChange={(e) => setFilterFrequency(e.target.value as any)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+            >
+              <option value="all">All</option>
+              <option value="once">Once</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+            >
+              <option value="all">All</option>
+              {MONTHS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchText('');
+                setFilterStatus('all');
+                setFilterFrequency('all');
+                setFilterMonth('all');
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+
+        <p className="mt-3 text-sm text-gray-600">Showing {filteredReminders.length} of {reminders.length} reminders</p>
+      </div>
+
       {/* Reminders List */}
-      {reminders.length === 0 ? (
+      {filteredReminders.length === 0 ? (
         <div className="rounded-3xl border-2 border-dashed border-pink-200 p-12 text-center">
           <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600 text-lg">No reminders yet</p>
@@ -207,7 +379,7 @@ export default function RemindersPage() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {reminders.map((reminder) => (
+          {filteredReminders.map((reminder) => (
             <div key={reminder.id} className={`rounded-2xl border transition ${
               reminder.completed
                 ? 'border-green-300 bg-green-50 opacity-70'
@@ -219,8 +391,8 @@ export default function RemindersPage() {
                     type="checkbox"
                     checked={reminder.completed || false}
                     onChange={(e) => {
-                      setReminders(
-                        reminders.map((r) =>
+                      setReminders(prev =>
+                        prev.map((r) =>
                           r.id === reminder.id ? { ...r, completed: e.target.checked } : r
                         )
                       );

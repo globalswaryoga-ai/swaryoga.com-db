@@ -9,7 +9,21 @@ interface GoalSectionProps {
   onDelete: (id: string) => void;
 }
 
+function normalizeActionPlanGoalStatus(status: unknown): ActionPlanGoal['status'] {
+  if (typeof status !== 'string') return undefined;
+  // Back-compat for older saved data
+  if (status === 'working') return 'in-progress';
+  if (status === 'done') return 'completed';
+  if (status === 'pending') return 'on-hold';
+  if (status === 'not-started' || status === 'in-progress' || status === 'completed' || status === 'on-hold') {
+    return status;
+  }
+  return undefined;
+}
+
 export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSectionProps) {
+  const normalizedStatus = normalizeActionPlanGoalStatus(goal.status as unknown);
+
   return (
     <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
       <div className="flex justify-between items-center mb-3">
@@ -165,19 +179,19 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
         <div>
           <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
           <select
-            value={goal.status}
+            value={normalizedStatus ?? 'not-started'}
             onChange={e =>
               onUpdate(goal.id, {
                 ...goal,
-                status: e.target.value as 'not-started' | 'working' | 'pending' | 'done',
+                status: e.target.value as ActionPlanGoal['status'],
               })
             }
             className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
           >
             <option value="not-started">Not Started</option>
-            <option value="working">Working</option>
-            <option value="pending">Pending</option>
-            <option value="done">Done</option>
+            <option value="in-progress">In Progress</option>
+            <option value="on-hold">On Hold</option>
+            <option value="completed">Completed</option>
           </select>
         </div>
       </div>

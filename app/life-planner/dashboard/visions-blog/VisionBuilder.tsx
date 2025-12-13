@@ -4,6 +4,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, X, Trash2 } from 'lucide-react';
 import { Vision, Milestone, Goal, Task, Todo, Word, Reminder } from '@/lib/types/lifePlanner';
 
+type BuilderVision = Vision & {
+  description: string;
+  milestones: Milestone[];
+  goals: Goal[];
+  tasks: Task[];
+  todos: Todo[];
+  words: Word[];
+  reminders: Reminder[];
+};
+
 interface VisionBuilderProps {
   initialVision?: Vision | null;
   onSave: (vision: Vision) => void;
@@ -19,26 +29,43 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
     setUniqueCounter(newCounter);
     return `${Date.now()}-${newCounter}`;
   };
-  const [vision, setVision] = useState<Vision>(
-    initialVision || {
-      id: generateUniqueId(),
-      title: '',
-      description: '',
-      startDate: '',
-      endDate: '',
-      category: 'Life',
-      priority: 'medium',
-      status: 'not-started',
-      milestones: [],
-      goals: [],
-      tasks: [],
-      todos: [],
-      words: [],
-      reminders: [],
-      progress: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
+
+  const normalizeVision = (v: Vision): BuilderVision => ({
+    ...v,
+    description: v.description ?? '',
+    category: (v.category as any) || 'Life',
+    milestones: v.milestones ?? [],
+    goals: v.goals ?? [],
+    tasks: v.tasks ?? [],
+    todos: v.todos ?? [],
+    words: v.words ?? [],
+    reminders: v.reminders ?? [],
+    createdAt: v.createdAt || new Date().toISOString(),
+    updatedAt: v.updatedAt || new Date().toISOString(),
+  });
+
+  const [vision, setVision] = useState<BuilderVision>(() =>
+    initialVision
+      ? normalizeVision(initialVision)
+      : {
+          id: generateUniqueId(),
+          title: '',
+          description: '',
+          startDate: '',
+          endDate: '',
+          category: 'Life',
+          priority: 'medium',
+          status: 'not-started',
+          milestones: [],
+          goals: [],
+          tasks: [],
+          todos: [],
+          words: [],
+          reminders: [],
+          progress: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
   );
 
   const tabs = [
@@ -124,6 +151,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
     const newGoal: Goal = {
       id: generateUniqueId(),
       title: '',
+      visionId: vision.id,
       description: '',
       startDate: '',
       targetDate: '',
@@ -234,7 +262,9 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
     const newWord: Word = {
       id: generateUniqueId(),
       title: '',
+      description: '',
       content: '',
+      type: 'mantra',
       category: 'Mantra',
       color: '#8B5CF6',
       createdAt: new Date().toISOString(),
@@ -271,10 +301,9 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
       description: '',
       startDate: new Date().toISOString().split('T')[0],
       dueDate: '',
-      category: 'life',
       frequency: 'once',
-      priority: 'medium',
-      active: true,
+      time: '11:00',
+      dueTime: '11:00',
       completed: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

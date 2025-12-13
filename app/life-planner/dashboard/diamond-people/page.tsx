@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Download, Edit, Trash2, Phone, Mail, MapPin } from 'lucide-react';
+import { Plus, Download, Edit, Trash2, Phone, Mail, MapPin } from 'lucide-react';
 import { DiamondPerson } from '@/lib/types/lifePlanner';
-import { lifePlannerStorage } from '@/lib/lifePlannerStorage';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import DiamondPersonModal from './DiamondPersonModal';
 
 const DiamondPeoplePage = () => {
@@ -12,22 +12,29 @@ const DiamondPeoplePage = () => {
   const [editingPerson, setEditingPerson] = useState<DiamondPerson | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [filterRelationship, setFilterRelationship] = useState('all');
+  const [filterMonth, setFilterMonth] = useState('all');
   const [mounted, setMounted] = useState(false);
 
   const categories = ['all', 'Spiritual Mentor', 'Health Professional', 'Personal Development', 'Family', 'Friends'];
 
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
   // Load from localStorage on mount
   useEffect(() => {
     setMounted(true);
-    const saved = lifePlannerStorage.getDiamondPeople();
-    setPeople(saved.length > 0 ? saved : []);
+    (async () => {
+      const saved = await lifePlannerStorage.getDiamondPeople();
+      setPeople(saved.length > 0 ? saved : []);
+    })();
   }, []);
 
   // Save to localStorage whenever people changes
   useEffect(() => {
-    if (mounted) {
-      lifePlannerStorage.saveDiamondPeople(people);
-    }
+    if (!mounted) return;
+    (async () => {
+      await lifePlannerStorage.saveDiamondPeople(people);
+    })();
   }, [people, mounted]);
 
   const handleAddPerson = () => {
@@ -65,15 +72,20 @@ const DiamondPeoplePage = () => {
     setIsModalOpen(false);
   };
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
   const filteredPeople = people.filter(person => {
-    const matchesSearch =
-      person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      person.profession.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      person.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const haystack = `${person.name || ''} ${person.profession || ''} ${person.email || ''} ${person.country || ''} ${person.state || ''}`.toLowerCase();
+    const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
 
     const matchesCategory = filterCategory === 'all' || person.category === filterCategory;
+    const matchesRelationship = filterRelationship === 'all' || person.relationship === filterRelationship;
 
-    return matchesSearch && matchesCategory;
+    const monthIdx = filterMonth === 'all' ? null : MONTHS.indexOf(filterMonth as any);
+    const date = person.lastContact ? new Date(person.lastContact) : null;
+    const matchesMonth = monthIdx === null || (date && !Number.isNaN(date.getTime()) && date.getMonth() === monthIdx);
+
+    return matchesSearch && matchesCategory && matchesRelationship && matchesMonth;
   });
 
   const exportToCSV = () => {
@@ -157,35 +169,78 @@ const DiamondPeoplePage = () => {
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-xl p-6 shadow-lg mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-          <div className="flex items-center space-x-4">
-            <Filter className="h-5 w-5 text-gray-600" />
+      {/* Filters */}
+      <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search name / profession / email"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
             >
               {categories.map(category => (
                 <option key={category} value={category}>
-                  {category === 'all' ? 'All Categories' : category}
+                  {category === 'all' ? 'All' : category}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search people..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent w-64"
-            />
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Relationship</label>
+            <select
+              value={filterRelationship}
+              onChange={(e) => setFilterRelationship(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="all">All</option>
+              <option value="professional">Professional</option>
+              <option value="personal">Personal</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="all">All</option>
+              {MONTHS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setFilterCategory('all');
+                setFilterRelationship('all');
+                setFilterMonth('all');
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+            >
+              Clear Filters
+            </button>
           </div>
         </div>
+
+        <p className="mt-3 text-sm text-gray-600">Showing {filteredPeople.length} of {people.length} people</p>
       </div>
 
       {/* People Grid */}
@@ -234,7 +289,7 @@ const DiamondPeoplePage = () => {
                   {person.category}
                 </span>
                 <span className="text-xs text-gray-500">
-                  Last: {new Date(person.lastContact).toLocaleDateString()}
+                  Last: {person.lastContact ? new Date(person.lastContact).toLocaleDateString() : '—'}
                 </span>
               </div>
 
