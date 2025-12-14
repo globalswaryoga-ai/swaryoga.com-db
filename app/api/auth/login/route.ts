@@ -5,7 +5,17 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    // Connect to database
+    try {
+      await connectDB();
+    } catch (dbError) {
+      console.error('Database connection error:', dbError);
+      return NextResponse.json(
+        { error: 'Database connection failed. Please try again later.' },
+        { status: 503 }
+      );
+    }
+
     const { email, password } = await request.json();
 
     // Validate input
@@ -17,7 +27,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user
-    const user = await User.findOne({ email });
+    let user;
+    try {
+      user = await User.findOne({ email });
+    } catch (findError) {
+      console.error('Error finding user:', findError);
+      return NextResponse.json(
+        { error: 'Authentication service error' },
+        { status: 503 }
+      );
+    }
+
     if (!user) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
@@ -26,7 +46,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Compare passwords
-    const passwordMatch = await bcrypt.compare(password, user.password);
+    let passwordMatch;
+    try {
+      passwordMatch = await bcrypt.compare(password, user.password);
+    } catch (bcryptError) {
+      console.error('Error comparing passwords:', bcryptError);
+      return NextResponse.json(
+        { error: 'Authentication service error' },
+        { status: 503 }
+      );
+    }
+
     if (!passwordMatch) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
@@ -35,10 +65,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate token
-    const token = generateToken({
-      userId: user._id.toString(),
-      email: user.email,
-    });
+    let token;
+    try {
+      token = generateToken({
+        userId: user._id.toString(),
+        email: user.email,
+      });
+    } catch (tokenError) {
+      console.error('Error generating token:', tokenError);
+      return NextResponse.json(
+        { error: 'Token generation failed' },
+        { status: 503 }
+      );
+    }
 
     // Log signin attempt
     try {
@@ -76,8 +115,9 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Login error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }
