@@ -255,11 +255,10 @@ function SignInInner() {
               </p>
             </div>
 
-            {/* Demo Credentials */}
+            {/* Help Text */}
             <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800 font-medium mb-2">Demo Credentials:</p>
-              <p className="text-xs text-blue-700">Email: user@swaryoga.org</p>
-              <p className="text-xs text-blue-700">Password: password123</p>
+              <p className="text-sm text-blue-800 font-medium mb-2">Need Help?</p>
+              <p className="text-xs text-blue-700">Don't have an account? <a href="/signup" className="text-blue-600 hover:underline">Sign up here</a></p>
             </div>
           </div>
         </div>

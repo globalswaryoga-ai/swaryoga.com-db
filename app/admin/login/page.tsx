@@ -43,16 +43,21 @@ export default function AdminLogin() {
     setSubmitStatus(null);
 
     try {
-      // Check credentials
-      const isValidUsername = formData.username === 'admin';
-      const isValidPassword = formData.password === 'Mohanpk@1010';
+      // Authenticate with API endpoint
+      const response = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
 
-      if (isValidUsername && isValidPassword) {
+      const data = await response.json();
+
+      if (response.ok && data.token) {
         setSubmitStatus('success');
         
         // Store admin token in localStorage
-        localStorage.setItem('adminToken', 'admin_' + Date.now());
-        localStorage.setItem('adminUser', formData.username);
+        localStorage.setItem('adminToken', data.token);
+        localStorage.setItem('adminUser', data.username);
 
         // Redirect to admin dashboard
         setTimeout(() => {
@@ -60,7 +65,7 @@ export default function AdminLogin() {
         }, 1000);
       } else {
         setErrors({ 
-          general: 'Invalid username or password. Please try again.' 
+          general: data.error || 'Invalid username or password. Please try again.' 
         });
         setSubmitStatus('error');
       }
@@ -183,11 +188,10 @@ export default function AdminLogin() {
             </button>
           </form>
 
-          {/* Demo Credentials */}
+          {/* Help Text */}
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800 font-medium mb-2">Demo Credentials:</p>
-            <p className="text-xs text-blue-700">Username: <span className="font-mono font-bold">admin</span></p>
-            <p className="text-xs text-blue-700">Password: <span className="font-mono font-bold">Mohanpk@1010</span></p>
+            <p className="text-sm text-blue-800 font-medium mb-2">Need Help?</p>
+            <p className="text-xs text-blue-700">Contact your administrator for login credentials.</p>
           </div>
 
           {/* Back to Home */}
