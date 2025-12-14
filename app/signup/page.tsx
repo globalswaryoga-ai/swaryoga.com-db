@@ -321,7 +321,7 @@ function SignUpInner() {
     <>
       <Navigation />
       <main className="min-h-screen bg-gradient-to-br from-yoga-50 to-white pt-24 pb-12">
-        <div className="container mx-auto max-w-3xl px-6">
+        <div className="container mx-auto max-w-md px-6">
           <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12">
             {/* Header */}
             <div className="text-center mb-8">

@@ -12,21 +12,11 @@ const AUTO_LOGIN_USER = {
 
 /**
  * Initialize auto-login for swarsakshi9@gmail.com
- * Call this on app startup (in root layout or app initialization)
+ * DISABLED: Users must login manually
  */
 export const initializeAutoLogin = (): void => {
-  if (typeof window === 'undefined') return; // Only run on client
-
-  try {
-    const storedUser = localStorage.getItem('user');
-    
-    // If no user is logged in, auto-login swarsakshi9@gmail.com
-    if (!storedUser) {
-      autoLoginUser();
-    }
-  } catch (error) {
-    console.error('Failed to initialize auto-login:', error);
-  }
+  // Auto-login disabled - users must sign in manually
+  return;
 };
 
 /**
