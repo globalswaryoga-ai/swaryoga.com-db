@@ -65,7 +65,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
       return;
     }
 
-    const selectedGoal = goals.find(g => g.id === formData.goalId);
     const taskData: Task = {
       id: initialData?.id || Date.now().toString(),
       title: formData.title.trim(),
