@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import { Goal, Vision } from '@/lib/types/lifePlanner';
 
+const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
+
 interface GoalManagerProps {
   goals: Goal[];
   visions: Vision[];
