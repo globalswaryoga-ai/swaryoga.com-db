@@ -1,12 +1,38 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowRight, Calendar, Award } from 'lucide-react';
 
 export default function Home() {
+  const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Check if user is logged in and redirect to life planner
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+
+    if (token && user) {
+      // User is logged in, redirect to life planner dashboard
+      router.push('/life-planner/dashboard');
+    } else {
+      // User is not logged in, show home page
+      setCheckingAuth(false);
+    }
+  }, [router]);
+
+  // Show loading while checking authentication
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    );
+  }
   const stats = [
     { number: '25+', label: 'Years Experience', delay: 0 },
     { number: '8000+', label: 'Students Trained', delay: 0.1 },

@@ -85,11 +85,9 @@ function SignInInner() {
 
       // Redirect after success
       setTimeout(() => {
-        if (redirectPath && redirectPath !== '/') {
-          router.push(redirectPath);
-        } else {
-          router.push('/');
-        }
+        // Check if user has life planner access, default to dashboard
+        const redirectTo = redirectPath && redirectPath !== '/' ? redirectPath : '/life-planner/dashboard';
+        router.push(redirectTo);
       }, 1500);
     } catch (err) {
       console.error('Sign-in error:', err);
