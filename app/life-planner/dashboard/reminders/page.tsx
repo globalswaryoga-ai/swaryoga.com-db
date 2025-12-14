@@ -5,6 +5,8 @@ import { Clock, AlertCircle, Plus, X } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { Reminder as DbReminder } from '@/lib/types/lifePlanner';
 
+const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
+
 type UiReminder = {
   id: string;
   text: string;
@@ -13,6 +15,7 @@ type UiReminder = {
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
   customDays?: number;
   completed?: boolean;
+  imageUrl?: string;
 };
 
 function dbToUiReminder(r: DbReminder): UiReminder {
@@ -23,6 +26,7 @@ function dbToUiReminder(r: DbReminder): UiReminder {
     time: r.dueTime || '11:00',
     frequency: (r.frequency as UiReminder['frequency']) || 'once',
     completed: Boolean(r.completed),
+    imageUrl: r.imageUrl,
   };
 }
 
@@ -38,12 +42,15 @@ function uiToDbReminder(r: UiReminder): DbReminder {
     dueTime: r.time,
     frequency: (r.frequency as DbReminder['frequency']) || 'once',
     completed: Boolean(r.completed),
+    imageUrl: r.imageUrl,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }
 
 export default function RemindersPage() {
+  const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [reminders, setReminders] = useState<UiReminder[]>([]);
   const [showForm, setShowForm] = useState(false);
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -66,18 +73,24 @@ export default function RemindersPage() {
 
   useEffect(() => {
     const load = async () => {
-      const saved = await lifePlannerStorage.getReminders();
-      setReminders(saved.map(dbToUiReminder));
+      setMounted(true);
+      try {
+        const saved = await lifePlannerStorage.getReminders();
+        setReminders((Array.isArray(saved) ? saved : []).map(dbToUiReminder));
+      } finally {
+        setHasLoaded(true);
+      }
     };
     load();
   }, []);
 
   useEffect(() => {
     const save = async () => {
+      if (!mounted || !hasLoaded) return;
       await lifePlannerStorage.saveReminders(reminders.map(uiToDbReminder));
     };
     save();
-  }, [reminders]);
+  }, [reminders, mounted, hasLoaded]);
 
   const isFormValid = useMemo(
     () => formData.text.trim().length > 0 && formData.date && formData.time,
@@ -141,6 +154,16 @@ export default function RemindersPage() {
 
     return matchesSearch && matchesStatus && matchesFrequency && matchesMonth;
   });
+
+  // Inline default SVG fallback to avoid 404s for missing files
+  const DEFAULT_REMINDER_SVG =
+    'data:image/svg+xml;utf8,' +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">' +
+        '<rect width="100%" height="100%" fill="#fff1f6"/>' +
+        '<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#ff4d82" font-family="Arial, Helvetica, sans-serif" font-size="34">Reminder</text>' +
+      '</svg>'
+    );
 
   return (
     <div className="space-y-6">
@@ -378,61 +401,54 @@ export default function RemindersPage() {
           <p className="text-gray-500 text-sm mt-1">Create your first reminder to get started</p>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredReminders.map((reminder) => (
-            <div key={reminder.id} className={`rounded-2xl border transition ${
-              reminder.completed
-                ? 'border-green-300 bg-green-50 opacity-70'
-                : 'border-pink-200 bg-white hover:shadow-lg'
-            } p-6 shadow-md`}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4 flex-1">
-                  <input
-                    type="checkbox"
-                    checked={reminder.completed || false}
-                    onChange={(e) => {
-                      setReminders(prev =>
-                        prev.map((r) =>
-                          r.id === reminder.id ? { ...r, completed: e.target.checked } : r
-                        )
-                      );
-                    }}
-                    className="w-6 h-6 rounded border-2 border-pink-300 text-red-600 cursor-pointer mt-1 flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <p className={`text-lg font-semibold ${reminder.completed ? 'line-through text-gray-600' : 'text-gray-900'}`}>
-                      {reminder.text}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">📅 Date:</span>
-                        {new Date(reminder.date).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">🕐 Time:</span>
-                        {reminder.time}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">🔁 Repeat:</span>
-                        {reminder.frequency === 'custom'
-                          ? `Every ${reminder.customDays} days`
-                          : frequencyLabels[reminder.frequency]}
-                      </div>
-                    </div>
-                  </div>
+            <div key={reminder.id} className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 flex flex-col h-full ${
+              reminder.completed ? 'border-green-300 opacity-70' : 'border-pink-200'
+            }`}>
+              {/* Image header (EXACT Vision style, with default image) */}
+              <div className="relative h-40 bg-gray-100 overflow-hidden">
+                <img
+                  src={reminder.imageUrl || DEFAULT_IMAGE}
+                  alt={reminder.text}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = DEFAULT_IMAGE;
+                  }}
+                />
+                {/* Top-right status chip */}
+                <div className="absolute top-3 right-3 flex gap-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold shadow ${
+                    reminder.completed ? 'bg-green-500 text-white' : 'bg-white text-pink-600'
+                  }`}>
+                    {reminder.completed ? 'Done' : 'Pending'}
+                  </span>
                 </div>
-                <button
-                  onClick={() => handleDeleteReminder(reminder.id)}
-                  className="ml-4 flex-shrink-0 rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
-                  title="Delete reminder"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+              </div>
+              {/* Card content (EXACT Vision style) */}
+              <div className="flex-1 flex flex-col p-6 space-y-2">
+                <h3 className="font-bold text-2xl mb-1 text-gray-900">{reminder.text}</h3>
+                <div className="grid grid-cols-2 gap-2 text-base text-gray-600 mb-2">
+                  <div><span className="font-semibold">Date:</span> {new Date(reminder.date).toLocaleDateString()}</div>
+                  <div><span className="font-semibold">Time:</span> {reminder.time}</div>
+                  <div><span className="font-semibold">Repeat:</span> {reminder.frequency === 'custom' ? `Every ${reminder.customDays} days` : frequencyLabels[reminder.frequency]}</div>
+                </div>
+                <div className="flex gap-2 mt-auto pt-3 border-t">
+                  <button
+                    onClick={() => setReminders(prev => prev.map((r) => r.id === reminder.id ? { ...r, completed: !reminder.completed } : r))}
+                    className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base rounded transition font-bold ${
+                      reminder.completed ? 'bg-green-100 text-green-700' : 'bg-pink-50 text-pink-600 hover:bg-pink-100'
+                    }`}
+                  >
+                    {reminder.completed ? '✔️' : '⬜'} Done
+                  </button>
+                  <button
+                    onClick={() => handleDeleteReminder(reminder.id)}
+                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base bg-red-50 text-red-600 hover:bg-red-100 rounded transition font-bold"
+                  >
+                    <X className="h-5 w-5" /> Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))}

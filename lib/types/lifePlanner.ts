@@ -107,6 +107,7 @@ export interface Goal {
   targetDate?: string;
   budget?: number;
   progress?: number;
+  imageUrl?: string;
   milestones?: Array<{
     id: string;
     title: string;
@@ -140,6 +141,7 @@ export interface Reminder {
   active?: boolean;
   completed: boolean;
   completedAt?: string;
+  imageUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -211,6 +213,7 @@ export interface DiamondPerson {
   contact?: string;
   lastContact?: string;
   notes?: string;
+  imageUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

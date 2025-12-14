@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Edit2, Trash2, CheckCircle2, Circle } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import { Task, Goal } from '@/lib/types/lifePlanner';
+
+const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
 interface TaskManagerProps {
   tasks: Task[];
@@ -12,6 +14,14 @@ interface TaskManagerProps {
   onTaskDelete?: (id: string) => void;
   selectedGoalId?: string;
 }
+
+// Status Color Mapping (matching Vision design)
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  'not-started': { bg: 'bg-gray-600', text: 'text-white' },
+  'in-progress': { bg: 'bg-blue-600', text: 'text-white' },
+  'completed': { bg: 'bg-green-600', text: 'text-white' },
+  'on-hold': { bg: 'bg-orange-600', text: 'text-white' },
+};
 
 export default function TaskManager({
   tasks,
@@ -23,6 +33,9 @@ export default function TaskManager({
 }: TaskManagerProps) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+
   const [formData, setFormData] = useState<Omit<Task, 'id' | 'createdAt' | 'updatedAt'>>({
     title: '',
     description: '',
@@ -34,6 +47,7 @@ export default function TaskManager({
     status: 'not-started',
     repeat: 'once',
     completed: false,
+    imageUrl: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop',
   });
 
   const resetForm = () => {
@@ -48,6 +62,7 @@ export default function TaskManager({
       status: 'not-started',
       repeat: 'once',
       completed: false,
+      imageUrl: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop',
     });
     setEditingId(null);
     setShowForm(false);
@@ -87,6 +102,7 @@ export default function TaskManager({
       status: task.status,
       repeat: task.repeat,
       completed: task.completed,
+      imageUrl: task.imageUrl,
     });
     setEditingId(task.id);
     setShowForm(true);
@@ -98,44 +114,18 @@ export default function TaskManager({
     }
   };
 
-  const getGoalTitle = (goalId?: string) => {
-    if (!goalId) return 'Standalone';
-    return goals.find((g) => g.id === goalId)?.title || 'Unknown Goal';
-  };
+  const getGoalTitle = (id: string) => goals.find(g => g.id === id)?.title || 'Unknown Goal';
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'low':
-        return 'bg-green-100 text-green-700 border-green-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
+  const uniqueStatuses = Array.from(new Set(tasks.map(t => t.status))).sort();
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'not-started':
-        return 'bg-gray-100 text-gray-700';
-      case 'in-progress':
-        return 'bg-blue-100 text-blue-700';
-      case 'completed':
-        return 'bg-green-100 text-green-700';
-      case 'pending':
-        return 'bg-orange-100 text-orange-700';
-      case 'overdue':
-        return 'bg-red-100 text-red-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const filteredTasks = selectedGoalId
-    ? tasks.filter((t) => t.goalId === selectedGoalId)
-    : tasks;
+  const normalizedSearch = searchText.trim().toLowerCase();
+  
+  const filteredTasks = tasks.filter(task => {
+    const matchesStatus = filterStatus === 'all' || task.status === filterStatus;
+    const haystack = `${task.title || ''} ${task.description || ''}`.toLowerCase();
+    const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+    return matchesStatus && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
@@ -144,11 +134,52 @@ export default function TaskManager({
         <h2 className="text-3xl font-bold text-gray-800">Tasks</h2>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-5 h-5" />
           Add Task
         </button>
+      </div>
+
+      {/* Filter Bar (Vision Design) */}
+      <div className="bg-white rounded-lg p-4 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search title / description"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="all">All</option>
+              {uniqueStatuses.map((s) => (
+                <option key={s} value={s}>{s.replace('-', ' ').toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end gap-2">
+            <button
+              onClick={() => {
+                setSearchText('');
+                setFilterStatus('all');
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+        <p className="text-sm text-gray-600">Showing {filteredTasks.length} of {tasks.length} tasks</p>
       </div>
 
       {/* Form Modal */}
@@ -159,112 +190,86 @@ export default function TaskManager({
               <h3 className="text-xl font-bold text-gray-800">
                 {editingId ? 'Edit Task' : 'Add New Task'}
               </h3>
-              <button
-                onClick={() => resetForm()}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
+              <button onClick={() => resetForm()} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-6 h-6 text-gray-500" />
               </button>
             </div>
 
             <div className="space-y-4">
-              {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Task Title *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Task Title *</label>
                 <input
                   type="text"
                   value={formData.title}
-                  onChange={(e) =>
-                    setFormData({ ...formData, title: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Enter task title"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Enter task description"
                   rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              {/* Goal Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Linked Goal (Optional)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Linked Goal (Optional)</label>
                 <select
                   value={formData.goalId || ''}
-                  onChange={(e) =>
-                    setFormData({ ...formData, goalId: e.target.value || undefined })
-                  }
+                  onChange={(e) => setFormData({ ...formData, goalId: e.target.value || undefined })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">No Goal Selected</option>
                   {goals.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.title}
-                    </option>
+                    <option key={g.id} value={g.id}>{g.title}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Dates */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Image URL (Optional)</label>
+                <input
+                  type="url"
+                  value={formData.imageUrl || ''}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                   <input
                     type="date"
                     value={formData.startDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, startDate: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Due Date *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
                   <input
                     type="date"
                     value={formData.dueDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, dueDate: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
-              {/* Budget */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Budget (Amount - Optional)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Budget (Optional)</label>
                 <input
                   type="number"
                   value={formData.budget || ''}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      budget: e.target.value ? parseFloat(e.target.value) : undefined,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, budget: e.target.value ? parseFloat(e.target.value) : undefined })}
                   placeholder="Enter budget amount"
                   min="0"
                   step="0.01"
@@ -272,20 +277,12 @@ export default function TaskManager({
                 />
               </div>
 
-              {/* Priority, Status, Repeat */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Priority
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
                   <select
                     value={formData.priority}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        priority: e.target.value as 'low' | 'medium' | 'high',
-                      })
-                    }
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="low">Low</option>
@@ -294,88 +291,29 @@ export default function TaskManager({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                   <select
                     value={formData.status}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        status: e.target.value as
-                          | 'not-started'
-                          | 'in-progress'
-                          | 'pending'
-                          | 'completed'
-                          | 'overdue',
-                      })
-                    }
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="not-started">Not Started</option>
                     <option value="in-progress">In Progress</option>
-                    <option value="pending">Pending</option>
                     <option value="completed">Completed</option>
-                    <option value="overdue">Overdue</option>
+                    <option value="on-hold">On Hold</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Repeat
-                  </label>
-                  <select
-                    value={formData.repeat}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        repeat: e.target.value as
-                          | 'once'
-                          | 'daily'
-                          | 'weekly'
-                          | 'monthly'
-                          | 'yearly',
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="once">Once</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Completed */}
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="completed"
-                  checked={formData.completed}
-                  onChange={(e) =>
-                    setFormData({ ...formData, completed: e.target.checked })
-                  }
-                  className="w-4 h-4 rounded border-gray-300"
-                />
-                <label htmlFor="completed" className="text-sm font-medium text-gray-700">
-                  Mark as completed
-                </label>
               </div>
             </div>
 
-            {/* Buttons */}
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => resetForm()}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={() => resetForm()} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
                 Cancel
               </button>
               <button
                 onClick={handleAddTask}
                 disabled={!formData.title.trim()}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 {editingId ? 'Update Task' : 'Add Task'}
               </button>
@@ -384,126 +322,65 @@ export default function TaskManager({
         </div>
       )}
 
-      {/* Tasks List */}
+      {/* Tasks Grid (Vision Design Style) */}
       {filteredTasks.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500 text-lg">No tasks yet. Create your first task!</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
           {filteredTasks.map((task) => (
-            <div
-              key={task.id}
-              className={`border rounded-lg p-4 transition-all ${
-                task.completed
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-white border-gray-200 hover:shadow-md'
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                {/* Completion Checkbox */}
-                <button
-                  onClick={() => {
-                    if (onTaskUpdate) {
-                      onTaskUpdate({
-                        ...task,
-                        completed: !task.completed,
-                        status: !task.completed ? 'completed' : 'not-started',
-                      });
-                    }
-                  }}
-                  className="flex-shrink-0 mt-1"
-                >
-                  {task.completed ? (
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
-                  ) : (
-                    <Circle className="w-6 h-6 text-gray-300 hover:text-gray-400" />
+            <div key={task.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
+              {/* Image Header (h-48 - Vision slider match) */}
+              <div 
+                className="relative h-48 overflow-hidden bg-blue-600"
+                style={{ backgroundImage: `url('${task.imageUrl || DEFAULT_IMAGE}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+              >
+                {!task.imageUrl && <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold opacity-0">✓</div>}
+              </div>
+
+              {/* Card Content */}
+              <div className="p-5 flex-1 flex flex-col">
+                {/* Title - bold, large with top spacing */}
+                <h3 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2">{task.title}</h3>
+                
+                {/* Description - gray with medium spacing */}
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{task.description}</p>
+
+                {/* Metadata Icons (single column format) */}
+                <div className="space-y-2 text-sm text-gray-700 mb-auto font-medium">
+                  {task.goalId && <div className="flex items-center gap-2">🎯 {getGoalTitle(task.goalId)}</div>}
+                  {task.dueDate && (
+                    <div className="flex items-center gap-2">
+                      📅 {new Date(task.dueDate).toLocaleDateString()}
+                    </div>
                   )}
+                  {task.budget && <div className="flex items-center gap-2">💰 ${task.budget}</div>}
+                </div>
+              </div>
+
+              {/* Action Buttons (Vision style) */}
+              <div className="flex gap-2 p-4 border-t border-gray-100">
+                <button className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition">
+                  Done
                 </button>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <h3
-                    className={`text-lg font-semibold ${
-                      task.completed
-                        ? 'text-gray-500 line-through'
-                        : 'text-gray-800'
-                    }`}
-                  >
-                    {task.title}
-                  </h3>
-
-                  {/* Goal Link */}
-                  {task.goalId && (
-                    <div className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded w-fit mt-1">
-                      Goal: {getGoalTitle(task.goalId)}
-                    </div>
-                  )}
-
-                  {task.description && (
-                    <p
-                      className={`text-sm mt-1 ${
-                        task.completed ? 'text-gray-500' : 'text-gray-600'
-                      }`}
-                    >
-                      {task.description}
-                    </p>
-                  )}
-
-                  {/* Dates */}
-                  <div className="text-xs text-gray-500 mt-2">
-                    📅 {task.startDate} → {task.dueDate}
-                  </div>
-
-                  {/* Budget */}
-                  {task.budget && (
-                    <div className="text-sm font-medium text-blue-700 bg-blue-50 px-3 py-1 rounded inline-block mt-2">
-                      💰 ${task.budget}
-                    </div>
-                  )}
-
-                  {/* Badges */}
-                  <div className="flex gap-2 flex-wrap mt-3">
-                    <span className={`px-3 py-1 rounded text-xs font-medium border ${getStatusColor(task.status)}`}>
-                      {task.status.replace('-', ' ').toUpperCase()}
-                    </span>
-                    <span className={`px-3 py-1 rounded text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                      {task.priority.toUpperCase()}
-                    </span>
-                    <span className="px-3 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
-                      {task.repeat?.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleEditTask(task)}
-                    className="p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTask(task.id)}
-                    className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                <button 
+                  onClick={() => handleEditTask(task)} 
+                  className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
+                >
+                  Edit
+                </button>
+                <button 
+                  onClick={() => handleDeleteTask(task.id)} 
+                  className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* Info Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-800">
-          <span className="font-semibold">You have {filteredTasks.length} task(s)</span>
-          {selectedGoalId && ` for the selected goal`}
-        </p>
-      </div>
     </div>
   );
 }

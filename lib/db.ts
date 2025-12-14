@@ -171,6 +171,8 @@ export const Offer = mongoose.models.Offer || mongoose.model('Offer', offerSchem
 
 // Account Schema (for accounting)
 const accountSchema = new mongoose.Schema({
+  ownerType: { type: String, enum: ['user', 'admin'], required: true, index: true },
+  ownerId: { type: String, required: true, index: true },
   name: { type: String, required: true },
   type: { type: String, enum: ['bank', 'cash', 'investment', 'loan'], required: true },
   accountNumber: { type: String },
@@ -180,10 +182,14 @@ const accountSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
+accountSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
+
 export const Account = mongoose.models.Account || mongoose.model('Account', accountSchema);
 
 // Transaction Schema (for accounting)
 const transactionSchema = new mongoose.Schema({
+  ownerType: { type: String, enum: ['user', 'admin'], required: true, index: true },
+  ownerId: { type: String, required: true, index: true },
   type: { type: String, enum: ['income', 'expense', 'investment_in', 'investment_out', 'loan', 'emi'], required: true },
   amount: { type: Number, required: true },
   description: { type: String, required: true },
@@ -196,10 +202,14 @@ const transactionSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
+transactionSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
+
 export const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 
 // Investment Schema (for accounting)
 const investmentSchema = new mongoose.Schema({
+  ownerType: { type: String, enum: ['user', 'admin'], required: true, index: true },
+  ownerId: { type: String, required: true, index: true },
   name: { type: String, required: true },
   type: { type: String, enum: ['investment_in', 'investment_out'], required: true },
   amount: { type: Number, required: true },
@@ -214,5 +224,7 @@ const investmentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
+
+investmentSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
 
 export const Investment = mongoose.models.Investment || mongoose.model('Investment', investmentSchema);

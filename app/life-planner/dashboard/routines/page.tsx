@@ -20,6 +20,10 @@ export default function RoutinesPage() {
   });
   const [error, setError] = useState<string | null>(null);
 
+  // Filters (UI-only; never persisted)
+  const [searchText, setSearchText] = useState('');
+  const [filterPeriod, setFilterPeriod] = useState<'all' | Routine['timePeriod']>('all');
+
   const isFormValid = useMemo(
     () => formData.text.trim().length > 0 && formData.time,
     [formData.text, formData.time]
@@ -69,11 +73,21 @@ export default function RoutinesPage() {
     night: 'from-slate-600 to-slate-800',
   };
 
+  const normalizedSearch = searchText.trim().toLowerCase();
+  const filteredRoutines = useMemo(() => {
+    return routines.filter((r) => {
+      const haystack = `${r.text || ''} ${r.time || ''} ${r.timePeriod || ''}`.toLowerCase();
+      const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+      const matchesPeriod = filterPeriod === 'all' || r.timePeriod === filterPeriod;
+      return matchesSearch && matchesPeriod;
+    });
+  }, [routines, normalizedSearch, filterPeriod]);
+
   const groupedRoutines = {
-    morning: routines.filter((r) => r.timePeriod === 'morning'),
-    afternoon: routines.filter((r) => r.timePeriod === 'afternoon'),
-    evening: routines.filter((r) => r.timePeriod === 'evening'),
-    night: routines.filter((r) => r.timePeriod === 'night'),
+    morning: filteredRoutines.filter((r) => r.timePeriod === 'morning'),
+    afternoon: filteredRoutines.filter((r) => r.timePeriod === 'afternoon'),
+    evening: filteredRoutines.filter((r) => r.timePeriod === 'evening'),
+    night: filteredRoutines.filter((r) => r.timePeriod === 'night'),
   };
 
   return (
@@ -91,6 +105,51 @@ export default function RoutinesPage() {
           <Plus className="h-5 w-5" />
           Add Routine
         </button>
+      </div>
+
+      {/* Filters (match Vision dashboard style) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div className="md:col-span-3">
+            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search routine text / time"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-200"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Time Period</label>
+            <select
+              value={filterPeriod}
+              onChange={(e) => setFilterPeriod(e.target.value as any)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+            >
+              <option value="all">All</option>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+              <option value="evening">Evening</option>
+              <option value="night">Night</option>
+            </select>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchText('');
+                setFilterPeriod('all');
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+
+        <p className="mt-3 text-sm text-gray-600">Showing {filteredRoutines.length} of {routines.length} routines</p>
       </div>
 
       {/* Add Routine Form */}
@@ -196,24 +255,35 @@ export default function RoutinesPage() {
               <p className="text-gray-600">No routines for {period}</p>
             </div>
           ) : (
-            <div className="grid gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
               {items.map((routine) => (
-                <div key={routine.id} className="rounded-2xl border border-pink-200 bg-white p-6 shadow-md hover:shadow-lg transition">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="text-lg font-semibold text-gray-900">{routine.text}</p>
-                      <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-                        <span className="font-medium">⏰ Time:</span>
-                        {routine.time}
-                      </div>
+                <div key={routine.id} className="bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 flex flex-col h-full border-pink-200">
+                  {/* Image header (match Vision: h-40) */}
+                  <div className={`relative h-40 bg-gradient-to-r ${timePeriodColors[period]} overflow-hidden`}> 
+                    {/* Top-right chip */}
+                    <div className="absolute top-3 right-3 flex gap-2">
+                      <span className="bg-white text-gray-900 px-3 py-1 rounded-full text-xs font-bold shadow">
+                        {timePeriodLabels[period]}
+                      </span>
                     </div>
-                    <button
-                      onClick={() => handleDeleteRoutine(routine.id)}
-                      className="ml-4 flex-shrink-0 rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
-                      title="Delete routine"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
+                    <div className="absolute bottom-3 left-4">
+                      <span className="text-white text-lg font-bold drop-shadow-lg">{routine.text}</span>
+                    </div>
+                  </div>
+                  {/* Card content (match Vision: p-4, space-y-3) */}
+                  <div className="flex-1 flex flex-col p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
+                      <div><span className="font-semibold">Time:</span> {routine.time}</div>
+                      <div><span className="font-semibold">Period:</span> {timePeriodLabels[period]}</div>
+                    </div>
+                    <div className="flex gap-2 mt-auto pt-3 border-t">
+                      <button
+                        onClick={() => handleDeleteRoutine(routine.id)}
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-1 text-sm bg-red-50 text-red-600 hover:bg-red-100 rounded transition font-bold"
+                      >
+                        <X className="h-5 w-5" /> Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -228,6 +298,14 @@ export default function RoutinesPage() {
           <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600 text-lg">No routines yet</p>
           <p className="text-gray-500 text-sm mt-1">Create your first routine to build healthy habits</p>
+        </div>
+      )}
+
+      {routines.length > 0 && filteredRoutines.length === 0 && !showForm && (
+        <div className="rounded-3xl border-2 border-dashed border-pink-200 p-12 text-center">
+          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">No routines match your filters</p>
+          <p className="text-gray-500 text-sm mt-1">Try clearing filters or searching a different keyword</p>
         </div>
       )}
     </div>

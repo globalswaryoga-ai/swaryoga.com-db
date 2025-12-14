@@ -161,7 +161,6 @@ export default function ActionPlanPage() {
       <div className="mb-12">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-bold text-gray-800">Action Plan Cards</h2>
-          <p className="text-sm text-gray-600">Showing {filteredPlans.length} of {actionPlans.length} plans</p>
         </div>
 
         {/* Filters */}
@@ -247,6 +246,8 @@ export default function ActionPlanPage() {
               </button>
             </div>
           </div>
+
+          <p className="mt-3 text-sm text-gray-600">Showing {filteredPlans.length} of {actionPlans.length} plans</p>
         </div>
 
         <div className="relative">

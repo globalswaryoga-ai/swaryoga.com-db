@@ -20,6 +20,7 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
     address: '',
     email: '',
     notes: '',
+    imageUrl: '',
     category: 'Spiritual Mentor',
     relationship: 'professional' as 'professional' | 'personal' | 'family' | 'friend',
     lastContact: new Date().toISOString().split('T')[0],
@@ -36,6 +37,7 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
         address: person.address || '',
         email: person.email || '',
         notes: person.notes || '',
+        imageUrl: person.imageUrl || '',
         category: person.category || 'Spiritual Mentor',
         relationship: (person.relationship || 'professional') as any,
         lastContact: person.lastContact || new Date().toISOString().split('T')[0],
@@ -212,6 +214,18 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
             />
           </div>
 
+          {/* Image URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
+            <input
+              type="text"
+              name="imageUrl"
+              value={formData.imageUrl}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              placeholder="https://example.com/image.jpg"
+            />
+          </div>
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>

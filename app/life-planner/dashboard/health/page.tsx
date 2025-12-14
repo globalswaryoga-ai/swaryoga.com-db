@@ -5,8 +5,6 @@ import { Plus } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { HealthRoutine } from '@/lib/types/lifePlanner';
 
-const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
-
 export default function HealthPage() {
   const [routines, setRoutines] = useState<HealthRoutine[]>([]);
   const [mounted, setMounted] = useState(false);
@@ -17,9 +15,9 @@ export default function HealthPage() {
 
   const [form, setForm] = useState({
     title: '',
-    time: '',
-    repeat: 'daily',
-    imageUrl: DEFAULT_IMAGE,
+    description: '',
+    category: 'exercise',
+    frequency: 'daily',
   });
 
   // Load health routines from MongoDB on mount
@@ -62,22 +60,44 @@ export default function HealthPage() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ title: '', time: '', repeat: 'daily', imageUrl: DEFAULT_IMAGE });
+    setForm({ title: '', description: '', category: 'exercise', frequency: 'daily' });
     setIsFormOpen(true);
   };
 
   const openEdit = (r: HealthRoutine) => {
     setEditingId(r.id);
-    setForm({ title: r.title || '', time: r.time || '', repeat: r.repeat || 'daily', imageUrl: r.imageUrl || DEFAULT_IMAGE });
+    setForm({ 
+      title: r.title || '', 
+      description: r.description || '', 
+      category: r.category || 'exercise', 
+      frequency: r.frequency || 'daily' 
+    });
     setIsFormOpen(true);
   };
 
   const saveRoutine = () => {
     if (!form.title.trim()) return alert('Please enter a title');
     if (editingId) {
-      setRoutines(prev => prev.map(r => r.id === editingId ? { ...r, ...form, updatedAt: new Date().toISOString() } as HealthRoutine : r));
+      setRoutines(prev => prev.map(r => r.id === editingId ? { 
+        ...r, 
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        frequency: form.frequency as any,
+        updatedAt: new Date().toISOString() 
+      } : r));
     } else {
-      const newR: HealthRoutine = { id: `hr-${Date.now()}`, title: form.title, time: form.time, repeat: form.repeat as any, imageUrl: form.imageUrl, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } as HealthRoutine;
+      const newR: HealthRoutine = { 
+        id: `hr-${Date.now()}`, 
+        title: form.title, 
+        description: form.description,
+        category: form.category,
+        frequency: form.frequency as any,
+        completedDates: [],
+        streak: 0,
+        createdAt: new Date().toISOString(), 
+        updatedAt: new Date().toISOString() 
+      } as HealthRoutine;
       setRoutines(prev => [...prev, newR]);
     }
     setIsFormOpen(false);
@@ -117,29 +137,33 @@ export default function HealthPage() {
       {/* Form */}
       {isFormOpen && (
         <div className="mb-6 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Title</label>
               <input value={form.title} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Time</label>
-              <input type="time" value={form.time} onChange={e => setForm(prev => ({ ...prev, time: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Repeat</label>
-              <select value={form.repeat} onChange={e => setForm(prev => ({ ...prev, repeat: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white">
-                <option value="daily">daily</option>
-                <option value="weekly">weekly</option>
-                <option value="monthly">monthly</option>
-                <option value="yearly">yearly</option>
-                <option value="custom">custom</option>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
+              <select value={form.category} onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white">
+                <option value="exercise">exercise</option>
+                <option value="meditation">meditation</option>
+                <option value="nutrition">nutrition</option>
+                <option value="sleep">sleep</option>
+                <option value="other">other</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Image URL (editable)</label>
-              <input value={form.imageUrl} onChange={e => setForm(prev => ({ ...prev, imageUrl: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200" />
+              <label className="block text-xs font-bold text-gray-700 mb-1">Frequency</label>
+              <select value={form.frequency} onChange={e => setForm(prev => ({ ...prev, frequency: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white">
+                <option value="daily">daily</option>
+                <option value="weekly">weekly</option>
+                <option value="monthly">monthly</option>
+              </select>
             </div>
+          </div>
+          <div className="mt-3">
+            <label className="block text-xs font-bold text-gray-700 mb-1">Description</label>
+            <textarea value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200" rows={2} />
           </div>
 
           <div className="mt-4 flex justify-end gap-3">
@@ -162,7 +186,7 @@ export default function HealthPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[10px] auto-rows-max justify-items-center">
           {routines.map(r => (
             <div key={r.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden h-full flex flex-col">
-              <div className="relative h-48 overflow-hidden bg-emerald-600" style={{ backgroundImage: `url('${r.imageUrl || DEFAULT_IMAGE}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+              <div className="relative h-48 overflow-hidden bg-emerald-600" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=600&q=80')`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
                 <div className="absolute top-3 left-3 w-6 h-6 rounded-full border-2 border-white bg-white/20 flex items-center justify-center cursor-pointer hover:bg-white/40 transition">
                   <input type="checkbox" className="w-4 h-4 rounded-full cursor-pointer" />
                 </div>
@@ -170,9 +194,11 @@ export default function HealthPage() {
 
               <div className="p-5 flex-1 flex flex-col">
                 <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{r.title}</h3>
-                <div className="space-y-2 text-sm text-gray-700 mb-auto">
-                  {r.time && <div className="flex items-center gap-2">🕐 {r.time}</div>}
-                  <div className="flex items-center gap-2">🔁 {(r.repeat || 'daily').toUpperCase()}</div>
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{r.description}</p>
+                <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                  {r.category && <div className="flex items-center gap-2">📂 {r.category}</div>}
+                  <div className="flex items-center gap-2">🔁 {(r.frequency || 'daily').toUpperCase()}</div>
+                  {r.streak > 0 && <div className="flex items-center gap-2">🔥 {r.streak} day streak</div>}
                 </div>
               </div>
 

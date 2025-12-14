@@ -8,27 +8,32 @@ import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 export default function HealthRoutinesPage() {
   const [routines, setRoutines] = useState<HealthRoutine[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     (async () => {
-      const saved = await lifePlannerStorage.getHealthRoutines();
-      const normalized = (Array.isArray(saved) ? saved : []).map(r => {
-        const completedDates = Array.isArray((r as any).completedDates) ? (r as any).completedDates : [];
-        const streak = typeof (r as any).streak === 'number' ? (r as any).streak : 0;
-        const category = (r as any).category || (r as any).type || 'other';
-        return { ...r, completedDates, streak, category };
-      });
-      setRoutines(normalized.length > 0 ? normalized : []);
+      try {
+        const saved = await lifePlannerStorage.getHealthRoutines();
+        const normalized = (Array.isArray(saved) ? saved : []).map(r => {
+          const completedDates = Array.isArray((r as any).completedDates) ? (r as any).completedDates : [];
+          const streak = typeof (r as any).streak === 'number' ? (r as any).streak : 0;
+          const category = (r as any).category || (r as any).type || 'other';
+          return { ...r, completedDates, streak, category };
+        });
+        setRoutines(normalized.length > 0 ? normalized : []);
+      } finally {
+        setHasLoaded(true);
+      }
     })();
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !hasLoaded) return;
     (async () => {
       await lifePlannerStorage.saveHealthRoutines(routines);
     })();
-  }, [routines, mounted]);
+  }, [routines, mounted, hasLoaded]);
 
   const handleAddRoutine = () => {
     const newRoutine: HealthRoutine = {

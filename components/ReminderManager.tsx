@@ -1,57 +1,52 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Plus, Edit2, Trash2, Bell, CheckCircle2, Circle } from 'lucide-react';
-import { Reminder, Vision } from '@/lib/types/lifePlanner';
+import { X, Plus } from 'lucide-react';
+import { Reminder } from '@/lib/types/lifePlanner';
 
 interface ReminderManagerProps {
   reminders: Reminder[];
-  visions: Vision[];
   onReminderAdd?: (reminder: Reminder) => void;
   onReminderUpdate?: (reminder: Reminder) => void;
   onReminderDelete?: (id: string) => void;
-  selectedVisionId?: string;
 }
 
 export default function ReminderManager({
   reminders,
-  visions,
   onReminderAdd,
   onReminderUpdate,
   onReminderDelete,
-  selectedVisionId,
 }: ReminderManagerProps) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+
   const [formData, setFormData] = useState<Omit<Reminder, 'id' | 'createdAt' | 'updatedAt'>>({
     title: '',
     description: '',
-    visionId: selectedVisionId || '',
-    startDate: new Date().toISOString().split('T')[0],
-    dueDate: new Date().toISOString().split('T')[0],
-    dueTime: '11:00',
-    budget: undefined,
-    category: 'life',
-    frequency: 'once',
+    nextDueDate: new Date().toISOString().split('T')[0],
+    time: '09:00',
     priority: 'medium',
-    active: true,
     completed: false,
+    frequency: 'once',
+    category: 'personal',
+    imageUrl: 'https://images.unsplash.com/photo-1515694712202-b2a9ad0a5fe0?w=400&h=300&fit=crop',
+    active: true,
   });
 
   const resetForm = () => {
     setFormData({
       title: '',
       description: '',
-      visionId: selectedVisionId || '',
-      startDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date().toISOString().split('T')[0],
-      dueTime: '11:00',
-      budget: undefined,
-      category: 'life',
-      frequency: 'once',
+      nextDueDate: new Date().toISOString().split('T')[0],
+      time: '09:00',
       priority: 'medium',
-      active: true,
       completed: false,
+      frequency: 'once',
+      category: 'personal',
+      imageUrl: 'https://images.unsplash.com/photo-1515694712202-b2a9ad0a5fe0?w=400&h=300&fit=crop',
+      active: true,
     });
     setEditingId(null);
     setShowForm(false);
@@ -83,16 +78,14 @@ export default function ReminderManager({
     setFormData({
       title: reminder.title,
       description: reminder.description,
-      visionId: reminder.visionId || '',
-      startDate: reminder.startDate,
-      dueDate: reminder.dueDate,
-      dueTime: reminder.dueTime,
-      budget: reminder.budget,
-      category: reminder.category,
-      frequency: reminder.frequency,
+      nextDueDate: reminder.nextDueDate || new Date().toISOString().split('T')[0],
+      time: reminder.time || '09:00',
       priority: reminder.priority,
-      active: reminder.active,
       completed: reminder.completed,
+      frequency: reminder.frequency,
+      category: reminder.category,
+      imageUrl: reminder.imageUrl,
+      active: reminder.active,
     });
     setEditingId(reminder.id);
     setShowForm(true);
@@ -104,44 +97,14 @@ export default function ReminderManager({
     }
   };
 
-  const getVisionTitle = (visionId?: string) => {
-    if (!visionId) return 'Standalone';
-    return visions.find((v) => v.id === visionId)?.title || 'Unknown Vision';
-  };
-
-  const getPriorityColor = (priority?: string) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case 'low':
-        return 'bg-green-100 text-green-700 border-green-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
-
-  const getFrequencyColor = (frequency?: string) => {
-    switch (frequency) {
-      case 'once':
-        return 'bg-gray-100 text-gray-700';
-      case 'daily':
-        return 'bg-blue-100 text-blue-700';
-      case 'weekly':
-        return 'bg-indigo-100 text-indigo-700';
-      case 'monthly':
-        return 'bg-cyan-100 text-cyan-700';
-      case 'yearly':
-        return 'bg-teal-100 text-teal-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const filteredReminders = selectedVisionId
-    ? reminders.filter((r) => r.visionId === selectedVisionId)
-    : reminders;
+  const normalizedSearch = searchText.trim().toLowerCase();
+  
+  const filteredReminders = reminders.filter(reminder => {
+    const matchesStatus = filterStatus === 'all' || (!reminder.completed && filterStatus === 'active') || (reminder.completed && filterStatus === 'completed');
+    const haystack = `${reminder.title || ''} ${reminder.description || ''}`.toLowerCase();
+    const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+    return matchesStatus && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
@@ -150,11 +113,51 @@ export default function ReminderManager({
         <h2 className="text-3xl font-bold text-gray-800">Reminders</h2>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
         >
           <Plus className="w-5 h-5" />
           Add Reminder
         </button>
+      </div>
+
+      {/* Filter Bar (Vision Design) */}
+      <div className="bg-white rounded-lg p-4 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search title / description"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            >
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div className="flex items-end gap-2">
+            <button
+              onClick={() => {
+                setSearchText('');
+                setFilterStatus('all');
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+        <p className="text-sm text-gray-600">Showing {filteredReminders.length} of {reminders.length} reminders</p>
       </div>
 
       {/* Form Modal */}
@@ -165,181 +168,72 @@ export default function ReminderManager({
               <h3 className="text-xl font-bold text-gray-800">
                 {editingId ? 'Edit Reminder' : 'Add New Reminder'}
               </h3>
-              <button
-                onClick={() => resetForm()}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
+              <button onClick={() => resetForm()} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-6 h-6 text-gray-500" />
               </button>
             </div>
 
             <div className="space-y-4">
-              {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reminder Title *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reminder Title *</label>
                 <input
                   type="text"
                   value={formData.title}
-                  onChange={(e) =>
-                    setFormData({ ...formData, title: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Enter reminder title"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
-              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Enter reminder description"
                   rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
-              {/* Vision Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Linked Vision (Optional)
-                </label>
-                <select
-                  value={formData.visionId || ''}
-                  onChange={(e) =>
-                    setFormData({ ...formData, visionId: e.target.value || undefined })
-                  }
+                <label className="block text-sm font-medium text-gray-700 mb-1">Image URL (Optional)</label>
+                <input
+                  type="url"
+                  value={formData.imageUrl || ''}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/..."
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">No Vision Selected</option>
-                  {visions.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.title} ({v.category})
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
-              {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
                   <input
                     type="date"
-                    value={formData.startDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, startDate: e.target.value })
-                    }
+                    value={formData.nextDueDate || ''}
+                    onChange={(e) => setFormData({ ...formData, nextDueDate: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Due Date *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
                   <input
-                    type="date"
-                    value={formData.dueDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, dueDate: e.target.value })
-                    }
+                    type="time"
+                    value={formData.time || ''}
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
               </div>
 
-              {/* Time */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Due Time
-                </label>
-                <input
-                  type="time"
-                  value={formData.dueTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, dueTime: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              {/* Budget */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Budget (Amount - Optional)
-                </label>
-                <input
-                  type="number"
-                  value={formData.budget || ''}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      budget: e.target.value ? parseFloat(e.target.value) : undefined,
-                    })
-                  }
-                  placeholder="Enter budget amount"
-                  min="0"
-                  step="0.01"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      category: e.target.value as any
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="life">🌍 Life</option>
-                  <option value="health">💪 Health</option>
-                  <option value="wealth">💰 Wealth</option>
-                  <option value="success">🏆 Success</option>
-                  <option value="respect">👑 Respect</option>
-                  <option value="pleasure">😊 Pleasure</option>
-                  <option value="prosperity">✨ Prosperity</option>
-                  <option value="luxuries">💎 Luxuries</option>
-                  <option value="good-habits">🌟 Good Habits</option>
-                  <option value="self-sadhana">🧘 Self Sadhana</option>
-                </select>
-              </div>
-
-              {/* Frequency, Priority, Active */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Frequency
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
                   <select
-                    value={formData.frequency}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        frequency: e.target.value as
-                          | 'once'
-                          | 'daily'
-                          | 'weekly'
-                          | 'monthly'
-                          | 'yearly',
-                      })
-                    }
+                    value={formData.frequency || 'once'}
+                    onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="once">Once</option>
@@ -350,17 +244,28 @@ export default function ReminderManager({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Priority
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                   <select
-                    value={formData.priority}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        priority: e.target.value as 'low' | 'medium' | 'high',
-                      })
-                    }
+                    value={formData.category || ''}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">Select Category</option>
+                    <option value="personal">Personal</option>
+                    <option value="work">Work</option>
+                    <option value="health">Health</option>
+                    <option value="spiritual">Spiritual</option>
+                    <option value="social">Social</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                  <select
+                    value={formData.priority || 'medium'}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="low">Low</option>
@@ -369,51 +274,27 @@ export default function ReminderManager({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Status
+                  <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mt-6">
+                    <input
+                      type="checkbox"
+                      checked={formData.completed}
+                      onChange={(e) => setFormData({ ...formData, completed: e.target.checked })}
+                      className="rounded"
+                    />
+                    <span>Mark as Completed</span>
                   </label>
-                  <select
-                    value={formData.active ? 'active' : 'inactive'}
-                    onChange={(e) =>
-                      setFormData({ ...formData, active: e.target.value === 'active' })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
                 </div>
-              </div>
-
-              {/* Completed */}
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="completed"
-                  checked={formData.completed}
-                  onChange={(e) =>
-                    setFormData({ ...formData, completed: e.target.checked })
-                  }
-                  className="w-4 h-4 rounded border-gray-300"
-                />
-                <label htmlFor="completed" className="text-sm font-medium text-gray-700">
-                  Mark as completed
-                </label>
               </div>
             </div>
 
-            {/* Buttons */}
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => resetForm()}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={() => resetForm()} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
                 Cancel
               </button>
               <button
                 onClick={handleAddReminder}
                 disabled={!formData.title.trim()}
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
               >
                 {editingId ? 'Update Reminder' : 'Add Reminder'}
               </button>
@@ -422,135 +303,97 @@ export default function ReminderManager({
         </div>
       )}
 
-      {/* Reminders List */}
+      {/* Reminders Grid (Vision Design Style) */}
       {filteredReminders.length === 0 ? (
         <div className="text-center py-12">
-          <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 text-lg">No reminders yet. Create your first reminder!</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
           {filteredReminders.map((reminder) => (
-            <div
-              key={reminder.id}
-              className={`border rounded-lg p-4 transition-all ${
-                reminder.completed
-                  ? 'bg-green-50 border-green-200'
-                  : reminder.active
-                    ? 'bg-orange-50 border-orange-200 hover:shadow-md'
-                    : 'bg-gray-50 border-gray-200 opacity-75'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                {/* Completion Checkbox */}
-                <button
+            <div key={reminder.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
+              {/* Image Header (h-48 - Vision slider match) */}
+              <div 
+                className="relative h-48 overflow-hidden bg-orange-600"
+                style={reminder.imageUrl ? { backgroundImage: `url('${reminder.imageUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+              >
+                {!reminder.imageUrl && <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold">⏰</div>}
+                
+                {/* Top-right Badge */}
+                <div className="absolute top-3 right-3">
+                  <div className={`${reminder.completed ? 'bg-green-600' : 'bg-orange-600'} text-white px-3 py-1 rounded-full text-xs font-bold`}>
+                    {reminder.completed ? 'COMPLETED' : 'ACTIVE'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Content */}
+              <div className="p-5 flex-1 flex flex-col">
+                <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">{reminder.title}</h3>
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{reminder.description || 'No description'}</p>
+
+                {/* Metadata (Vision style with icons) */}
+                <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                  {reminder.nextDueDate && (
+                    <div className="flex items-center gap-2">
+                      📅 {new Date(reminder.nextDueDate).toLocaleDateString()}
+                    </div>
+                  )}
+                  {reminder.time && (
+                    <div className="flex items-center gap-2">
+                      🕐 {reminder.time}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    🔄 {(reminder.frequency || 'once').toUpperCase()}
+                  </div>
+                </div>
+
+                {/* Category & Priority Badges */}
+                <div className="flex gap-2 mt-3">
+                  {reminder.category && (
+                    <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                      {reminder.category.toUpperCase()}
+                    </span>
+                  )}
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    reminder.priority === 'high' ? 'bg-red-100 text-red-700' : 
+                    reminder.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' : 
+                    'bg-green-100 text-green-700'
+                  }`}>
+                    {(reminder.priority || 'medium').toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons (Vision style) */}
+              <div className="flex gap-2 p-4 border-t border-gray-100">
+                <button 
                   onClick={() => {
-                    if (onReminderUpdate) {
-                      onReminderUpdate({
-                        ...reminder,
-                        completed: !reminder.completed,
-                      });
-                    }
+                    const updated = { ...reminder, completed: !reminder.completed };
+                    if (onReminderUpdate) onReminderUpdate(updated);
                   }}
-                  className="flex-shrink-0 mt-1"
+                  className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition"
                 >
-                  {reminder.completed ? (
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
-                  ) : (
-                    <Circle className="w-6 h-6 text-gray-300 hover:text-gray-400" />
-                  )}
+                  {reminder.completed ? 'Undo' : 'Done'}
                 </button>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <h4
-                    className={`font-semibold text-lg ${
-                      reminder.completed
-                        ? 'text-gray-500 line-through'
-                        : 'text-gray-800'
-                    }`}
-                  >
-                    {reminder.title}
-                  </h4>
-
-                  {/* Vision Link */}
-                  {reminder.visionId && (
-                    <div className="text-xs text-orange-700 bg-orange-100 px-2 py-1 rounded w-fit mt-1">
-                      Vision: {getVisionTitle(reminder.visionId)}
-                    </div>
-                  )}
-
-                  {reminder.description && (
-                    <p
-                      className={`text-sm mt-1 ${
-                        reminder.completed ? 'text-gray-500' : 'text-gray-600'
-                      }`}
-                    >
-                      {reminder.description}
-                    </p>
-                  )}
-
-                  {/* Dates & Time */}
-                  <div className="text-xs text-gray-500 mt-2 space-y-1">
-                    <div>📅 {reminder.startDate} → {reminder.dueDate}</div>
-                    {reminder.dueTime && <div>⏰ {reminder.dueTime}</div>}
-                  </div>
-
-                  {/* Budget */}
-                  {reminder.budget && (
-                    <div className="text-sm font-medium text-orange-700 bg-orange-100 px-3 py-1 rounded inline-block mt-2">
-                      💰 ${reminder.budget}
-                    </div>
-                  )}
-
-                  {/* Badges */}
-                  <div className="flex gap-2 flex-wrap mt-3">
-                    <span className={`px-3 py-1 rounded text-xs font-medium border ${getFrequencyColor(reminder.frequency ?? 'once')}`}>
-                      {(reminder.frequency ?? 'once').toUpperCase()}
-                    </span>
-                    <span className={`px-3 py-1 rounded text-xs font-medium border ${getPriorityColor(reminder.priority ?? 'medium')}`}>
-                      {(reminder.priority ?? 'medium').toUpperCase()}
-                    </span>
-                    <span
-                      className={`px-3 py-1 rounded text-xs font-medium ${
-                        reminder.active
-                          ? 'bg-green-100 text-green-700 border border-green-200'
-                          : 'bg-gray-100 text-gray-700 border border-gray-200'
-                      }`}
-                    >
-                      {reminder.active ? 'ACTIVE' : 'INACTIVE'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleEditReminder(reminder)}
-                    className="p-2 bg-orange-100 text-orange-600 rounded hover:bg-orange-200 transition-colors"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteReminder(reminder.id)}
-                    className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                <button 
+                  onClick={() => handleEditReminder(reminder)}
+                  className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
+                >
+                  Edit
+                </button>
+                <button 
+                  onClick={() => handleDeleteReminder(reminder.id)}
+                  className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* Info Box */}
-      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-        <p className="text-sm text-orange-800">
-          <span className="font-semibold">You have {filteredReminders.length} reminder(s)</span>
-          {selectedVisionId && ` for the selected vision`}
-        </p>
-      </div>
     </div>
   );
 }

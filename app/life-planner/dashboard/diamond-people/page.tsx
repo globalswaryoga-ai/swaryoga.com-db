@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Download, Edit, Trash2, Phone, Mail, MapPin } from 'lucide-react';
+import { Plus, Download } from 'lucide-react';
 import { DiamondPerson } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import DiamondPersonModal from './DiamondPersonModal';
+
+const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
 const DiamondPeoplePage = () => {
   const [people, setPeople] = useState<DiamondPerson[]>([]);
@@ -15,6 +17,7 @@ const DiamondPeoplePage = () => {
   const [filterRelationship, setFilterRelationship] = useState('all');
   const [filterMonth, setFilterMonth] = useState('all');
   const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const categories = ['all', 'Spiritual Mentor', 'Health Professional', 'Personal Development', 'Family', 'Friends'];
 
@@ -24,18 +27,22 @@ const DiamondPeoplePage = () => {
   useEffect(() => {
     setMounted(true);
     (async () => {
-      const saved = await lifePlannerStorage.getDiamondPeople();
-      setPeople(saved.length > 0 ? saved : []);
+      try {
+        const saved = await lifePlannerStorage.getDiamondPeople();
+        setPeople(saved.length > 0 ? saved : []);
+      } finally {
+        setHasLoaded(true);
+      }
     })();
   }, []);
 
   // Save to localStorage whenever people changes
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !hasLoaded) return;
     (async () => {
       await lifePlannerStorage.saveDiamondPeople(people);
     })();
-  }, [people, mounted]);
+  }, [people, mounted, hasLoaded]);
 
   const handleAddPerson = () => {
     setEditingPerson(null);
@@ -244,60 +251,75 @@ const DiamondPeoplePage = () => {
       </div>
 
       {/* People Grid */}
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
         {filteredPeople.map(person => (
-          <div key={person.id} className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
-            <div className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-1">{person.name}</h3>
-                  <p className="text-gray-600 text-sm">{person.profession}</p>
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handleEditPerson(person)}
-                    className="p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeletePerson(person.id)}
-                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3 mb-4">
-                <div className="flex items-center space-x-3 text-sm text-gray-600">
-                  <Phone className="h-4 w-4" />
-                  <span>{person.mobile}</span>
-                </div>
-                <div className="flex items-center space-x-3 text-sm text-gray-600">
-                  <Mail className="h-4 w-4" />
-                  <span>{person.email}</span>
-                </div>
-                <div className="flex items-center space-x-3 text-sm text-gray-600">
-                  <MapPin className="h-4 w-4" />
-                  <span>{person.state}, {person.country}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mb-4">
-                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-medium">
-                  {person.category}
-                </span>
-                <span className="text-xs text-gray-500">
-                  Last: {person.lastContact ? new Date(person.lastContact).toLocaleDateString() : '—'}
-                </span>
-              </div>
-
-              {person.notes && (
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-sm text-gray-700 line-clamp-3">{person.notes}</p>
+          <div key={person.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
+            {/* Image header (Vision style - h-40) */}
+            <div 
+              className="relative h-40 overflow-hidden bg-emerald-600 flex items-center justify-center"
+              style={{ backgroundImage: `url('${person.imageUrl || DEFAULT_IMAGE}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+            >
+              {!person.imageUrl && (
+                <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold opacity-0">
+                  💎
                 </div>
               )}
+              {/* Top-right Badge */}
+              <div className="absolute top-3 right-3">
+                <div className="bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                  {person.relationship ? person.relationship.toUpperCase() : 'CONTACT'}
+                </div>
+              </div>
+            </div>
+            
+            {/* Card content */}
+            <div className="p-5 flex-1 flex flex-col">
+              <h3 className="text-xl font-bold text-gray-900 mb-1 line-clamp-2">{person.name}</h3>
+              <p className="text-sm text-gray-600 mb-4 line-clamp-2">{person.profession || 'No profession'}</p>
+
+              {/* Metadata (Vision style with icons) */}
+              <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                {person.mobile && (
+                  <div className="flex items-center gap-2">
+                    📱 {person.mobile}
+                  </div>
+                )}
+                {person.state && person.country && (
+                  <div className="flex items-center gap-2">
+                    📍 {person.state}, {person.country}
+                  </div>
+                )}
+                {person.lastContact && (
+                  <div className="flex items-center gap-2">
+                    📅 {new Date(person.lastContact).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
+
+              {/* Category Badge */}
+              <div className="mt-3">
+                {person.category && (
+                  <span className="inline-block bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                    {person.category}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons (Vision style) */}
+            <div className="flex gap-2 p-4 border-t border-gray-100">
+              <button
+                onClick={() => handleEditPerson(person)}
+                className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDeletePerson(person.id)}
+                className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition"
+              >
+                Delete
+              </button>
             </div>
           </div>
         ))}

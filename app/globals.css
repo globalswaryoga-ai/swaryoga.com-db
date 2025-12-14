@@ -582,6 +582,25 @@ button, .btn {
   box-shadow: 0 35px 70px rgba(13, 64, 55, 0.16);
 }
 
+/* ===== CARD MEDIA (consistent image/header area) ===== */
+.card-media {
+  height: 11rem; /* h-48 = 192px */
+  overflow: hidden;
+  border-top-left-radius: 1.25rem;
+  border-top-right-radius: 1.25rem;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .btn-gradient-cta {
   background: linear-gradient(135deg, var(--color-coral-rose), var(--color-forest-green));
   color: var(--color-white);
@@ -638,4 +657,14 @@ button, .btn {
   .btn-gradient-cta {
     transition: none;
   }
+}
+
+/* Scrollbar utilities */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

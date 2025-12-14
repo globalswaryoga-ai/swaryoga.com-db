@@ -294,10 +294,10 @@ export default function VisionPage() {
         </div>
 
         <div className="relative">
-          <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
+          <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
             {filteredVisions.slice(0, 3).length > 0 ? (
               filteredVisions.slice(0, 3).map((vision) => (
-              <div key={vision.id} className="flex-shrink-0 w-80 h-full">
+              <div key={vision.id} className="flex-shrink-0 w-80 min-w-[300px] max-w-[300px] h-full snap-start">
                 {/* Card */}
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
                   <div className="relative h-48 overflow-hidden">

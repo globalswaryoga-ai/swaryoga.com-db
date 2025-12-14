@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import type { Word, VisionCategory, MiniTodo } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
+
+const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
 type WordFormState = {
   title: string;
@@ -82,6 +84,7 @@ function normalizeRepeatFromFrequency(
 export default function WordsPage() {
   const [words, setWords] = useState<Word[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<WordFormState>(emptyWordForm());
@@ -98,15 +101,17 @@ export default function WordsPage() {
       try {
         const saved = await lifePlannerStorage.getWords();
         setWords(Array.isArray(saved) ? saved : []);
+        setHasLoaded(true);
       } catch (error) {
         console.error('Error loading words:', error);
         setWords([]);
+        setHasLoaded(true);
       }
     })();
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !hasLoaded) return;
     (async () => {
       try {
         await lifePlannerStorage.saveWords(words);
@@ -114,7 +119,7 @@ export default function WordsPage() {
         console.error('Error saving words:', error);
       }
     })();
-  }, [words, mounted]);
+  }, [words, mounted, hasLoaded]);
 
   const uniqueCategories = useMemo(
     () =>
@@ -356,110 +361,75 @@ export default function WordsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
           {filteredWords.map(word => (
-            <div key={word.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="relative h-40 bg-gray-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={getWordImageUrl(word)}
-                  alt={(word.title || 'Word') + ' image'}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const fallback = getDefaultCategoryImage(String((word as any).category || 'Life'));
-                    (e.currentTarget as HTMLImageElement).src = fallback || 'https://via.placeholder.com/800x400?text=Image+Not+Found';
-                  }}
-                />
-
-                <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
-
-                {/* Left overlay: Priority + Buttons */}
-                <div className="absolute top-3 left-3 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold ${getPriorityBadge((word as any).priority).className}`}
-                      title="Priority"
-                    >
-                      {getPriorityBadge((word as any).priority).label}
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-[11px] font-bold ${getStatusBadge((word as any).status).className}`}
-                      title="Status"
-                    >
-                      {getStatusBadge((word as any).status).label}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateWordStatus(word.id, (word as any).status === 'completed' ? 'active' : 'completed')}
-                      className="px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white text-gray-900 text-[11px] font-bold"
-                      title="Done"
-                    >
-                      Done
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(word)}
-                      className="px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white text-gray-900 text-[11px] font-bold inline-flex items-center gap-1"
-                      title="Edit"
-                    >
-                      <Edit2 size={14} /> Edit
-                    </button>
-                    <select
-                      value={((word as any).status || 'active') as any}
-                      onChange={(e) => updateWordStatus(word.id, e.target.value as any)}
-                      className="px-2 py-1 rounded-lg bg-white/90 hover:bg-white text-gray-900 text-[11px] font-bold"
-                      title="Status"
-                    >
-                      <option value="active">active</option>
-                      <option value="completed">completed</option>
-                      <option value="on-hold">on-hold</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Right overlay: Delete */}
+            <div key={word.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
+              {/* Image Header (h-40 - Vision style) */}
+              <div 
+                className="relative h-40 overflow-hidden bg-orange-600"
+                style={{ backgroundImage: `url('${getWordImageUrl(word) || DEFAULT_IMAGE}')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+              >
+                {!getWordImageUrl(word) && <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold opacity-0">✨</div>}
+                
+                {/* Top-right Badge */}
                 <div className="absolute top-3 right-3">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(word.id)}
-                    className="p-2 rounded-xl bg-white/90 hover:bg-white text-red-600"
-                    title="Delete"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-
-                <div className="absolute bottom-3 left-3 right-3">
-                  <h3 className="text-lg font-extrabold text-white truncate">{word.title}</h3>
-                  <p className="text-[11px] text-white/90 mt-1">
-                    {(word.category as any) || 'No head'} • {(word.type as any) || 'affirmation'} • {(word.frequency as any) || 'once'}
-                  </p>
+                  <div className={`${getStatusBadge((word as any).status).className} px-3 py-1 rounded-full text-xs font-bold`}>
+                    {getStatusBadge((word as any).status).label.toUpperCase()}
+                  </div>
                 </div>
               </div>
 
-              <div className="p-5">
+              {/* Card Content */}
+              <div className="p-5 flex-1 flex flex-col">
+                <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">{word.title}</h3>
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{word.description || 'No description'}</p>
 
-              {(word.description || '').trim() && (
-                <p className="text-gray-700 text-sm mt-3 line-clamp-3">{word.description}</p>
-              )}
+                {/* Metadata (Vision style with icons) */}
+                <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                  <div className="flex items-center gap-2">
+                    🏷️ {(word.category as any) || 'No category'}
+                  </div>
+                  {(word as any).startDate && (
+                    <div className="flex items-center gap-2">
+                      📅 {new Date((word as any).startDate).toLocaleDateString()}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    🔄 {((word.frequency || 'once') as any).toUpperCase()}
+                  </div>
+                </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-600">
-                <div className="bg-gray-50 rounded-lg px-3 py-2">
-                  <span className="font-semibold">Start:</span> {(word as any).startDate || '-'}
-                </div>
-                <div className="bg-gray-50 rounded-lg px-3 py-2">
-                  <span className="font-semibold">End:</span> {(word as any).endDate || '-'}
-                </div>
-                <div className="bg-gray-50 rounded-lg px-3 py-2">
-                  <span className="font-semibold">Priority:</span> {(word as any).priority || 'medium'}
-                </div>
-                <div className="bg-gray-50 rounded-lg px-3 py-2">
-                  <span className="font-semibold">Todos:</span> {(((word as any).todos as any[]) || []).length}
+                {/* Type & Priority Badges */}
+                <div className="flex gap-2 mt-3">
+                  <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                    {((word.type || 'affirmation') as string).toUpperCase()}
+                  </span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityBadge((word as any).priority).className}`}>
+                    {getPriorityBadge((word as any).priority).label.toUpperCase()}
+                  </span>
                 </div>
               </div>
+
+              {/* Action Buttons (Vision style) */}
+              <div className="flex gap-2 p-4 border-t border-gray-100">
+                <button 
+                  onClick={() => updateWordStatus(word.id, 'completed')}
+                  className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition"
+                >
+                  Done
+                </button>
+                <button 
+                  onClick={() => openEdit(word)}
+                  className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
+                >
+                  Edit
+                </button>
+                <button 
+                  onClick={() => handleDelete(word.id)}
+                  className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}

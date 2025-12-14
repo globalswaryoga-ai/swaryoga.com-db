@@ -15,6 +15,7 @@ type GoalOption = {
 
 export default function TasksPage() {
   const [mounted, setMounted] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [visions, setVisions] = useState<Vision[]>([]);
@@ -58,12 +59,14 @@ export default function TasksPage() {
         setGoals(Array.isArray(savedGoals) ? savedGoals : []);
         setVisions(Array.isArray(savedVisions) ? savedVisions : []);
         setActionPlans(Array.isArray(savedPlans) ? savedPlans : []);
+        setHasLoaded(true);
       } catch (error) {
         console.error('Error loading data:', error);
         setTasks([]);
         setGoals([]);
         setVisions([]);
         setActionPlans([]);
+        setHasLoaded(true);
       }
     };
     
@@ -72,12 +75,13 @@ export default function TasksPage() {
 
   // Save tasks to storage
   useEffect(() => {
+    if (!mounted || !hasLoaded) return;
     if (mounted) {
       lifePlannerStorage.saveTasks(tasks).catch((err: any) => 
         console.error('Error saving tasks:', err)
       );
     }
-  }, [tasks, mounted]);
+  }, [tasks, mounted, hasLoaded]);
 
   // Load fresh data when modal opens
   useEffect(() => {
@@ -416,7 +420,7 @@ export default function TasksPage() {
           <p className="text-gray-500 text-lg">No tasks found. Create one to get started!</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTasks.map(task => {
             const vision = visions.find(v => v.id === task.visionId);
             const goalTitle = getGoalTitle(task.goalId);
@@ -429,12 +433,12 @@ export default function TasksPage() {
             return (
               <div
                 key={task.id}
-                className={`bg-white rounded-lg border-2 p-4 hover:shadow-lg transition ${
+                className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 flex flex-col h-full ${
                   task.completed ? 'border-gray-300 opacity-60' : 'border-orange-200'
                 }`}
               >
-                <div className="rounded-lg overflow-hidden h-40 border border-gray-200 bg-gray-50 mb-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                {/* Image header (EXACT Vision style) */}
+                <div className="relative h-40 bg-gray-100 overflow-hidden">
                   <img
                     src={cardImage}
                     alt={task.title}
@@ -444,74 +448,64 @@ export default function TasksPage() {
                         'https://via.placeholder.com/800x400?text=Image+Not+Found';
                     }}
                   />
-                </div>
-
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <h3 className={`font-semibold text-lg ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                      {task.title}
-                    </h3>
-                    {task.description && (
-                      <p className="text-sm text-gray-600 mt-1">{task.description}</p>
+                  {/* Top-right chips */}
+                  <div className="absolute top-3 right-3 flex gap-2">
+                    {task.visionHead && (
+                      <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow">
+                        {task.visionHead}
+                      </span>
+                    )}
+                    {task.status && (
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold shadow ${
+                        task.completed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {task.completed ? 'Done' : task.status}
+                      </span>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleCompleteTask(task.id)}
-                    className="text-orange-500 hover:text-orange-600 flex-shrink-0 ml-2"
-                  >
-                    {task.completed ? (
-                      <CheckCircle2 size={24} />
-                    ) : (
-                      <Circle size={24} />
-                    )}
-                  </button>
                 </div>
 
-                <div className="space-y-1 text-sm text-gray-600 mb-3">
-                  {task.visionHead && (
-                    <p><span className="font-medium">Head:</span> {task.visionHead}</p>
-                  )}
-                  {vision && (
-                    <p><span className="font-medium">Vision:</span> {vision.title}</p>
-                  )}
-                  {goalTitle && (
-                    <p><span className="font-medium">Goal:</span> {goalTitle}</p>
-                  )}
-                  {task.startDate && (
-                    <p><span className="font-medium">Start:</span> {new Date(task.startDate).toLocaleDateString()}</p>
-                  )}
-                  {task.dueDate && (
-                    <p><span className="font-medium">Due:</span> {new Date(task.dueDate).toLocaleDateString()}</p>
-                  )}
-                  {task.place && (
-                    <p><span className="font-medium">Place:</span> {task.place}</p>
-                  )}
-                </div>
-
-                {task.todos && task.todos.length > 0 && (
-                  <div className="mb-3 text-sm">
-                    <p className="font-medium text-gray-700">
-                      Todos: {task.todos.filter(t => Boolean(t.completed)).length}/{task.todos.length}
-                    </p>
-                    <p className="text-xs text-gray-500">(Todo names hidden in list view)</p>
+                {/* Card content (EXACT Vision style) */}
+                <div className="flex-1 flex flex-col p-6 space-y-2">
+                  <h3 className={`font-bold text-2xl mb-1 ${task.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>{task.title}</h3>
+                  <div className="grid grid-cols-2 gap-2 text-base text-gray-600 mb-2">
+                    {vision && <div><span className="font-semibold">Vision:</span> {vision.title}</div>}
+                    {goalTitle && <div><span className="font-semibold">Goal:</span> {goalTitle}</div>}
+                    {task.startDate && <div><span className="font-semibold">Start:</span> {new Date(task.startDate).toLocaleDateString()}</div>}
+                    {task.dueDate && <div><span className="font-semibold">Due:</span> {new Date(task.dueDate).toLocaleDateString()}</div>}
+                    {task.place && <div><span className="font-semibold">Place:</span> {task.place}</div>}
                   </div>
-                )}
-
-                <div className="flex gap-2 justify-end pt-3 border-t">
-                  <button
-                    onClick={() => handleEditTask(task)}
-                    className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 rounded transition"
-                  >
-                    <Edit2 size={16} />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteTask(task.id)}
-                    className="flex items-center gap-1 px-3 py-1 text-sm bg-red-50 text-red-600 hover:bg-red-100 rounded transition"
-                  >
-                    <Trash2 size={16} />
-                    Delete
-                  </button>
+                  {task.description && <p className="text-base text-gray-600 mb-2">{task.description}</p>}
+                  {task.todos && task.todos.length > 0 && (
+                    <div className="mb-2 text-base text-gray-700">
+                      <span className="font-semibold">Todos:</span> {task.todos.filter(t => Boolean(t.completed)).length}/{task.todos.length}
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-auto pt-3 border-t">
+                    <button
+                      onClick={() => handleCompleteTask(task.id)}
+                      className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base rounded transition font-bold ${
+                        task.completed ? 'bg-green-100 text-green-700' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+                      }`}
+                    >
+                      {task.completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                      Done
+                    </button>
+                    <button
+                      onClick={() => handleEditTask(task)}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base bg-blue-50 text-blue-600 hover:bg-blue-100 rounded transition font-bold"
+                    >
+                      <Edit2 size={18} />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTask(task.id)}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base bg-red-50 text-red-600 hover:bg-red-100 rounded transition font-bold"
+                    >
+                      <Trash2 size={18} />
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             );

@@ -12,7 +12,7 @@ const topTabs = [
   { href: '/life-planner/dashboard/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/life-planner/dashboard/words', label: 'Words', icon: NotebookPen },
   { href: '/life-planner/dashboard/reminders', label: 'Reminders', icon: Bell },
-  { href: '/life-planner/dashboard/health-routines', label: 'Health', icon: HeartPulse },
+  { href: '/life-planner/dashboard/health', label: 'Health', icon: HeartPulse },
   { href: '/life-planner/dashboard/diamond-people', label: 'Diamond', icon: Gem },
   { href: '/life-planner/dashboard/progress', label: 'Progress', icon: BarChart3 },
 ];

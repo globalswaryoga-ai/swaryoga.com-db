@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Plus, 
   Edit, 
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { filterTransactionsByDateRange, getReportPeriodRange, type ReportPeriodKey } from '@/lib/accountingReportPeriod';
 
 interface Account {
   id: string;
@@ -72,7 +73,18 @@ export default function Accounting() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
   const [reportYear, setReportYear] = useState<number>(new Date().getFullYear());
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriodKey>('yearly');
+  const [reportMonth, setReportMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [generatingReport, setGeneratingReport] = useState(false);
+
+  const getAuthHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {};
+    const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  };
 
   // Form states
   const [accountForm, setAccountForm] = useState({
@@ -113,10 +125,11 @@ export default function Accounting() {
   const loadData = async () => {
     setLoading(true);
     try {
+      const headers = getAuthHeaders();
       const [accountsRes, transactionsRes, investmentsRes] = await Promise.all([
-        fetch('/api/accounting/accounts'),
-        fetch('/api/accounting/transactions'),
-        fetch('/api/accounting/investments')
+        fetch('/api/admin/accounting/accounts', { headers }),
+        fetch('/api/admin/accounting/transactions', { headers }),
+        fetch('/api/admin/accounting/investments', { headers })
       ]);
 
       if (accountsRes.ok) {
@@ -146,9 +159,9 @@ export default function Accounting() {
     }
   };
 
-  const calculateStats = () => {
-    const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const calculateStats = (txns: Transaction[] = transactions) => {
+    const totalIncome = txns.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const totalExpenses = txns.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
     const totalInvestments = investments.filter(inv => inv.status === 'active').reduce((sum, inv) => sum + inv.amount, 0);
 
@@ -165,16 +178,24 @@ export default function Accounting() {
   const generatePDF = async (reportType: 'pl' | 'balancesheet' | 'income') => {
     setGeneratingReport(true);
     try {
-      const response = await fetch('/api/accounting/generate-pdf', {
+      const range = getReportPeriodRange({ period: reportPeriod, year: reportYear, monthISO: reportMonth });
+      const reportTransactions = filterTransactionsByDateRange(transactions, range.startDate, range.endDate);
+      const reportStats = calculateStats(reportTransactions);
+
+      const response = await fetch('/api/admin/accounting/generate-pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reportType,
           year: reportYear,
           accounts,
-          transactions,
+          periodLabel: range.label,
+          startDate: range.startDate,
+          endDate: range.endDate,
+          fileTag: range.fileTag,
+          transactions: reportTransactions,
           investments,
-          stats: calculateStats()
+          stats: reportStats
         })
       });
 
@@ -184,16 +205,26 @@ export default function Accounting() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${reportType}-${reportYear}.pdf`;
+      link.download = `${reportType}-${range.fileTag}.html`;
       link.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF');
+      alert('Failed to generate report');
     } finally {
       setGeneratingReport(false);
     }
   };
+
+  const reportRange = useMemo(
+    () => getReportPeriodRange({ period: reportPeriod, year: reportYear, monthISO: reportMonth }),
+    [reportMonth, reportPeriod, reportYear]
+  );
+  const reportTransactions = useMemo(
+    () => filterTransactionsByDateRange(transactions, reportRange.startDate, reportRange.endDate),
+    [reportRange.endDate, reportRange.startDate, transactions]
+  );
+  const reportStats = calculateStats(reportTransactions);
 
   const handleSaveAccount = async () => {
     if (!accountForm.name) {
@@ -203,11 +234,11 @@ export default function Accounting() {
 
     try {
       const method = editingAccount ? 'PUT' : 'POST';
-      const url = editingAccount ? `/api/accounting/accounts?id=${editingAccount.id}` : '/api/accounting/accounts';
+      const url = editingAccount ? `/api/admin/accounting/accounts?id=${editingAccount.id}` : '/api/admin/accounting/accounts';
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(accountForm)
       });
 
@@ -234,8 +265,9 @@ export default function Accounting() {
   const handleDeleteAccount = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
-        const response = await fetch(`/api/accounting/accounts?id=${id}`, {
-          method: 'DELETE'
+        const response = await fetch(`/api/admin/accounting/accounts?id=${id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
         });
 
         if (response.ok) {
@@ -262,11 +294,11 @@ export default function Accounting() {
 
     try {
       const method = editingTransaction ? 'PUT' : 'POST';
-      const url = editingTransaction ? `/api/accounting/transactions?id=${editingTransaction.id}` : '/api/accounting/transactions';
+      const url = editingTransaction ? `/api/admin/accounting/transactions?id=${editingTransaction.id}` : '/api/admin/accounting/transactions';
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...transactionForm,
           account_name: selectedAccount.name
@@ -296,8 +328,9 @@ export default function Accounting() {
   const handleDeleteTransaction = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
-        const response = await fetch(`/api/accounting/transactions?id=${id}`, {
-          method: 'DELETE'
+        const response = await fetch(`/api/admin/accounting/transactions?id=${id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
         });
 
         if (response.ok) {
@@ -324,11 +357,11 @@ export default function Accounting() {
 
     try {
       const method = editingInvestment ? 'PUT' : 'POST';
-      const url = editingInvestment ? `/api/accounting/investments?id=${editingInvestment.id}` : '/api/accounting/investments';
+      const url = editingInvestment ? `/api/admin/accounting/investments?id=${editingInvestment.id}` : '/api/admin/accounting/investments';
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...investmentForm,
           account_name: selectedAccount.name
@@ -358,8 +391,9 @@ export default function Accounting() {
   const handleDeleteInvestment = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
-        const response = await fetch(`/api/accounting/investments?id=${id}`, {
-          method: 'DELETE'
+        const response = await fetch(`/api/admin/accounting/investments?id=${id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
         });
 
         if (response.ok) {
@@ -708,57 +742,100 @@ export default function Accounting() {
                 <h2 className="text-2xl font-bold text-gray-800 mb-6">Financial Reports</h2>
 
                 <div className="mb-8">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Year for Reports</label>
-                  <input type="number" value={reportYear} onChange={(e) => setReportYear(parseInt(e.target.value))} min={2020} max={new Date().getFullYear()} className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Report Period</label>
+                      <select
+                        value={reportPeriod}
+                        onChange={(e) => setReportPeriod(e.target.value as ReportPeriodKey)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="monthly">Monthly</option>
+                        <option value="3month">3 Months</option>
+                        <option value="6month">6 Months</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
+                    </div>
+
+                    {reportPeriod === 'monthly' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Month</label>
+                        <input
+                          type="month"
+                          value={reportMonth}
+                          onChange={(e) => setReportMonth(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+
+                    {reportPeriod === 'yearly' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Year</label>
+                        <input
+                          type="number"
+                          value={reportYear}
+                          onChange={(e) => setReportYear(parseInt(e.target.value))}
+                          min={2020}
+                          max={new Date().getFullYear()}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="mt-3 text-sm text-gray-600">
+                    Selected: <span className="font-semibold">{reportRange.label}</span> ({reportRange.startDate} to {reportRange.endDate})
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="border-2 border-gray-200 rounded-lg p-6 text-center hover:border-blue-500 hover:shadow-lg transition">
                     <FileText className="mx-auto mb-4 text-blue-600" size={40} />
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">Profit & Loss Statement</h3>
-                    <p className="text-gray-600 mb-4">Generate yearly P&L report showing income, expenses, and net profit</p>
+                    <p className="text-gray-600 mb-4">Tally-style statement with Debit/Credit columns for the selected period</p>
                     <button onClick={() => generatePDF('pl')} disabled={generatingReport} className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center justify-center">
-                      <Download size={18} className="mr-2" /> Generate PDF
+                      <Download size={18} className="mr-2" /> Generate Report
                     </button>
                   </div>
 
                   <div className="border-2 border-gray-200 rounded-lg p-6 text-center hover:border-green-500 hover:shadow-lg transition">
                     <FileText className="mx-auto mb-4 text-green-600" size={40} />
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">Balance Sheet</h3>
-                    <p className="text-gray-600 mb-4">View assets, liabilities, and net worth at a specific date</p>
+                    <p className="text-gray-600 mb-4">Tally-style Liabilities/Assets statement (uses current balances)</p>
                     <button onClick={() => generatePDF('balancesheet')} disabled={generatingReport} className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center justify-center">
-                      <Download size={18} className="mr-2" /> Generate PDF
+                      <Download size={18} className="mr-2" /> Generate Report
                     </button>
                   </div>
 
                   <div className="border-2 border-gray-200 rounded-lg p-6 text-center hover:border-purple-500 hover:shadow-lg transition">
                     <FileText className="mx-auto mb-4 text-purple-600" size={40} />
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">Income & Expense Report</h3>
-                    <p className="text-gray-600 mb-4">Detailed breakdown of all income and expense categories</p>
+                    <p className="text-gray-600 mb-4">Tally-style Income/Expense with Debit/Credit columns for the selected period</p>
                     <button onClick={() => generatePDF('income')} disabled={generatingReport} className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center justify-center">
-                      <Download size={18} className="mr-2" /> Generate PDF
+                      <Download size={18} className="mr-2" /> Generate Report
                     </button>
                   </div>
                 </div>
 
                 <div className="mt-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="font-semibold text-gray-800 mb-2">Quick Summary for {reportYear}</h4>
+                  <h4 className="font-semibold text-gray-800 mb-2">Quick Summary — {reportRange.label}</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                       <p className="text-gray-600">Total Income</p>
-                      <p className="text-lg font-bold text-green-600">₹{stats.totalIncome.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-green-600">₹{reportStats.totalIncome.toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-gray-600">Total Expenses</p>
-                      <p className="text-lg font-bold text-red-600">₹{stats.totalExpenses.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-red-600">₹{reportStats.totalExpenses.toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-gray-600">Net Profit</p>
-                      <p className={`text-lg font-bold ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>₹{stats.netProfit.toLocaleString()}</p>
+                      <p className={`text-lg font-bold ${reportStats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>₹{reportStats.netProfit.toLocaleString()}</p>
                     </div>
                     <div>
                       <p className="text-gray-600">Net Worth</p>
-                      <p className="text-lg font-bold text-blue-600">₹{stats.netWorth.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-blue-600">₹{reportStats.netWorth.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
