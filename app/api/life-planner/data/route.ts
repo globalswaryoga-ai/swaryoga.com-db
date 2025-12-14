@@ -23,7 +23,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const dataType = searchParams.get('type'); // vision, goals, tasks, etc.
 
+    console.log(`[GET] Fetching ${dataType || 'all'} for user ${email}`);
+
     if (!email) {
+      console.warn('[GET] Unauthorized - no email found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -31,9 +34,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Find user
-  const user = await User.findOne({ email: email.trim() });
+    const user = await User.findOne({ email: email.trim() });
 
     if (!user) {
+      console.error(`[GET] User not found: ${email}`);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -43,12 +47,15 @@ export async function GET(request: NextRequest) {
     // Return specific data type or all data
     if (dataType) {
       const fieldName = `lifePlanner${dataType.charAt(0).toUpperCase()}${dataType.slice(1)}`;
+      const result = user[fieldName as keyof typeof user] || [];
+      console.log(`[GET] ✅ Returned ${dataType}: ${Array.isArray(result) ? result.length : '?'} items`);
       return NextResponse.json({
-        data: user[fieldName as keyof typeof user] || [],
+        data: result,
       });
     }
 
     // Return all Life Planner data
+    console.log(`[GET] ✅ Returned all data for ${email}`);
     return NextResponse.json({
       visions: user.lifePlannerVisions || [],
       actionPlans: user.lifePlannerActionPlans || [],
@@ -64,7 +71,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Life Planner data fetch error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: String(error) },
       { status: 500 }
     );
   }
@@ -79,7 +86,10 @@ export async function PUT(request: NextRequest) {
     const { type, data } = body;
     const email = getAuthedEmail(request);
 
+    console.log(`[PUT] Updating ${type} for user ${email}`);
+
     if (!email) {
+      console.warn('[PUT] Unauthorized - no email found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -94,6 +104,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const fieldName = `lifePlanner${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+    console.log(`[PUT] Field name: ${fieldName}, data length: ${Array.isArray(data) ? data.length : 'not array'}`);
 
     // Update user with new Life Planner data
     const user = await User.findOneAndUpdate(
@@ -106,12 +117,14 @@ export async function PUT(request: NextRequest) {
     );
 
     if (!user) {
+      console.error(`[PUT] User not found: ${email}`);
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
+    console.log(`[PUT] ✅ Successfully updated ${type} for ${email}`);
     return NextResponse.json({
       message: 'Data saved successfully',
       data: user[fieldName as keyof typeof user],
@@ -119,7 +132,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Life Planner data update error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: String(error) },
       { status: 500 }
     );
   }

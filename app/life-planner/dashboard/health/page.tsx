@@ -30,6 +30,15 @@ export default function HealthPage() {
     setLoading(true);
     setError(null);
     try {
+      const userSession = localStorage.getItem('lifePlannerUser');
+      const token = localStorage.getItem('lifePlannerToken');
+      
+      if (!userSession || !token) {
+        setError('Please log in to access health routines');
+        setLoading(false);
+        return;
+      }
+
       const saved = await lifePlannerStorage.getHealthRoutines();
       if (Array.isArray(saved)) {
         setRoutines(saved);
@@ -38,7 +47,7 @@ export default function HealthPage() {
       }
     } catch (err) {
       console.error('Error loading health routines:', err);
-      setError('Failed to load routines. Please refresh.');
+      setError('Failed to load routines. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
@@ -47,15 +56,28 @@ export default function HealthPage() {
   // Save to MongoDB whenever routines change
   useEffect(() => {
     if (!mounted || loading) return;
+    
     const saveToMongo = async () => {
       try {
+        const userSession = localStorage.getItem('lifePlannerUser');
+        const token = localStorage.getItem('lifePlannerToken');
+        
+        if (!userSession || !token) {
+          console.warn('Not authenticated - cannot save routines');
+          return;
+        }
+
         await lifePlannerStorage.saveHealthRoutines(routines);
+        console.log('✅ Health routines saved successfully');
       } catch (err) {
         console.error('Error saving health routines:', err);
         setError('Failed to save changes to database');
       }
     };
-    saveToMongo();
+    
+    // Debounce saves to avoid too many requests
+    const timer = setTimeout(saveToMongo, 500);
+    return () => clearTimeout(timer);
   }, [routines, mounted, loading]);
 
   const openCreate = () => {
