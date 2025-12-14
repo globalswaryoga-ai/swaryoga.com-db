@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { Calendar, Image, Zap } from 'lucide-react';
-import { Task } from '@/lib/types/lifePlanner';
+import { Task, VisionCategory } from '@/lib/types/lifePlanner';
 
 interface TaskFormProps {
   onSubmit: (taskData: Task) => void;
@@ -70,7 +70,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
       title: formData.title.trim(),
       description: formData.description.trim(),
       goalId: formData.goalId || undefined,
-      visionHead: formData.visionHead || undefined,
+      visionHead: (formData.visionHead as VisionCategory) || undefined,
       visionId: formData.visionId || undefined,
       startDate: formData.startDate,
       dueDate: formData.dueDate,
