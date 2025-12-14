@@ -15,14 +15,6 @@ interface TaskManagerProps {
   selectedGoalId?: string;
 }
 
-// Status Color Mapping (matching Vision design)
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  'not-started': { bg: 'bg-gray-600', text: 'text-white' },
-  'in-progress': { bg: 'bg-blue-600', text: 'text-white' },
-  'completed': { bg: 'bg-green-600', text: 'text-white' },
-  'on-hold': { bg: 'bg-orange-600', text: 'text-white' },
-};
-
 export default function TaskManager({
   tasks,
   goals,
