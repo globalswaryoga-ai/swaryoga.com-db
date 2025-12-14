@@ -60,7 +60,7 @@ export default function AdminLogin() {
         }, 1000);
       } else {
         setErrors({ 
-          general: 'Invalid username or password. Use "admin" / "Mohanpk@1010"' 
+          general: 'Invalid username or password. Please try again.' 
         });
         setSubmitStatus('error');
       }

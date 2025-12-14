@@ -6,9 +6,19 @@ import { Eye, EyeOff } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 
-function setPlannerSession(email: string, token?: string) {
-  // Client-side session storage
-  localStorage.setItem('lifePlannerUser', JSON.stringify({ email, createdAt: Date.now() }));
+function setPlannerSession(email: string, password: string, token?: string) {
+  // Client-side session storage - store credentials and token
+  // Note: In production, use secure HTTP-only cookies instead of localStorage
+  localStorage.setItem('lifePlannerUser', JSON.stringify({ 
+    email, 
+    createdAt: Date.now(),
+    // Store password for auto-login (consider using a session token instead)
+    // This should be replaced with secure token-based auth
+  }));
+  if (password) {
+    // Simple obfuscation (NOT cryptographically secure - for demo only)
+    localStorage.setItem('lifePlannerPass', btoa(password)); // base64 encode
+  }
   if (token) {
     localStorage.setItem('lifePlannerToken', token);
   }
@@ -27,14 +37,25 @@ export default function LifePlannerLoginPage() {
   useEffect(() => {
     const userSession = localStorage.getItem('lifePlannerUser');
     const token = localStorage.getItem('lifePlannerToken');
+    const storedPass = localStorage.getItem('lifePlannerPass');
 
-    // Prefill email if available
+    // Prefill email and password if available
     if (userSession && !email) {
       try {
         const parsed = JSON.parse(userSession);
-        if (parsed?.email) setEmail(parsed.email);
+        if (parsed?.email) {
+          setEmail(parsed.email);
+          // Auto-fill password if stored
+          if (storedPass) {
+            try {
+              setPassword(atob(storedPass)); // base64 decode
+            } catch {
+              // ignore decode errors
+            }
+          }
+        }
       } catch {
-        // ignore
+        // ignore JSON parse errors
       }
     }
 
@@ -69,9 +90,9 @@ export default function LifePlannerLoginPage() {
         return;
       }
 
-  // Success - set session and redirect
-  const data = await response.json();
-  setPlannerSession(email.trim(), data?.token);
+      // Success - set session and redirect
+      const data = await response.json();
+      setPlannerSession(email.trim(), password, data?.token);
       router.push('/life-planner/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during login.');
