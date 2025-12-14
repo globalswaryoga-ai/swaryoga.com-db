@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Clock, AlertCircle, Plus, X } from 'lucide-react';
+import { AlertCircle, Plus } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { Reminder as DbReminder } from '@/lib/types/lifePlanner';
 
@@ -126,10 +126,6 @@ export default function RemindersPage() {
     setError(null);
     setShowForm(false);
   }, [formData, isFormValid]);
-
-  const handleDeleteReminder = useCallback((id: string) => {
-    setReminders(prev => prev.filter((r) => r.id !== id));
-  }, []);
 
   const frequencyLabels: Record<string, string> = {
     once: 'Once',
