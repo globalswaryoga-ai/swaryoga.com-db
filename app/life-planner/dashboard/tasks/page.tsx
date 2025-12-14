@@ -438,7 +438,7 @@ export default function TasksPage() {
                 }`}
               >
                 {/* Image header (EXACT Vision style) */}
-                <div className="relative h-40 bg-gray-100 overflow-hidden">
+                <div className="relative h-48 bg-gray-100 overflow-hidden">
                   <img
                     src={cardImage}
                     alt={task.title}
@@ -466,43 +466,36 @@ export default function TasksPage() {
                 </div>
 
                 {/* Card content (EXACT Vision style) */}
-                <div className="flex-1 flex flex-col p-6 space-y-2">
-                  <h3 className={`font-bold text-2xl mb-1 ${task.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>{task.title}</h3>
-                  <div className="grid grid-cols-2 gap-2 text-base text-gray-600 mb-2">
-                    {vision && <div><span className="font-semibold">Vision:</span> {vision.title}</div>}
-                    {goalTitle && <div><span className="font-semibold">Goal:</span> {goalTitle}</div>}
-                    {task.startDate && <div><span className="font-semibold">Start:</span> {new Date(task.startDate).toLocaleDateString()}</div>}
-                    {task.dueDate && <div><span className="font-semibold">Due:</span> {new Date(task.dueDate).toLocaleDateString()}</div>}
-                    {task.place && <div><span className="font-semibold">Place:</span> {task.place}</div>}
+                <div className="flex-1 flex flex-col p-5 space-y-2">
+                  <h3 className={`text-lg font-bold mb-2 line-clamp-2 ${task.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>{task.title}</h3>
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">{task.description}</p>
+
+                  <div className="space-y-2 text-xs text-gray-700">
+                    {vision && <div className="flex items-center gap-2">🎯 {vision.title}</div>}
+                    {task.dueDate && <div className="flex items-center gap-2">📅 {new Date(task.dueDate).toLocaleDateString()}</div>}
+                    {task.place && <div className="flex items-center gap-2">📍 {task.place}</div>}
                   </div>
-                  {task.description && <p className="text-base text-gray-600 mb-2">{task.description}</p>}
                   {task.todos && task.todos.length > 0 && (
-                    <div className="mb-2 text-base text-gray-700">
+                    <div className="mb-2 text-xs text-gray-700">
                       <span className="font-semibold">Todos:</span> {task.todos.filter(t => Boolean(t.completed)).length}/{task.todos.length}
                     </div>
                   )}
-                  <div className="flex gap-2 mt-auto pt-3 border-t">
+                  <div className="mt-4 flex gap-2">
                     <button
-                      onClick={() => handleCompleteTask(task.id)}
-                      className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base rounded transition font-bold ${
-                        task.completed ? 'bg-green-100 text-green-700' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
-                      }`}
+                      className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition"
                     >
-                      {task.completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
                       Done
                     </button>
                     <button
                       onClick={() => handleEditTask(task)}
-                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base bg-blue-50 text-blue-600 hover:bg-blue-100 rounded transition font-bold"
+                      className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
                     >
-                      <Edit2 size={18} />
                       Edit
                     </button>
                     <button
                       onClick={() => handleDeleteTask(task.id)}
-                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base bg-red-50 text-red-600 hover:bg-red-100 rounded transition font-bold"
+                      className="flex-1 px-3 py-2 bg-red-100 text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
                     >
-                      <Trash2 size={18} />
                       Delete
                     </button>
                   </div>
