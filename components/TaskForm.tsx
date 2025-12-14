@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { Calendar, CheckCircle, Image, Zap } from 'lucide-react';
+import { Calendar, Image, Zap } from 'lucide-react';
 import { Task, VisionCategory } from '@/lib/types/lifePlanner';
 
 interface TaskFormProps {
