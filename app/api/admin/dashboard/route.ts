@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
 import { connectDB, User, Order, Signin, Message } from '@/lib/db';
 
-// Verify admin token
-const verifyAdminToken = (token: string): boolean => {
-  const adminToken = process.env.ADMIN_PANEL_TOKEN || 'admin_swar_yoga_2024';
-  return token === adminToken || token.startsWith('admin_');
+// Verify JWT token
+const verifyToken = (token: string): { valid: boolean; decoded?: any } => {
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    return { valid: true, decoded };
+  } catch {
+    return { valid: false };
+  }
 };
 
 export async function GET(request: NextRequest) {
@@ -16,7 +21,8 @@ export async function GET(request: NextRequest) {
     const token = authHeader?.replace('Bearer ', '') || '';
 
     // Verify authentication
-    if (!verifyAdminToken(token)) {
+    const { valid, decoded } = verifyToken(token);
+    if (!valid || !decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -95,6 +101,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Failed to fetch dashboard data',
+        success: false,
         data: {
           totalUsers: 0,
           totalSignins: 0,
