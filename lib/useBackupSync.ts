@@ -1,5 +1,6 @@
 // Hook for managing backups and sync
 'use client';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 import { useState, useCallback } from 'react';
 
