@@ -250,10 +250,16 @@ class LifePlannerMongoStorage {
         this.handleUnauthorized();
         return [];
       }
-      if (!response.ok) return [];
+      if (!response.ok) {
+        console.error(`Failed to fetch reminders: ${response.status}`);
+        return [];
+      }
       const result = await response.json();
-      return result.data || [];
-    } catch {
+      // Ensure we always return an array
+      const data = result.data || result.reminders || [];
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('Error fetching reminders:', error);
       return [];
     }
   }

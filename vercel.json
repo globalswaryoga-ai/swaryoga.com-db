@@ -1,7 +1,8 @@
 {
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install --legacy-peer-deps --ignore-scripts",
+  "installCommand": "npm install",
   "framework": "nextjs",
+  "nodeVersion": "18.x",
   "regions": ["iad1"]
 }

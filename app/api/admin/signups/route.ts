@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
     // For now, we'll accept any token that's present
 
     await connectDB();
-    
-    // Fetch signup data from database - select relevant fields
+
+    // Fetch signup data from database - select relevant fields, use .lean() for performance
     const signups = await User.find({}, {
       _id: 1,
       name: 1,
@@ -31,9 +31,21 @@ export async function GET(req: NextRequest) {
       age: 1,
       profession: 1,
       createdAt: 1
-    }).sort({ createdAt: -1 });
+    })
+      .sort({ createdAt: -1 })
+      .lean();
 
-    return NextResponse.json(signups, { status: 200 });
+    // Standard response structure and cache control
+    return new NextResponse(
+      JSON.stringify({ success: true, data: signups }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, s-maxage=300',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error fetching signup data:', error);
     return NextResponse.json(

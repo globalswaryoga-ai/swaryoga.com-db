@@ -298,15 +298,15 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-gray-600 font-medium">Latitude</p>
-            <p className="text-indigo-600 font-mono font-bold">{formData.latitude.toFixed(4)}°</p>
+            <p className="text-indigo-600 font-mono font-bold">{typeof formData.latitude === 'number' && isFinite(formData.latitude) ? formData.latitude.toFixed(4) : '0.0000'}°</p>
           </div>
           <div>
             <p className="text-gray-600 font-medium">Longitude</p>
-            <p className="text-indigo-600 font-mono font-bold">{formData.longitude.toFixed(4)}°</p>
+            <p className="text-indigo-600 font-mono font-bold">{typeof formData.longitude === 'number' && isFinite(formData.longitude) ? formData.longitude.toFixed(4) : '0.0000'}°</p>
           </div>
           <div>
             <p className="text-gray-600 font-medium">Timezone</p>
-            <p className="text-indigo-600 font-mono font-bold">UTC{timezone >= 0 ? '+' : ''}{timezone.toFixed(1)}</p>
+            <p className="text-indigo-600 font-mono font-bold">UTC{timezone >= 0 ? '+' : ''}{(typeof timezone === 'number' && isFinite(timezone) ? timezone.toFixed(1) : '0.0')}</p>
           </div>
           <div>
             <p className="text-gray-600 font-medium">Location</p>

@@ -87,7 +87,7 @@ const CalendarResults: React.FC<CalendarResultsProps> = ({ data }) => {
         </div>
         <p className="text-lg font-bold text-teal-600">{data.location}</p>
         <p className="text-gray-600 text-sm mt-1">
-          {data.coordinates.latitude.toFixed(4)}°, {data.coordinates.longitude.toFixed(4)}°
+          {(typeof data.coordinates.latitude === 'number' && isFinite(data.coordinates.latitude) ? data.coordinates.latitude.toFixed(4) : '0.0000')}°, {(typeof data.coordinates.longitude === 'number' && isFinite(data.coordinates.longitude) ? data.coordinates.longitude.toFixed(4) : '0.0000')}°
         </p>
       </div>
     </div>

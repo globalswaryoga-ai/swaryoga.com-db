@@ -41,7 +41,7 @@ export default function HealthTracker() {
     if (!healthData.height || !healthData.weight) return 0;
     const heightInMeters = healthData.height / 100;
     const calculatedBMI = healthData.weight / (heightInMeters * heightInMeters);
-    return calculatedBMI.toFixed(1);
+    return (typeof calculatedBMI === 'number' && isFinite(calculatedBMI)) ? calculatedBMI.toFixed(1) : '0.0';
   }, [healthData.height, healthData.weight]);
 
   const getBMICategory = useCallback((bmiValue: number | string) => {

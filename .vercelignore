@@ -1,0 +1,16 @@
+# Ignore development files
+.env.workshop
+.env.payment
+.git
+.gitignore
+README.md
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+.next/cache
+.vercel
+
+# Don't ignore .env.local - Vercel needs it
+# but set env vars in Vercel dashboard instead

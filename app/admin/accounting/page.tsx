@@ -720,11 +720,11 @@ export default function Accounting() {
                             </button>
                           </div>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900 mb-2">₹{investment.amount.toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-gray-900 mb-2">₹{typeof investment.amount === 'number' && isFinite(investment.amount) ? investment.amount.toLocaleString() : '0.00'}</p>
                         <div className="space-y-1 text-sm text-gray-500">
                           <p>Type: <span className="capitalize">{investment.type.replace('_', ' ')}</span></p>
-                          <p>Interest: {investment.interest_rate}%</p>
-                          <p>Dividend: {investment.dividend_rate}%</p>
+                          <p>Interest: {typeof investment.interest_rate === 'number' && isFinite(investment.interest_rate) ? investment.interest_rate.toFixed(2) : '0.00'}%</p>
+                          <p>Dividend: {typeof investment.dividend_rate === 'number' && isFinite(investment.dividend_rate) ? investment.dividend_rate.toFixed(2) : '0.00'}%</p>
                           <p>Status: <span className="capitalize">{investment.status}</span></p>
                         </div>
                       </div>

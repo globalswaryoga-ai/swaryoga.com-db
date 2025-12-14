@@ -43,15 +43,16 @@ export async function GET(request: NextRequest) {
     };
 
     completedOrders.forEach((order: any) => {
-      const amount = order.amount || 0;
+      // Use 'total' as the amount, default currency to 'INR' if not present
+      const amount = order.total || 0;
       const currency = order.currency || 'INR';
-      
+
       if (!currencyBreakdown[currency as keyof typeof currencyBreakdown]) {
         currencyBreakdown[currency as keyof typeof currencyBreakdown] = 0;
       }
-      
+
       currencyBreakdown[currency as keyof typeof currencyBreakdown] += amount;
-      
+
       // Convert to USD for total (approximate)
       if (currency === 'INR') {
         totalAmountUSD += amount / 86;
@@ -81,8 +82,8 @@ export async function GET(request: NextRequest) {
         },
         orders: completedOrders.map((order: any) => ({
           id: order._id,
-          amount: order.amount,
-          currency: order.currency,
+          amount: order.total, // Use 'total' as the amount
+          currency: order.currency || 'INR',
           status: order.paymentStatus,
           transactionId: order.transactionId,
           createdAt: order.createdAt,

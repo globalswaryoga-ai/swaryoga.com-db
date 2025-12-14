@@ -152,7 +152,7 @@ export const PanchangDisplay: React.FC<PanchangDisplayProps> = ({
         {/* Ayanamsa */}
         <div className="bg-[#E8FFFE] rounded-xl p-4 border border-[#4ECDC4]/20">
           <p className="text-xs uppercase text-gray-600 font-semibold mb-1">Ayanamsa</p>
-          <p className="text-xl font-bold text-[#4ECDC4]">{panchang.ayanamsa.toFixed(2)}°</p>
+          <p className="text-xl font-bold text-[#4ECDC4]">{typeof panchang.ayanamsa === 'number' && isFinite(panchang.ayanamsa) ? panchang.ayanamsa.toFixed(2) : '0.00'}°</p>
         </div>
       </div>
 
