@@ -58,8 +58,7 @@ buildWorkshopOverrides();
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  // Ensure we build as a normal Next.js server app (not a static export)
-  output: 'standalone',
+  // Don't use standalone mode on Vercel - use default output
   images: {
     domains: ['images.unsplash.com', 'via.placeholder.com', 'images.pexels.com'],
     remotePatterns: [
