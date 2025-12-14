@@ -35,11 +35,14 @@ export default function Navigation() {
       try {
         const visions = JSON.parse(storedReminders);
         const allReminders: Reminder[] = [];
-        visions.forEach((vision: any) => {
-          if (vision.reminders && Array.isArray(vision.reminders)) {
-            allReminders.push(...vision.reminders);
-          }
-        });
+        // Ensure visions is an array before calling forEach
+        if (Array.isArray(visions)) {
+          visions.forEach((vision: any) => {
+            if (vision.reminders && Array.isArray(vision.reminders)) {
+              allReminders.push(...vision.reminders);
+            }
+          });
+        }
         setReminders(allReminders);
       } catch (err) {
         console.log('Error loading reminders:', err);
