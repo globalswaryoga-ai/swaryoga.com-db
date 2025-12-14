@@ -91,11 +91,11 @@ export default function WordsPage() {
 
   // Filters
   const [searchText, setSearchText] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
+  const [filterType] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterFrequency, setFilterFrequency] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [filterFrequency] = useState<string>('all');
+  const [filterStatus] = useState<string>('all');
+  const [filterMonth] = useState<string>('all');
 
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 

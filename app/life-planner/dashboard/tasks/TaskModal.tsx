@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Eye, Trash2, Plus } from 'lucide-react';
-import { Task, Vision } from '@/lib/types/lifePlanner';
+import { Task, Vision, VisionCategory } from '@/lib/types/lifePlanner';
 import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
 
 type GoalOption = {
@@ -23,39 +23,67 @@ interface TaskFormState {
   timeEnd: string;
   place: string;
   imageUrl: string;
+  status: 'not-started' | 'in-progress' | 'pending' | 'completed' | 'overdue';
+  priority: 'high' | 'medium' | 'low';
+  completed: boolean;
   todos: Array<{ id: string; title: string; dueDate?: string; dueTime?: string; completed: boolean }>;
 }
 
 interface TaskModalProps {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
-  onSave: (taskData: TaskFormState) => void;
-  editingTask: Task | null;
-  formState: TaskFormState;
-  setFormState: React.Dispatch<React.SetStateAction<TaskFormState>>;
-  visions: Vision[];
+  onSave: (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  task?: Task | null;
+  editingTask?: Task | null;
   goals: GoalOption[];
-  visionOptionsForHead: (head: string) => Vision[];
-  goalOptionsForVision: (visionId: string) => GoalOption[];
+  visions: Vision[];
+  formState?: TaskFormState;
+  setFormState?: React.Dispatch<React.SetStateAction<TaskFormState>>;
+  visionOptionsForHead?: (head: string) => Vision[];
+  goalOptionsForVision?: (visionId: string) => GoalOption[];
 }
 
 const TaskModal: React.FC<TaskModalProps> = ({
-  isOpen,
+  isOpen = true,
   onClose,
   onSave,
   editingTask,
-  formState,
-  setFormState,
-  visions,
   goals,
-  visionOptionsForHead,
-  goalOptionsForVision,
+  visions,
+  formState: externalFormState,
+  setFormState: externalSetFormState,
+  visionOptionsForHead: externalVisionOptionsForHead,
+  goalOptionsForVision: externalGoalOptionsForVision,
 }) => {
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [showTodosEditor, setShowTodosEditor] = useState(false);
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [newTodoDueDate, setNewTodoDueDate] = useState('');
   const [newTodoDueTime, setNewTodoDueTime] = useState('11:00');
+
+  // Initialize local form state if not provided
+  const [localFormState, setLocalFormState] = useState<TaskFormState>({
+    visionHead: '',
+    visionId: '',
+    goalId: '',
+    title: '',
+    description: '',
+    startDate: '',
+    dueDate: '',
+    timeStart: '',
+    timeEnd: '',
+    place: '',
+    imageUrl: '',
+    status: 'not-started',
+    priority: 'medium',
+    completed: false,
+    todos: [],
+  });
+
+  const formState = externalFormState || localFormState;
+  const setFormState = externalSetFormState || setLocalFormState;
+  const visionOptionsForHead = externalVisionOptionsForHead || (() => []);
+  const goalOptionsForVision = externalGoalOptionsForVision || (() => []);
 
   const handleHeadChange = (head: string) => {
     setFormState(prev => ({
@@ -174,7 +202,24 @@ const TaskModal: React.FC<TaskModalProps> = ({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSave(formState);
+            const taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> = {
+              title: formState.title,
+              description: formState.description,
+              visionHead: (formState.visionHead as VisionCategory) || undefined,
+              visionId: formState.visionId || undefined,
+              goalId: formState.goalId || undefined,
+              startDate: formState.startDate,
+              dueDate: formState.dueDate,
+              status: formState.status,
+              priority: formState.priority,
+              completed: formState.completed,
+              imageUrl: formState.imageUrl || undefined,
+              place: formState.place || undefined,
+              timeStart: formState.timeStart || undefined,
+              timeEnd: formState.timeEnd || undefined,
+              todos: formState.todos,
+            };
+            onSave(taskData);
           }}
           className="p-6 space-y-5"
         >

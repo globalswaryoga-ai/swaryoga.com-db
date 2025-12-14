@@ -2,48 +2,39 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { Calendar, CheckCircle, Image, Zap } from 'lucide-react';
-
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  goalId?: string; // Link to parent goal
-  goalTitle?: string; // Display goal title
-  startDate: string;
-  endDate: string;
-  category: 'life' | 'health' | 'wealth' | 'success' | 'respect' | 'pleasure' | 'prosperity' | 'luxuries' | 'good-habits' | 'self-sadhana';
-  priority: 'high' | 'medium' | 'low';
-  imageUrl: string;
-  createdAt: string;
-  completed: boolean;
-  progress: number; // 0-100
-}
+import { Task, VisionCategory } from '@/lib/types/lifePlanner';
 
 interface TaskFormProps {
   onSubmit: (taskData: Task) => void;
   onCancel: () => void;
   initialData?: Task;
   goals: Array<{ id: string; title: string }>;
+  visionHeads?: VisionCategory[];
 }
 
-const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, goals }) => {
+const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, goals, visionHeads = [] }) => {
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
     description: initialData?.description || '',
     goalId: initialData?.goalId || '',
+    visionHead: initialData?.visionHead || '',
+    visionId: initialData?.visionId || '',
     startDate: initialData?.startDate || '',
-    endDate: initialData?.endDate || '',
-    category: initialData?.category || 'life' as const,
-    priority: initialData?.priority || 'medium' as const,
+    dueDate: initialData?.dueDate || '',
+    status: (initialData?.status || 'not-started') as 'not-started' | 'in-progress' | 'pending' | 'completed' | 'overdue',
+    priority: (initialData?.priority || 'medium') as 'high' | 'medium' | 'low',
     imageUrl: initialData?.imageUrl || '',
-    progress: initialData?.progress || 0
+    budget: initialData?.budget || undefined,
+    place: initialData?.place || '',
+    timeStart: initialData?.timeStart || '',
+    timeEnd: initialData?.timeEnd || ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: name === 'progress' ? parseInt(value) : value }));
+    setFormData(prev => ({ ...prev, [name]: name === 'budget' ? (value ? parseInt(value) : undefined) : value }));
     if (errors[name]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -57,7 +48,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
     return formData.title.trim().length > 0 && 
            formData.description.trim().length > 0 &&
            formData.startDate &&
-           formData.endDate;
+           formData.dueDate;
   }, [formData]);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
@@ -67,8 +58,8 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
     if (!formData.title.trim()) newErrors.title = 'Task title is required';
     if (!formData.description.trim()) newErrors.description = 'Description is required';
     if (!formData.startDate) newErrors.startDate = 'Start date is required';
-    if (!formData.endDate) newErrors.endDate = 'End date is required';
-    if (formData.startDate > formData.endDate) newErrors.dates = 'End date must be after start date';
+    if (!formData.dueDate) newErrors.dueDate = 'Due date is required';
+    if (formData.startDate > formData.dueDate) newErrors.dates = 'Due date must be after start date';
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -81,15 +72,20 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
       title: formData.title.trim(),
       description: formData.description.trim(),
       goalId: formData.goalId || undefined,
-      goalTitle: selectedGoal?.title || undefined,
+      visionHead: formData.visionHead || undefined,
+      visionId: formData.visionId || undefined,
       startDate: formData.startDate,
-      endDate: formData.endDate,
-      category: formData.category,
+      dueDate: formData.dueDate,
+      status: formData.status,
       priority: formData.priority,
-      imageUrl: formData.imageUrl,
-      progress: formData.progress,
+      imageUrl: formData.imageUrl || undefined,
+      budget: formData.budget,
+      place: formData.place || undefined,
+      timeStart: formData.timeStart || undefined,
+      timeEnd: formData.timeEnd || undefined,
       createdAt: initialData?.createdAt || new Date().toISOString(),
-      completed: initialData?.completed || false
+      updatedAt: new Date().toISOString(),
+      completed: formData.status === 'completed'
     };
 
     onSubmit(taskData);
@@ -178,27 +174,37 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
         </select>
       </div>
 
-      {/* Category */}
+      {/* Vision Head (Category) */}
       <div>
         <label className="block text-sm font-semibold text-gray-900 mb-2">
-          Category
+          Vision Category (Optional)
+        </label>
+        <input
+          type="text"
+          name="visionHead"
+          value={formData.visionHead}
+          onChange={handleChange}
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          placeholder="e.g., Health, Wealth, Success"
+        />
+      </div>
+
+      {/* Status */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-900 mb-2">
+          Status
         </label>
         <select
-          name="category"
-          value={formData.category}
+          name="status"
+          value={formData.status}
           onChange={handleChange}
           className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
         >
-          <option value="life">🌍 Life</option>
-          <option value="health">💪 Health</option>
-          <option value="wealth">💰 Wealth</option>
-          <option value="success">🏆 Success</option>
-          <option value="respect">👑 Respect</option>
-          <option value="pleasure">😊 Pleasure</option>
-          <option value="prosperity">✨ Prosperity</option>
-          <option value="luxuries">💎 Luxuries</option>
-          <option value="good-habits">🌟 Good Habits</option>
-          <option value="self-sadhana">🧘 Self Sadhana</option>
+          <option value="not-started">⭕ Not Started</option>
+          <option value="in-progress">🔵 In Progress</option>
+          <option value="pending">🟡 Pending</option>
+          <option value="completed">🟢 Completed</option>
+          <option value="overdue">🔴 Overdue</option>
         </select>
       </div>
 
@@ -225,45 +231,78 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
         <div>
           <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
-            End Date *
+            Due Date *
           </label>
           <input
             type="date"
-            name="endDate"
-            value={formData.endDate}
+            name="dueDate"
+            value={formData.dueDate}
             onChange={handleChange}
             className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition ${
-              errors.endDate ? 'border-red-500' : 'border-gray-300'
+              errors.dueDate ? 'border-red-500' : 'border-gray-300'
             }`}
             required
           />
-          {errors.endDate && <p className="text-red-600 text-xs mt-1">{errors.endDate}</p>}
+          {errors.dueDate && <p className="text-red-600 text-xs mt-1">{errors.dueDate}</p>}
         </div>
       </div>
       {errors.dates && <p className="text-red-600 text-xs">{errors.dates}</p>}
 
-      {/* Progress */}
+      {/* Budget (Optional) */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <CheckCircle size={18} className="text-green-600" />
-            Progress
-          </span>
-          <span className="text-lg font-bold text-cyan-600">{formData.progress}%</span>
+        <label className="block text-sm font-semibold text-gray-900 mb-2">
+          Budget (Optional)
         </label>
         <input
-          type="range"
-          name="progress"
-          value={formData.progress}
+          type="number"
+          name="budget"
+          value={formData.budget || ''}
           onChange={handleChange}
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          placeholder="Enter budget amount"
           min="0"
-          max="100"
-          className="w-full h-3 bg-gray-300 rounded-lg appearance-none cursor-pointer"
         />
-        <div className="mt-2 h-2 bg-gray-300 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600 transition-all"
-            style={{ width: `${formData.progress}%` }}
+      </div>
+
+      {/* Place (Optional) */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-900 mb-2">
+          Location (Optional)
+        </label>
+        <input
+          type="text"
+          name="place"
+          value={formData.place}
+          onChange={handleChange}
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          placeholder="e.g., Office, Gym, Home"
+        />
+      </div>
+
+      {/* Time Window (Optional) */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-gray-900 mb-2">
+            Start Time (Optional)
+          </label>
+          <input
+            type="time"
+            name="timeStart"
+            value={formData.timeStart}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-900 mb-2">
+            End Time (Optional)
+          </label>
+          <input
+            type="time"
+            name="timeEnd"
+            value={formData.timeEnd}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
           />
         </div>
       </div>

@@ -10,3 +10,4 @@ build
 .vercel
 .idea
 .vscode
+.env*.local

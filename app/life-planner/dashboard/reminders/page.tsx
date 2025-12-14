@@ -154,16 +154,6 @@ export default function RemindersPage() {
     return matchesSearch && matchesStatus && matchesFrequency && matchesMonth;
   });
 
-  // Inline default SVG fallback to avoid 404s for missing files
-  const DEFAULT_REMINDER_SVG =
-    'data:image/svg+xml;utf8,' +
-    encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">' +
-        '<rect width="100%" height="100%" fill="#fff1f6"/>' +
-        '<text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#ff4d82" font-family="Arial, Helvetica, sans-serif" font-size="34">Reminder</text>' +
-      '</svg>'
-    );
-
   return (
     <div className="space-y-6">
       {/* Header */}
