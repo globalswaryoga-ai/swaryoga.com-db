@@ -1,16 +1,25 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import TaskModal from './TaskModal';
-import { Vision, Goal, Task, VisionCategory, TaskFormState } from '@/lib/types/lifePlanner';
+import React, { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
+import { Task, Goal, Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
-import { Plus, Edit2, Trash2, CheckCircle2, Circle } from 'lucide-react';
-import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
+import TaskModal from './TaskModal';
 
-type GoalOption = {
-  id: string;
-  title: string;
-  visionId?: string;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+// Category Color Mapping
+const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  'Life': { bg: 'bg-purple-600', text: 'text-white' },
+  'Health': { bg: 'bg-green-600', text: 'text-white' },
+  'Wealth': { bg: 'bg-red-600', text: 'text-white' },
+  'Success': { bg: 'bg-blue-600', text: 'text-white' },
+  'Respect': { bg: 'bg-orange-600', text: 'text-white' },
+  'Pleasure': { bg: 'bg-pink-600', text: 'text-white' },
+  'Prosperity': { bg: 'bg-indigo-600', text: 'text-white' },
+  'Luxurious': { bg: 'bg-yellow-600', text: 'text-white' },
+  'Good Habits': { bg: 'bg-teal-600', text: 'text-white' },
+  'Sadhana': { bg: 'bg-cyan-600', text: 'text-white' },
 };
 
 export default function TasksPage() {
@@ -19,331 +28,135 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [visions, setVisions] = useState<Vision[]>([]);
-  const [actionPlans, setActionPlans] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
 
-  // Filters (UI-only; never persisted)
-  const [filterHead, setFilterHead] = useState<string>('all');
+  // Filters
+  const [filterVisionHead, setFilterVisionHead] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterMonth, setFilterMonth] = useState<string>('all');
-  const [formState, setFormState] = useState<TaskFormState>({
-    title: '',
-    description: '',
-    visionHead: '',
-    visionId: '',
-    goalId: '',
-    startDate: '',
-    dueDate: '',
-    timeStart: '',
-    timeEnd: '',
-    place: '',
-    imageUrl: '',
-    todos: [],
-  });
+  const [searchText, setSearchText] = useState('');
 
   // Load data on mount
   useEffect(() => {
-    const loadData = async () => {
-      setMounted(true);
-      try {
-        const [savedTasks, savedGoals, savedVisions, savedPlans] = await Promise.all([
-          lifePlannerStorage.getTasks(),
-          lifePlannerStorage.getGoals(),
-          lifePlannerStorage.getVisions(),
-          lifePlannerStorage.getActionPlans(),
-        ]);
-        
-        setTasks(Array.isArray(savedTasks) ? savedTasks : []);
-        setGoals(Array.isArray(savedGoals) ? savedGoals : []);
-        setVisions(Array.isArray(savedVisions) ? savedVisions : []);
-        setActionPlans(Array.isArray(savedPlans) ? savedPlans : []);
-        setHasLoaded(true);
-      } catch (error) {
-        console.error('Error loading data:', error);
-        setTasks([]);
-        setGoals([]);
-        setVisions([]);
-        setActionPlans([]);
-        setHasLoaded(true);
-      }
-    };
-    
-    loadData();
+    setMounted(true);
+    (async () => {
+      const [savedTasks, savedGoals, savedVisions] = await Promise.all([
+        lifePlannerStorage.getTasks(),
+        lifePlannerStorage.getGoals(),
+        lifePlannerStorage.getVisions(),
+      ]);
+      setTasks(Array.isArray(savedTasks) ? savedTasks : []);
+      setGoals(Array.isArray(savedGoals) ? savedGoals : []);
+      setVisions(Array.isArray(savedVisions) ? savedVisions : []);
+      setHasLoaded(true);
+    })();
   }, []);
 
-  // Save tasks to storage
+  // Save tasks
   useEffect(() => {
     if (!mounted || !hasLoaded) return;
-    if (mounted) {
-      lifePlannerStorage.saveTasks(tasks).catch((err: any) => 
-        console.error('Error saving tasks:', err)
-      );
-    }
+    lifePlannerStorage.saveTasks(tasks).catch((err: any) =>
+      console.error('Error saving tasks:', err)
+    );
   }, [tasks, mounted, hasLoaded]);
 
-  // Load fresh data when modal opens
-  useEffect(() => {
-    const loadFreshData = async () => {
-      if (isModalOpen) {
-        try {
-          const [freshGoals, freshVisions, freshPlans] = await Promise.all([
-            lifePlannerStorage.getGoals(),
-            lifePlannerStorage.getVisions(),
-            lifePlannerStorage.getActionPlans(),
-          ]);
-          
-          setGoals(Array.isArray(freshGoals) ? freshGoals : []);
-          setVisions(Array.isArray(freshVisions) ? freshVisions : []);
-          setActionPlans(Array.isArray(freshPlans) ? freshPlans : []);
-        } catch (error) {
-          console.error('Error loading fresh data:', error);
-        }
-      }
-    };
-    
-    loadFreshData();
-  }, [isModalOpen]);
-
-  // Build a unified list of goal options:
-  // 1) standalone goals (goals collection)
-  // 2) goals embedded inside action plans (most common in this app)
-  const goalOptions: GoalOption[] = useMemo(() => {
-    const out: GoalOption[] = [];
-
-    // From goals collection
-    for (const g of goals) {
-      if (!g?.id) continue;
-      out.push({ id: String(g.id), title: g.title || 'Goal', visionId: g.visionId ? String(g.visionId) : undefined });
-    }
-
-    // From action plans (flatten plan.goals)
-    for (const plan of actionPlans || []) {
-      const planVisionId = plan?.visionId ? String(plan.visionId) : '';
-      const planGoals = Array.isArray(plan?.goals) ? plan.goals : [];
-      for (const pg of planGoals) {
-        const rawId = pg?.id ? String(pg.id) : '';
-        const title = (pg?.title || '').trim() || 'Goal';
-        if (!rawId || !plan?.id || !planVisionId) continue;
-        // Namespaced id to avoid collisions with standalone goals
-        out.push({
-          id: `ap:${String(plan.id)}:${rawId}`,
-          title,
-          visionId: planVisionId,
-        });
-      }
-    }
-
-    // Dedupe by id
-    const seen = new Set<string>();
-    return out.filter((g) => {
-      if (seen.has(g.id)) return false;
-      seen.add(g.id);
-      return true;
-    });
-  }, [goals, actionPlans]);
-
-  // Helper: Get vision options filtered by category/head
-  const visionOptionsForHead = (head: string): Vision[] => {
-    if (!head) return [];
-    return visions
-      .filter(v => v.category === head)
-      .sort((a, b) => a.title.localeCompare(b.title));
-  };
-
-  // Helper: Get goal options filtered by vision
-  const goalOptionsForVision = (visionId: string): GoalOption[] => {
-    if (!visionId) return [];
-
-    const normalizedVisionId = String(visionId).trim();
-    return goalOptions
-      .filter(g => (g.visionId ? String(g.visionId).trim() : '') === normalizedVisionId)
-      .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-  };
-
-  const getGoalTitle = (goalId?: string): string => {
-    if (!goalId) return '';
-    return goalOptions.find(g => g.id === goalId)?.title || '';
-  };
-
-  const uniqueHeads = Array.from(new Set(visions.map(v => v.category).filter(Boolean) as string[])).sort((a, b) =>
-    a.localeCompare(b)
-  );
-
-  const uniqueStatuses = Array.from(new Set(tasks.map(t => t.status).filter(Boolean) as string[])).sort((a, b) =>
-    a.localeCompare(b)
-  );
-
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
-
-  // Handlers
   const handleAddTask = () => {
-    const today = new Date().toISOString().split('T')[0];
     setEditingTask(null);
-    setFormState({
-      title: '',
-      description: '',
-      visionHead: '',
-      visionId: '',
-      goalId: '',
-      startDate: today,
-      dueDate: today,
-      timeStart: '11:00',
-      timeEnd: '11:00',
-      place: '',
-      imageUrl: '',
-      todos: [],
-    });
     setIsModalOpen(true);
   };
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task);
-    setFormState({
-      title: task.title || '',
-      description: task.description || '',
-      visionHead: (task.visionHead as string) || '',
-      visionId: task.visionId || '',
-      goalId: task.goalId || '',
-      startDate: task.startDate || '',
-      dueDate: task.dueDate || '',
-      timeStart: task.timeStart || '',
-      timeEnd: task.timeEnd || '',
-      place: task.place || '',
-      imageUrl: task.imageUrl || '',
-      todos: task.todos || [],
-    });
     setIsModalOpen(true);
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    if (confirm('Are you sure you want to delete this task?')) {
-      setTasks(tasks.filter(t => t.id !== taskId));
-    }
+  const handleDeleteTask = (id: string) => {
+    setTasks(prev => prev.filter(t => t.id !== id));
   };
 
-  const handleSaveTask = (formData: TaskFormState) => {
-    if (!formData.visionHead || !formData.visionId || !formData.goalId || !formData.title || !formData.startDate || !formData.dueDate) {
-      alert('Please fill in all required fields: Head, Vision, Goal, Title, Start Date, and Due Date');
-      return;
-    }
-
+  const handleSaveTask = (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingTask) {
-      setTasks(tasks.map(t =>
-        t.id === editingTask.id
-          ? {
-              ...t,
-              title: formData.title,
-              description: formData.description,
-              visionHead: formData.visionHead as VisionCategory,
-              visionId: formData.visionId,
-              goalId: formData.goalId,
-              startDate: formData.startDate,
-              dueDate: formData.dueDate,
-              timeStart: formData.timeStart,
-              timeEnd: formData.timeEnd,
-              place: formData.place,
-              imageUrl: formData.imageUrl,
-              todos: formData.todos,
-              updatedAt: new Date().toISOString(),
-            }
-          : t
-      ));
+      setTasks(prev =>
+        prev.map(t =>
+          t.id === editingTask.id
+            ? { ...t, ...taskData, updatedAt: new Date().toISOString() }
+            : t
+        )
+      );
     } else {
       const newTask: Task = {
-        id: `task-${Date.now()}`,
-        title: formData.title,
-        description: formData.description,
-        visionHead: formData.visionHead as VisionCategory,
-        visionId: formData.visionId,
-        goalId: formData.goalId,
-        startDate: formData.startDate,
-        dueDate: formData.dueDate,
-        timeStart: formData.timeStart,
-        timeEnd: formData.timeEnd,
-        place: formData.place,
-        imageUrl: formData.imageUrl,
-        priority: 'medium',
-        status: 'not-started',
-        completed: false,
-        todos: formData.todos,
+        ...taskData,
+        id: Date.now().toString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      setTasks([...tasks, newTask]);
+      setTasks(prev => [...prev, newTask]);
     }
-
     setIsModalOpen(false);
   };
 
-  const handleCompleteTask = (taskId: string) => {
-    setTasks(tasks.map(t =>
-      t.id === taskId
-        ? {
-            ...t,
-            completed: !t.completed,
-            status: !t.completed ? 'completed' : 'not-started',
-            updatedAt: new Date().toISOString(),
-          }
-        : t
-    ));
-  };
+  // Get unique vision heads
+  const uniqueVisionHeads = Array.from(
+    new Set(tasks.map(t => t.visionHead).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b));
 
-  // Filtering
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-  const filteredTasks = tasks.filter(task => {
-    const head = (task.visionHead ? String(task.visionHead) : '').trim();
-    const status = (task.status || 'not-started').trim();
-    const matchesHead = filterHead === 'all' || head === filterHead;
-    const matchesStatus = filterStatus === 'all' || status === filterStatus;
+  // Get unique statuses
+  const uniqueStatuses = Array.from(
+    new Set(tasks.map(t => t.status).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b));
 
-    const monthIdx = filterMonth === 'all' ? null : MONTHS.indexOf(filterMonth as any);
-    const dateStr = task.dueDate || task.startDate;
-    const date = dateStr ? new Date(dateStr) : null;
-    const matchesMonth = monthIdx === null || (date && !Number.isNaN(date.getTime()) && date.getMonth() === monthIdx);
+  // Filter tasks
+  const normalizedSearch = searchText.trim().toLowerCase();
 
-    const visionTitle = (visions.find(v => v.id === task.visionId)?.title || '').trim();
-    const goalTitle = (getGoalTitle(task.goalId) || '').trim();
-    const haystack = `${task.title || ''} ${task.description || ''} ${task.place || ''} ${visionTitle} ${goalTitle}`.toLowerCase();
-    const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+  const filteredTasks = tasks
+    .filter(t => {
+      const matchesVisionHead = filterVisionHead === 'all' || t.visionHead === filterVisionHead;
+      const matchesStatus = filterStatus === 'all' || (t.status || 'not-started') === filterStatus;
 
-    return matchesHead && matchesStatus && matchesMonth && matchesSearch;
-  });
+      const monthIdx = filterMonth === 'all' ? null : MONTHS.indexOf(filterMonth as any);
+      const dateStr = t.dueDate || t.startDate;
+      const date = dateStr ? new Date(dateStr) : null;
+      const matchesMonth = monthIdx === null || (date && !Number.isNaN(date.getTime()) && date.getMonth() === monthIdx);
 
-  if (!mounted) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading tasks...</p>
-        </div>
-      </div>
-    );
-  }
+      const haystack = `${t.title || ''} ${t.description || ''} ${t.place || ''}`.toLowerCase();
+      const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
+
+      return matchesVisionHead && matchesStatus && matchesMonth && matchesSearch;
+    })
+    .sort((a, b) => {
+      const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_VALUE;
+      const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_VALUE;
+      return dateA - dateB;
+    });
+
+  if (!mounted) return null;
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Tasks</h1>
+    <div className="max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">My Tasks</h1>
+          <p className="text-gray-600">Manage your daily tasks and action items</p>
+        </div>
         <button
           onClick={handleAddTask}
-          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition"
+          className="flex items-center space-x-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white px-6 py-3 rounded-lg hover:from-orange-600 hover:to-yellow-600 transition-all shadow-lg hover:shadow-xl"
         >
-          <Plus size={20} />
-          New Task
+          <Plus className="h-5 w-5" />
+          <span>Add Task</span>
         </button>
       </div>
 
       {/* Filters */}
-      <div className="mb-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
             <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
             <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search title / description / place / vision / goal"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search title / description / place"
               className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-200"
             />
           </div>
@@ -351,13 +164,13 @@ export default function TasksPage() {
           <div>
             <label className="block text-xs font-bold text-gray-700 mb-1">Vision Head</label>
             <select
-              value={filterHead}
-              onChange={(e) => setFilterHead(e.target.value)}
+              value={filterVisionHead}
+              onChange={(e) => setFilterVisionHead(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
-              {uniqueHeads.map((h) => (
-                <option key={h} value={h}>{h}</option>
+              {uniqueVisionHeads.map((vh) => (
+                <option key={vh} value={vh}>{vh}</option>
               ))}
             </select>
           </div>
@@ -398,10 +211,9 @@ export default function TasksPage() {
 
           <div className="flex items-end gap-2">
             <button
-              type="button"
               onClick={() => {
-                setSearchTerm('');
-                setFilterHead('all');
+                setSearchText('');
+                setFilterVisionHead('all');
                 setFilterStatus('all');
                 setFilterMonth('all');
               }}
@@ -415,109 +227,100 @@ export default function TasksPage() {
         <p className="mt-3 text-sm text-gray-600">Showing {filteredTasks.length} of {tasks.length} tasks</p>
       </div>
 
+      {/* Tasks Grid */}
       {filteredTasks.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No tasks found. Create one to get started!</p>
+          <div className="text-gray-400 mb-4">
+            <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks found</h3>
+          <p className="text-gray-600 mb-4">Try adjusting your filters or create a new task.</p>
+          <button
+            onClick={handleAddTask}
+            className="inline-flex items-center space-x-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Task</span>
+          </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTasks.map(task => {
-            const vision = visions.find(v => v.id === task.visionId);
-            const goalTitle = getGoalTitle(task.goalId);
-            const cardImage =
-              (task.imageUrl || '').trim() ||
-              (vision?.imageUrl || '').trim() ||
-              String((vision as any)?.categoryImageUrl || '').trim() ||
-              (task.visionHead ? getDefaultCategoryImage(String(task.visionHead)) : getDefaultCategoryImage('Life'));
-
-            return (
-              <div
-                key={task.id}
-                className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 flex flex-col h-full ${
-                  task.completed ? 'border-gray-300 opacity-60' : 'border-orange-200'
-                }`}
-              >
-                {/* Image header (EXACT Vision style) */}
-                <div className="relative h-48 bg-gray-100 overflow-hidden">
-                  <img
-                    src={cardImage}
-                    alt={task.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        'https://via.placeholder.com/800x400?text=Image+Not+Found';
-                    }}
-                  />
-                  {/* Top-right chips */}
-                  <div className="absolute top-3 right-3 flex gap-2">
-                    {task.visionHead && (
-                      <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow">
-                        {task.visionHead}
-                      </span>
-                    )}
-                    {task.status && (
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold shadow ${
-                        task.completed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'
-                      }`}>
-                        {task.completed ? 'Done' : task.status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card content (EXACT Vision style) */}
-                <div className="flex-1 flex flex-col p-5 space-y-2">
-                  <h3 className={`text-lg font-bold mb-2 line-clamp-2 ${task.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>{task.title}</h3>
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">{task.description}</p>
-
-                  <div className="space-y-2 text-xs text-gray-700">
-                    {vision && <div className="flex items-center gap-2">🎯 {vision.title}</div>}
-                    {task.dueDate && <div className="flex items-center gap-2">📅 {new Date(task.dueDate).toLocaleDateString()}</div>}
-                    {task.place && <div className="flex items-center gap-2">📍 {task.place}</div>}
-                  </div>
-                  {task.todos && task.todos.length > 0 && (
-                    <div className="mb-2 text-xs text-gray-700">
-                      <span className="font-semibold">Todos:</span> {task.todos.filter(t => Boolean(t.completed)).length}/{task.todos.length}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
+          {filteredTasks.map((task) => (
+            <div key={task.id} className="w-80 min-w-[300px] max-w-[300px] bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
+              {/* Card Image */}
+              <div className="relative h-48 overflow-hidden">
+                <img
+                  src={task.imageUrl || 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=800&q=80'}
+                  alt={task.title}
+                  className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                />
+                <div className="absolute top-3 right-3 flex items-center gap-2">
+                  {task.visionHead && (
+                    <div className={`${CATEGORY_COLORS[task.visionHead]?.bg || 'bg-gray-600'} ${CATEGORY_COLORS[task.visionHead]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-bold`}>
+                      {task.visionHead}
                     </div>
                   )}
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition"
-                    >
-                      Done
-                    </button>
-                    <button
-                      onClick={() => handleEditTask(task)}
-                      className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTask(task.id)}
-                      className="flex-1 px-3 py-2 bg-red-100 text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
-                    >
-                      Delete
-                    </button>
-                  </div>
                 </div>
               </div>
-            );
-          })}
+
+              {/* Card Content */}
+              <div className="p-5 flex-1 flex flex-col">
+                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{task.title}</h3>
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{task.description}</p>
+
+                <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                  {task.place && <div className="flex items-center gap-2">📍 {task.place}</div>}
+                  {task.dueDate && (
+                    <div className="flex items-center gap-2">
+                      📅 {new Date(task.dueDate).toLocaleDateString()}
+                      {task.timeStart && ` @ ${task.timeStart}`}
+                    </div>
+                  )}
+                  {task.status && (
+                    <div className="flex items-center gap-2">
+                      ✓ {task.status}
+                    </div>
+                  )}
+                </div>
+
+                {/* Card Buttons */}
+                <div className="mt-4 flex gap-2">
+                  <button
+                    className="flex-1 px-3 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white text-xs font-bold rounded-lg hover:from-orange-600 hover:to-yellow-600 transition"
+                  >
+                    Done
+                  </button>
+                  <button
+                    onClick={() => handleEditTask(task)}
+                    className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTask(task.id)}
+                    className="flex-1 px-3 py-2 bg-red-100 text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      <TaskModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveTask}
-        editingTask={editingTask}
-        formState={formState}
-        setFormState={setFormState}
-        visions={visions}
-        goals={goalOptions}
-        visionOptionsForHead={visionOptionsForHead}
-        goalOptionsForVision={goalOptionsForVision}
-      />
+      {/* Modal */}
+      {isModalOpen && (
+        <TaskModal
+          task={editingTask}
+          onSave={handleSaveTask}
+          onClose={() => setIsModalOpen(false)}
+          goals={goals}
+          visions={visions}
+        />
+      )}
     </div>
   );
 }

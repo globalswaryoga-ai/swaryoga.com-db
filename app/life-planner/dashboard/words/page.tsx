@@ -94,6 +94,10 @@ export default function WordsPage() {
   const [filterType, setFilterType] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterFrequency, setFilterFrequency] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>('all');
+
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   useEffect(() => {
     setMounted(true);
@@ -136,11 +140,18 @@ export default function WordsPage() {
       const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
       const matchesType = filterType === 'all' || (word.type || '') === filterType;
       const matchesCategory = filterCategory === 'all' || (word.category || '') === filterCategory;
-      const matchesFrequency =
-        filterFrequency === 'all' || (word.frequency || '') === filterFrequency;
-      return matchesSearch && matchesType && matchesCategory && matchesFrequency;
+      const matchesFrequency = filterFrequency === 'all' || (word.frequency || '') === filterFrequency;
+      const matchesStatus = filterStatus === 'all' || (word.status || 'active') === filterStatus;
+      
+      // Month filter
+      const monthIdx = filterMonth === 'all' ? null : MONTHS.indexOf(filterMonth);
+      const dateStr = word.startDate || word.endDate || '';
+      const date = dateStr ? new Date(dateStr) : null;
+      const matchesMonth = monthIdx === null || (date && !Number.isNaN(date.getTime()) && date.getMonth() === monthIdx);
+
+      return matchesSearch && matchesType && matchesCategory && matchesFrequency && matchesStatus && matchesMonth;
     });
-  }, [words, searchText, filterType, filterCategory, filterFrequency]);
+  }, [words, searchText, filterType, filterCategory, filterFrequency, filterStatus, filterMonth, MONTHS]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -257,13 +268,14 @@ export default function WordsPage() {
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 px-4 py-2 text-white font-semibold hover:from-orange-600 hover:to-yellow-600 transition"
         >
-          <Plus size={20} />
+          <Plus className="h-5 w-5" />
           Add Word
         </button>
       </div>
 
+      {/* Filters */}
       <div className="mb-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
@@ -271,63 +283,50 @@ export default function WordsPage() {
             <input
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              placeholder="Search title / description / category"
+              placeholder="Search word / category / description"
               className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-200"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Type</label>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
-            >
-              <option value="all">All</option>
-              <option value="affirmation">affirmation</option>
-              <option value="mantra">mantra</option>
-              <option value="quote">quote</option>
-              <option value="motivation">motivation</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Head</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
             <select
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              onChange={(e) => setFilterCategory(e.target.value as any)}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
-              {VISION_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+              {uniqueCategories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
               ))}
-              {uniqueCategories
-                .filter(c => !VISION_CATEGORIES.includes(c as any))
-                .map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Repeat</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
             <select
-              value={filterFrequency}
-              onChange={(e) => setFilterFrequency(e.target.value)}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
-              <option value="once">once</option>
-              <option value="daily">daily</option>
-              <option value="weekly">weekly</option>
-              <option value="monthly">monthly</option>
-              <option value="yearly">yearly</option>
-              <option value="custom">custom</option>
+              <option value="active">active</option>
+              <option value="archived">archived</option>
+              <option value="completed">completed</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+            >
+              <option value="all">All</option>
+              {MONTHS.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
             </select>
           </div>
 
@@ -336,13 +335,13 @@ export default function WordsPage() {
               type="button"
               onClick={() => {
                 setSearchText('');
-                setFilterType('all');
                 setFilterCategory('all');
-                setFilterFrequency('all');
+                setFilterStatus('all');
+                setFilterMonth('all');
               }}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
             >
-              Clear
+              Clear Filters
             </button>
           </div>
         </div>
@@ -355,7 +354,7 @@ export default function WordsPage() {
           <p className="text-gray-500 mb-4">No words found.</p>
           <button
             onClick={openCreate}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg transition"
+            className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white px-6 py-3 rounded-lg transition font-semibold"
           >
             Create your first word
           </button>

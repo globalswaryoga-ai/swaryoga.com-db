@@ -84,7 +84,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   };
 
   const availableHeads = Array.from(new Set(visions.map(v => v.category).filter(Boolean)));
-  const visionsForHead = visionOptionsForHead(formState.visionHead);
+  const visionsForHead = formState.visionHead ? visionOptionsForHead(formState.visionHead) : [];
 
   const goalsForVision = useMemo(() => {
     if (!formState.visionId) return [] as GoalOption[];

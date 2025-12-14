@@ -309,7 +309,7 @@ export default function ReminderManager({
           <p className="text-gray-500 text-lg">No reminders yet. Create your first reminder!</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max justify-items-center">
           {filteredReminders.map((reminder) => (
             <div key={reminder.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
               {/* Image Header (h-48 - Vision slider match) */}

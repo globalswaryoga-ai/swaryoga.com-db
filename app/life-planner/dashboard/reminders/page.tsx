@@ -60,6 +60,7 @@ export default function RemindersPage() {
     time: '11:00',
     frequency: 'once' as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
     customDays: 1,
+    imageUrl: DEFAULT_IMAGE,
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -110,15 +111,17 @@ export default function RemindersPage() {
       time: formData.time,
       frequency: formData.frequency,
       customDays: formData.frequency === 'custom' ? formData.customDays : undefined,
+      imageUrl: formData.imageUrl || DEFAULT_IMAGE,
     };
 
     setReminders(prev => [...prev, newReminder]);
     setFormData({
       text: '',
       date: '',
-      time: '',
+      time: '11:00',
       frequency: 'once',
       customDays: 1,
+      imageUrl: DEFAULT_IMAGE,
     });
     setError(null);
     setShowForm(false);
@@ -189,133 +192,6 @@ export default function RemindersPage() {
           Add Reminder
         </button>
       </div>
-
-      {/* Add Reminder Modal (Task-form style, keep pink theme) */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-red-500 to-pink-500 p-6 text-white flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-white">Create New Reminder</h2>
-              <button
-                onClick={() => {
-                  setShowForm(false);
-                  setError(null);
-                }}
-                className="text-2xl font-bold hover:scale-110 transition-transform"
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {error && (
-                <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  {error}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Reminder Text *</label>
-                <textarea
-                  value={formData.text}
-                  onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-                  placeholder="What should you be reminded about?"
-                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
-                  <input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
-                  <input
-                    type="time"
-                    value={formData.time}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Frequency</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {(['once', 'daily', 'weekly', 'monthly', 'yearly', 'custom'] as const).map((freq) => (
-                    <label key={freq} className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="frequency"
-                        value={freq}
-                        checked={formData.frequency === freq}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            frequency: e.target.value as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
-                          })
-                        }
-                        className="h-5 w-5 rounded-full border-2 border-pink-300 text-red-600 focus:ring-2 focus:ring-red-500 cursor-pointer"
-                      />
-                      <span className="text-sm text-gray-700 font-medium">{frequencyLabels[freq]}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {formData.frequency === 'custom' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Repeat every (days)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="365"
-                    value={formData.customDays}
-                    onChange={(e) => setFormData({ ...formData, customDays: parseInt(e.target.value) || 1 })}
-                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-3 pt-5 pb-5 border-t-2 border-pink-200 bg-gradient-to-r from-pink-50 via-white to-red-50 sticky bottom-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false);
-                    setError(null);
-                    setFormData({
-                      text: '',
-                      date: today,
-                      time: '11:00',
-                      frequency: 'once',
-                      customDays: 1,
-                    });
-                  }}
-                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAddReminder}
-                  className="px-6 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-colors disabled:opacity-60"
-                >
-                  Create Reminder
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Filters */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
@@ -393,67 +269,150 @@ export default function RemindersPage() {
         <p className="mt-3 text-sm text-gray-600">Showing {filteredReminders.length} of {reminders.length} reminders</p>
       </div>
 
-      {/* Reminders List */}
-      {filteredReminders.length === 0 ? (
-        <div className="rounded-3xl border-2 border-dashed border-pink-200 p-12 text-center">
-          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">No reminders yet</p>
-          <p className="text-gray-500 text-sm mt-1">Create your first reminder to get started</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredReminders.map((reminder) => (
-            <div key={reminder.id} className={`bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 flex flex-col h-full ${
-              reminder.completed ? 'border-green-300 opacity-70' : 'border-pink-200'
-            }`}>
-              {/* Image header (EXACT Vision style, with default image) */}
-              <div className="relative h-40 bg-gray-100 overflow-hidden">
-                <img
-                  src={reminder.imageUrl || DEFAULT_IMAGE}
-                  alt={reminder.text}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = DEFAULT_IMAGE;
-                  }}
+      {/* Add Reminder Modal (Task-form style, keep pink theme) */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-red-500 to-pink-500 p-6 text-white flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white">Create New Reminder</h2>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setError(null);
+                }}
+                className="text-2xl font-bold hover:scale-110 transition-transform"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {error && (
+                <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reminder Text *</label>
+                <textarea
+                  value={formData.text}
+                  onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                  placeholder="What should you be reminded about?"
+                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
+                  rows={3}
                 />
-                {/* Top-right status chip */}
-                <div className="absolute top-3 right-3 flex gap-2">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold shadow ${
-                    reminder.completed ? 'bg-green-500 text-white' : 'bg-white text-pink-600'
-                  }`}>
-                    {reminder.completed ? 'Done' : 'Pending'}
-                  </span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
+                <input
+                  type="text"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                />
+                {formData.imageUrl && (
+                  <div className="mt-2 rounded-lg overflow-hidden border border-pink-200">
+                    <img src={formData.imageUrl} alt="Preview" className="w-full h-40 object-cover" onError={(e) => (e.currentTarget.src = DEFAULT_IMAGE)} />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
+                  <input
+                    type="time"
+                    value={formData.time}
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                  />
                 </div>
               </div>
-              {/* Card content (EXACT Vision style) */}
-              <div className="flex-1 flex flex-col p-6 space-y-2">
-                <h3 className="font-bold text-2xl mb-1 text-gray-900">{reminder.text}</h3>
-                <div className="grid grid-cols-2 gap-2 text-base text-gray-600 mb-2">
-                  <div><span className="font-semibold">Date:</span> {new Date(reminder.date).toLocaleDateString()}</div>
-                  <div><span className="font-semibold">Time:</span> {reminder.time}</div>
-                  <div><span className="font-semibold">Repeat:</span> {reminder.frequency === 'custom' ? `Every ${reminder.customDays} days` : frequencyLabels[reminder.frequency]}</div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Frequency</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {(['once', 'daily', 'weekly', 'monthly', 'yearly', 'custom'] as const).map((freq) => (
+                    <label key={freq} className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value={freq}
+                        checked={formData.frequency === freq}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            frequency: e.target.value as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
+                          })
+                        }
+                        className="h-5 w-5 rounded-full border-2 border-pink-300 text-red-600 focus:ring-2 focus:ring-red-500 cursor-pointer"
+                      />
+                      <span className="text-sm text-gray-700 font-medium">{frequencyLabels[freq]}</span>
+                    </label>
+                  ))}
                 </div>
-                <div className="flex gap-2 mt-auto pt-3 border-t">
-                  <button
-                    onClick={() => setReminders(prev => prev.map((r) => r.id === reminder.id ? { ...r, completed: !reminder.completed } : r))}
-                    className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base rounded transition font-bold ${
-                      reminder.completed ? 'bg-green-100 text-green-700' : 'bg-pink-50 text-pink-600 hover:bg-pink-100'
-                    }`}
-                  >
-                    {reminder.completed ? '✔️' : '⬜'} Done
-                  </button>
-                  <button
-                    onClick={() => handleDeleteReminder(reminder.id)}
-                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-base bg-red-50 text-red-600 hover:bg-red-100 rounded transition font-bold"
-                  >
-                    <X className="h-5 w-5" /> Delete
-                  </button>
+              </div>
+
+              {formData.frequency === 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Repeat every (days)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={formData.customDays}
+                    onChange={(e) => setFormData({ ...formData, customDays: parseInt(e.target.value) || 1 })}
+                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                  />
                 </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-5 pb-5 border-t-2 border-pink-200 bg-gradient-to-r from-pink-50 via-white to-red-50 sticky bottom-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false);
+                    setError(null);
+                    setFormData({
+                      text: '',
+                      date: today,
+                      time: '11:00',
+                      frequency: 'once',
+                      customDays: 1,
+                      imageUrl: DEFAULT_IMAGE,
+                    });
+                  }}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddReminder}
+                  className="px-6 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-colors disabled:opacity-60"
+                >
+                  Create Reminder
+                </button>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       )}
+
     </div>
   );
 }
