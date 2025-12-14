@@ -152,11 +152,19 @@ function CheckoutInner() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        const message = data?.error || 'Failed to initiate payment';
+        const message = data?.error || data?.details || 'Failed to initiate payment';
+        console.error('PayU initiation error:', { status: response.status, data });
         throw new Error(message);
       }
 
-      const { paymentUrl, params } = await response.json();
+      const data = await response.json();
+      
+      if (!data.success || !data.paymentUrl || !data.params) {
+        console.error('Invalid PayU response:', data);
+        throw new Error(data.error || 'Invalid payment gateway response');
+      }
+
+      const { paymentUrl, params } = data;
 
       if (!paymentUrl || !params) {
         throw new Error('Invalid PayU initiation response');

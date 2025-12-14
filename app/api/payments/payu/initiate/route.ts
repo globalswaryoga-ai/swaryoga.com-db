@@ -20,6 +20,7 @@ interface PaymentRequest {
   items?: Array<{ productId?: string; name: string; price: number; quantity: number }>;
   successUrl: string;
   failureUrl: string;
+  currency?: string;
 }
 
 function sanitizePayUField(value: unknown): string {
@@ -45,6 +46,15 @@ export async function POST(request: NextRequest) {
       !body.successUrl ||
       !body.failureUrl
     ) {
+      console.error('PayU validation error: Missing or invalid required fields', {
+        amount: Number.isFinite(amount),
+        productInfo: !!body.productInfo,
+        firstName: !!body.firstName,
+        email: !!body.email,
+        phone: !!body.phone,
+        successUrl: !!body.successUrl,
+        failureUrl: !!body.failureUrl,
+      });
       return NextResponse.json(
         { error: 'Missing or invalid required fields' },
         { status: 400 }
@@ -53,8 +63,16 @@ export async function POST(request: NextRequest) {
 
     // Validate PayU credentials
     if (!PAYU_MERCHANT_KEY || !PAYU_MERCHANT_SALT) {
+      console.error('PayU credentials not configured:', {
+        hasKey: !!PAYU_MERCHANT_KEY,
+        hasSalt: !!PAYU_MERCHANT_SALT,
+        mode: process.env.PAYU_MODE || 'TEST',
+      });
       return NextResponse.json(
-        { error: 'PayU credentials not configured' },
+        { 
+          error: 'PayU credentials not configured. Please set PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT in environment variables.',
+          details: 'Contact admin to configure payment gateway'
+        },
         { status: 500 }
       );
     }
@@ -72,6 +90,7 @@ export async function POST(request: NextRequest) {
         quantity: item.quantity,
       })),
       total: amount,
+      currency: body.currency || 'INR',
       status: 'pending',
       paymentStatus: 'pending',
       shippingAddress: {
@@ -87,6 +106,13 @@ export async function POST(request: NextRequest) {
     });
     await order.save();
     const txnid = order._id.toString();
+
+    console.log('PayU payment initiated:', {
+      txnid,
+      amount,
+      email: body.email,
+      mode: process.env.PAYU_MODE || 'TEST',
+    });
 
     // Prepare PayU parameters
     const payuParams: PayUParams & { service_provider: string } = {
@@ -122,7 +148,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error initiating PayU payment:', error);
     return NextResponse.json(
-      { error: 'Failed to initiate payment' },
+      { 
+        error: 'Failed to initiate payment',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
