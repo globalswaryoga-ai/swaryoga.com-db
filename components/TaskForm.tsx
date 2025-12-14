@@ -2,17 +2,16 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { Calendar, Image, Zap } from 'lucide-react';
-import { Task, VisionCategory } from '@/lib/types/lifePlanner';
+import { Task } from '@/lib/types/lifePlanner';
 
 interface TaskFormProps {
   onSubmit: (taskData: Task) => void;
   onCancel: () => void;
   initialData?: Task;
   goals: Array<{ id: string; title: string }>;
-  visionHeads?: VisionCategory[];
 }
 
-const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, goals, visionHeads = [] }) => {
+const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, goals }) => {
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
     description: initialData?.description || '',
