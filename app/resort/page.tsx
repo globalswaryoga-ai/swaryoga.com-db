@@ -326,7 +326,7 @@ export default function ResortPage() {
                     onClick={() => setShowBookingForm(true)}
                     className="bg-green-600 text-white px-6 py-3 rounded-full font-semibold hover:bg-green-700 transition"
                   >
-                    Become a Member - ₹11,000 to ₹21,000
+                    Become a Member - ₹21,777
                   </button>
                 </div>
                 <div className="bg-white rounded-2xl p-6">
@@ -338,7 +338,7 @@ export default function ResortPage() {
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Membership Cost</p>
-                      <p className="text-3xl font-bold text-green-600">₹11,000 - ₹21,000</p>
+                      <p className="text-3xl font-bold text-green-600">₹21,777</p>
                     </div>
                   </div>
                 </div>
