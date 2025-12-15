@@ -209,6 +209,22 @@ export default function ResortPage() {
           </div>
         </section>
 
+        {/* Resort Opening Notice */}
+        <section className="bg-gradient-to-r from-purple-100 to-blue-100 py-6 px-4">
+          <div className="container mx-auto">
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-2xl">🎉</span>
+              <div className="text-center">
+                <p className="text-gray-800 font-semibold text-lg">
+                  Resort Opening <span className="text-purple-700 font-bold">22 December 2026</span>
+                </p>
+                <p className="text-gray-700 text-sm mt-1">Limited Early Bird Memberships Available</p>
+              </div>
+              <span className="text-2xl">✨</span>
+            </div>
+          </div>
+        </section>
+
         {/* Resort Overview Section */}
         <section className="py-20 bg-white">
           <div className="container mx-auto px-4 md:px-6">
