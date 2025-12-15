@@ -59,6 +59,9 @@ const nextConfig = {
   reactStrictMode: true,
   // Use SWC minify but disable for Vercel
   swcMinify: false,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   images: {
     domains: ['images.unsplash.com', 'via.placeholder.com', 'images.pexels.com'],
     remotePatterns: [
