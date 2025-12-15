@@ -57,8 +57,8 @@ buildWorkshopOverrides();
 
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
-  // Don't use standalone mode on Vercel - use default output
+  // Use SWC minify but disable for Vercel
+  swcMinify: false,
   images: {
     domains: ['images.unsplash.com', 'via.placeholder.com', 'images.pexels.com'],
     remotePatterns: [
