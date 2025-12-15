@@ -241,3 +241,25 @@ const investmentSchema = new mongoose.Schema({
 investmentSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
 
 export const Investment = mongoose.models.Investment || mongoose.model('Investment', investmentSchema);
+// Resort Booking Schema
+const resortBookingSchema = new mongoose.Schema({
+  userId: { type: String, required: true },
+  userEmail: { type: String, required: true },
+  userName: { type: String, required: true },
+  userPhone: { type: String },
+  checkinDate: { type: Date, required: true },
+  checkoutDate: { type: Date, required: true },
+  roomType: { type: String, required: true, enum: ['Deluxe Garden View', 'Traditional Bamboo House', 'Premium Mountain View'] },
+  adults: { type: Number, required: true, min: 1 },
+  children: { type: Number, default: 0 },
+  totalAmount: { type: Number, required: true },
+  status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'completed'], default: 'pending' },
+  specialRequests: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+resortBookingSchema.index({ userEmail: 1, createdAt: -1 });
+resortBookingSchema.index({ status: 1 });
+
+export const ResortBooking = mongoose.models.ResortBooking || mongoose.model('ResortBooking', resortBookingSchema);
