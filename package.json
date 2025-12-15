@@ -18,7 +18,6 @@
     "pm2:monit": "pm2 monit"
   },
   "dependencies": {
-    "@bidyashish/panchang": "^1.0.10",
     "@supabase/supabase-js": "^2.40.0",
     "axios": "^1.7.0",
     "bcryptjs": "^2.4.3",
