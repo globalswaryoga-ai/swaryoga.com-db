@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 
+// Force rebuild - DEBUG 2025-12-15
 export async function GET() {
   try {
     const mongoUri = process.env.MONGODB_URI;
@@ -54,8 +55,9 @@ export async function GET() {
       message: 'Failed to connect to MongoDB',
       errorName: errorName,
       errorMessage: errorMessage,
-      mongoUriFormat: process.env.MONGODB_URI ? 
-        process.env.MONGODB_URI.substring(0, 30) + '...' : 'NOT SET',
+      mongoUri: process.env.MONGODB_URI,
+      mongoUriLength: process.env.MONGODB_URI?.length,
+      mongoUriHasNewline: process.env.MONGODB_URI?.includes('\n'),
       timestamp: new Date().toISOString()
     }, { status: 500 });
   }
