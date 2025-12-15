@@ -2,173 +2,289 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import HeaderReminders from './HeaderReminders';
-import { Reminder } from '@/lib/types/lifePlanner';
+import { Menu, X, ShoppingCart, User, LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { initializeAutoLogin } from '@/lib/autoLoginManager';
 
 export default function Navigation() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [cartCount, setCartCount] = useState(0);
+  const [userDisplayName, setUserDisplayName] = useState<string>('');
+  const pathname = usePathname();
 
+  const navigation = [
+    { name: 'Home', href: '/' },
+    { name: 'About', href: '/about' },
+    { name: 'Workshops', href: '/workshops' },
+    { name: 'Resort', href: '/resort' },
+    { name: 'Blog', href: '/blog' },
+    { name: 'Contact', href: '/contact' },
+  ];
+
+  // Handle scroll effect
   useEffect(() => {
-    // Initialize auto-login
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Initialize auto-login and load user data
+  useEffect(() => {
     initializeAutoLogin();
 
     // Check if user is logged in
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        // Set display name
+        const name = userData.name || userData.email?.split('@')[0] || 'User';
+        setUserDisplayName(name.split(' ')[0]);
       } catch (err) {
         console.log('Error parsing user data:', err);
       }
     }
 
-    // Load reminders from localStorage
+    // Load reminders from localStorage (for future features)
     const storedReminders = localStorage.getItem('swar-life-planner-visions');
     if (storedReminders) {
       try {
-        const visions = JSON.parse(storedReminders);
-        const allReminders: Reminder[] = [];
-        // Ensure visions is an array before calling forEach
-        if (Array.isArray(visions)) {
-          visions.forEach((vision: any) => {
-            if (vision.reminders && Array.isArray(vision.reminders)) {
-              allReminders.push(...vision.reminders);
-            }
-          });
-        }
-        setReminders(allReminders);
+        // JSON.parse(storedReminders); // Reminders available in visions data if needed for future features
       } catch (err) {
         console.log('Error loading reminders:', err);
       }
     }
+
+    // Load cart count
+    const cartData = localStorage.getItem('cart');
+    if (cartData) {
+      try {
+        const cart = JSON.parse(cartData);
+        setCartCount(Array.isArray(cart) ? cart.length : 0);
+      } catch (err) {
+        setCartCount(0);
+      }
+    }
   }, []);
 
-  const closeMenu = () => setIsOpen(false);
+  const isActive = (path: string) => pathname === path;
 
-  const menuLinkClass = "block px-4 py-3 rounded-lg text-neutral-700 hover:text-primary-600 hover:bg-primary-50 transition font-medium text-base active:scale-95";
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    setUser(null);
+    setUserDisplayName('');
+    setIsMenuOpen(false);
+    window.location.href = '/';
+  };
+
+  const closeMenu = () => setIsMenuOpen(false);
 
   return (
-    <nav className="bg-white shadow-md sticky top-0 z-50 border-b-2 border-primary-100 safe-area-left safe-area-right">
-      <div className="container mx-auto px-4 sm:px-6 flex justify-between items-center py-2 sm:py-3 min-h-[64px]">
-        <Link 
-          href="/" 
-          className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-eco bg-clip-text text-transparent hover:opacity-80 transition whitespace-nowrap flex-shrink-0"
-          onClick={closeMenu}
-        >
-          🧘 Swar Yoga
-        </Link>
-
-        {/* Mobile Menu Button */}
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="md:hidden flex flex-col justify-center w-10 h-10 p-1 -mr-2 touch-target"
-          aria-label="Toggle menu"
-          aria-expanded={isOpen}
-        >
-          <span className={`block w-6 h-0.5 bg-primary-700 transition-all duration-300 ${isOpen ? 'rotate-45 translate-y-2.5' : ''}`}></span>
-          <span className={`block w-6 h-0.5 bg-primary-700 transition-all duration-300 my-1.5 ${isOpen ? 'opacity-0' : ''}`}></span>
-          <span className={`block w-6 h-0.5 bg-primary-700 transition-all duration-300 ${isOpen ? '-rotate-45 -translate-y-2.5' : ''}`}></span>
-        </button>
-
-        {/* Desktop Menu */}
-        <div className="hidden md:flex space-x-2 lg:space-x-6 items-center flex-wrap justify-end">
-          <Link href="/" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base py-2 px-2">
-            Home
-          </Link>
-          <Link href="/about" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base py-2 px-2">
-            About
-          </Link>
-          <Link href="/resort" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base py-2 px-2">
-            Resort
-          </Link>
-          <Link href="/blog" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base py-2 px-2">
-            Journal
-          </Link>
-          <Link href="/workshops" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base py-2 px-2">
-            Workshops
-          </Link>
-          <Link href="/contact" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base py-2 px-2">
-            Contact
-          </Link>
-          <Link href="/cart" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base py-2 px-2 relative">
-            🛒 <span className="hidden lg:inline">Cart</span>
-          </Link>
-          
-          {/* Header Reminders */}
-          <div className="hidden lg:block">
-            <HeaderReminders reminders={reminders} />
+    <>
+      {/* Top Bar */}
+      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white py-2 px-4 hidden lg:block">
+        <div className="container mx-auto flex items-center justify-between text-sm">
+          <div className="flex items-center space-x-2">
+            <span>Contact: globalswaryoga@gmail.com</span>
           </div>
-          
-          {user ? (
-            <div className="flex items-center gap-2 lg:gap-3 ml-2 lg:ml-4 border-l border-gray-300 pl-2 lg:pl-4">
-              <Link href="/profile" className="text-neutral-700 hover:text-primary-600 transition font-medium text-sm lg:text-base py-2 px-2 touch-target">
-                👤 <span className="hidden lg:inline">{user.name.split(' ')[0]}</span>
-              </Link>
-            </div>
-          ) : (
-            <Link href="/signin" className="bg-primary-600 text-white px-3 lg:px-5 py-2 rounded-lg hover:bg-primary-700 transition shadow-eco font-medium text-sm lg:text-base whitespace-nowrap ml-2 lg:ml-4 touch-target min-h-10">
-              Sign In
-            </Link>
-          )}
+          <div className="flex items-center space-x-4">
+            <span>Transform Your Life Through Yoga</span>
+          </div>
         </div>
+      </div>
 
-        {/* Mobile Menu */}
-        {isOpen && (
-          <div className="absolute top-full left-0 right-0 bg-white shadow-xl md:hidden border-t-2 border-primary-100 safe-area-left safe-area-right max-h-[90vh] overflow-y-auto">
-            <div className="flex flex-col space-y-1 p-4">
-              <Link href="/" className={menuLinkClass} onClick={closeMenu}>
-                🏠 Home
-              </Link>
-              <Link href="/about" className={menuLinkClass} onClick={closeMenu}>
-                ℹ️ About
-              </Link>
-              <Link href="/resort" className={menuLinkClass} onClick={closeMenu}>
-                🏖️ Resort
-              </Link>
-              <Link href="/blog" className={menuLinkClass} onClick={closeMenu}>
-                📘 Journal
-              </Link>
-              <Link href="/workshops" className={menuLinkClass} onClick={closeMenu}>
-                📚 Workshops
-              </Link>
-              <Link href="/calendar" className={menuLinkClass} onClick={closeMenu}>
-                📅 Calendar
-              </Link>
-              <Link href="/contact" className={menuLinkClass} onClick={closeMenu}>
-                📞 Contact
-              </Link>
-              <Link href="/cart" className={menuLinkClass} onClick={closeMenu}>
-                🛒 Cart
-              </Link>
-              
-              <hr className="border-gray-200 my-2" />
-              
-              {/* Mobile Reminders */}
-              <div className="md:hidden">
-                <HeaderReminders reminders={reminders} />
+      {/* Main Header */}
+      <header className={`sticky top-0 z-50 transition-all duration-300 ${
+        isScrolled 
+          ? 'bg-white/95 backdrop-blur-md shadow-lg border-b border-gray-100' 
+          : 'bg-white shadow-md'
+      }`}>
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <Link href="/" className="flex items-center space-x-3 group">
+              <div className="relative">
+                <img 
+                  src="https://i.postimg.cc/VkVFzhxB/facebook_logo.png" 
+                  alt="Swar Yoga Logo" 
+                  className="h-10 sm:h-12 w-auto transition-transform group-hover:scale-105"
+                />
               </div>
-              
+              <div className="flex flex-col">
+                <span className="text-2xl font-bold text-black">
+                  Swar Yoga
+                </span>
+                <div className="text-xs text-gray-500 -mt-1 hidden sm:block">The Science of Breath</div>
+              </div>
+            </Link>
+
+            {/* Desktop Navigation */}
+            <nav className="hidden lg:flex items-center space-x-1">
+              {navigation.map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`relative px-4 py-2 rounded-lg font-medium transition-all duration-200 group ${
+                    isActive(item.href) 
+                      ? 'text-green-600 bg-green-50' 
+                      : 'text-gray-700 hover:text-green-600 hover:bg-green-50'
+                  }`}
+                >
+                  {item.name}
+                  {isActive(item.href) && (
+                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-green-600 rounded-full"></div>
+                  )}
+                  <div className="absolute inset-0 rounded-lg bg-green-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                </Link>
+              ))}
+            </nav>
+
+            {/* Right Side Actions */}
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Cart */}
+              <Link
+                href="/cart"
+                className="relative p-2 text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200 group touch-manipulation"
+              >
+                <ShoppingCart className="h-6 w-6" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                    {cartCount}
+                  </span>
+                )}
+                <div className="absolute inset-0 rounded-lg bg-green-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+              </Link>
+
+              {/* User is logged in */}
               {user ? (
-                <div className="flex flex-col gap-2">
-                  <Link href="/profile" className={menuLinkClass} onClick={closeMenu}>
-                    👤 Profile ({user.name.split(' ')[0]})
+                <div className="hidden sm:flex items-center space-x-2">
+                  <Link
+                    href="/profile"
+                    className="flex items-center space-x-2 bg-green-50 px-3 py-2 rounded-lg hover:bg-green-100 transition-colors"
+                  >
+                    <User className="h-5 w-5 text-green-600" />
+                    <span className="font-medium text-green-700">{userDisplayName}</span>
                   </Link>
-                  <Link href="/life-planner/dashboard" className={menuLinkClass} onClick={closeMenu}>
-                    🎯 Life Planner
-                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-medium group relative"
+                  >
+                    <LogOut className="h-5 w-5" />
+                    <span>Logout</span>
+                    <div className="absolute inset-0 rounded-lg bg-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                  </button>
                 </div>
               ) : (
-                <Link href="/signin" className="w-full bg-primary-600 text-white px-4 py-3 rounded-lg text-center hover:bg-primary-700 transition font-medium touch-target min-h-12 block" onClick={closeMenu}>
-                  Sign In
-                </Link>
+                <>
+                  {/* Sign In */}
+                  <Link
+                    href="/signin"
+                    className="hidden sm:flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-medium group relative"
+                  >
+                    <span>Sign In</span>
+                    <div className="absolute inset-0 rounded-lg bg-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                  </Link>
+
+                  {/* Sign Up */}
+                  <Link
+                    href="/signup"
+                    className="hidden sm:block bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
+                  >
+                    Sign Up
+                  </Link>
+                </>
               )}
+
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="lg:hidden p-2 text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+              >
+                {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
             </div>
           </div>
-        )}
-      </div>
-    </nav>
+
+          {/* Mobile Menu */}
+          {isMenuOpen && (
+            <div className="lg:hidden mt-4 pb-4 border-t border-gray-200 animate-in slide-in-from-top duration-200">
+              <nav className="flex flex-col space-y-2 mt-4">
+                {navigation.map((item) => (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 touch-manipulation ${
+                      isActive(item.href) 
+                        ? 'text-green-600 bg-green-50 border-l-4 border-green-600' 
+                        : 'text-gray-700 hover:text-green-600 hover:bg-green-50'
+                    }`}
+                    onClick={closeMenu}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+                
+                {/* Mobile Actions */}
+                <div className="flex flex-col space-y-2 pt-4 border-t border-gray-200">
+                  <Link
+                    href="/cart"
+                    className="flex items-center space-x-2 px-4 py-3 text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200 touch-manipulation"
+                    onClick={closeMenu}
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                    <span>Cart {cartCount > 0 && `(${cartCount})`}</span>
+                  </Link>
+                  
+                  {user ? (
+                    <>
+                      <Link
+                        href="/profile"
+                        className="flex items-center space-x-2 px-4 py-3 bg-green-50 text-green-700 rounded-lg touch-manipulation"
+                        onClick={closeMenu}
+                      >
+                        <User className="h-5 w-5" />
+                        <span className="font-medium">{userDisplayName}</span>
+                      </Link>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setIsMenuOpen(false);
+                        }}
+                        className="flex items-center space-x-2 px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 font-medium touch-manipulation"
+                      >
+                        <LogOut className="h-5 w-5" />
+                        <span>Logout</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/signin"
+                        className="flex items-center space-x-2 px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 font-medium touch-manipulation"
+                        onClick={closeMenu}
+                      >
+                        <span>Sign In</span>
+                      </Link>
+                      <Link
+                        href="/signup"
+                        className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-3 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 text-center font-medium shadow-lg touch-manipulation"
+                        onClick={closeMenu}
+                      >
+                        Sign Up
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </nav>
+            </div>
+          )}
+        </div>
+      </header>
+    </>
   );
 }
