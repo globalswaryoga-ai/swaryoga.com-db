@@ -2,11 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { MapPin, Sparkles, Leaf, Sun, Moon, X, Plus, Minus } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const ROOM_TYPES = {
   'Deluxe Garden View': 3500,
@@ -94,7 +92,6 @@ const dailyArtistLines = [
 ];
 
 export default function ResortPage() {
-  const router = useRouter();
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -192,7 +189,7 @@ export default function ResortPage() {
         <section className="relative overflow-hidden">
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center opacity-60" />
           <div className="relative z-10 container mx-auto px-4 py-24 text-white">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <div>
               <p className="uppercase tracking-[0.4em] text-sm text-white/70 mb-4">Resort Sanctuary</p>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
                 Swar Resort &amp; Retreats
@@ -213,27 +210,21 @@ export default function ResortPage() {
                   Explore Calendar
                 </Link>
               </div>
-            </motion.div>
+            </div>
           </div>
         </section>
 
         {/* Highlights Section */}
         <section className="container mx-auto px-4 py-16 space-y-12">
           <div className="grid md:grid-cols-2 gap-8">
-            {resortHighlights.map((highlight, idx) => (
-              <motion.article
-                key={highlight.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: idx * 0.1 }}
-                className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-2xl transition border border-gray-100"
-              >
+            {resortHighlights.map((highlight) => (
+              <article key={highlight.title} className="bg-white rounded-3xl p-8 shadow-lg hover:shadow-2xl transition border border-gray-100">
                 <div className="flex items-center gap-3 mb-4">
                   {highlight.icon}
                   <h3 className="text-xl font-semibold text-gray-900">{highlight.title}</h3>
                 </div>
                 <p className="text-gray-600 leading-relaxed">{highlight.description}</p>
-              </motion.article>
+              </article>
             ))}
           </div>
 
@@ -273,14 +264,8 @@ export default function ResortPage() {
               <h2 className="text-3xl font-bold text-gray-900">Room Types</h2>
             </div>
             <div className="grid gap-6 md:grid-cols-3">
-              {roomTypes.map((room, idx) => (
-                <motion.article
-                  key={room.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: idx * 0.1 }}
-                  className="bg-white border border-gray-100 rounded-3xl p-6 shadow-lg hover:-translate-y-1 transition"
-                >
+              {roomTypes.map((room) => (
+                <article key={room.name} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-lg hover:-translate-y-1 transition">
                   <h3 className="text-2xl font-semibold text-gray-900 mb-2">{room.name}</h3>
                   <p className="text-4xl font-bold text-green-600 mb-4">₹{room.price}/night</p>
                   <p className="text-gray-600 mb-4">{room.description}</p>
@@ -292,7 +277,7 @@ export default function ResortPage() {
                       </div>
                     ))}
                   </div>
-                </motion.article>
+                </article>
               ))}
             </div>
           </div>
@@ -305,15 +290,10 @@ export default function ResortPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {amenities.map((amenity) => (
-                <motion.div
-                  key={amenity.name}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  className="bg-white rounded-2xl p-6 shadow-lg text-center hover:shadow-xl transition"
-                >
+                <div key={amenity.name} className="bg-white rounded-2xl p-6 shadow-lg text-center hover:shadow-xl transition">
                   <div className="text-4xl mb-2">{amenity.icon}</div>
                   <p className="text-gray-900 font-semibold text-sm">{amenity.name}</p>
-                </motion.div>
+                </div>
               ))}
             </div>
           </div>
@@ -409,198 +389,190 @@ export default function ResortPage() {
       </main>
 
       {/* Booking Form Modal */}
-      <AnimatePresence>
-        {showBookingForm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowBookingForm(false)}
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      {showBookingForm && (
+        <div
+          onClick={() => setShowBookingForm(false)}
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-bold text-gray-900">Book Your Stay</h2>
-                <button
-                  onClick={() => setShowBookingForm(false)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-gray-900">Book Your Stay</h2>
+              <button
+                onClick={() => setShowBookingForm(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitBooking} className="space-y-6">
+              {/* Personal Information */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900">Personal Information</h3>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={userEmail}
+                  onChange={(e) => setUserEmail(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                  required
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone (Optional)"
+                  value={userPhone}
+                  onChange={(e) => setUserPhone(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                />
               </div>
 
-              <form onSubmit={handleSubmitBooking} className="space-y-6">
-                {/* Personal Information */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900">Personal Information</h3>
+              {/* Dates */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900">Your Dates</h3>
+                <div className="grid md:grid-cols-2 gap-4">
                   <input
-                    type="email"
-                    placeholder="Email"
-                    value={userEmail}
-                    onChange={(e) => setUserEmail(e.target.value)}
+                    type="date"
+                    value={checkinDate}
+                    onChange={(e) => setCheckinDate(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
                     required
                   />
                   <input
-                    type="text"
-                    placeholder="Full Name"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
+                    type="date"
+                    value={checkoutDate}
+                    onChange={(e) => setCheckoutDate(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
                     required
                   />
-                  <input
-                    type="tel"
-                    placeholder="Phone (Optional)"
-                    value={userPhone}
-                    onChange={(e) => setUserPhone(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                  />
                 </div>
+                {days > 0 && <p className="text-sm text-gray-600">Duration: {days} nights</p>}
+              </div>
 
-                {/* Dates */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900">Your Dates</h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <input
-                      type="date"
-                      value={checkinDate}
-                      onChange={(e) => setCheckinDate(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                      required
-                    />
-                    <input
-                      type="date"
-                      value={checkoutDate}
-                      onChange={(e) => setCheckoutDate(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                      required
-                    />
-                  </div>
-                  {days > 0 && <p className="text-sm text-gray-600">Duration: {days} nights</p>}
-                </div>
-
-                {/* Room Selection */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900">Room Type</h3>
-                  <select
-                    value={roomType}
-                    onChange={(e) => setRoomType(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                  >
-                    {Object.entries(ROOM_TYPES).map(([name, price]) => (
-                      <option key={name} value={name}>
-                        {name} - ₹{price}/night
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Guests */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900">Guests</h3>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="flex items-center justify-between border border-gray-300 rounded-lg p-3">
-                      <span className="text-gray-700">Adults</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAdults(Math.max(1, adults - 1))}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="w-8 text-center">{adults}</span>
-                        <button
-                          type="button"
-                          onClick={() => setAdults(adults + 1)}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between border border-gray-300 rounded-lg p-3">
-                      <span className="text-gray-700">Children</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setChildren(Math.max(0, children - 1))}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <span className="w-8 text-center">{children}</span>
-                        <button
-                          type="button"
-                          onClick={() => setChildren(children + 1)}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Special Requests */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900">Special Requests (Optional)</h3>
-                  <textarea
-                    placeholder="Any special requests or dietary preferences?"
-                    value={specialRequests}
-                    onChange={(e) => setSpecialRequests(e.target.value)}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                  />
-                </div>
-
-                {/* Price Summary */}
-                {days > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between text-gray-700">
-                      <span>Room Rate ({days} nights × ₹{roomPrice})</span>
-                      <span>₹{totalAmount}</span>
-                    </div>
-                    <div className="border-t pt-2 flex justify-between text-lg font-bold text-gray-900">
-                      <span>Total Amount</span>
-                      <span>₹{totalAmount}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Messages */}
-                {message.text && (
-                  <div
-                    className={`p-4 rounded-lg ${
-                      message.type === 'error'
-                        ? 'bg-red-50 text-red-700'
-                        : 'bg-green-50 text-green-700'
-                    }`}
-                  >
-                    {message.text}
-                  </div>
-                )}
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 transition"
+              {/* Room Selection */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900">Room Type</h3>
+                <select
+                  value={roomType}
+                  onChange={(e) => setRoomType(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
                 >
-                  {loading ? 'Processing...' : 'Confirm Booking'}
-                </button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  {Object.entries(ROOM_TYPES).map(([name, price]) => (
+                    <option key={name} value={name}>
+                      {name} - ₹{price}/night
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Guests */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900">Guests</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between border border-gray-300 rounded-lg p-3">
+                    <span className="text-gray-700">Adults</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdults(Math.max(1, adults - 1))}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="w-8 text-center">{adults}</span>
+                      <button
+                        type="button"
+                        onClick={() => setAdults(adults + 1)}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between border border-gray-300 rounded-lg p-3">
+                    <span className="text-gray-700">Children</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setChildren(Math.max(0, children - 1))}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="w-8 text-center">{children}</span>
+                      <button
+                        type="button"
+                        onClick={() => setChildren(children + 1)}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Special Requests */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900">Special Requests (Optional)</h3>
+                <textarea
+                  placeholder="Any special requests or dietary preferences?"
+                  value={specialRequests}
+                  onChange={(e) => setSpecialRequests(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                />
+              </div>
+
+              {/* Price Summary */}
+              {days > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between text-gray-700">
+                    <span>Room Rate ({days} nights × ₹{roomPrice})</span>
+                    <span>₹{totalAmount}</span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between text-lg font-bold text-gray-900">
+                    <span>Total Amount</span>
+                    <span>₹{totalAmount}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Messages */}
+              {message.text && (
+                <div
+                  className={`p-4 rounded-lg ${
+                    message.type === 'error'
+                      ? 'bg-red-50 text-red-700'
+                      : 'bg-green-50 text-green-700'
+                  }`}
+                >
+                  {message.text}
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 transition"
+              >
+                {loading ? 'Processing...' : 'Confirm Booking'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </>
