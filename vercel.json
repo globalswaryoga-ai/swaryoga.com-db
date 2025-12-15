@@ -1,6 +1,7 @@
 {
   "buildCommand": "npm install --legacy-peer-deps && next build",
   "framework": "nextjs",
+  "nodeVersion": "18.x",
   "env": {
     "NEXT_PUBLIC_API_URL": "https://swaryoga.com"
   }
