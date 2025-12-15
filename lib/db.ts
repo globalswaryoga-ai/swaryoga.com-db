@@ -263,3 +263,37 @@ resortBookingSchema.index({ userEmail: 1, createdAt: -1 });
 resortBookingSchema.index({ status: 1 });
 
 export const ResortBooking = mongoose.models.ResortBooking || mongoose.model('ResortBooking', resortBookingSchema);
+
+// Blog Newsletter Subscriber Schema
+const blogNewsletterSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+  },
+  subscribedAt: {
+    type: Date,
+    default: Date.now,
+  },
+  status: {
+    type: String,
+    enum: ['active', 'unsubscribed'],
+    default: 'active',
+  },
+  language: {
+    type: String,
+    enum: ['en', 'hi', 'mr'],
+    default: 'en',
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+blogNewsletterSchema.index({ email: 1 });
+blogNewsletterSchema.index({ subscribedAt: -1 });
+
+export const BlogNewsletter = mongoose.models.BlogNewsletter || mongoose.model('BlogNewsletter', blogNewsletterSchema);
