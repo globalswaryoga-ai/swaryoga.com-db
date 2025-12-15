@@ -211,10 +211,10 @@ export const KARANAS = [
  * Use calendarCalculations.ts instead for calendar data
  */
 export async function calculatePanchang(
-  date: Date,
-  latitude: number = 28.6139,
-  longitude: number = 77.209,
-  timezone: string = 'Asia/Kolkata'
+  _date: Date,
+  _latitude: number = 28.6139,
+  _longitude: number = 77.209,
+  _timezone: string = 'Asia/Kolkata'
 ): Promise<PanchangData> {
   // Stub implementation - panchang calculations disabled
   // Use /api/calendar endpoint which uses calendarCalculations.ts
