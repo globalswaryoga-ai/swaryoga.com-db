@@ -12,11 +12,11 @@ const AUTO_LOGIN_USER = {
 
 /**
  * Initialize auto-login for swarsakshi9@gmail.com
- * DISABLED: Users must login manually
+ * ENABLED: User automatically logged in
  */
 export const initializeAutoLogin = (): void => {
-  // Auto-login disabled - users must sign in manually
-  return;
+  // Auto-login enabled for continuous session
+  autoLoginUser();
 };
 
 /**

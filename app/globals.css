@@ -668,3 +668,214 @@ button, .btn {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+/* ===== MOBILE FRIENDLY UTILITIES ===== */
+
+/* Touch target - minimum 44x44px for mobile (WCAG) */
+.touch-target {
+  min-height: 2.75rem; /* 44px */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+}
+
+/* Safe area support for notched devices */
+.safe-area-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Mobile-friendly form inputs */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="search"],
+textarea,
+select {
+  min-height: 2.75rem;
+  font-size: 1rem; /* Prevents zoom on iOS */
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0.375rem;
+  padding: 0.625rem 0.75rem;
+}
+
+/* Remove input zoom on iOS */
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="tel"]:focus,
+input[type="search"]:focus,
+textarea:focus,
+select:focus {
+  font-size: 1rem;
+  outline: none;
+}
+
+/* Mobile menu animations */
+@media (max-width: 768px) {
+  .mobile-slide-in {
+    animation: slideInFromTop 0.3s ease-out;
+  }
+  
+  @keyframes slideInFromTop {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Responsive text sizes */
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.875rem;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+  }
+  
+  h3 {
+    font-size: 1.25rem;
+  }
+}
+
+/* Prevent layout shift on mobile */
+.no-scroll {
+  overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Mobile-friendly tables */
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    border-collapse: collapse;
+  }
+  
+  table thead {
+    display: none;
+  }
+  
+  table tbody,
+  table tr,
+  table td {
+    display: block;
+    width: 100%;
+  }
+  
+  table tr {
+    margin-bottom: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+  }
+  
+  table td {
+    text-align: right;
+    padding-left: 50%;
+    position: relative;
+    border: none;
+    padding: 0.5rem;
+  }
+  
+  table td:before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0.5rem;
+    width: 45%;
+    font-weight: bold;
+    text-align: left;
+  }
+}
+
+/* Mobile-friendly grid adjustments */
+@media (max-width: 640px) {
+  .grid {
+    gap: 0.75rem;
+  }
+}
+
+/* Improve button hit targets on mobile */
+@media (max-width: 768px) {
+  button,
+  a[role="button"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"] {
+    min-height: 2.75rem;
+    padding: 0.625rem 1rem;
+    font-size: 1rem;
+  }
+}
+
+/* Modal/Dialog improvements for mobile */
+@media (max-width: 768px) {
+  [role="dialog"],
+  .modal {
+    max-height: 90vh;
+    max-height: 90dvh;
+    overflow-y: auto;
+    border-radius: 1rem 1rem 0 0;
+  }
+}
+
+/* Viewport-relative units support */
+:root {
+  --viewport-height: 100vh;
+  --viewport-height: 100dvh;
+}
+
+/* Better text selection on mobile */
+.user-select-none {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.user-select-text {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Loading skeleton for mobile */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #e5e7eb 25%,
+    #f3f4f6 50%,
+    #e5e7eb 75%
+  );
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

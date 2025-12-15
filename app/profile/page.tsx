@@ -87,6 +87,10 @@ export default function UserProfile() {
 
   // Fetch fresh user data and related info
   const fetchUserData = async (token: string) => {
+    if (!token) {
+      console.warn('No token available for fetchUserData');
+      return;
+    }
     try {
       const response = await fetch('/api/user/profile', {
         headers: {
@@ -126,6 +130,10 @@ export default function UserProfile() {
   };
 
   const fetchMessages = async (token: string) => {
+    if (!token) {
+      console.warn('No token available for fetchMessages');
+      return;
+    }
     try {
       const response = await fetch('/api/messages?limit=200&page=1', {
         headers: {
@@ -151,6 +159,10 @@ export default function UserProfile() {
   };
 
   const fetchOrders = async (token: string) => {
+    if (!token) {
+      console.warn('No token available for fetchOrders');
+      return;
+    }
     try {
       const response = await fetch('/api/orders', {
         headers: {

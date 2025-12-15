@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -60,58 +60,72 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       {/* Mobile Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden transition-opacity"
           onClick={onClose}
         ></div>
       )}
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white transform transition-transform duration-300 ease-in-out ${
+        className={`fixed md:static inset-y-0 left-0 z-50 w-64 max-w-[90vw] bg-gray-900 text-white transform transition-transform duration-300 ease-in-out flex flex-col safe-area-left ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         {/* Sidebar Header */}
-        <div className="p-6 border-b border-gray-800 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-lg">
+        <div className="p-4 sm:p-6 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-lg flex-shrink-0">
               SP
             </div>
-            <div>
-              <h2 className="font-bold text-lg">Swar Yoga</h2>
+            <div className="min-w-0">
+              <h2 className="font-bold text-base sm:text-lg truncate">Swar Yoga</h2>
               <p className="text-xs text-gray-400">Admin Panel</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="md:hidden p-2 hover:bg-gray-800 rounded-lg"
+            className="md:hidden p-2 hover:bg-gray-800 rounded-lg touch-target flex-shrink-0 ml-2"
+            aria-label="Close sidebar"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Navigation Menu */}
-        <nav className="p-6 space-y-2">
+        <nav className="flex-1 p-4 sm:p-6 space-y-1 sm:space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors group"
+                onClick={onClose}
+                className="flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-gray-800 transition-colors group touch-target text-sm sm:text-base active:scale-95"
               >
-                <Icon className={`h-5 w-5 ${item.color}`} />
-                <span className="font-medium">{item.label}</span>
+                <Icon className={`h-5 w-5 flex-shrink-0 ${item.color}`} />
+                <span className="font-medium truncate">{item.label}</span>
               </Link>
             );
           })}
+          
+          {/* Home link for mobile */}
+          <div className="pt-2 border-t border-gray-800 mt-2">
+            <Link
+              href="/"
+              onClick={onClose}
+              className="flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-gray-800 transition-colors group touch-target text-sm sm:text-base active:scale-95 text-gray-300"
+            >
+              <Home className="h-5 w-5 flex-shrink-0" />
+              <span className="font-medium truncate">Back to Home</span>
+            </Link>
+          </div>
         </nav>
 
         {/* Footer Info */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-gray-800">
+        <div className="p-4 sm:p-6 border-t border-gray-800 flex-shrink-0 safe-area-bottom">
           <div className="text-xs text-gray-400">
             <p className="font-semibold text-gray-300 mb-2">Admin Panel v1.0</p>
-            <p>Manage all user data and site content</p>
+            <p className="line-clamp-2">Manage all user data and site content</p>
           </div>
         </div>
       </aside>

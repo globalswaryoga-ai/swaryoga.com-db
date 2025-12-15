@@ -97,12 +97,12 @@ export default function Home() {
                   href="/calendar"
                   className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg transition-all duration-300 flex items-center justify-center group hover:shadow-lg"
                 >
-                  <span className="text-lg">Start Your Journey</span>
-                  <ArrowRight className="ml-2 transform group-hover:translate-x-1 transition-transform" size={20} />
+                  <span className="text-base sm:text-lg">Start Your Journey</span>
+                  <ArrowRight className="ml-1 sm:ml-2 transform group-hover:translate-x-1 transition-transform" size={16} />
                 </Link>
                 <Link
                   href="/about"
-                  className="border-2 border-white hover:bg-white/10 text-white px-8 py-4 rounded-lg transition-all duration-300 text-center text-lg"
+                  className="border-2 border-white hover:bg-white/10 text-white px-6 sm:px-8 py-2.5 sm:py-4 rounded-lg transition-all duration-300 text-center text-base sm:text-lg font-semibold touch-target min-h-12"
                 >
                   Learn More
                 </Link>
@@ -112,26 +112,26 @@ export default function Home() {
         </section>
 
         {/* About Section */}
-        <section className="py-16">
-          <div className="container mx-auto px-4 md:px-6 max-w-6xl section-surface-soft">
-            <div className="grid md:grid-cols-2 gap-10 items-center">
+        <section className="py-8 sm:py-12 md:py-16">
+          <div className="container mx-auto px-4 sm:px-6 max-w-6xl section-surface-soft">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-10 items-center">
               <div className="order-2 md:order-1">
-                <h2 className="text-4xl md:text-5xl font-bold text-[#2A5654] mb-8">Discover Swar Yoga</h2>
-                <p className="text-gray-700 mb-6 text-lg leading-relaxed">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#2A5654] mb-4 sm:mb-6 md:mb-8">Discover Swar Yoga</h2>
+                <p className="text-gray-700 mb-4 sm:mb-6 text-sm sm:text-base md:text-lg leading-relaxed">
                   At Swar Yoga, we believe in the transformative power of breath to bring balance and harmony to your life. 
                   Our approach combines traditional yoga practices with modern wellness techniques to create a holistic 
                   experience for practitioners of all levels.
                 </p>
-                <p className="text-gray-700 mb-8 text-lg leading-relaxed">
+                <p className="text-gray-700 mb-6 sm:mb-8 text-sm sm:text-base md:text-lg leading-relaxed">
                   Whether you're looking to deepen your practice, find stress relief, or embark on a journey of 
                   self-discovery, our experienced instructors are here to guide you every step of the way.
                 </p>
                 <Link 
                   href="/about" 
-                  className="inline-flex items-center text-green-600 hover:text-green-700 font-semibold text-lg group"
+                  className="inline-flex items-center text-green-600 hover:text-green-700 font-semibold text-sm sm:text-base md:text-lg group touch-target"
                 >
                   <span>Learn more about our philosophy</span>
-                  <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform flex-shrink-0" />
                 </Link>
               </div>
               <div className="order-1 md:order-2 relative">
@@ -142,9 +142,9 @@ export default function Home() {
                     className="w-full h-auto object-cover hover:scale-105 transition-transform duration-300"
                   />
                 </div>
-                <div className="absolute -bottom-6 -left-6 bg-red-500 text-white p-6 rounded-lg shadow-2xl hidden md:block">
-                  <p className="text-2xl font-bold">25+ Years</p>
-                  <p className="text-sm">of teaching experience</p>
+                <div className="absolute -bottom-4 sm:-bottom-6 -left-4 sm:-left-6 bg-red-500 text-white p-4 sm:p-6 rounded-lg shadow-2xl">
+                  <p className="text-xl sm:text-2xl font-bold">25+ Years</p>
+                  <p className="text-xs sm:text-sm">of teaching experience</p>
                 </div>
               </div>
             </div>
@@ -152,46 +152,46 @@ export default function Home() {
         </section>
 
         {/* Workshops Call-to-Action Section */}
-        <section className="py-16">
-          <div className="container mx-auto px-4 md:px-6 max-w-6xl section-surface-soft">
-            <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-bold text-primary-700 mb-6">Transform Your Practice</h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+        <section className="py-8 sm:py-12 md:py-16">
+          <div className="container mx-auto px-4 sm:px-6 max-w-6xl section-surface-soft">
+            <div className="text-center mb-8 sm:mb-12">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-primary-700 mb-4 sm:mb-6">Transform Your Practice</h2>
+              <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto px-2">
                 Join our comprehensive workshop programs and discover the ancient science of breath
               </p>
             </div>
             
             <div className="max-w-4xl mx-auto">
               {/* Mode Buttons */}
-              <div className="flex flex-wrap gap-4 justify-center mb-12">
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4 justify-center mb-8 sm:mb-12">
                 <Link
                   href="/workshops?mode=Online"
-                  className="bg-red-600 hover:bg-red-700 text-white px-6 md:px-8 py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl touch-target text-xs sm:text-sm md:text-base"
                 >
                   Online
                 </Link>
                 <Link
                   href="/workshops?mode=Offline"
-                  className="bg-red-600 hover:bg-red-700 text-white px-6 md:px-8 py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl touch-target text-xs sm:text-sm md:text-base"
                 >
                   Offline
                 </Link>
                 <Link
                   href="/workshops?mode=Residential"
-                  className="bg-red-600 hover:bg-red-700 text-white px-6 md:px-8 py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl touch-target text-xs sm:text-sm md:text-base"
                 >
                   Residential
                 </Link>
                 <Link
                   href="/workshops?mode=Recorded"
-                  className="bg-red-600 hover:bg-red-700 text-white px-6 md:px-8 py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl touch-target text-xs sm:text-sm md:text-base"
                 >
-                  Recorded Class
+                  Recorded
                 </Link>
               </div>
 
               {/* Workshop Image */}
-              <div className="relative h-64 md:h-96 rounded-lg overflow-hidden shadow-2xl mb-12">
+              <div className="relative h-48 sm:h-64 md:h-96 rounded-lg overflow-hidden shadow-2xl mb-8 sm:mb-12">
                 <img
                   src="https://i.postimg.cc/kGRQhYJg/tempImageai7DlM.avif"
                   alt="Swar Yoga Workshops - Ancient Science of Breath"

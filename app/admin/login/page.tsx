@@ -188,10 +188,10 @@ export default function AdminLogin() {
             </button>
           </form>
 
-          {/* Help Text */}
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800 font-medium mb-2">Need Help?</p>
-            <p className="text-xs text-blue-700">Contact your administrator for login credentials.</p>
+          {/* Security Notice */}
+          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-900 font-medium mb-2">🔒 Security Notice</p>
+            <p className="text-xs text-amber-800">Admin credentials are confidential. Contact your administrator if you need access.</p>
           </div>
 
           {/* Back to Home */}
