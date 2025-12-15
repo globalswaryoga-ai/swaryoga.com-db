@@ -254,6 +254,13 @@ export default function Footer() {
                 <span>Life Planner</span>
               </Link>
               <Link 
+                href="/calendar" 
+                className="flex items-center space-x-2 hover:text-green-400 transition-colors group"
+              >
+                <Calendar className="h-5 w-5 text-green-400 group-hover:rotate-12 transition-transform duration-300" />
+                <span>Swar Calendar</span>
+              </Link>
+              <Link 
                 href="/admin/login" 
                 className="flex items-center space-x-2 hover:text-green-400 transition-colors group"
               >
