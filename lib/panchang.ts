@@ -208,6 +208,8 @@ export const KARANAS = [
 
 /**
  * Calculate complete Panchang data for a given date and location
+ * NOTE: Disabled - @bidyashish/panchang removed due to native module issues
+ * Use calendarCalculations.ts instead for calendar data
  */
 export async function calculatePanchang(
   date: Date,
@@ -215,80 +217,9 @@ export async function calculatePanchang(
   longitude: number = 77.209,
   timezone: string = 'Asia/Kolkata'
 ): Promise<PanchangData> {
-  try {
-    // Use @bidyashish/panchang library
-    const result: PanchangaResult = await getPanchanga(date, latitude, longitude, timezone);
-
-    // Get tithi name
-    const tithiNumber = result.tithi.number;
-    const isShukla = tithiNumber <= 15;
-    const tithiName = getTithiName(tithiNumber, isShukla);
-
-    // Get nakshatra deity
-    const nakshatraData = NAKSHATRAS.find((n) => n.number === result.nakshatra.number);
-
-    // Get yoga info
-    const yogaData = YOGAS.find((y) => y.number === result.yoga.number);
-
-    // Get raasi info - Map nakshatra to raasi (simplified)
-    const rasiIndex = ((result.nakshatra.number - 1) % 12);
-    const rasiData = RAASIS[rasiIndex];
-
-    // Get karana info
-    const karanaData = KARANAS[result.karana.number - 1] || {
-      name: 'Unknown',
-      type: 'movable' as const,
-    };
-
-    // Format day name
-    const dayName = VAARAS[date.getDay()];
-
-    return {
-      date: date.toISOString().split('T')[0],
-      day: dayName,
-      tithi: {
-        name: tithiName,
-        number: result.tithi.number,
-        paksha: isShukla ? 'Shukla Paksha' : 'Krishna Paksha',
-        startTime: '00:00',
-        endTime: '23:59',
-      },
-      nakshatra: {
-        name: result.nakshatra.name,
-        number: result.nakshatra.number,
-        deity: nakshatraData?.deity || 'Unknown',
-        startTime: '00:00',
-        endTime: '23:59',
-      },
-      yoga: {
-        name: yogaData?.name || 'Unknown',
-        number: result.yoga.number,
-        type: (yogaData?.type || 'mixed') as 'auspicious' | 'inauspicious' | 'mixed',
-        startTime: '00:00',
-        endTime: '23:59',
-      },
-      karana: {
-        name: karanaData.name,
-        type: karanaData.type,
-        startTime: '00:00',
-        endTime: '23:59',
-      },
-      vaara: {
-        name: dayName as 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday',
-        number: date.getDay(),
-      },
-      raasi: {
-        name: rasiData.name,
-        number: rasiData.number,
-        element: rasiData.element as 'Fire' | 'Earth' | 'Air' | 'Water',
-        symbol: rasiData.symbol,
-      },
-      ayanamsa: 24.0, // Lahiri Ayanamsa default
-    };
-  } catch (error) {
-    console.error('Error calculating Panchang:', error);
-    throw error;
-  }
+  // Stub implementation - panchang calculations disabled
+  // Use /api/calendar endpoint which uses calendarCalculations.ts
+  throw new Error('Panchang calculations not available. Use /api/calendar endpoint instead.');
 }
 
 /**
