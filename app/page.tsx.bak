@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Phone, X, Calendar } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -48,22 +48,31 @@ const HomePage = () => {
         
         <div className="container mx-auto px-4 sm:px-6 relative z-10 safe-area-left safe-area-right">
           <div className="max-w-3xl">
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
             >
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-serif mb-4 sm:mb-6">
                 <span className="text-white font-light block mb-2">Welcome to</span>
                 <span className="text-green-400 font-medium">Swar Yoga</span>
               </h1>
-            </div>
+            </motion.div>
 
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
             >
               <p className="text-lg sm:text-xl md:text-2xl text-gray-200 mb-6 sm:mb-8 leading-relaxed">
                 The Science of Breath - Ancient yogic practices that unlock the secrets of conscious breathing for optimal health and vitality.
               </p>
-            </div>
+            </motion.div>
 
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
               className="flex flex-col sm:flex-row gap-4 flex-wrap"
             >
               <Link
@@ -79,7 +88,7 @@ const HomePage = () => {
               >
                 Learn More
               </Link>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -136,7 +145,11 @@ const HomePage = () => {
           
           <div className="max-w-5xl mx-auto">
             {/* Single Workshop Image */}
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
               className="relative h-48 sm:h-64 md:h-80 rounded-lg overflow-hidden shadow-xl mb-8 sm:mb-10"
             >
               <img
@@ -153,10 +166,14 @@ const HomePage = () => {
                   Join our transformative workshops and retreats
                 </p>
               </div>
-            </div>
+            </motion.div>
 
             {/* Workshop Type Buttons */}
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
               className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8 sm:mb-10"
             >
               {workshopTypes.map((workshop, index) => (
@@ -170,10 +187,14 @@ const HomePage = () => {
                   <div className="text-xs sm:text-sm text-white/80 group-hover:text-white transition-colors">Register Now</div>
                 </Link>
               ))}
-            </div>
+            </motion.div>
 
             {/* Stats */}
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              viewport={{ once: true }}
               className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-10"
             >
               <div className="text-center">
@@ -192,10 +213,14 @@ const HomePage = () => {
                 <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">100%</div>
                 <div className="text-gray-600 text-sm sm:text-base">Satisfaction Rate</div>
               </div>
-            </div>
+            </motion.div>
 
             {/* View All Workshops Button */}
-            <div
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              viewport={{ once: true }}
               className="text-center"
             >
               <Link
@@ -206,7 +231,7 @@ const HomePage = () => {
                 <span>Explore All 18 Workshops</span>
                 <ArrowRight size={16} className="ml-2 sm:ml-3 sm:h-5 sm:w-5 transform group-hover:translate-x-1 transition-transform" />
               </Link>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -254,22 +279,38 @@ const HomePage = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <img
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6 }}
+                viewport={{ once: true }}
                 src="https://i.postimg.cc/vZ4BFXPF/temp-Image-IIb-JFp.avif"
                 alt="Resort exterior and natural surroundings"
                 className="rounded-lg h-32 sm:h-48 md:h-56 object-cover shadow-lg hover:shadow-xl transition-shadow duration-300"
               />
-              <img
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                viewport={{ once: true }}
                 src="https://i.postimg.cc/MKmQ9snW/aaa-candal.avif"
                 alt="Yoga studio and meditation spaces"
                 className="rounded-lg h-32 sm:h-48 md:h-56 object-cover mt-4 sm:mt-8 shadow-lg hover:shadow-xl transition-shadow duration-300"
               />
-              <img
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                viewport={{ once: true }}
                 src="https://i.postimg.cc/5NTZkmTR/temp-Image-Gmbma-U.avif"
                 alt="Resort amenities and wellness facilities"
                 className="rounded-lg h-32 sm:h-48 md:h-56 object-cover shadow-lg hover:shadow-xl transition-shadow duration-300"
               />
-              <img
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                viewport={{ once: true }}
                 src="https://i.postimg.cc/hGJyQCn0/tempImageCNl8Fp.avif"
                 alt="Dining area and organic cuisine"
                 className="rounded-lg h-32 sm:h-48 md:h-56 object-cover mt-4 sm:mt-8 shadow-lg hover:shadow-xl transition-shadow duration-300"
@@ -304,12 +345,18 @@ const HomePage = () => {
       </section>
 
       {/* Membership Popup */}
-      
+      <AnimatePresence>
         {showMembershipPopup && (
-          <div
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 safe-area-left safe-area-right"
           >
-            <div
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="bg-white rounded-xl shadow-xl max-w-sm sm:max-w-md md:max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
             >
               <button
@@ -369,10 +416,10 @@ const HomePage = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
-      
+      </AnimatePresence>
 
       <Footer />
     </div>

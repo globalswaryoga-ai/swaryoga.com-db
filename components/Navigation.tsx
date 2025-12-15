@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import HeaderReminders from './HeaderReminders';
 import { Reminder } from '@/lib/types/lifePlanner';
 import { initializeAutoLogin } from '@/lib/autoLoginManager';
@@ -11,7 +10,6 @@ export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
-  const router = useRouter();
 
   useEffect(() => {
     // Initialize auto-login
@@ -47,11 +45,6 @@ export default function Navigation() {
       }
     }
   }, []);
-
-  const handleLogout = () => {
-    // Logout disabled - user stays logged in
-    return;
-  };
 
   const closeMenu = () => setIsOpen(false);
 
