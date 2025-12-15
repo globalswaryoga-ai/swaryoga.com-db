@@ -11,7 +11,6 @@
 
 // DISABLED: import { getPanchanga, type PanchangaResult } from '@bidyashish/panchang';
 // Stub for compilation - actual panchang functionality moved to calendarCalculations.ts
-type PanchangaResult = any;
 
 /**
  * Complete Panchang data structure matching Hindu Calendar system
