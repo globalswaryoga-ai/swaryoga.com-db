@@ -2,11 +2,16 @@
  * Panchang Integration Module
  * Using @bidyashish/panchang - Modern Hindu Calendar Calculator
  * 
+ * NOTE: @bidyashish/panchang has been removed due to native module (swisseph) 
+ * compilation issues on Vercel. The calendar endpoint uses calendarCalculations.ts instead.
+ * 
  * Installation:
  * npm install @bidyashish/panchang
  */
 
-import { getPanchanga, type PanchangaResult } from '@bidyashish/panchang';
+// DISABLED: import { getPanchanga, type PanchangaResult } from '@bidyashish/panchang';
+// Stub for compilation - actual panchang functionality moved to calendarCalculations.ts
+type PanchangaResult = any;
 
 /**
  * Complete Panchang data structure matching Hindu Calendar system
