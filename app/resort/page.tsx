@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { MapPin, Sparkles, Leaf, Sun, Moon, X, Plus, Minus } from 'lucide-react';
+import { MapPin, Sparkles, Leaf, Sun, Moon, X, Plus, Minus, Wifi, ParkingCircle, Coffee, Leaf as LeafIcon, Dumbbell, Waves, Footprints, Droplets } from 'lucide-react';
 
 const ROOM_TYPES = {
   'Deluxe Garden View': 3500,
@@ -61,14 +61,14 @@ const roomTypes = [
 ];
 
 const amenities = [
-  { name: 'High-Speed WiFi', icon: '📡' },
-  { name: 'Free Parking', icon: '🚗' },
-  { name: 'Café & Restaurant', icon: '☕' },
-  { name: 'Organic Dining', icon: '🥗' },
-  { name: 'Fitness Center', icon: '💪' },
-  { name: 'Meditation Pool', icon: '🏊' },
-  { name: 'Nature Trails', icon: '🥾' },
-  { name: 'Ayurvedic Spa', icon: '💆' },
+  { name: 'High-Speed WiFi', icon: Wifi },
+  { name: 'Free Parking', icon: ParkingCircle },
+  { name: 'Café & Restaurant', icon: Coffee },
+  { name: 'Organic Dining', icon: LeafIcon },
+  { name: 'Fitness Center', icon: Dumbbell },
+  { name: 'Meditation Pool', icon: Waves },
+  { name: 'Nature Trails', icon: Footprints },
+  { name: 'Ayurvedic Spa', icon: Droplets },
 ];
 
 const membershipBenefits = [
@@ -289,12 +289,15 @@ export default function ResortPage() {
               <h2 className="text-3xl font-bold text-gray-900">Resort Amenities</h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {amenities.map((amenity) => (
-                <div key={amenity.name} className="bg-white rounded-2xl p-6 shadow-lg text-center hover:shadow-xl transition">
-                  <div className="text-4xl mb-2">{amenity.icon}</div>
-                  <p className="text-gray-900 font-semibold text-sm">{amenity.name}</p>
-                </div>
-              ))}
+              {amenities.map((amenity) => {
+                const IconComponent = amenity.icon;
+                return (
+                  <div key={amenity.name} className="bg-white rounded-2xl p-6 shadow-lg text-center hover:shadow-xl transition">
+                    <IconComponent className="h-10 w-10 mx-auto mb-2 text-green-600" />
+                    <p className="text-gray-900 font-semibold text-sm">{amenity.name}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
