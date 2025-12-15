@@ -10,7 +10,20 @@ interface AdminSidebarProps {
 }
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
+  const handleNavClick = () => {
+    // Auto-close sidebar on mobile when a link is clicked
+    if (window.innerWidth < 768) {
+      onClose();
+    }
+  };
+
   const menuItems = [
+    {
+      icon: Home,
+      label: 'Home',
+      href: '/',
+      color: 'text-red-500'
+    },
     {
       icon: LayoutDashboard,
       label: 'Dashboard',
@@ -99,7 +112,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={onClose}
+                onClick={handleNavClick}
                 className="flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-gray-800 transition-colors group touch-target text-sm sm:text-base active:scale-95"
               >
                 <Icon className={`h-5 w-5 flex-shrink-0 ${item.color}`} />
@@ -112,7 +125,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           <div className="pt-2 border-t border-gray-800 mt-2">
             <Link
               href="/"
-              onClick={onClose}
+              onClick={handleNavClick}
               className="flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-gray-800 transition-colors group touch-target text-sm sm:text-base active:scale-95 text-gray-300"
             >
               <Home className="h-5 w-5 flex-shrink-0" />

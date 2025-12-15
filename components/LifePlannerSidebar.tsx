@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarDays, CalendarRange, Calendar, CalendarClock, ChevronRight, BarChart3 } from 'lucide-react';
+import { CalendarDays, CalendarRange, Calendar, CalendarClock, ChevronRight, BarChart3, Home } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 interface LifePlannerSidebarProps {
@@ -12,7 +12,15 @@ interface LifePlannerSidebarProps {
 export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSidebarProps) {
   const pathname = usePathname();
   
+  const handleNavClick = () => {
+    // Auto-close sidebar on mobile when a link is clicked
+    if (window.innerWidth < 768) {
+      onClose();
+    }
+  };
+  
   const items = [
+    { href: '/', label: 'Home', icon: Home, color: 'text-red-500' },
     { href: '/life-planner/dashboard/daily', label: 'Daily', icon: CalendarDays, color: 'text-emerald-400' },
     { href: '/life-planner/dashboard/weekly', label: 'Weekly', icon: CalendarRange, color: 'text-blue-400' },
     { href: '/life-planner/dashboard/monthly', label: 'Monthly', icon: Calendar, color: 'text-indigo-400' },
@@ -57,6 +65,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={handleNavClick}
                 className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all group font-medium ${
                   active
                     ? 'bg-green-300 text-green-900 shadow-md'

@@ -1,340 +1,417 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, Phone, X, Calendar } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { ArrowRight, Calendar, Award } from 'lucide-react';
 
-export default function Home() {
-  const router = useRouter();
-  const [checkingAuth, setCheckingAuth] = useState(true);
+const HomePage = () => {
+  const [showMembershipPopup, setShowMembershipPopup] = useState(false);
 
-  // Check if user is logged in and redirect to life planner
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
 
-    if (token && user) {
-      // User is logged in, redirect to life planner dashboard
-      router.push('/life-planner/dashboard');
-    } else {
-      // User is not logged in, show home page
-      setCheckingAuth(false);
+  const membershipDetails = {
+    price: 11000,
+    maxParticipants: 201,
+    accommodationDays: 50,
+    validity: '5 years',
+    stayPerYear: '10 days',
+    peoplePerStay: 2,
+    discountRate: 50,
+    priceRange: {
+      min: 11000,
+      max: 21000
     }
-  }, [router]);
+  };
 
-  // Show loading while checking authentication
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
-      </div>
-    );
-  }
-  const stats = [
-    { number: '25+', label: 'Years Experience', delay: 0 },
-    { number: '8000+', label: 'Students Trained', delay: 0.1 },
-    { number: '15+', label: 'Countries Reached', delay: 0.2 },
-    { number: '100%', label: 'Satisfaction Rate', delay: 0.3 }
-  ];
-
-  const resortTeasers = [
-    {
-      title: 'Brahmaputra River Suites',
-      detail: 'Private suites with plunge pools and meditation verandas facing the Brahmaputra.',
-      tag: 'Luxury',
-    },
-    {
-      title: 'Ayurvedic Spa Journeys',
-      detail: 'Panchakarma, marma therapy, and guided oil massages with resident Vaidyas.',
-      tag: 'Healing',
-    },
-    {
-      title: 'Forest Breath Trails',
-      detail: 'Daily sunrise and moonlight breath walks inside the sacred groves.',
-      tag: 'Nature',
-    },
+  const workshopTypes = [
+    { type: 'Online', color: 'from-blue-600 to-blue-700', icon: '🌐' },
+    { type: 'Offline', color: 'from-purple-600 to-purple-700', icon: '🏢' },
+    { type: 'Residential', color: 'from-green-600 to-green-700', icon: '🏨' },
+    { type: 'Recorded', color: 'from-orange-600 to-orange-700', icon: '📹' }
   ];
 
   return (
-    <>
+    <div className="bg-white">
       <Navigation />
-      <main>
-        {/* Hero Section */}
-        <section className="relative min-h-[70vh] flex items-center overflow-hidden">
-          <div className="hero-visual">
-            <img
-              src="https://images.pexels.com/photos/1051838/pexels-photo-1051838.jpeg"
-              alt="Peaceful nature yoga setting"
-              loading="lazy"
-            />
-          </div>
-
-          <div className="container mx-auto px-4 md:px-6 relative z-10 max-w-6xl">
-            <div className="hero-content-card max-w-3xl">
-              <div className="mb-6 md:mb-8">
-                <div className="flex items-center gap-4 mb-6">
-                  <span className="text-6xl">🧘</span>
-                  <div>
-                    <p className="text-white/80 text-sm uppercase tracking-widest">Welcome to</p>
-                  </div>
-                </div>
-                <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-4 leading-tight">
-                  <span className="text-green-400">Swar Yoga</span>
-                </h1>
-              </div>
-
-              <div className="mb-8 md:mb-12">
-                <p className="text-xl md:text-2xl text-gray-200 leading-relaxed max-w-2xl">
-                  The Science of Breath - Ancient yogic practices that unlock the secrets of conscious breathing for optimal health and vitality.
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/calendar"
-                  className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg transition-all duration-300 flex items-center justify-center group hover:shadow-lg"
-                >
-                  <span className="text-base sm:text-lg">Start Your Journey</span>
-                  <ArrowRight className="ml-1 sm:ml-2 transform group-hover:translate-x-1 transition-transform" size={16} />
-                </Link>
-                <Link
-                  href="/about"
-                  className="border-2 border-white hover:bg-white/10 text-white px-6 sm:px-8 py-2.5 sm:py-4 rounded-lg transition-all duration-300 text-center text-base sm:text-lg font-semibold touch-target min-h-12"
-                >
-                  Learn More
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* About Section */}
-        <section className="py-8 sm:py-12 md:py-16">
-          <div className="container mx-auto px-4 sm:px-6 max-w-6xl section-surface-soft">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-10 items-center">
-              <div className="order-2 md:order-1">
-                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#2A5654] mb-4 sm:mb-6 md:mb-8">Discover Swar Yoga</h2>
-                <p className="text-gray-700 mb-4 sm:mb-6 text-sm sm:text-base md:text-lg leading-relaxed">
-                  At Swar Yoga, we believe in the transformative power of breath to bring balance and harmony to your life. 
-                  Our approach combines traditional yoga practices with modern wellness techniques to create a holistic 
-                  experience for practitioners of all levels.
-                </p>
-                <p className="text-gray-700 mb-6 sm:mb-8 text-sm sm:text-base md:text-lg leading-relaxed">
-                  Whether you're looking to deepen your practice, find stress relief, or embark on a journey of 
-                  self-discovery, our experienced instructors are here to guide you every step of the way.
-                </p>
-                <Link 
-                  href="/about" 
-                  className="inline-flex items-center text-green-600 hover:text-green-700 font-semibold text-sm sm:text-base md:text-lg group touch-target"
-                >
-                  <span>Learn more about our philosophy</span>
-                  <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform flex-shrink-0" />
-                </Link>
-              </div>
-              <div className="order-1 md:order-2 relative">
-                <div className="rounded-lg overflow-hidden shadow-2xl">
-                  <img
-                    src="https://i.postimg.cc/J4zrWKT7/temp-Image6-FKl-H4.avif"
-                    alt="Swar Yoga practice and meditation"
-                    className="w-full h-auto object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-                <div className="absolute -bottom-4 sm:-bottom-6 -left-4 sm:-left-6 bg-red-500 text-white p-4 sm:p-6 rounded-lg shadow-2xl">
-                  <p className="text-xl sm:text-2xl font-bold">25+ Years</p>
-                  <p className="text-xs sm:text-sm">of teaching experience</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Workshops Call-to-Action Section */}
-        <section className="py-8 sm:py-12 md:py-16">
-          <div className="container mx-auto px-4 sm:px-6 max-w-6xl section-surface-soft">
-            <div className="text-center mb-8 sm:mb-12">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-primary-700 mb-4 sm:mb-6">Transform Your Practice</h2>
-              <p className="text-base sm:text-lg md:text-xl text-gray-600 max-w-3xl mx-auto px-2">
-                Join our comprehensive workshop programs and discover the ancient science of breath
-              </p>
-            </div>
-            
-            <div className="max-w-4xl mx-auto">
-              {/* Mode Buttons */}
-              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4 justify-center mb-8 sm:mb-12">
-                <Link
-                  href="/workshops?mode=Online"
-                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl touch-target text-xs sm:text-sm md:text-base"
-                >
-                  Online
-                </Link>
-                <Link
-                  href="/workshops?mode=Offline"
-                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl touch-target text-xs sm:text-sm md:text-base"
-                >
-                  Offline
-                </Link>
-                <Link
-                  href="/workshops?mode=Residential"
-                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl touch-target text-xs sm:text-sm md:text-base"
-                >
-                  Residential
-                </Link>
-                <Link
-                  href="/workshops?mode=Recorded"
-                  className="bg-red-600 hover:bg-red-700 active:scale-95 text-white px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-3 rounded-lg transition-all duration-300 font-semibold shadow-lg hover:shadow-xl touch-target text-xs sm:text-sm md:text-base"
-                >
-                  Recorded
-                </Link>
-              </div>
-
-              {/* Workshop Image */}
-              <div className="relative h-48 sm:h-64 md:h-96 rounded-lg overflow-hidden shadow-2xl mb-8 sm:mb-12">
-                <img
-                  src="https://i.postimg.cc/kGRQhYJg/tempImageai7DlM.avif"
-                  alt="Swar Yoga Workshops - Ancient Science of Breath"
-                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-                <div className="absolute bottom-8 left-8 text-white">
-                  <h3 className="text-3xl md:text-4xl font-bold mb-3">
-                    Discover Ancient Wisdom
-                  </h3>
-                  <p className="text-xl text-gray-200">
-                    Join our transformative workshops and retreats
-                  </p>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-                {stats.map((stat, index) => (
-                  <div
-                    key={index}
-                    className="section-card-smooth text-center"
-                  >
-                    <div className="text-4xl font-bold text-green-600 mb-3">{stat.number}</div>
-                    <div className="text-gray-700 font-medium">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* CTA Button */}
-              <div className="text-center">
-                <Link
-                  href="/calendar"
-                  className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white px-10 py-4 rounded-lg transition-all duration-300 text-lg font-semibold shadow-lg hover:shadow-xl group"
-                >
-                  <Calendar size={24} className="mr-3" />
-                  <span>Explore Our Workshops</span>
-                  <ArrowRight size={20} className="ml-3 group-hover:translate-x-1 transition-transform" />
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
+      {/* Hero Section */}
+      <section className="relative h-[50vh] sm:h-[60vh] lg:h-[70vh] flex items-center">
+        <div className="absolute inset-0 z-0">
+          <img
+            src="https://images.pexels.com/photos/1051838/pexels-photo-1051838.jpeg"
+            alt="Peaceful nature yoga setting"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40" />
+        </div>
         
-          {/* Resort Preview Section */}
-          <section className="py-16 bg-gradient-to-br from-[#f2f6f3] to-white">
-            <div className="container mx-auto px-4 md:px-6 max-w-6xl">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.5em] text-gray-500 mb-2">Resort Sanctuary</p>
-                  <h2 className="text-4xl font-bold text-gray-900">Swar Resort &amp; Retreat</h2>
-                  <p className="text-gray-600 max-w-xl leading-relaxed mt-3">
-                    Escape to our Brahmaputra riverside retreat for Ayurvedic resets, breath science, and curated
-                    star-lit samadhis. Every stay is designed to align your nervous system with the natural rhythm of
-                    the Swar Calendar.
-                  </p>
-                </div>
-                <Link
-                  href="/resort"
-                  className="bg-green-600 text-white px-8 py-3 rounded-full font-semibold hover:bg-green-700 transition"
-                >
-                  Explore the resort
-                </Link>
-              </div>
+        <div className="container mx-auto px-4 sm:px-6 relative z-10 safe-area-left safe-area-right">
+          <div className="max-w-3xl">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+            >
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-serif mb-4 sm:mb-6">
+                <span className="text-white font-light block mb-2">Welcome to</span>
+                <span className="text-green-400 font-medium">Swar Yoga</span>
+              </h1>
+            </motion.div>
 
-              <div className="grid gap-6 md:grid-cols-3">
-                {resortTeasers.map((item) => (
-                  <article key={item.title} className="bg-white rounded-3xl p-6 shadow-lg border border-gray-100">
-                    <div className="text-xs uppercase tracking-[0.4em] text-gray-500 mb-3">{item.tag}</div>
-                    <h3 className="text-2xl font-semibold text-gray-900 mb-2">{item.title}</h3>
-                    <p className="text-gray-600 leading-relaxed">{item.detail}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-
-        {/* Why Choose Section */}
-        <section className="py-20">
-          <div className="container mx-auto px-4 md:px-6 max-w-6xl section-surface-soft">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-bold text-[#2A5654] mb-6">Why Choose Swar Yoga?</h2>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                Experience authentic yoga teachings with certified instructors and transformative practices
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+            >
+              <p className="text-lg sm:text-xl md:text-2xl text-gray-200 mb-6 sm:mb-8 leading-relaxed">
+                The Science of Breath - Ancient yogic practices that unlock the secrets of conscious breathing for optimal health and vitality.
               </p>
-            </div>
-            
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="section-card-smooth border-t-4 border-primary-600">
-                <Award size={40} className="text-primary-600 mb-4" />
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">Expert Instructors</h3>
-                <p className="text-gray-600 text-lg">Learn from certified yoga masters with decades of experience and international recognition.</p>
-              </div>
-              
-              <div className="section-card-smooth border-t-4 border-coral-rose-600">
-                <Calendar size={40} className="text-coral-rose-600 mb-4" />
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">Flexible Schedules</h3>
-                <p className="text-gray-600 text-lg">Join workshops and classes at times that work for your lifestyle and learning pace.</p>
-              </div>
-              
-              <div className="section-card-smooth border-t-4 border-teal-accent-600">
-                <ArrowRight size={40} className="text-teal-accent-600 mb-4" />
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">Proven Results</h3>
-                <p className="text-gray-600 text-lg">Join thousands of students who have experienced transformative health and wellness benefits.</p>
-              </div>
-            </div>
+            </motion.div>
 
-            <div className="text-center mt-12">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+              className="flex flex-col sm:flex-row gap-4 flex-wrap"
+            >
+              <Link
+                href="/workshops"
+                className="bg-green-600 hover:bg-green-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 flex items-center justify-center group hover:translate-y-[-2px] hover:shadow-lg touch-target"
+              >
+                <span className="text-base sm:text-lg">Start Your Journey</span>
+                <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6 transform group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link
+                href="/about"
+                className="border-2 border-white hover:bg-white/10 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 text-center text-base sm:text-lg hover:translate-y-[-2px] touch-target"
+              >
+                Learn More
+              </Link>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* About Section */}
+      <section className="py-16 sm:py-20 bg-gray-50 safe-area-left safe-area-right">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-center">
+            <div className="order-2 lg:order-1">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif text-[#2A5654] mb-4 sm:mb-6">Discover Swar Yoga</h2>
+              <p className="text-gray-700 mb-4 sm:mb-6 leading-relaxed text-sm sm:text-base">
+                At Swar Yoga, we believe in the transformative power of breath to bring balance and harmony to your life. 
+                Our approach combines traditional yoga practices with modern wellness techniques to create a holistic 
+                experience for practitioners of all levels.
+              </p>
+              <p className="text-gray-700 mb-6 sm:mb-8 leading-relaxed text-sm sm:text-base">
+                Whether you're looking to deepen your practice, find stress relief, or embark on a journey of 
+                self-discovery, our experienced instructors are here to guide you every step of the way.
+              </p>
               <Link 
                 href="/about" 
-                className="inline-block bg-primary-600 text-white px-10 py-4 rounded-lg hover:bg-primary-700 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105"
+                className="inline-flex items-center text-green-600 hover:text-green-700 font-medium transition-colors touch-target"
               >
-                Learn More About Us
+                <span>Learn more about our philosophy</span>
+                <ArrowRight size={18} className="ml-2" />
               </Link>
             </div>
+            <div className="order-1 lg:order-2 relative">
+              <div className="aspect-[4/5] lg:aspect-auto lg:h-[500px] relative rounded-lg overflow-hidden shadow-xl">
+                <img
+                  src="https://i.postimg.cc/J4zrWKT7/temp-Image6-FKl-H4.avif"
+                  alt="Swar Yoga practice and meditation"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute -bottom-6 -left-6 bg-red-500 text-white p-4 sm:p-6 rounded-lg shadow-lg hidden lg:block">
+                <p className="text-xl font-serif">25+ Years</p>
+                <p className="text-sm">of teaching experience</p>
+              </div>
+            </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* CTA Section */}
-        <section className="section-gradient-cta">
-          <div className="container mx-auto px-4 md:px-6 max-w-4xl text-center relative z-10">
-            <h2 className="text-4xl md:text-5xl font-bold mb-8">Begin Your Yoga Journey Today</h2>
-            <p className="text-xl text-primary-100 mb-12 leading-relaxed">
-              Join our community and discover the transformative power of yoga. Whether you're a beginner or an experienced practitioner, we have programs for every level.
+      {/* Workshops CTA Section */}
+      <section className="py-16 sm:py-20 bg-white safe-area-left safe-area-right">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif text-[#2A5654] mb-4">Transform Your Practice</h2>
+            <p className="text-gray-600 max-w-3xl mx-auto mb-6 sm:mb-8 text-sm sm:text-base">
+              Join our comprehensive workshop programs and discover the ancient science of breath
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          </div>
+          
+          <div className="max-w-5xl mx-auto">
+            {/* Single Workshop Image */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+              className="relative h-48 sm:h-64 md:h-80 rounded-lg overflow-hidden shadow-xl mb-8 sm:mb-10"
+            >
+              <img
+                src="https://i.postimg.cc/kGRQhYJg/tempImageai7DlM.avif"
+                alt="Swar Yoga Workshops - Ancient Science of Brain Breathing"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+              <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 text-white">
+                <h3 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2">
+                  Discover Ancient Wisdom
+                </h3>
+                <p className="text-sm sm:text-lg text-gray-200">
+                  Join our transformative workshops and retreats
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Workshop Type Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8 sm:mb-10"
+            >
+              {workshopTypes.map((workshop, index) => (
+                <Link
+                  key={index}
+                  href="/workshops"
+                  className={`bg-gradient-to-br ${workshop.color} text-white p-4 sm:p-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:translate-y-[-2px] touch-target text-center group`}
+                >
+                  <div className="text-3xl sm:text-4xl mb-2">{workshop.icon}</div>
+                  <div className="font-semibold text-sm sm:text-base">{workshop.type}</div>
+                  <div className="text-xs sm:text-sm text-white/80 group-hover:text-white transition-colors">Register Now</div>
+                </Link>
+              ))}
+            </motion.div>
+
+            {/* Stats */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              viewport={{ once: true }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-10"
+            >
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">25+</div>
+                <div className="text-gray-600 text-sm sm:text-base">Years Experience</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">8000+</div>
+                <div className="text-gray-600 text-sm sm:text-base">Students Trained</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">15+</div>
+                <div className="text-gray-600 text-sm sm:text-base">Countries Reached</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">100%</div>
+                <div className="text-gray-600 text-sm sm:text-base">Satisfaction Rate</div>
+              </div>
+            </motion.div>
+
+            {/* View All Workshops Button */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              viewport={{ once: true }}
+              className="text-center"
+            >
               <Link
-                href="/calendar"
-                className="btn-gradient-cta"
+                href="/workshops"
+                className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 text-base sm:text-lg font-medium hover:shadow-lg hover:translate-y-[-2px] group touch-target"
               >
-                Browse Workshops
+                <Calendar size={20} className="mr-2 sm:mr-3 sm:h-6 sm:w-6" />
+                <span>Explore All 18 Workshops</span>
+                <ArrowRight size={16} className="ml-2 sm:ml-3 sm:h-5 sm:w-5 transform group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link
-                href="/contact"
-                className="btn-outline-soft"
-              >
-                Contact Us
-              </Link>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+      
+      {/* Resort Section */}
+      <section className="py-16 sm:py-20 bg-[#2A5654] text-white safe-area-left safe-area-right">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-center">
+            <div>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif mb-4 sm:mb-6">Experience Our Yoga Resort</h2>
+              <p className="text-gray-300 mb-4 sm:mb-6 leading-relaxed text-sm sm:text-base">
+                Nestled in the serene mountains, our yoga resort offers a peaceful retreat from the hustle and bustle of everyday life. 
+                Immerse yourself in nature while deepening your yoga practice in our beautiful studios and tranquil surroundings.
+              </p>
+              <p className="text-gray-300 mb-6 sm:mb-8 leading-relaxed text-sm sm:text-base">
+                Enjoy comfortable accommodations, nourishing organic meals, and a variety of wellness activities 
+                designed to rejuvenate your body, mind, and spirit in our pristine natural environment.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link 
+                  href="/resort" 
+                  className="inline-flex items-center justify-center bg-red-600 hover:bg-red-700 text-white px-4 sm:px-6 py-3 rounded-lg transition-colors touch-target"
+                >
+                  <span>Explore Our Resort</span>
+                  <ArrowRight size={18} className="ml-2" />
+                </Link>
+                <button
+                  onClick={() => setShowMembershipPopup(true)}
+                  className="inline-flex items-center justify-center bg-white text-[#2A5654] px-4 sm:px-6 py-3 rounded-lg hover:bg-gray-100 transition-colors touch-target"
+                >
+                  View Membership Plan
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6 }}
+                viewport={{ once: true }}
+                src="https://i.postimg.cc/vZ4BFXPF/temp-Image-IIb-JFp.avif"
+                alt="Resort exterior and natural surroundings"
+                className="rounded-lg h-32 sm:h-48 md:h-56 object-cover shadow-lg hover:shadow-xl transition-shadow duration-300"
+              />
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+                viewport={{ once: true }}
+                src="https://i.postimg.cc/MKmQ9snW/aaa-candal.avif"
+                alt="Yoga studio and meditation spaces"
+                className="rounded-lg h-32 sm:h-48 md:h-56 object-cover mt-4 sm:mt-8 shadow-lg hover:shadow-xl transition-shadow duration-300"
+              />
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                viewport={{ once: true }}
+                src="https://i.postimg.cc/5NTZkmTR/temp-Image-Gmbma-U.avif"
+                alt="Resort amenities and wellness facilities"
+                className="rounded-lg h-32 sm:h-48 md:h-56 object-cover shadow-lg hover:shadow-xl transition-shadow duration-300"
+              />
+              <motion.img
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                viewport={{ once: true }}
+                src="https://i.postimg.cc/hGJyQCn0/tempImageCNl8Fp.avif"
+                alt="Dining area and organic cuisine"
+                className="rounded-lg h-32 sm:h-48 md:h-56 object-cover mt-4 sm:mt-8 shadow-lg hover:shadow-xl transition-shadow duration-300"
+              />
             </div>
           </div>
-        </section>
-      </main>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-12 sm:py-16 bg-green-600 text-white safe-area-left safe-area-right">
+        <div className="container mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif mb-4 sm:mb-6">Begin Your Yoga Journey Today</h2>
+          <p className="text-base sm:text-lg md:text-xl text-green-100 max-w-3xl mx-auto mb-6 sm:mb-8 leading-relaxed">
+            Join our community and discover the transformative power of yoga. Whether you're a beginner or an experienced practitioner, we have classes and workshops for every level.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              href="/workshops"
+              className="bg-white hover:bg-gray-100 text-green-600 px-4 sm:px-6 py-3 rounded-lg transition-colors touch-target"
+            >
+              Browse Workshops
+            </Link>
+            <Link
+              href="/contact"
+              className="border-2 border-white hover:bg-white hover:text-green-600 text-white px-4 sm:px-6 py-3 rounded-lg transition-colors touch-target"
+            >
+              Contact Us
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Membership Popup */}
+      <AnimatePresence>
+        {showMembershipPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 safe-area-left safe-area-right"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-xl shadow-xl max-w-sm sm:max-w-md md:max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+            >
+              <button
+                onClick={() => setShowMembershipPopup(false)}
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors touch-target"
+              >
+                <X size={24} />
+              </button>
+
+              <div className="p-4 sm:p-6 md:p-8">
+                <div className="text-center mb-8">
+                  <h3 className="text-2xl sm:text-3xl font-bold text-[#2A5654] mb-2">Resort Membership</h3>
+                  <p className="text-gray-600 text-sm sm:text-base">Limited time offer - Only {membershipDetails.maxParticipants} spots available</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-[#2A5654] to-[#1F4240] rounded-lg p-6 text-white mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <p className="text-sm text-gray-300">Price Range</p>
+                      <p className="text-2xl sm:text-3xl font-bold">₹{membershipDetails.priceRange.min.toLocaleString()} - ₹{membershipDetails.priceRange.max.toLocaleString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-300">Valid for</p>
+                      <p className="text-lg sm:text-xl font-semibold">{membershipDetails.validity}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm sm:text-base">
+                    <p>✓ {membershipDetails.accommodationDays} days free accommodation</p>
+                    <p>✓ {membershipDetails.stayPerYear} days per year for {membershipDetails.peoplePerStay} people</p>
+                    <p>✓ {membershipDetails.discountRate}% discount on room rates for friends</p>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="font-semibold text-lg mb-2">Early Bird Pricing</h4>
+                    <p className="text-gray-600 text-sm sm:text-base">
+                      Special pricing from ₹{membershipDetails.priceRange.min.toLocaleString()} to ₹{membershipDetails.priceRange.max.toLocaleString()} based on booking sequence. Limited membership spots available!
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <Link
+                      href="/resort"
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg text-center transition-colors touch-target font-medium"
+                      onClick={() => setShowMembershipPopup(false)}
+                    >
+                      Learn More
+                    </Link>
+                    <a
+                      href="tel:+919779006820"
+                      className="flex-1 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg transition-colors touch-target font-medium"
+                    >
+                      <Phone size={18} className="mr-2" />
+                      Call for Details
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Footer />
-    </>
+    </div>
   );
-}
+};
+
+export default HomePage;

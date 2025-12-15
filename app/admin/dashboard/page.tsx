@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, LogOut, Menu, X, TrendingUp, ShoppingCart, DollarSign } from 'lucide-react';
+import Link from 'next/link';
+import { LayoutDashboard, Users, LogOut, Menu, X, TrendingUp, ShoppingCart, DollarSign, Home } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 import ServerStatus from '@/components/ServerStatus';
 
@@ -126,6 +127,13 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-600">Welcome back</p>
                 <p className="font-semibold text-gray-800 capitalize">{adminUser}</p>
               </div>
+              <Link
+                href="/"
+                className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                title="Go to Home"
+              >
+                <Home className="h-6 w-6" />
+              </Link>
               <button
                 onClick={handleLogout}
                 className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
