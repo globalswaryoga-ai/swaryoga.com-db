@@ -250,6 +250,18 @@ const HomePage = () => {
                 Enjoy comfortable accommodations, nourishing organic meals, and a variety of wellness activities 
                 designed to rejuvenate your body, mind, and spirit in our pristine natural environment.
               </p>
+              
+              {/* Membership Pricing Display */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 border border-white/20">
+                <p className="text-gray-300 text-sm sm:text-base mb-2">Membership Starting from</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl sm:text-4xl font-bold">₹11,000</span>
+                  <span className="text-gray-400">to</span>
+                  <span className="text-3xl sm:text-4xl font-bold">₹21,000</span>
+                </div>
+                <p className="text-gray-400 text-xs sm:text-sm mt-2">Valid for 5 years with exclusive benefits</p>
+              </div>
+
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link 
                   href="/resort" 
