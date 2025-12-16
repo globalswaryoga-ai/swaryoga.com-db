@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { getConnectionStatus } from '@/lib/db';
 
 export async function GET() {
   try {

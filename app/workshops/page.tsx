@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { ArrowRight, BookOpen } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -23,12 +23,15 @@ function WorkshopsPageInner() {
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [selectedWorkshop, setSelectedWorkshop] = useState<string | null>(null);
+  const [accordionOpen, setAccordionOpen] = useState({
+    workshop: false,
+    mode: false,
+    language: false,
+    currency: false,
+  });
   const searchParams = useSearchParams();
   const queryString = searchParams?.toString() ?? '';
   const totalWorkshops = workshopCatalog.length;
-  const activeWorkshopLabel = selectedWorkshop
-    ? workshopCatalog.find((workshop) => workshop.slug === selectedWorkshop)?.name
-    : null;
 
   useEffect(() => {
     if (!searchParams) return;
@@ -111,140 +114,161 @@ function WorkshopsPageInner() {
               </p>
             </div>
 
-            {/* Filters Section */}
-            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8 mb-8 sm:mb-12">
+            {/* Filters Section - Accordion */}
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8 mb-8 sm:mb-12 space-y-4">
               <div className="mb-4 sm:mb-6">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-700">Filter Workshops</h3>
                 <p className="text-xs sm:text-sm text-gray-500">Find the perfect workshop for your journey</p>
               </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-                {/* Our Workshop Filter Dropdown */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Workshops</label>
-                  <select
-                    value={selectedWorkshop || ''}
-                    onChange={(e) => {
-                      setSelectedWorkshop(e.target.value || null);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300 touch-target text-sm"
-                  >
-                    <option value="">All Workshops</option>
-                    {workshopFilterOptions.map((option) => (
-                      <option key={option.slug} value={option.slug}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
-                {/* Mode Filter Dropdown */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Mode</label>
-                  <select
-                    value={selectedMode || ''}
-                    onChange={(e) => {
-                      setSelectedMode(e.target.value || null);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300 touch-target text-sm"
-                  >
-                    <option value="">All Modes</option>
-                    <option value="Online">Online</option>
-                    <option value="Offline">Offline</option>
-                    <option value="Residential">Residential</option>
-                    <option value="Recorded">Recorded</option>
-                  </select>
-                </div>
+              {/* Workshop Accordion */}
+              <div className="border border-gray-300 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setAccordionOpen({ ...accordionOpen, workshop: !accordionOpen.workshop })}
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                >
+                  <span>Workshops</span>
+                  <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.workshop ? 'rotate-180' : ''}`} />
+                </button>
+                {accordionOpen.workshop && (
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        onClick={() => { setSelectedWorkshop(null); setCurrentPage(1); }}
+                        className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${!selectedWorkshop ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                      >
+                        All Workshops
+                      </button>
+                      {workshopFilterOptions.map((option) => (
+                        <button
+                          key={option.slug}
+                          onClick={() => { setSelectedWorkshop(option.slug); setCurrentPage(1); }}
+                          className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          {option.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
-                {/* Language Filter Dropdown */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Language</label>
-                  <select
-                    value={selectedLanguage || ''}
-                    onChange={(e) => {
-                      setSelectedLanguage(e.target.value || null);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300 touch-target text-sm"
-                  >
-                    <option value="">All Languages</option>
-                    <option value="Hindi">Hindi</option>
-                    <option value="English">English</option>
-                    <option value="Marathi">Marathi</option>
-                  </select>
-                </div>
+              {/* Mode Accordion */}
+              <div className="border border-gray-300 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setAccordionOpen({ ...accordionOpen, mode: !accordionOpen.mode })}
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                >
+                  <span>Mode</span>
+                  <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.mode ? 'rotate-180' : ''}`} />
+                </button>
+                {accordionOpen.mode && (
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        onClick={() => { setSelectedMode(null); setCurrentPage(1); }}
+                        className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${!selectedMode ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                      >
+                        All Modes
+                      </button>
+                      {['Online', 'Offline', 'Residential', 'Recorded'].map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => { setSelectedMode(mode); setCurrentPage(1); }}
+                          className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${selectedMode === mode ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
-                {/* Payment Currency Filter Dropdown */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Currency</label>
-                  <select
-                    value={selectedPayment || ''}
-                    onChange={(e) => {
-                      setSelectedPayment(e.target.value || null);
-                      setCurrentPage(1);
-                    }}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300 touch-target text-sm"
-                  >
-                    <option value="">All Currencies</option>
-                    <option value="INR">₹ INR</option>
-                    <option value="USD">$ USD</option>
-                    <option value="NPR">Rs NPR</option>
-                  </select>
-                </div>
+              {/* Language Accordion */}
+              <div className="border border-gray-300 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setAccordionOpen({ ...accordionOpen, language: !accordionOpen.language })}
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                >
+                  <span>Language</span>
+                  <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.language ? 'rotate-180' : ''}`} />
+                </button>
+                {accordionOpen.language && (
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        onClick={() => { setSelectedLanguage(null); setCurrentPage(1); }}
+                        className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${!selectedLanguage ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                      >
+                        All Languages
+                      </button>
+                      {['Hindi', 'English', 'Marathi'].map((lang) => (
+                        <button
+                          key={lang}
+                          onClick={() => { setSelectedLanguage(lang); setCurrentPage(1); }}
+                          className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${selectedLanguage === lang ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          {lang}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Currency Accordion */}
+              <div className="border border-gray-300 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setAccordionOpen({ ...accordionOpen, currency: !accordionOpen.currency })}
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                >
+                  <span>Currency</span>
+                  <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.currency ? 'rotate-180' : ''}`} />
+                </button>
+                {accordionOpen.currency && (
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        onClick={() => { setSelectedPayment(null); setCurrentPage(1); }}
+                        className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${!selectedPayment ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                      >
+                        All Currencies
+                      </button>
+                      {['INR', 'USD', 'NPR'].map((curr) => {
+                        const currencySymbol = { INR: '₹', USD: '$', NPR: 'Rs' }[curr];
+                        return (
+                          <button
+                            key={curr}
+                            onClick={() => { setSelectedPayment(curr); setCurrentPage(1); }}
+                            className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${selectedPayment === curr ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                          >
+                            {currencySymbol} {curr}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Clear Filters Button */}
               <div className="mt-3 sm:mt-6 flex flex-wrap gap-2">
-                  {(selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) ? (
-                    <button
-                      onClick={() => {
-                        setSelectedMode(null);
-                        setSelectedLanguage(null);
-                        setSelectedPayment(null);
-                        setSelectedWorkshop(null);
-                        setCurrentPage(1);
-                      }}
-                      className="bg-red-500 hover:bg-red-600 active:scale-95 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 touch-target"
-                    >
-                      ✕ Clear Filters
-                    </button>
-                  ) : null}
-                </div>
-
-              {/* Filter Summary */}
-              {(selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) && (
-                <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">
-                  <p className="text-gray-700 font-semibold mb-2 sm:mb-3 text-sm">Active Filters:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {activeWorkshopLabel && (
-                      <span className="inline-flex items-center gap-2 bg-primary-100 text-primary-700 px-3 py-1.5 rounded-full font-semibold text-xs sm:text-sm">
-                        📚 {activeWorkshopLabel}
-                        <button onClick={() => setSelectedWorkshop(null)} className="hover:text-primary-900 ml-1">✕</button>
-                      </span>
-                    )}
-                    {selectedMode && (
-                      <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full font-semibold text-xs sm:text-sm">
-                        🎯 {selectedMode}
-                        <button onClick={() => setSelectedMode(null)} className="hover:text-blue-900 ml-1">✕</button>
-                      </span>
-                    )}
-                    {selectedLanguage && (
-                      <span className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-3 py-1.5 rounded-full font-semibold text-xs sm:text-sm">
-                        🗣️ {selectedLanguage}
-                        <button onClick={() => setSelectedLanguage(null)} className="hover:text-green-900 ml-1">✕</button>
-                      </span>
-                    )}
-                    {selectedPayment && (
-                      <span className="inline-flex items-center gap-2 bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-full font-semibold text-xs sm:text-sm">
-                        💰 {selectedPayment}
-                        <button onClick={() => setSelectedPayment(null)} className="hover:text-yellow-900 ml-1">✕</button>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
+                {(selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) && (
+                  <button
+                    onClick={() => {
+                      setSelectedMode(null);
+                      setSelectedLanguage(null);
+                      setSelectedPayment(null);
+                      setSelectedWorkshop(null);
+                      setCurrentPage(1);
+                    }}
+                    className="bg-red-500 hover:bg-red-600 active:scale-95 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 touch-target"
+                  >
+                    ✕ Clear Filters
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Workshop Cards Grid */}
@@ -302,14 +326,23 @@ function WorkshopsPageInner() {
 
                     {/* Batches Section Removed - Only shown on detail page */}
 
-                    {/* Learn More Button */}
-                    <Link
-                      href={`/workshops/${workshop.slug}`}
-                      className="w-full bg-primary-600 hover:bg-primary-700 active:scale-95 text-white py-2.5 sm:py-3 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
-                    >
-                      Learn More
-                      <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
-                    </Link>
+                    {/* CTA Buttons Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Link
+                        href={`/workshops/${workshop.slug}`}
+                        className="bg-white border-2 border-primary-600 hover:bg-gray-50 active:scale-95 text-primary-600 py-2.5 sm:py-3 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
+                      >
+                        Learn More
+                        <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
+                      </Link>
+                      <Link
+                        href={`/workshops/${workshop.slug}/register`}
+                        className="bg-primary-600 hover:bg-primary-700 active:scale-95 text-white py-2.5 sm:py-3 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
+                      >
+                        Register Now
+                        <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
               ))}
