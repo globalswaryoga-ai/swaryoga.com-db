@@ -20,8 +20,12 @@ export default function RootLayout({
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
         <meta name="theme-color" content="#2D6A4F" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        {/* Prevent Datadog duplicate loading */}
+        <script dangerouslySetInnerHTML={{
+          __html: `if (window.DD_RUM) { window.DD_RUM._pageLoaded = true; }`
+        }} />
       </head>
       <body className="antialiased bg-white text-gray-900 overflow-x-hidden">
         <AppInitializer />
