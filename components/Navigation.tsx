@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Menu, X, ShoppingCart, User, LogOut } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { initializeAutoLogin } from '@/lib/autoLoginManager';
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -32,10 +31,8 @@ export default function Navigation() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Initialize auto-login and load user data
+  // Load user data from localStorage (no auto-login)
   useEffect(() => {
-    initializeAutoLogin();
-
     // Check if user is logged in
     const storedUser = localStorage.getItem('user');
     if (storedUser) {

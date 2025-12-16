@@ -1,5 +1,5 @@
-// Auto-Login Manager for swarsakshi9@gmail.com
-// This user will always remain signed in
+// Auto-Login Manager - DISABLED
+// This functionality has been disabled for security purposes
 
 const AUTO_LOGIN_EMAIL = 'swarsakshi9@gmail.com';
 const AUTO_LOGIN_USER = {
@@ -11,70 +11,39 @@ const AUTO_LOGIN_USER = {
 };
 
 /**
- * Initialize auto-login for swarsakshi9@gmail.com
- * ENABLED: User automatically logged in
+ * Initialize auto-login - DISABLED
  */
 export const initializeAutoLogin = (): void => {
-  // Auto-login enabled for continuous session
-  autoLoginUser();
+  // Auto-login has been disabled for security purposes
+  // Users must authenticate properly
 };
 
 /**
- * Auto-login swarsakshi9@gmail.com
- * This creates a session without requiring password
+ * Auto-login swarsakshi9@gmail.com - DISABLED
  */
 export const autoLoginUser = (): void => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    // Create a mock token for auto-login user
-    const mockToken = `auto-login-token-${Date.now()}`;
-    
-    // Store user data
-    localStorage.setItem('token', mockToken);
-    localStorage.setItem('user', JSON.stringify(AUTO_LOGIN_USER));
-    localStorage.setItem('userName', AUTO_LOGIN_USER.name);
-    localStorage.setItem('userEmail', AUTO_LOGIN_USER.email);
-    localStorage.setItem('userPhone', AUTO_LOGIN_USER.phone);
-    localStorage.setItem('userCountryCode', AUTO_LOGIN_USER.countryCode);
-
-    // Set session expiry to 30 days (longer for auto-login)
-    const expiryTime = Date.now() + (30 * 24 * 60 * 60 * 1000);
-    localStorage.setItem('sessionExpiry', expiryTime.toString());
-
-    console.log('Auto-login activated for swarsakshi9@gmail.com');
-  } catch (error) {
-    console.error('Failed to auto-login user:', error);
-  }
+  // Auto-login has been disabled for security purposes
 };
 
 /**
  * Check if current user is the auto-login user
  */
 export const isAutoLoginUser = (): boolean => {
-  if (typeof window === 'undefined') return false;
-
-  try {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) return false;
-    
-    const user = JSON.parse(userStr);
-    return user.email === AUTO_LOGIN_EMAIL;
-  } catch (error) {
-    return false;
-  }
+  // Auto-login has been disabled
+  return false;
 };
 
 /**
  * Get auto-login user info
  */
 export const getAutoLoginUser = () => {
-  return AUTO_LOGIN_USER;
+  return null;
 };
 
 /**
  * Check if logout should be prevented (for auto-login user)
  */
 export const shouldPreventLogout = (): boolean => {
-  return isAutoLoginUser();
+  // Auto-login has been disabled - logout is allowed
+  return false;
 };
