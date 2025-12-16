@@ -109,45 +109,58 @@ export default function Footer() {
             {/* Company Info */}
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-4 mb-6">
-                {/* Geometric Logo */}
+                {/* Triangular Sacred Geometry Logo */}
                 <div className="relative w-16 h-16 flex-shrink-0">
                   <svg viewBox="0 0 64 64" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                    {/* Deep Green Background Circle */}
-                    <circle cx="32" cy="32" r="32" fill="#2A5654" opacity="0.15" />
-                    
-                    {/* Infinity Symbol (∞) */}
+                    {/* Main Triangular Infinity - Nose/Breath Shape */}
                     <path 
-                      d="M 16 32 Q 16 20 24 20 Q 32 20 32 28 Q 32 36 24 36 Q 16 36 16 32 M 48 32 Q 48 20 40 20 Q 32 20 32 28 Q 32 36 40 36 Q 48 36 48 32" 
+                      d="M 32 12 L 50 50 L 14 50 Z" 
+                      fill="none"
                       stroke="#4ADE80" 
-                      strokeWidth="2.5" 
-                      fill="none" 
+                      strokeWidth="3" 
                       strokeLinecap="round" 
                       strokeLinejoin="round"
                     />
                     
-                    {/* Breath Wave - Saffron Accent */}
+                    {/* Inner triangular detail - breath channel */}
                     <path 
-                      d="M 14 44 Q 16 42 18 44 T 22 44 T 26 44 T 30 44 T 34 44 T 38 44 T 42 44 T 46 44 T 50 44" 
+                      d="M 32 20 L 44 45 L 20 45 Z" 
+                      fill="none"
                       stroke="#FF9F43" 
-                      strokeWidth="2" 
-                      fill="none" 
-                      strokeLinecap="round"
+                      strokeWidth="2.5" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
                     />
+                    
+                    {/* Breathing waves - Saffron accent */}
+                    <circle cx="32" cy="54" r="3" fill="#FF9F43" opacity="0.8" />
+                    <circle cx="26" cy="56" r="2" fill="#FF9F43" opacity="0.6" />
+                    <circle cx="38" cy="56" r="2" fill="#FF9F43" opacity="0.6" />
                   </svg>
                 </div>
                 
                 <div>
-                  <span className="text-2xl font-bold text-green-400" style={{
-                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-                    letterSpacing: "-0.02em"
-                  }}>
+                  <span 
+                    className="text-2xl font-bold text-green-400" 
+                    style={{
+                      fontFamily: "var(--font-space-grotesk), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
+                      letterSpacing: "-0.01em",
+                      fontWeight: 700
+                    }}
+                  >
                     SWAR YOGA
                   </span>
-                  <div className="text-xs sm:text-sm text-gray-400 -mt-1" style={{
-                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-                    letterSpacing: "0.01em",
-                    color: "#86EFAC"
-                  }}>The Science of Breath</div>
+                  <div 
+                    className="text-xs sm:text-sm text-gray-400 -mt-1" 
+                    style={{
+                      fontFamily: "var(--font-space-grotesk), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
+                      letterSpacing: "0.02em",
+                      color: "#86EFAC",
+                      fontWeight: 600
+                    }}
+                  >
+                    The Science of Breath
+                  </div>
                 </div>
               </div>
               
