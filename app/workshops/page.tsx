@@ -121,6 +121,7 @@ function WorkshopsPageInner() {
                 <p className="text-xs sm:text-sm text-gray-500">Find the perfect workshop for your journey</p>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Workshop Accordion */}
               <div className="border border-gray-300 rounded-lg overflow-hidden">
                 <button
@@ -250,6 +251,7 @@ function WorkshopsPageInner() {
                     </div>
                   </div>
                 )}
+              </div>
               </div>
 
               {/* Clear Filters Button */}
