@@ -108,19 +108,46 @@ export default function Footer() {
           <div className="grid lg:grid-cols-5 gap-12">
             {/* Company Info */}
             <div className="lg:col-span-2">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="relative">
-                  <img 
-                    src="https://i.postimg.cc/VkVFzhxB/facebook_logo.png" 
-                    alt="Swar Yoga Logo" 
-                    className="h-12 w-auto"
-                  />
+              <div className="flex items-center space-x-4 mb-6">
+                {/* Geometric Logo */}
+                <div className="relative w-16 h-16 flex-shrink-0">
+                  <svg viewBox="0 0 64 64" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                    {/* Deep Green Background Circle */}
+                    <circle cx="32" cy="32" r="32" fill="#2A5654" opacity="0.15" />
+                    
+                    {/* Infinity Symbol (∞) */}
+                    <path 
+                      d="M 16 32 Q 16 20 24 20 Q 32 20 32 28 Q 32 36 24 36 Q 16 36 16 32 M 48 32 Q 48 20 40 20 Q 32 20 32 28 Q 32 36 40 36 Q 48 36 48 32" 
+                      stroke="#4ADE80" 
+                      strokeWidth="2.5" 
+                      fill="none" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                    />
+                    
+                    {/* Breath Wave - Saffron Accent */}
+                    <path 
+                      d="M 14 44 Q 16 42 18 44 T 22 44 T 26 44 T 30 44 T 34 44 T 38 44 T 42 44 T 46 44 T 50 44" 
+                      stroke="#FF9F43" 
+                      strokeWidth="2" 
+                      fill="none" 
+                      strokeLinecap="round"
+                    />
+                  </svg>
                 </div>
+                
                 <div>
-                  <span className="text-3xl font-bold bg-gradient-to-r from-green-400 to-green-500 bg-clip-text text-transparent">
-                    Swar Yoga
+                  <span className="text-2xl font-bold text-green-400" style={{
+                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                    letterSpacing: "-0.02em"
+                  }}>
+                    SWAR YOGA
                   </span>
-                  <div className="text-sm text-gray-400 -mt-1">The Science of Breath</div>
+                  <div className="text-xs sm:text-sm text-gray-400 -mt-1" style={{
+                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                    letterSpacing: "0.01em",
+                    color: "#86EFAC"
+                  }}>The Science of Breath</div>
                 </div>
               </div>
               

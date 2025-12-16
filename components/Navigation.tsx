@@ -103,20 +103,59 @@ export default function Navigation() {
       }`}>
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            {/* Logo */}
-            <Link href="/" className="flex items-center space-x-3 group">
-              <div className="relative">
-                <img 
-                  src="https://i.postimg.cc/VkVFzhxB/facebook_logo.png" 
-                  alt="Swar Yoga Logo" 
-                  className="h-10 sm:h-12 w-auto transition-transform group-hover:scale-105"
-                />
+            {/* Logo - Meta-like Geometric Design */}
+            <Link href="/" className="flex items-center space-x-3 group hover:opacity-80 transition-opacity">
+              {/* Geometric Infinity + Breath Wave Symbol */}
+              <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center">
+                <svg viewBox="0 0 64 64" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                  {/* Deep Green Background Circle */}
+                  <circle cx="32" cy="32" r="32" fill="#2A5654" opacity="0.1" />
+                  
+                  {/* Infinity Symbol (∞) */}
+                  <path 
+                    d="M 16 32 Q 16 20 24 20 Q 32 20 32 28 Q 32 36 24 36 Q 16 36 16 32 M 48 32 Q 48 20 40 20 Q 32 20 32 28 Q 32 36 40 36 Q 48 36 48 32" 
+                    stroke="#2A5654" 
+                    strokeWidth="2.5" 
+                    fill="none" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  />
+                  
+                  {/* Breath Wave - Saffron Accent */}
+                  <path 
+                    d="M 14 44 Q 16 42 18 44 T 22 44 T 26 44 T 30 44 T 34 44 T 38 44 T 42 44 T 46 44 T 50 44" 
+                    stroke="#FF9F43" 
+                    strokeWidth="2" 
+                    fill="none" 
+                    strokeLinecap="round"
+                  />
+                  
+                  {/* Second Wave for depth */}
+                  <path 
+                    d="M 14 48 Q 16 46 18 48 T 22 48 T 26 48 T 30 48 T 34 48 T 38 48 T 42 48 T 46 48 T 50 48" 
+                    stroke="#2A5654" 
+                    strokeWidth="1.5" 
+                    fill="none" 
+                    opacity="0.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </div>
-              <div className="flex flex-col">
-                <span className="text-2xl font-bold text-black">
-                  Swar Yoga
+              
+              {/* Text - Meta-like Geometric Font */}
+              <div className="flex flex-col tracking-tight">
+                <span className="text-xl sm:text-2xl font-bold text-gray-900" style={{
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+                  letterSpacing: "-0.02em",
+                  fontWeight: 700
+                }}>
+                  SWAR YOGA
                 </span>
-                <div className="text-xs text-gray-500 -mt-1 hidden sm:block">The Science of Breath</div>
+                <div className="text-xs sm:text-sm font-medium text-gray-600 -mt-0.5 hidden sm:block" style={{
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                  letterSpacing: "0.01em",
+                  color: "#2A5654"
+                }}>The Science of Breath</div>
               </div>
             </Link>
 
