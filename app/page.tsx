@@ -12,17 +12,13 @@ const HomePage = () => {
 
 
   const membershipDetails = {
-    price: 11000,
+    price: 21000,
     maxParticipants: 201,
     accommodationDays: 50,
     validity: '5 years',
     stayPerYear: '10 days',
     peoplePerStay: 2,
-    discountRate: 50,
-    priceRange: {
-      min: 11000,
-      max: 21000
-    }
+    discountRate: 50
   };
 
   const workshopTypes = [
@@ -226,10 +222,8 @@ const HomePage = () => {
               
               {/* Membership Pricing Display */}
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 border border-white/20">
-                <p className="text-gray-300 text-sm sm:text-base mb-2">Membership Starting from</p>
+                <p className="text-gray-300 text-sm sm:text-base mb-2">Membership</p>
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl sm:text-4xl font-bold">₹11,000</span>
-                  <span className="text-gray-400">to</span>
                   <span className="text-3xl sm:text-4xl font-bold">₹21,000</span>
                 </div>
                 <p className="text-gray-400 text-xs sm:text-sm mt-2">Valid for 5 years with exclusive benefits</p>
@@ -326,8 +320,8 @@ const HomePage = () => {
                 <div className="bg-gradient-to-br from-[#2A5654] to-[#1F4240] rounded-lg p-6 text-white mb-6">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <p className="text-sm text-gray-300">Price Range</p>
-                      <p className="text-2xl sm:text-3xl font-bold">₹{membershipDetails.priceRange.min.toLocaleString()} - ₹{membershipDetails.priceRange.max.toLocaleString()}</p>
+                      <p className="text-sm text-gray-300">Price</p>
+                      <p className="text-2xl sm:text-3xl font-bold">₹{membershipDetails.price.toLocaleString()}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-300">Valid for</p>
@@ -343,9 +337,9 @@ const HomePage = () => {
 
                 <div className="space-y-6">
                   <div>
-                    <h4 className="font-semibold text-lg mb-2">Early Bird Pricing</h4>
+                    <h4 className="font-semibold text-lg mb-2">Membership Details</h4>
                     <p className="text-gray-600 text-sm sm:text-base">
-                      Special pricing from ₹{membershipDetails.priceRange.min.toLocaleString()} to ₹{membershipDetails.priceRange.max.toLocaleString()} based on booking sequence. Limited membership spots available!
+                      One-time payment of ₹{membershipDetails.price.toLocaleString()} for {membershipDetails.validity}. Limited membership spots available!
                     </p>
                   </div>
 

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -14,8 +13,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    await connectDB();
 
     // For admin, check against environment variable or database
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';

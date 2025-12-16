@@ -109,64 +109,13 @@ export default function Footer() {
             {/* Company Info */}
             <div className="lg:col-span-2">
               <div className="flex items-center space-x-4 mb-6">
-                {/* Premium Circular Logo */}
+                {/* Logo Image */}
                 <div className="relative w-16 h-16 flex-shrink-0">
-                  <svg viewBox="0 0 128 128" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                    {/* Outer Circle - Deep Green Background */}
-                    <circle cx="64" cy="64" r="62" fill="#2A5654" opacity="0.95" />
-                    
-                    {/* Inner lighter green for depth */}
-                    <circle cx="64" cy="64" r="58" fill="#3A6B63" opacity="0.5" />
-                    
-                    {/* Upper curved lines (nostril effect) */}
-                    <path 
-                      d="M 42 32 Q 40 42 42 48" 
-                      stroke="white" 
-                      strokeWidth="3.5" 
-                      fill="none" 
-                      strokeLinecap="round"
-                    />
-                    <path 
-                      d="M 86 32 Q 88 42 86 48" 
-                      stroke="white" 
-                      strokeWidth="3.5" 
-                      fill="none" 
-                      strokeLinecap="round"
-                    />
-                    
-                    {/* Main Infinity Symbol (flowing, rounded) - WHITE */}
-                    <path 
-                      d="M 30 64 Q 30 48 48 48 Q 64 48 64 60 Q 64 72 48 72 Q 30 72 30 64 M 98 64 Q 98 48 80 48 Q 64 48 64 60 Q 64 72 80 72 Q 98 72 98 64" 
-                      stroke="white" 
-                      strokeWidth="4" 
-                      fill="none" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    />
-                    
-                    {/* Central Saffron Dot (divine energy) */}
-                    <circle cx="64" cy="60" r="3.5" fill="#FF9F43" />
-                    
-                    {/* Bottom flowing waves - Saffron (breath movement) */}
-                    <path 
-                      d="M 30 82 Q 35 78 40 82 T 50 82 T 60 82 T 70 82 T 80 82 T 90 82 T 100 82" 
-                      stroke="#FF9F43" 
-                      strokeWidth="2.5" 
-                      fill="none" 
-                      strokeLinecap="round"
-                    />
-                    <path 
-                      d="M 32 90 Q 37 86 42 90 T 52 90 T 62 90 T 72 90 T 82 90 T 92 90 T 102 90" 
-                      stroke="#FF9F43" 
-                      strokeWidth="1.8" 
-                      fill="none" 
-                      opacity="0.6"
-                      strokeLinecap="round"
-                    />
-                    
-                    {/* Outer circle border (premium touch) */}
-                    <circle cx="64" cy="64" r="62" fill="none" stroke="#FF9F43" strokeWidth="1" opacity="0.4" />
-                  </svg>
+                  <img 
+                    src="https://i.postimg.cc/VkVFzhxB/facebook_logo.png"
+                    alt="Swar Yoga Logo"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 
                 <div>
