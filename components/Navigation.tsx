@@ -103,35 +103,65 @@ export default function Navigation() {
       }`}>
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            {/* Logo - Sacred Geometry + Triangular Breath Symbol */}
+            {/* Logo - Premium Hybrid Design (Circle + Triangle + Flowing Waves) */}
             <Link href="/" className="flex items-center space-x-3 group hover:opacity-80 transition-opacity">
-              {/* Triangular Infinity Symbol (Breath/Nose Shape) */}
+              {/* Circular Premium Logo with Flowing Design */}
               <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center">
-                <svg viewBox="0 0 64 64" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                  {/* Main Triangular Infinity - Nose/Breath Shape */}
+                <svg viewBox="0 0 128 128" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                  {/* Outer Circle - Deep Green Background */}
+                  <circle cx="64" cy="64" r="62" fill="#2A5654" opacity="0.95" />
+                  
+                  {/* Inner lighter green for depth */}
+                  <circle cx="64" cy="64" r="58" fill="#3A6B63" opacity="0.5" />
+                  
+                  {/* Upper curved lines (nostril effect) */}
                   <path 
-                    d="M 32 12 L 50 50 L 14 50 Z" 
-                    fill="none"
-                    stroke="#2A5654" 
-                    strokeWidth="3" 
+                    d="M 42 32 Q 40 42 42 48" 
+                    stroke="white" 
+                    strokeWidth="3.5" 
+                    fill="none" 
+                    strokeLinecap="round"
+                  />
+                  <path 
+                    d="M 86 32 Q 88 42 86 48" 
+                    stroke="white" 
+                    strokeWidth="3.5" 
+                    fill="none" 
+                    strokeLinecap="round"
+                  />
+                  
+                  {/* Main Infinity Symbol (flowing, rounded) - WHITE */}
+                  <path 
+                    d="M 30 64 Q 30 48 48 48 Q 64 48 64 60 Q 64 72 48 72 Q 30 72 30 64 M 98 64 Q 98 48 80 48 Q 64 48 64 60 Q 64 72 80 72 Q 98 72 98 64" 
+                    stroke="white" 
+                    strokeWidth="4" 
+                    fill="none" 
                     strokeLinecap="round" 
                     strokeLinejoin="round"
                   />
                   
-                  {/* Inner triangular detail - breath channel */}
+                  {/* Central Saffron Dot (divine energy) */}
+                  <circle cx="64" cy="60" r="3.5" fill="#FF9F43" />
+                  
+                  {/* Bottom flowing waves - Saffron (breath movement) */}
                   <path 
-                    d="M 32 20 L 44 45 L 20 45 Z" 
-                    fill="none"
+                    d="M 30 82 Q 35 78 40 82 T 50 82 T 60 82 T 70 82 T 80 82 T 90 82 T 100 82" 
                     stroke="#FF9F43" 
                     strokeWidth="2.5" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
+                    fill="none" 
+                    strokeLinecap="round"
+                  />
+                  <path 
+                    d="M 32 90 Q 37 86 42 90 T 52 90 T 62 90 T 72 90 T 82 90 T 92 90 T 102 90" 
+                    stroke="#FF9F43" 
+                    strokeWidth="1.8" 
+                    fill="none" 
+                    opacity="0.6"
+                    strokeLinecap="round"
                   />
                   
-                  {/* Breathing waves - Saffron accent */}
-                  <circle cx="32" cy="54" r="3" fill="#FF9F43" opacity="0.8" />
-                  <circle cx="26" cy="56" r="2" fill="#FF9F43" opacity="0.6" />
-                  <circle cx="38" cy="56" r="2" fill="#FF9F43" opacity="0.6" />
+                  {/* Outer circle border (premium touch) */}
+                  <circle cx="64" cy="64" r="62" fill="none" stroke="#FF9F43" strokeWidth="1" opacity="0.4" />
                 </svg>
               </div>
               
