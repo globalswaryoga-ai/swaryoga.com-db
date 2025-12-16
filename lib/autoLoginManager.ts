@@ -1,14 +1,6 @@
 // Auto-Login Manager - DISABLED
 // This functionality has been disabled for security purposes
-
-const AUTO_LOGIN_EMAIL = 'swarsakshi9@gmail.com';
-const AUTO_LOGIN_USER = {
-  id: 'auto-login-user-swar-sakshi',
-  name: 'Swar Sakshi',
-  email: 'swarsakshi9@gmail.com',
-  phone: '9876543210',
-  countryCode: '+91'
-};
+// Users must authenticate properly through standard login flows
 
 /**
  * Initialize auto-login - DISABLED
