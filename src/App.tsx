@@ -104,6 +104,11 @@ function App() {
                   <Route path="/about" element={<><Header /><AboutPage /><Footer /></>} />
                   <Route path="/contact" element={<><Header /><ContactPage /><Footer /></>} />
                   <Route path="/workshops" element={<><Header /><WorkshopPage /><Footer /></>} />
+                  {/* Block legacy/invalid register shortcut */}
+                  <Route path="/workshops/register" element={<Navigate to="/workshops" replace />} />
+                  {/* Slug-based workshop URLs */}
+                  <Route path="/workshops/:workshopId" element={<><Header /><WorkshopDetailPage /><Footer /></>} />
+                  <Route path="/workshops/:workshopId/register" element={<><Header /><RegistrationPage /><Footer /></>} />
                   <Route path="/resort" element={<><Header /><Resort /><Footer /></>} />
                   <Route path="/blog" element={<><Header /><Blog /><Footer /></>} />
                   <Route path="/cart" element={<><Header /><CartPage /><Footer /></>} />

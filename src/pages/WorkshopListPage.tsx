@@ -28,7 +28,7 @@ export default function WorkshopListPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [filteredWorkshops, setFilteredWorkshops] = useState<Workshop[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 12;
+  const itemsPerPage = 18;
 
   const categories = [
     'basic',
@@ -176,7 +176,7 @@ export default function WorkshopListPage() {
               <div
                 key={workshop._id}
                 className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden cursor-pointer"
-                onClick={() => navigate(`/workshop/${workshop.slug || workshop._id}`)}
+                onClick={() => navigate(`/workshops/${workshop.slug || workshop._id}`)}
               >
                 {/* Thumbnail */}
                 <div className="relative h-48 bg-gray-200 overflow-hidden">

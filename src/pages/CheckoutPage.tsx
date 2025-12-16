@@ -2,13 +2,18 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle, CreditCard } from 'lucide-react';
 import axios from 'axios';
+import CurrencySelector, { Currency } from '../components/CurrencySelector';
+import PayUPayment from '../components/PayUPayment';
 
 export default function CheckoutPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { enrollment, batch } = location.state || {};
 
-  const [selectedCurrency, setSelectedCurrency] = useState<'INR' | 'NPR' | 'USD'>('INR');
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>(() => {
+    const saved = localStorage.getItem('preferredCurrency');
+    return (saved as Currency) || 'INR';
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentInitiated, setPaymentInitiated] = useState(false);
@@ -66,84 +71,121 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-2xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-8">Complete Your Payment</h1>
+      {/* Currency Selector */}
+      <CurrencySelector
+        selectedCurrency={selectedCurrency}
+        onCurrencyChange={setSelectedCurrency}
+        prices={prices}
+      />
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700">{error}</p>
-            </div>
-          )}
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Checkout */}
+          <div className="lg:col-span-2">
+            {/* Order Summary */}
+            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">Order Summary</h2>
 
-          {paymentInitiated && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-700">Processing your payment...</p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="md:col-span-2">
-              <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Order Summary</h2>
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Course</span>
-                    <span className="font-semibold">{batch.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Mode</span>
-                    <span className="font-semibold capitalize">{batch.mode}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Language</span>
-                    <span className="font-semibold">{enrollment.selectedLanguage}</span>
-                  </div>
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle className="w-5 h-5 text-red-500 inline mr-2" />
+                  <p className="text-red-700">{error}</p>
                 </div>
+              )}
 
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Select Currency
-                </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {(Object.keys(prices) as Array<'INR' | 'NPR' | 'USD'>).map((currency) => (
-                    <button
-                      key={currency}
-                      onClick={() => setSelectedCurrency(currency)}
-                      className={`p-3 rounded-lg border-2 ${
-                        selectedCurrency === currency
-                          ? 'border-indigo-600 bg-indigo-50'
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <div className="font-semibold">
-                        {currency === 'INR' ? '₹' : currency === 'NPR' ? '₨' : '$'}{prices[currency]}
-                      </div>
-                    </button>
-                  ))}
+              {paymentInitiated && (
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <p className="text-green-700">Payment processing...</p>
                 </div>
+              )}
+
+              <div className="space-y-4 mb-6 pb-6 border-b border-gray-200">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Workshop</span>
+                  <span className="font-semibold text-gray-900">{batch.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Delivery Mode</span>
+                  <span className="font-semibold text-gray-900 capitalize">{batch.mode}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Start Date</span>
+                  <span className="font-semibold text-gray-900">
+                    {new Date(batch.startDate).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Duration</span>
+                  <span className="font-semibold text-gray-900">{batch.duration || '7'} Days</span>
+                </div>
+              </div>
+
+              {/* Current Price Display */}
+              <div className="bg-indigo-50 rounded-lg p-6 mb-6">
+                <p className="text-sm text-gray-600 mb-2">Total Amount ({selectedCurrency})</p>
+                <p className="text-4xl font-bold text-indigo-600">
+                  {selectedCurrency === 'INR' ? '₹' : selectedCurrency === 'NPR' ? 'Rs' : '$'}{' '}
+                  {prices[selectedCurrency].toLocaleString()}
+                </p>
               </div>
             </div>
 
-            <div>
-              <div className="bg-indigo-50 border-2 border-indigo-600 rounded-lg p-6">
-                <div className="mb-6">
-                  <h3 className="font-semibold text-gray-800 mb-4">Total</h3>
-                  <p className="text-3xl font-bold text-indigo-600">
-                    {selectedCurrency === 'INR' ? '₹' : selectedCurrency === 'NPR' ? '₨' : '$'}{prices[selectedCurrency]}
-                  </p>
-                </div>
+            {/* PayU Payment Form */}
+            <PayUPayment
+              orderId={`ORDER-${enrollment._id}-${Date.now()}`}
+              amount={prices[selectedCurrency]}
+              currency={selectedCurrency}
+              userEmail={enrollment.email}
+              userName={enrollment.name}
+              productName={batch.name}
+              onSuccess={() => {
+                setPaymentInitiated(true);
+                setTimeout(() => navigate('/my-courses'), 2000);
+              }}
+              onFailure={() => {
+                setError('Payment failed. Please try again.');
+              }}
+            />
+          </div>
 
-                <button
-                  onClick={handlePayment}
-                  disabled={loading || paymentInitiated}
-                  className="w-full px-4 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {loading ? 'Processing...' : 'Pay Now'}
-                </button>
+          {/* Sidebar - Price Summary */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-md p-6 sticky top-4">
+              <h3 className="text-xl font-bold text-gray-800 mb-6">Price Summary</h3>
 
-                <p className="text-xs text-gray-500 text-center mt-4">
-                  Secure payment via PayU/PayPal/QR
-                </p>
+              <div className="space-y-4 mb-6 pb-6 border-b border-gray-200">
+                {(Object.entries(prices) as Array<[Currency, number]>).map(([currency, price]) => (
+                  <div
+                    key={currency}
+                    className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                      selectedCurrency === currency
+                        ? 'border-indigo-600 bg-indigo-50'
+                        : 'border-gray-200 hover:border-indigo-200'
+                    }`}
+                    onClick={() => setSelectedCurrency(currency)}
+                  >
+                    <p className="text-sm text-gray-600 mb-1">{currency}</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {currency === 'INR' ? '₹' : currency === 'NPR' ? 'Rs' : '$'}
+                      {price.toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Payment Methods */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" />
+                  Accepted Methods
+                </h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>✓ Credit/Debit Card</li>
+                  <li>✓ Net Banking</li>
+                  <li>✓ UPI & Wallets</li>
+                  <li>✓ PayPal</li>
+                </ul>
               </div>
             </div>
           </div>

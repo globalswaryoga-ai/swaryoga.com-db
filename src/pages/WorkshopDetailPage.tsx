@@ -3,6 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Star, Users, Clock, DollarSign, PlayCircle, MessageCircle, ChevronDown } from 'lucide-react';
 import axios from 'axios';
 import WorkshopModeBadge from '../components/WorkshopModeBadge';
+import AboutWorkshop from '../components/workshop/AboutWorkshop';
+import VideoCarousel from '../components/workshop/VideoCarousel';
+import TextTestimonies from '../components/workshop/TextTestimonies';
+import VideoTestimonies from '../components/workshop/VideoTestimonies';
+import WhoIsForGrid from '../components/workshop/WhoIsForGrid';
+import BenefitsSection from '../components/workshop/BenefitsSection';
+import StickyMobileCTA from '../components/workshop/StickyMobileCTA';
 
 interface Workshop {
   _id: string;
@@ -31,7 +38,7 @@ interface Workshop {
 }
 
 export default function WorkshopDetailPage() {
-  const { slug } = useParams();
+  const { workshopId } = useParams();
   const navigate = useNavigate();
   const [workshop, setWorkshop] = useState<Workshop | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,13 +46,21 @@ export default function WorkshopDetailPage() {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchWorkshop();
-  }, [slug]);
+    // Prevent treating reserved words as valid workshop slugs
+    if (workshopId === 'register') {
+      navigate('/workshops', { replace: true });
+      return;
+    }
 
-  const fetchWorkshop = async () => {
+    if (!workshopId) return;
+
+    fetchWorkshop(workshopId);
+  }, [workshopId, navigate]);
+
+  const fetchWorkshop = async (identifier: string) => {
     try {
       setLoading(true);
-      const response = await axios.get(`/api/workshops/${slug}`);
+      const response = await axios.get(`/api/workshops/${identifier}`);
       const data = response.data.data || response.data;
       setWorkshop(data);
       if (data.batches && data.batches.length > 0) {
@@ -53,6 +68,7 @@ export default function WorkshopDetailPage() {
       }
     } catch (error) {
       console.error('Error fetching workshop:', error);
+      setWorkshop(null);
     } finally {
       setLoading(false);
     }
@@ -330,7 +346,11 @@ export default function WorkshopDetailPage() {
               )}
 
               <button
-                onClick={() => navigate(`/workshop/${workshop.slug || workshop._id}/register`, { state: { selectedBatch } })}
+                onClick={() =>
+                  navigate(`/workshops/${workshop.slug || workshop._id}/register`, {
+                    state: { selectedBatch }
+                  })
+                }
                 className="w-full px-4 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 mb-3"
               >
                 Enroll now
@@ -343,6 +363,61 @@ export default function WorkshopDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* About Workshop Section */}
+      <AboutWorkshop
+        image={workshop.thumbnail}
+        title={workshop.title}
+        description={workshop.description}
+        whatYouWillLearn={workshop.whatYouWillLearn || []}
+        whoIsItFor={workshop.requirements || []}
+        duration={`${workshop.duration} days`}
+        level={workshop.level}
+      />
+
+      {/* Watch More Videos Section */}
+      <VideoCarousel
+        videos={(workshop.sessions || []).map((s: any) => ({
+          url: s.videoUrl || '',
+          title: s.title
+        })).filter((v: any) => v.url)}
+        title="Watch More Videos"
+      />
+
+      {/* Text Testimonies */}
+      <TextTestimonies
+        testimonials={(workshop.testimonials || []).map((t: any) => ({
+          quote: t.text || t.testimonial || '',
+          name: t.name || 'Anonymous',
+          location: t.location || 'India',
+          workshopName: workshop.title
+        }))}
+      />
+
+      {/* Video Testimonies */}
+      <VideoTestimonies
+        videos={(workshop.testimonials || []).filter((t: any) => t.videoUrl).map((t: any) => ({
+          url: t.videoUrl,
+          studentName: t.name || 'Anonymous',
+          location: t.location || 'India'
+        }))}
+      />
+
+      {/* Who Is For Grid */}
+      <WhoIsForGrid categories={workshop.requirements} />
+
+      {/* Benefits Section */}
+      <BenefitsSection benefits={workshop.benefits || []} />
+
+      {/* Sticky Mobile CTA */}
+      <StickyMobileCTA
+        workshopTitle={workshop.title}
+        onCtaClick={() =>
+          navigate(`/workshops/${workshop.slug || workshop._id}/register`, {
+            state: { selectedBatch }
+          })
+        }
+      />
     </div>
   );
 }

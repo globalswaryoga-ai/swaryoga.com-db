@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronRight, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import LanguageSelector from '../components/LanguageSelector';
 
 interface RegistrationFormData {
   name: string;
@@ -12,7 +13,7 @@ interface RegistrationFormData {
 }
 
 export default function RegistrationPage() {
-  const { slug } = useParams();
+  const { workshopId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const selectedBatch = location.state?.selectedBatch;
@@ -22,7 +23,7 @@ export default function RegistrationPage() {
     email: '',
     phone: '',
     address: '',
-    selectedLanguage: selectedBatch?.mode || ''
+    selectedLanguage: selectedBatch?.language || ''
   });
 
   const [loading, setLoading] = useState(false);
@@ -35,7 +36,7 @@ export default function RegistrationPage() {
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-gray-600 text-lg mb-4">Please select a batch first</p>
           <button
-            onClick={() => navigate(`/workshop/${slug}`)}
+            onClick={() => navigate(`/workshop/${workshopId || ''}`)}
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
             Back to Course
@@ -79,7 +80,7 @@ export default function RegistrationPage() {
       const enrollmentResponse = await axios.post(
         '/api/enrollment',
         {
-          workshopId: slug,
+          workshopId,
           userId,
           batchId: selectedBatch._id,
           selectedMode: selectedBatch.mode,
@@ -97,7 +98,7 @@ export default function RegistrationPage() {
 
       if (enrollmentResponse.data.success) {
         // Proceed to checkout
-        navigate(`/workshop/${slug}/checkout`, {
+        navigate('/checkout', {
           state: {
             enrollment: enrollmentResponse.data.data,
             batch: selectedBatch
@@ -114,6 +115,15 @@ export default function RegistrationPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
+      {/* Language Selector */}
+      <LanguageSelector
+        selectedLanguage={formData.selectedLanguage || 'English'}
+        onLanguageChange={(lang) =>
+          setFormData({ ...formData, selectedLanguage: lang })
+        }
+        availableLanguages={['English', 'Hindi', 'Marathi', 'Nepali']}
+      />
+
       <div className="max-w-2xl mx-auto px-4">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-8 text-gray-600">
