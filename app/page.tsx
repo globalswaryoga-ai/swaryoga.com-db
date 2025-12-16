@@ -26,10 +26,10 @@ const HomePage = () => {
   };
 
   const workshopTypes = [
-    { type: 'Online', color: 'from-blue-600 to-blue-700', icon: '🌐' },
-    { type: 'Offline', color: 'from-purple-600 to-purple-700', icon: '🏢' },
-    { type: 'Residential', color: 'from-green-600 to-green-700', icon: '🏨' },
-    { type: 'Recorded', color: 'from-orange-600 to-orange-700', icon: '📹' }
+    { type: 'Online', color: 'from-blue-600 to-blue-700' },
+    { type: 'Offline', color: 'from-purple-600 to-purple-700' },
+    { type: 'Residential', color: 'from-green-600 to-green-700' },
+    { type: 'Recorded', color: 'from-orange-600 to-orange-700' }
   ];
 
   return (
@@ -163,11 +163,9 @@ const HomePage = () => {
                 <Link
                   key={index}
                   href="/workshops"
-                  className={`bg-gradient-to-br ${workshop.color} text-white p-4 sm:p-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:translate-y-[-2px] touch-target text-center group`}
+                  className={`bg-gradient-to-br ${workshop.color} text-white p-4 sm:p-6 rounded-lg transition-all duration-300 hover:shadow-lg hover:translate-y-[-2px] touch-target text-center group font-bold text-lg sm:text-2xl`}
                 >
-                  <div className="text-3xl sm:text-4xl mb-2">{workshop.icon}</div>
-                  <div className="font-semibold text-sm sm:text-base">{workshop.type}</div>
-                  <div className="text-xs sm:text-sm text-white/80 group-hover:text-white transition-colors">Register Now</div>
+                  {workshop.type}
                 </Link>
               ))}
             </div>
