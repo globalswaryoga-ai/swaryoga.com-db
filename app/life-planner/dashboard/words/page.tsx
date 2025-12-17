@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import type { Word, VisionCategory, MiniTodo } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
@@ -82,6 +83,10 @@ function normalizeRepeatFromFrequency(
 }
 
 export default function WordsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const didAutoOpen = useRef(false);
+
   const [words, setWords] = useState<Word[]>([]);
   const [mounted, setMounted] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -158,6 +163,16 @@ export default function WordsPage() {
     setForm(emptyWordForm());
     setIsFormOpen(true);
   };
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (didAutoOpen.current) return;
+    if (searchParams.get('create') !== '1') return;
+
+    didAutoOpen.current = true;
+    openCreate();
+    router.replace('/life-planner/dashboard/words');
+  }, [mounted, searchParams, router]);
 
   const openEdit = (word: Word) => {
     const { repeat, customDays } = normalizeRepeatFromFrequency(

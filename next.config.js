@@ -77,11 +77,16 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    domains: ['images.unsplash.com', 'via.placeholder.com', 'images.pexels.com'],
+    domains: ['images.unsplash.com', 'via.placeholder.com', 'images.pexels.com', 'i.postimg.cc'],
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'images.pexels.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'i.postimg.cc',
         pathname: '/**',
       },
     ],

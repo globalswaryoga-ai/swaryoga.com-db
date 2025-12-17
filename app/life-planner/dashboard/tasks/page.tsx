@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Task, Goal, Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import TaskModal from './TaskModal';
@@ -23,6 +24,10 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export default function TasksPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const didAutoOpen = useRef(false);
+
   const [mounted, setMounted] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -65,6 +70,16 @@ export default function TasksPage() {
     setEditingTask(null);
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (didAutoOpen.current) return;
+    if (searchParams.get('create') !== '1') return;
+
+    didAutoOpen.current = true;
+    handleAddTask();
+    router.replace('/life-planner/dashboard/tasks');
+  }, [mounted, searchParams, router]);
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task);

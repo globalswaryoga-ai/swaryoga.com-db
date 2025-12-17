@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ActionPlan, Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import ActionPlanModal from '@/components/ActionPlanModal';
@@ -29,6 +29,8 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
 
 export default function ActionPlanPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const didAutoOpen = useRef(false);
 
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
   const [visions, setVisions] = useState<Vision[]>([]);
@@ -68,6 +70,16 @@ export default function ActionPlanPage() {
     setEditingPlan(null);
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (didAutoOpen.current) return;
+    if (searchParams.get('create') !== '1') return;
+
+    didAutoOpen.current = true;
+    handleAddPlan();
+    router.replace('/life-planner/dashboard/action-plan');
+  }, [mounted, searchParams, router]);
 
   const handleEditPlan = (plan: ActionPlan) => {
     setEditingPlan(plan);

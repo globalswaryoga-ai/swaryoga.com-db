@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { AlertCircle, Plus } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type { Reminder as DbReminder } from '@/lib/types/lifePlanner';
 
@@ -49,6 +50,10 @@ function uiToDbReminder(r: UiReminder): DbReminder {
 }
 
 export default function RemindersPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const didAutoOpen = useRef(false);
+
   const [mounted, setMounted] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [reminders, setReminders] = useState<UiReminder[]>([]);
@@ -92,6 +97,26 @@ export default function RemindersPage() {
     };
     save();
   }, [reminders, mounted, hasLoaded]);
+
+  const openCreate = useCallback(() => {
+    setShowForm(true);
+    setError(null);
+    setFormData((prev) => ({
+      ...prev,
+      date: prev.date || today,
+      time: prev.time || '11:00',
+    }));
+  }, [today]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (didAutoOpen.current) return;
+    if (searchParams.get('create') !== '1') return;
+
+    didAutoOpen.current = true;
+    openCreate();
+    router.replace('/life-planner/dashboard/reminders');
+  }, [mounted, searchParams, openCreate, router]);
 
   const isFormValid = useMemo(
     () => formData.text.trim().length > 0 && formData.date && formData.time,
@@ -163,15 +188,7 @@ export default function RemindersPage() {
           <p className="text-gray-600 mt-1">Set up reminders for important tasks and events</p>
         </div>
         <button
-          onClick={() => {
-            setShowForm(true);
-            setError(null);
-            setFormData((prev) => ({
-              ...prev,
-              date: prev.date || today,
-              time: prev.time || '11:00',
-            }));
-          }}
+          onClick={openCreate}
           className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
         >
           <Plus className="h-5 w-5" />

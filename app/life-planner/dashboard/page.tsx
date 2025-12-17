@@ -28,6 +28,44 @@ export default function LifePlannerDashboardHome() {
         </div>
       </div>
 
+      <div className="rounded-2xl sm:rounded-3xl border border-pink-200 bg-white p-4 sm:p-5">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Quick actions</h3>
+        <p className="text-xs sm:text-sm text-gray-600 mt-1">Easy buttons for mobile to add new items fast.</p>
+
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+          <Link
+            href="/life-planner/dashboard/vision?create=1"
+            className="rounded-2xl bg-gradient-to-r from-red-500 to-pink-500 px-3 py-3 text-sm font-semibold text-white hover:from-red-600 hover:to-pink-600 transition text-center active:scale-95"
+          >
+            + Vision
+          </Link>
+          <Link
+            href="/life-planner/dashboard/action-plan?create=1"
+            className="rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 px-3 py-3 text-sm font-semibold text-white hover:from-green-700 hover:to-emerald-700 transition text-center active:scale-95"
+          >
+            + Action Plan
+          </Link>
+          <Link
+            href="/life-planner/dashboard/tasks?create=1"
+            className="rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-500 px-3 py-3 text-sm font-semibold text-white hover:from-orange-600 hover:to-yellow-600 transition text-center active:scale-95"
+          >
+            + Task
+          </Link>
+          <Link
+            href="/life-planner/dashboard/words?create=1"
+            className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-3 text-sm font-semibold text-white hover:from-blue-700 hover:to-indigo-700 transition text-center active:scale-95"
+          >
+            + Word
+          </Link>
+          <Link
+            href="/life-planner/dashboard/reminders?create=1"
+            className="rounded-2xl bg-gradient-to-r from-purple-600 to-fuchsia-600 px-3 py-3 text-sm font-semibold text-white hover:from-purple-700 hover:to-fuchsia-700 transition text-center active:scale-95"
+          >
+            + Reminder
+          </Link>
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 auto-rows-max">
         <div className="rounded-2xl sm:rounded-3xl border border-pink-100 bg-pink-50 p-4 sm:p-5 flex flex-col">
           <p className="text-xs uppercase tracking-[0.3em] text-red-600 font-bold">Today</p>

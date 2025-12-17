@@ -79,11 +79,11 @@ export default function LifePlannerTopNav({
         </div>
       </div>
 
-      <div className="border-t border-pink-100 px-4 md:px-6 py-2 overflow-x-auto scroll-smooth snap-x snap-proximity">
-        <nav className="flex items-center gap-2 min-w-max">
+      <div className="border-t border-pink-100 px-2 sm:px-4 md:px-6 py-2 overflow-visible md:overflow-x-auto md:scroll-smooth md:snap-x md:snap-proximity">
+        <nav className="grid grid-cols-4 gap-2 md:flex md:items-center md:gap-2 md:min-w-max">
           <Link
             href="/"
-            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors snap-start ${
+            className={`w-full flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 rounded-lg px-2 md:px-3 py-2 text-[11px] md:text-sm font-medium transition-colors text-center md:text-left md:snap-start ${
               pathname === '/'
                 ? 'bg-red-100 text-red-700 border border-red-300'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-pink-50'
@@ -91,7 +91,7 @@ export default function LifePlannerTopNav({
             title="Go to Home"
           >
             <Home className="h-4 w-4" />
-            <span className="hidden sm:inline">Home</span>
+            <span>Home</span>
           </Link>
           {topTabs.map((tab) => {
             const Icon = tab.icon;
@@ -100,7 +100,7 @@ export default function LifePlannerTopNav({
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors snap-start ${
+                className={`w-full flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 rounded-lg px-2 md:px-3 py-2 text-[11px] md:text-sm font-medium transition-colors text-center md:text-left md:snap-start ${
                   active
                     ? 'bg-green-100 text-green-700 border border-green-300'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-pink-50'

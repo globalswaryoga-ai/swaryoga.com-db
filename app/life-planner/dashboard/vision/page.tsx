@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import VisionModal from './VisionModal';
@@ -59,6 +60,10 @@ const PLACEHOLDER_VISION_CARDS: SliderCard[] = [
 ];
 
 export default function VisionPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const didAutoOpen = useRef(false);
+
   const [visions, setVisions] = useState<Vision[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVision, setEditingVision] = useState<Vision | null>(null);
@@ -96,6 +101,16 @@ export default function VisionPage() {
     setEditingVision(null);
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (didAutoOpen.current) return;
+    if (searchParams.get('create') !== '1') return;
+
+    didAutoOpen.current = true;
+    handleAddVision();
+    router.replace('/life-planner/dashboard/vision');
+  }, [mounted, searchParams, router]);
 
   const handleEditVision = (vision: Vision) => {
     setEditingVision(vision);
