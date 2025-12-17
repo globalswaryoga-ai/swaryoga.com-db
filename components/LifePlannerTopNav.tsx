@@ -79,7 +79,7 @@ export default function LifePlannerTopNav({
         </div>
       </div>
 
-      <div className="border-t border-pink-100 px-4 md:px-6 py-2 overflow-x-auto scroll-smooth snap-x snap-mandatory">
+      <div className="border-t border-pink-100 px-4 md:px-6 py-2 overflow-x-auto scroll-smooth snap-x snap-proximity">
         <nav className="flex items-center gap-2 min-w-max">
           <Link
             href="/"

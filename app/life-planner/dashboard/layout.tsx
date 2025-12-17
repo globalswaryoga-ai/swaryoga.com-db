@@ -7,7 +7,11 @@ import LifePlannerTopNav from '@/components/LifePlannerTopNav';
 
 export default function LifePlannerDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    // Default closed on small screens to avoid covering content and causing accidental navigation.
+    if (typeof window === 'undefined') return true;
+    return window.innerWidth >= 768;
+  });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
