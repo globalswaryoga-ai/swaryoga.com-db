@@ -14,7 +14,7 @@ Your app is deployed but authentication is failing because environment variables
 
 | Variable | Value | Source |
 |----------|-------|--------|
-| `MONGODB_URI` | `mongodb+srv://swarsakshi9_db_user:bVq0Td7FkFty0yne@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority` | From `.env.local` |
+| `MONGODB_URI` | `mongodb+srv://<username>:<password>@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority` | From `.env.local` |
 | `JWT_SECRET` | `your-secret-key-change-this-in-production-minimum-32-chars` | From `.env.local` (⚠️ Change this!) |
 | `NEXT_PUBLIC_API_URL` | `https://swaryoga.com` | Your production domain |
 | `PAYU_MODE` | `TEST` or `PRODUCTION` | Based on your setup |

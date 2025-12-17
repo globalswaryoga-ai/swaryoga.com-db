@@ -7,6 +7,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import UserOffersDisplay from '@/components/UserOffersDisplay';
 import { LogOut, Mail, MessageSquare, ArrowLeft, User, Phone, MapPin, Briefcase, Shield, Calendar, Upload, ShoppingCart, CreditCard } from 'lucide-react';
+import { getCurrencySymbol, roundMoney, type CurrencyCode } from '@/lib/paymentMath';
 
 interface Message {
   _id: string;
@@ -31,6 +32,7 @@ interface Order {
   _id: string;
   items: OrderItem[];
   total: number;
+  currency?: string;
   status: string;
   shippingAddress?: {
     firstName: string;
@@ -673,7 +675,8 @@ export default function UserProfile() {
                                     {item.name} <span className="text-gray-500">x{item.quantity}</span>
                                   </span>
                                   <span className="font-medium text-gray-800">
-                                    ₹{(item.price * item.quantity).toFixed(2)}
+                                    {getCurrencySymbol((order.currency as CurrencyCode) || 'INR')}
+                                    {roundMoney(item.price * item.quantity).toFixed(2)}
                                   </span>
                                 </div>
                               ))}
@@ -688,16 +691,18 @@ export default function UserProfile() {
                             </div>
                             <div className="space-y-2">
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Subtotal:</span>
-                                <span className="text-gray-800">₹{order.total.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600">Tax (18%):</span>
-                                <span className="text-gray-800">₹{(order.total * 0.18).toFixed(2)}</span>
+                                <span className="text-gray-600">Amount Paid:</span>
+                                <span className="text-gray-800">
+                                  {getCurrencySymbol((order.currency as CurrencyCode) || 'INR')}
+                                  {roundMoney(order.total).toFixed(2)}
+                                </span>
                               </div>
                               <div className="border-t pt-2 flex justify-between font-bold">
-                                <span className="text-gray-800">Total Amount:</span>
-                                <span className="text-primary-600">₹{(order.total * 1.18).toFixed(2)}</span>
+                                <span className="text-gray-800">Total:</span>
+                                <span className="text-primary-600">
+                                  {getCurrencySymbol((order.currency as CurrencyCode) || 'INR')}
+                                  {roundMoney(order.total).toFixed(2)}
+                                </span>
                               </div>
                             </div>
                           </div>

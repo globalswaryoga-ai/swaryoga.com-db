@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order } from '@/lib/db';
+import { connectDB, Order, WorkshopSeatInventory, WorkshopSchedule } from '@/lib/db';
 import { verifyPayUResponseHash } from '@/lib/payments/payu';
 
 function getBaseUrl(request: NextRequest): string {
@@ -81,6 +81,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
+    const wasCompleted = order.paymentStatus === 'completed' || order.status === 'completed';
+
     // Update order with payment status
     if (status === 'success') {
       order.status = 'completed';
@@ -98,6 +100,65 @@ export async function POST(request: NextRequest) {
     }
 
     await order.save();
+
+    // Decrement seats exactly once when payment becomes successful.
+    if (status === 'success' && !wasCompleted && !order.seatInventoryAdjusted) {
+      const items = Array.isArray(order.items) ? (order.items as any[]) : [];
+
+      for (const item of items) {
+        const workshopSlug = String(item.workshopSlug || '').trim();
+        const scheduleId = String(item.scheduleId || '').trim();
+        const qty = Number(item.quantity || 0);
+        if (!workshopSlug || !scheduleId || !Number.isFinite(qty) || qty <= 0) continue;
+
+        let seatsTotal: number | undefined;
+
+        // Prefer existing inventory (if already initialized)
+        const existingInv = (await WorkshopSeatInventory.findOne({ workshopSlug, scheduleId })
+          .select({ seatsTotal: 1 })
+          .lean()) as any;
+        const invSeatsTotal = Number(existingInv?.seatsTotal);
+        if (Number.isFinite(invSeatsTotal) && invSeatsTotal > 0) {
+          seatsTotal = invSeatsTotal;
+        }
+
+        if (!seatsTotal) {
+          const scheduleDoc = (await WorkshopSchedule.findById(scheduleId)
+            .select({ seatsTotal: 1, workshopSlug: 1 })
+            .lean()) as any;
+          if (scheduleDoc && String(scheduleDoc?.workshopSlug || '') === workshopSlug) {
+            const n = Number(scheduleDoc?.seatsTotal);
+            if (Number.isFinite(n) && n > 0) seatsTotal = n;
+          }
+        }
+
+        if (!seatsTotal || !Number.isFinite(seatsTotal) || seatsTotal <= 0) continue;
+
+        // Ensure inventory exists
+        await WorkshopSeatInventory.updateOne(
+          { workshopSlug, scheduleId },
+          {
+            $setOnInsert: {
+              workshopSlug,
+              scheduleId,
+              seatsTotal,
+              seatsRemaining: seatsTotal,
+            },
+            $set: { updatedAt: new Date() },
+          },
+          { upsert: true }
+        );
+
+        // Decrement only if enough seats remain
+        await WorkshopSeatInventory.updateOne(
+          { workshopSlug, scheduleId, seatsRemaining: { $gte: qty } },
+          { $inc: { seatsRemaining: -qty }, $set: { updatedAt: new Date() } }
+        );
+      }
+
+      order.seatInventoryAdjusted = true;
+      await order.save();
+    }
 
     // Log payment transaction
     if (process.env.DEBUG_PAYU === '1') {

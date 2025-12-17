@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Order } from '@/lib/db';
+import { connectDB, Order, WorkshopSeatInventory, WorkshopSchedule } from '@/lib/db';
 import { verifyPayUResponseHash } from '@/lib/payments/payu';
 
 /**
@@ -37,25 +37,7 @@ export async function POST(request: NextRequest) {
     const email = payuData.email;
 
     // Find and update order
-    const order = await Order.findByIdAndUpdate(
-      orderId,
-      {
-        status: 'paid',
-        paymentStatus: 'completed',
-        transactionId,
-        paymentMethod: 'payu',
-        paymentDate: new Date(),
-        paymentResponse: {
-          status: payuData.status,
-          mihpayid: transactionId,
-          amount,
-          email,
-          udf1: payuData.udf1,
-          udf2: payuData.udf2,
-        },
-      },
-      { new: true }
-    );
+    const order = await Order.findById(orderId);
 
     if (!order) {
       console.error('[PayU Webhook] Order not found:', orderId);
@@ -63,6 +45,80 @@ export async function POST(request: NextRequest) {
         { error: 'Order not found', success: false, orderId },
         { status: 404 }
       );
+    }
+
+    const wasCompleted = order.paymentStatus === 'completed' || order.status === 'completed';
+
+    order.status = 'paid';
+    order.paymentStatus = 'completed';
+    order.transactionId = transactionId;
+    order.paymentMethod = 'payu';
+    (order as any).paymentDate = new Date();
+    (order as any).paymentResponse = {
+      status: payuData.status,
+      mihpayid: transactionId,
+      amount,
+      email,
+      udf1: payuData.udf1,
+      udf2: payuData.udf2,
+    };
+
+    await order.save();
+
+    // Decrement seats exactly once when payment becomes successful.
+    if (!wasCompleted && !order.seatInventoryAdjusted) {
+      const items = Array.isArray(order.items) ? (order.items as any[]) : [];
+
+      for (const item of items) {
+        const workshopSlug = String(item.workshopSlug || '').trim();
+        const scheduleId = String(item.scheduleId || '').trim();
+        const qty = Number(item.quantity || 0);
+        if (!workshopSlug || !scheduleId || !Number.isFinite(qty) || qty <= 0) continue;
+
+        let seatsTotal: number | undefined;
+
+        const existingInv = (await WorkshopSeatInventory.findOne({ workshopSlug, scheduleId })
+          .select({ seatsTotal: 1 })
+          .lean()) as any;
+        const invSeatsTotal = Number(existingInv?.seatsTotal);
+        if (Number.isFinite(invSeatsTotal) && invSeatsTotal > 0) {
+          seatsTotal = invSeatsTotal;
+        }
+
+        if (!seatsTotal) {
+          const scheduleDoc = (await WorkshopSchedule.findById(scheduleId)
+            .select({ seatsTotal: 1, workshopSlug: 1 })
+            .lean()) as any;
+          if (scheduleDoc && String(scheduleDoc?.workshopSlug || '') === workshopSlug) {
+            const n = Number(scheduleDoc?.seatsTotal);
+            if (Number.isFinite(n) && n > 0) seatsTotal = n;
+          }
+        }
+
+        if (!seatsTotal || !Number.isFinite(seatsTotal) || seatsTotal <= 0) continue;
+
+        await WorkshopSeatInventory.updateOne(
+          { workshopSlug, scheduleId },
+          {
+            $setOnInsert: {
+              workshopSlug,
+              scheduleId,
+              seatsTotal,
+              seatsRemaining: seatsTotal,
+            },
+            $set: { updatedAt: new Date() },
+          },
+          { upsert: true }
+        );
+
+        await WorkshopSeatInventory.updateOne(
+          { workshopSlug, scheduleId, seatsRemaining: { $gte: qty } },
+          { $inc: { seatsRemaining: -qty }, $set: { updatedAt: new Date() } }
+        );
+      }
+
+      order.seatInventoryAdjusted = true;
+      await order.save();
     }
 
     console.log('[PayU Webhook] Order updated successfully:', {

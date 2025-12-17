@@ -7,6 +7,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowLeft } from 'lucide-react';
 import { CartCurrency, CartItem, getStoredCart, persistCart } from '@/lib/cart';
+import { ChargeMethod, convertAmount, getChargeRate, roundMoney } from '@/lib/paymentMath';
 
 const currencySymbols: Record<CartCurrency, string> = {
   INR: '₹',
@@ -20,6 +21,7 @@ export default function Cart() {
   const router = useRouter();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [chargeMethod, setChargeMethod] = useState<ChargeMethod>('indian');
 
   const handleQuantityChange = (id: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -58,15 +60,38 @@ export default function Cart() {
     }
   }, [cartItems, selectedCurrency]);
 
-  const summaryItems = cartItems.filter((item) => item.currency === selectedCurrency);
-  const summarySubtotal = summaryItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const summaryTax = summarySubtotal * 0.08;
-  const summaryTotal = summarySubtotal + summaryTax;
+  const effectiveChargeMethod: ChargeMethod =
+    selectedCurrency === 'NPR'
+      ? 'nepal_qr'
+      : selectedCurrency === 'USD'
+        ? 'international'
+        : chargeMethod;
+
+  const summaryItems = cartItems;
+  const summarySubtotal = roundMoney(
+    summaryItems.reduce((sum, item) => {
+      const line = item.price * item.quantity;
+      return sum + convertAmount(line, item.currency as any, selectedCurrency as any);
+    }, 0)
+  );
+  const chargeRate = getChargeRate(effectiveChargeMethod);
+  const summaryCharges = roundMoney(summarySubtotal * chargeRate);
+  const summaryTotal = roundMoney(summarySubtotal + summaryCharges);
   const hasItemsForSelectedCurrency = summaryItems.length > 0;
 
   const handleCheckout = () => {
     if (!hasItemsForSelectedCurrency) return;
-    router.push(`/checkout?currency=${selectedCurrency}`);
+
+    // Requirement: without signup/signin no payment should be done.
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+    if (!token || !user) {
+      const returnTo = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '/cart';
+      router.push(`/signin?redirect=${encodeURIComponent(returnTo)}`);
+      return;
+    }
+
+    router.push(`/checkout?currency=${selectedCurrency}&method=${encodeURIComponent(effectiveChargeMethod)}`);
   };
 
   const currencyOptions = [
@@ -96,7 +121,7 @@ export default function Cart() {
                 Continue Shopping
               </Link>
               <p className="mt-6 text-gray-500 text-sm sm:text-base">
-                Add a workshop from the <Link href="/workshops" className="text-yoga-600 underline">workshops page</Link> to start your cart.
+                Add a workshop from the <Link href="/workshop" className="text-yoga-600 underline">workshops page</Link> to start your cart.
               </p>
             </div>
           ) : (
@@ -171,6 +196,36 @@ export default function Cart() {
                       );
                     })}
                   </div>
+
+                  {selectedCurrency === 'INR' && (
+                    <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs font-semibold text-gray-700 mb-2">Payment method charges</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setChargeMethod('indian')}
+                          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
+                            chargeMethod === 'indian'
+                              ? 'border-green-600 bg-green-600 text-white'
+                              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          Indian (2.5%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setChargeMethod('credit_card')}
+                          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
+                            chargeMethod === 'credit_card'
+                              ? 'border-green-600 bg-green-600 text-white'
+                              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          Credit Card (5%)
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -184,7 +239,7 @@ export default function Cart() {
                         <div key={`${item.id}-${item.currency}`} className="flex justify-between text-gray-700 text-sm">
                           <span className="flex-1 truncate mr-2">{item.name} x{item.quantity}</span>
                           <span className="font-semibold whitespace-nowrap">
-                            {getCurrencySymbol(item.currency)}{(item.price * item.quantity).toFixed(0)}
+                            {getCurrencySymbol(selectedCurrency)}{roundMoney(convertAmount(item.price * item.quantity, item.currency as any, selectedCurrency as any)).toFixed(0)}
                           </span>
                         </div>
                       ))
@@ -203,10 +258,8 @@ export default function Cart() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-700">Tax (8%)</span>
-                      <span className="font-semibold">
-                        {getCurrencySymbol(selectedCurrency)}{summaryTax.toFixed(0)}
-                      </span>
+                      <span className="text-gray-700">Charges ({Math.round(chargeRate * 1000) / 10}%)</span>
+                      <span className="font-semibold">{getCurrencySymbol(selectedCurrency)}{summaryCharges.toFixed(0)}</span>
                     </div>
                   </div>
 

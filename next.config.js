@@ -59,6 +59,20 @@ const nextConfig = {
   reactStrictMode: true,
   // Use SWC minify but disable for Vercel
   swcMinify: false,
+  async redirects() {
+    return [
+      {
+        source: '/workshop',
+        destination: '/workshops',
+        permanent: true,
+      },
+      {
+        source: '/workshop/:id',
+        destination: '/workshops/:id',
+        permanent: true,
+      },
+    ];
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },

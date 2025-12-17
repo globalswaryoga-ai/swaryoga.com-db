@@ -285,7 +285,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                href="/workshops"
+                href="/workshop"
                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors"
               >
                 {translations.exploreWorkshops?.[language] || 'Explore'}

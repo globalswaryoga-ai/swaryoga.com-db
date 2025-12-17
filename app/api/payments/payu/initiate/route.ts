@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PAYU_BASE_URL, PayUParams, PAYU_MERCHANT_KEY, PAYU_MERCHANT_SALT, generatePayUHash } from '@/lib/payments/payu';
 import { connectDB, Order } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 
 interface PaymentRequest {
   amount: number;
@@ -15,9 +16,20 @@ interface PaymentRequest {
   zip: string;
   // Optional: server will create a Mongo Order and use its _id as txnid.
   orderId?: string;
-  // Optional, for logged-in orders
+  // Deprecated: userId is derived from the Authorization header token.
   userId?: string;
-  items?: Array<{ productId?: string; name: string; price: number; quantity: number }>;
+  items?: Array<{
+    kind?: 'workshop' | 'product';
+    productId?: string;
+    name: string;
+    price: number;
+    quantity: number;
+    workshopSlug?: string;
+    scheduleId?: string;
+    mode?: string;
+    language?: string;
+    currency?: string;
+  }>;
   successUrl: string;
   failureUrl: string;
   currency?: string;
@@ -31,6 +43,14 @@ function sanitizePayUField(value: unknown): string {
 // POST endpoint to initiate payment
 export async function POST(request: NextRequest) {
   try {
+    // Enforce authentication: no payment initiation without signup/signin.
+    const authHeader = request.headers.get('authorization') || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+    const decoded = token ? verifyToken(token) : null;
+    if (!decoded?.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body: PaymentRequest = await request.json();
 
     const amount = Number(body.amount);
@@ -81,13 +101,19 @@ export async function POST(request: NextRequest) {
     // Mongoose ObjectId string length is 24.
     await connectDB();
     const order = new Order({
-      // userId is optional (guest checkout)
-      userId: body.userId || undefined,
+      userId: decoded.userId,
       items: (body.items || []).map((item) => ({
+        kind: item.kind || undefined,
         productId: item.productId || '',
         name: item.name,
         price: item.price,
         quantity: item.quantity,
+
+        workshopSlug: item.workshopSlug || undefined,
+        scheduleId: item.scheduleId || undefined,
+        mode: item.mode || undefined,
+        language: item.language || undefined,
+        currency: item.currency || body.currency || 'INR',
       })),
       total: amount,
       currency: body.currency || 'INR',

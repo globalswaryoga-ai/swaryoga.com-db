@@ -2,7 +2,7 @@
 
 ## ✅ Your Corrected MongoDB URI:
 ```
-mongodb+srv://swarsakski9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
+mongodb+srv://<username>:<password>@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
 ```
 
 ## 📝 Step-by-Step Update in Vercel Dashboard:
@@ -28,7 +28,7 @@ mongodb+srv://swarsakski9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.ne
    - Clear old value
    - Paste new value:
    ```
-   mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
+   mongodb+srv://<username>:<password>@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
    ```
    - Make sure **Production** is selected
    - Click **Save**

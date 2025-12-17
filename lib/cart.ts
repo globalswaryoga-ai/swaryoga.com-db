@@ -7,6 +7,8 @@ export interface CartItem {
   quantity: number;
   currency: CartCurrency;
   workshop?: string;
+  scheduleId?: string;
+  seatsTotal?: number;
   mode?: string;
   language?: string;
 }

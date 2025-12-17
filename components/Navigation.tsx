@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { Menu, X, ShoppingCart, User, LogOut } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { getStoredCart } from '@/lib/cart';
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -16,7 +17,7 @@ export default function Navigation() {
   const navigation = [
     { name: 'Home', href: '/' },
     { name: 'About', href: '/about' },
-    { name: 'Workshops', href: '/workshops' },
+    { name: 'Workshops', href: '/workshop' },
     { name: 'Resort', href: '/resort' },
     { name: 'Blog', href: '/blog' },
     { name: 'Contact', href: '/contact' },
@@ -70,14 +71,11 @@ export default function Navigation() {
     }
 
     // Load cart count
-    const cartData = localStorage.getItem('cart');
-    if (cartData) {
-      try {
-        const cart = JSON.parse(cartData);
-        setCartCount(Array.isArray(cart) ? cart.length : 0);
-      } catch (err) {
-        setCartCount(0);
-      }
+    try {
+      const cart = getStoredCart();
+      setCartCount(Array.isArray(cart) ? cart.length : 0);
+    } catch (err) {
+      setCartCount(0);
     }
   }, []);
 

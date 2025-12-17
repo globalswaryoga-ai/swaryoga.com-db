@@ -3,59 +3,359 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react';
+import { ArrowRight, BookOpen, Heart, TrendingUp, Users, Baby, ChevronDown, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { workshopCatalog, WorkshopOverview } from '@/lib/workshopsData';
+import { workshopCatalog, workshopDetails, WorkshopOverview } from '@/lib/workshopsData';
 
 export const dynamic = 'force-dynamic';
 
-const workshopFilterOptions = workshopCatalog.map((workshop) => ({
-  slug: workshop.slug,
-  name: workshop.name
-}));
+// Workshop categories
+const WORKSHOP_CATEGORIES = [
+  {
+    id: 'health',
+    name: 'Health',
+    icon: Heart,
+    description: 'Workshops focused on physical health, wellness, and fitness',
+    color: 'from-red-500 to-pink-500'
+  },
+  {
+    id: 'wealth',
+    name: 'Wealth',
+    icon: TrendingUp,
+    description: 'Programs for prosperity, abundance, and financial wellness',
+    color: 'from-green-500 to-emerald-500'
+  },
+  {
+    id: 'married',
+    name: 'Married',
+    icon: Users,
+    description: 'Workshops for couples and family harmony',
+    color: 'from-blue-500 to-cyan-500'
+  },
+  {
+    id: 'youth',
+    name: 'Youth & Children',
+    icon: Baby,
+    description: 'Programs designed for young people and children',
+    color: 'from-purple-500 to-pink-500'
+  },
+  {
+    id: 'trainings',
+    name: 'Trainings',
+    icon: BookOpen,
+    description: 'Professional training and certification programs',
+    color: 'from-orange-500 to-red-500'
+  }
+];
 
 function WorkshopsPageInner() {
-  const [currentPage, setCurrentPage] = useState(1);
-  const workshopsPerPage = 3;
+  const router = useRouter();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [selectedWorkshop, setSelectedWorkshop] = useState<string | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [availabilityByKey, setAvailabilityByKey] = useState<Record<string, number>>({});
   const [accordionOpen, setAccordionOpen] = useState({
+    category: false,
     workshop: false,
     mode: false,
     language: false,
-    currency: false,
+    currency: false
   });
+  
   const searchParams = useSearchParams();
   const queryString = searchParams?.toString() ?? '';
   const totalWorkshops = workshopCatalog.length;
 
+  const selectedCategoryName = selectedCategory
+    ? (WORKSHOP_CATEGORIES.find((c) => c.id === selectedCategory)?.name ?? selectedCategory)
+    : null;
+
+  const selectedWorkshopName = selectedWorkshop
+    ? (workshopCatalog.find((w) => w.slug === selectedWorkshop)?.name ?? selectedWorkshop)
+    : null;
+
   useEffect(() => {
     if (!searchParams) return;
-  setSelectedMode(searchParams.get('mode') || null);
-  setSelectedLanguage(searchParams.get('language') || null);
-  setSelectedPayment(searchParams.get('currency') || null);
-  setSelectedWorkshop(searchParams.get('workshop') || null);
-    setCurrentPage(1);
+    setSelectedCategory(searchParams.get('category') || null);
+    setSelectedMode(searchParams.get('mode') || null);
+    setSelectedLanguage(searchParams.get('language') || null);
   }, [queryString, searchParams]);
 
-  // Filter workshops based on selected filters
-  const filteredWorkshops = workshopCatalog.filter((workshop: WorkshopOverview) => {
-    const workshopMatch = !selectedWorkshop || workshop.slug === selectedWorkshop;
+  // Chained UX (robust): selecting a value auto-opens the next dropdown.
+  // This avoids "sometimes it doesn't open" issues due to event timing/batching.
+  useEffect(() => {
+    if (!selectedCategory) return;
+    setAccordionOpen({ category: false, workshop: true, mode: false, language: false, currency: false });
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    if (!selectedWorkshop) return;
+    setAccordionOpen({ category: false, workshop: false, mode: true, language: false, currency: false });
+  }, [selectedWorkshop]);
+
+  useEffect(() => {
+    if (!selectedMode) return;
+    setAccordionOpen({ category: false, workshop: false, mode: false, language: true, currency: false });
+  }, [selectedMode]);
+
+  useEffect(() => {
+    if (!selectedLanguage) return;
+    setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: true });
+  }, [selectedLanguage]);
+
+  // If category changes, ensure we don't keep a stale workshop selection from another category
+  useEffect(() => {
+    if (!selectedWorkshop) return;
+    if (!selectedCategory) return;
+
+    const selected = workshopCatalog.find((w) => w.slug === selectedWorkshop);
+    if (!selected) {
+      setSelectedWorkshop(null);
+      return;
+    }
+
+    const workshopCategory = (selected.category || '').toLowerCase();
+    const categoryKey = selectedCategory.toLowerCase();
+    if (workshopCategory !== categoryKey) {
+      setSelectedWorkshop(null);
+    }
+  }, [selectedCategory, selectedWorkshop]);
+
+  // Get workshops for selected category (or all if none selected)
+  const categoryWorkshops = selectedCategory 
+    ? workshopCatalog.filter(w => w.category?.toLowerCase() === selectedCategory.toLowerCase())
+    : workshopCatalog;
+
+  // Filter based on mode and language
+  const filteredWorkshops = categoryWorkshops.filter((workshop: WorkshopOverview) => {
     const modeMatch = !selectedMode || (workshop.mode && workshop.mode.includes(selectedMode));
     const languageMatch = !selectedLanguage || (workshop.language && workshop.language.includes(selectedLanguage));
     const currencyMatch = !selectedPayment || (workshop.currency && workshop.currency.includes(selectedPayment));
-
-    return workshopMatch && modeMatch && languageMatch && currencyMatch;
+    const workshopMatch = !selectedWorkshop || workshop.slug === selectedWorkshop;
+    const q = searchQuery.trim().toLowerCase();
+    const searchMatch = !q
+      ? true
+      : `${workshop.name} ${workshop.slug} ${workshop.description}`.toLowerCase().includes(q);
+    return modeMatch && languageMatch && currencyMatch && workshopMatch && searchMatch;
   });
 
-  const totalPages = Math.ceil(filteredWorkshops.length / workshopsPerPage);
-  const startIndex = (currentPage - 1) * workshopsPerPage;
-  const endIndex = startIndex + workshopsPerPage;
-  const currentWorkshops = filteredWorkshops.slice(startIndex, endIndex);
+  // Workshop dropdown options (real workshops, optionally scoped by selected category)
+  const CATEGORY_ORDER = ['Health', 'Wealth', 'Married', 'Youth', 'Trainings'] as const;
+  const getCategoryHeading = (category: string) => (category === 'Youth' ? 'Youth & Children' : category);
+
+  // Custom sequence as provided by user (do not sort alphabetically)
+  const WORKSHOP_ORDER_BY_CATEGORY: Record<string, string[]> = {
+    health: [
+      'swar-yoga-basic',
+      'yogasana-sadhana',
+      'swar-yoga-level-1',
+      'swar-yoga-level-3',
+      'swar-yoga-level-4',
+      'weight-loss-96days',
+      'meditation-42days',
+      'amrut-aahar-42days',
+      'bandhan-mukti',
+    ],
+    wealth: [
+      'swar-yoga-level-2',
+      'swar-yoga-businessman',
+      'corporate-swaryoga',
+    ],
+    married: [
+      'pre-pregnancy-planning',
+      'garbh-sanskar-9months',
+      'happy-married-life',
+    ],
+    youth: [
+      'swar-yoga-youth',
+      'children-swaryoga',
+    ],
+    trainings: [
+      'swy-teacher-training',
+      'gurukul-organiser-training',
+      'gurukul-teacher-training',
+    ],
+  };
+
+  const AVAILABLE_CURRENCIES = Array.from(
+    new Set(workshopCatalog.flatMap((w) => w.currency ?? []))
+  );
+  const sortCurrencies = (a: string, b: string) => {
+    const order = ['INR', 'USD', 'NPR'];
+    const ai = order.indexOf(String(a).toUpperCase());
+    const bi = order.indexOf(String(b).toUpperCase());
+    if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    return String(a).localeCompare(String(b));
+  };
+  AVAILABLE_CURRENCIES.sort(sortCurrencies);
+
+  const getWorkshopSortKey = (workshop: WorkshopOverview) => {
+    const categoryKey = (workshop.category || '').toLowerCase();
+    const order = WORKSHOP_ORDER_BY_CATEGORY[categoryKey] || [];
+    const index = order.indexOf(workshop.slug);
+    return {
+      hasIndex: index !== -1,
+      index: index === -1 ? Number.POSITIVE_INFINITY : index,
+      name: workshop.name,
+    };
+  };
+
+  const sortWorkshopsByUserOrder = (a: WorkshopOverview, b: WorkshopOverview) => {
+    const ak = getWorkshopSortKey(a);
+    const bk = getWorkshopSortKey(b);
+    if (ak.index !== bk.index) return ak.index - bk.index;
+    // Fallback for any workshop not present in the custom list
+    return ak.name.localeCompare(bk.name);
+  };
+
+  const workshopDropdownOptions = (selectedCategory ? categoryWorkshops : workshopCatalog)
+    .slice()
+    .sort(sortWorkshopsByUserOrder);
+
+  const workshopDropdownGroupedOptions = CATEGORY_ORDER.map((category) => {
+    const options = workshopCatalog
+      .filter((w) => (w.category || '').toLowerCase() === category.toLowerCase())
+      .slice()
+      .sort(sortWorkshopsByUserOrder);
+    return {
+      category,
+      heading: getCategoryHeading(category),
+      options,
+    };
+  }).filter((g) => g.options.length > 0);
+
+  // Pagination logic
+  const ITEMS_PER_PAGE = 3;
+
+  // Sort by latest schedule date (desc) when available; fallback to the user-defined ordering.
+  const getLatestScheduleDateMs = (slug: string) => {
+    const schedules = workshopDetails?.[slug]?.schedules;
+    if (!schedules || schedules.length === 0) return Number.NEGATIVE_INFINITY;
+    let maxMs = Number.NEGATIVE_INFINITY;
+    for (const s of schedules) {
+      const ms = Date.parse(s.startDate);
+      if (!Number.isNaN(ms) && ms > maxMs) maxMs = ms;
+    }
+    return maxMs;
+  };
+
+  const allWorkshops = filteredWorkshops
+    .slice()
+    .sort((a, b) => {
+      const aMs = getLatestScheduleDateMs(a.slug);
+      const bMs = getLatestScheduleDateMs(b.slug);
+      if (aMs !== bMs) return bMs - aMs; // latest first
+      return sortWorkshopsByUserOrder(a, b);
+    });
+  const totalPages = Math.ceil(allWorkshops.length / ITEMS_PER_PAGE);
+  const currentWorkshops = allWorkshops.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+  const getCurrencySymbol = (curr: string) => {
+    const code = String(curr || '').toUpperCase();
+    if (code === 'INR') return '₹';
+    if (code === 'USD') return '$';
+    if (code === 'NPR') return 'Rs';
+    return '₹';
+  };
+
+  const formatDate = (isoDate: string) => {
+    const ms = Date.parse(isoDate);
+    if (Number.isNaN(ms)) return isoDate;
+    return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  const normalizeModeToKey = (mode: string | null) => {
+    if (!mode) return null;
+    const m = mode.toLowerCase();
+    if (m === 'online') return 'online';
+    if (m === 'offline') return 'offline';
+    if (m === 'residential') return 'residential';
+    if (m === 'recorded') return 'recorded';
+    return null;
+  };
+
+  const pickScheduleForCard = (slug: string) => {
+    const schedules = workshopDetails?.[slug]?.schedules;
+    if (!schedules || schedules.length === 0) return null;
+
+    const modeKey = normalizeModeToKey(selectedMode);
+    const currencyKey = selectedPayment ? String(selectedPayment).toUpperCase() : null;
+
+    const parsed = schedules
+      .map((s) => {
+        const startMs = Date.parse(s.startDate);
+        return { s, startMs };
+      })
+      .filter(({ s, startMs }) => {
+        if (Number.isNaN(startMs)) return false;
+        if (modeKey && s.mode !== modeKey) return false;
+        if (currencyKey && String(s.currency).toUpperCase() !== currencyKey) return false;
+        return true;
+      });
+
+    if (parsed.length === 0) return null;
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const upcoming = parsed.filter((p) => p.startMs >= todayStart).sort((a, b) => a.startMs - b.startMs);
+    if (upcoming.length > 0) return upcoming[0].s;
+
+    // If nothing upcoming, show the most recent past schedule.
+    parsed.sort((a, b) => b.startMs - a.startMs);
+    return parsed[0].s;
+  };
+
+  // Fetch seats remaining for the schedules currently shown on the page.
+  useEffect(() => {
+    const requests = currentWorkshops
+      .map((w) => {
+        const schedule = pickScheduleForCard(w.slug);
+        if (!schedule) return null;
+        return {
+          workshopSlug: w.slug,
+          scheduleId: schedule.id,
+          seatsTotal: schedule.seats,
+        };
+      })
+      .filter(Boolean) as Array<{ workshopSlug: string; scheduleId: string; seatsTotal: number }>;
+
+    if (requests.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/workshops/availability', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (cancelled) return;
+        if (payload?.success && payload?.data && typeof payload.data === 'object') {
+          setAvailabilityByKey((prev) => ({ ...prev, ...payload.data }));
+        }
+      } catch (error) {
+        // Non-fatal. We'll fall back to static seats from workshopDetails.
+        console.error('Failed to fetch workshop availability', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentWorkshops, selectedMode, selectedPayment]);
 
   return (
     <>
@@ -116,139 +416,280 @@ function WorkshopsPageInner() {
 
             {/* Filters Section - Accordion */}
             <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8 mb-8 sm:mb-12 space-y-4">
-              <div className="mb-4 sm:mb-6">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-700">Filter Workshops</h3>
-                <p className="text-xs sm:text-sm text-gray-500">Find the perfect workshop for your journey</p>
+              <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-700">Filter Workshops</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">Find the perfect workshop for your journey</p>
+                </div>
+
+                {/* Search (upper right) */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:flex-none sm:w-[320px]">
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      placeholder="Search workshops..."
+                      className="w-full border border-gray-300 rounded-lg pl-10 pr-10 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setCurrentPage(1);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md hover:bg-gray-100"
+                        aria-label="Clear search"
+                      >
+                        <X className="w-4 h-4 text-gray-600" />
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Search applies instantly via state; button kept per UI request.
+                      setCurrentPage(1);
+                    }}
+                    className="bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 whitespace-nowrap"
+                  >
+                    Search
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Workshop Accordion */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <div className="flex flex-wrap gap-4 items-start">
+              {/* Category Dropdown */}
+              <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
                 <button
-                  onClick={() => setAccordionOpen({ ...accordionOpen, workshop: !accordionOpen.workshop })}
+                  onClick={() => setAccordionOpen({ category: !accordionOpen.category, workshop: false, mode: false, language: false, currency: false })}
                   className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
                 >
-                  <span>Workshops</span>
-                  <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.workshop ? 'rotate-180' : ''}`} />
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="block truncate">Category</span>
+                    {selectedCategoryName && (
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                        {selectedCategoryName}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.category ? 'rotate-180' : ''}`} />
+                </button>
+                {accordionOpen.category && (
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                    {WORKSHOP_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCategory(cat.id);
+                          // Show ALL workshops in the selected category
+                          setSelectedWorkshop(null);
+                          setCurrentPage(1);
+                          // Auto-open Workshops dropdown so user immediately sees the workshops list
+                          setAccordionOpen({ category: false, workshop: true, mode: false, language: false, currency: false });
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedCategory === cat.id ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Workshop Accordion */}
+              <div className="border border-gray-300 rounded-lg overflow-hidden flex-[1.5] min-w-[150px] self-start h-fit">
+                <button
+                  onClick={() => {
+                    const willOpenCategory = !accordionOpen.category;
+                    // When user clicks "Workshops", first open only Category.
+                    // Workshops list will open automatically after selecting a Category.
+                    setAccordionOpen({
+                      category: willOpenCategory,
+                      workshop: false,
+                      mode: false,
+                      language: false,
+                      currency: false,
+                    });
+                  }}
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                >
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="block truncate">Workshops</span>
+                    {selectedWorkshopName && (
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                        {selectedWorkshopName}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown className={`w-5 h-5 transition-transform ${(accordionOpen.category || accordionOpen.workshop) ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.workshop && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <button
-                        onClick={() => { setSelectedWorkshop(null); setCurrentPage(1); }}
-                        className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${!selectedWorkshop ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                      >
-                        All Workshops
-                      </button>
-                      {workshopFilterOptions.map((option) => (
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                    {/* If a category is selected, show only that category's workshops */}
+                    {selectedCategory ? (
+                      workshopDropdownOptions.map((option) => (
                         <button
                           key={option.slug}
-                          onClick={() => { setSelectedWorkshop(option.slug); setCurrentPage(1); }}
-                          className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedWorkshop(option.slug);
+                            setCurrentPage(1);
+                            // Chain: after workshop selection, open Mode
+                            setAccordionOpen({ category: false, workshop: false, mode: true, language: false, currency: false });
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                         >
                           {option.name}
                         </button>
-                      ))}
-                    </div>
+                      ))
+                    ) : (
+                      <div className="space-y-4">
+                        {workshopDropdownGroupedOptions.map((group) => (
+                          <div key={group.category} className="space-y-2">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
+                              {group.heading}
+                            </div>
+                            <div className="space-y-2">
+                              {group.options.map((option) => (
+                                <button
+                                  key={option.slug}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedWorkshop(option.slug);
+                                    setCurrentPage(1);
+                                    // Chain: after workshop selection, open Mode
+                                    setAccordionOpen({ category: false, workshop: false, mode: true, language: false, currency: false });
+                                  }}
+                                  className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                >
+                                  {option.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* Mode Accordion */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
                 <button
-                  onClick={() => setAccordionOpen({ ...accordionOpen, mode: !accordionOpen.mode })}
+                  onClick={() => setAccordionOpen({ category: false, workshop: false, mode: !accordionOpen.mode, language: false, currency: false })}
                   className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
                 >
-                  <span>Mode</span>
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="block truncate">Mode</span>
+                    {selectedMode && (
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                        {selectedMode}
+                      </span>
+                    )}
+                  </span>
                   <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.mode ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.mode && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                    {['Online', 'Offline', 'Residential', 'Recorded'].map((mode) => (
                       <button
-                        onClick={() => { setSelectedMode(null); setCurrentPage(1); }}
-                        className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${!selectedMode ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        key={mode}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedMode(mode);
+                          setCurrentPage(1);
+                          // Chain: after mode selection, open Language
+                          setAccordionOpen({ category: false, workshop: false, mode: false, language: true, currency: false });
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedMode === mode ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                       >
-                        All Modes
+                        {mode}
                       </button>
-                      {['Online', 'Offline', 'Residential', 'Recorded'].map((mode) => (
-                        <button
-                          key={mode}
-                          onClick={() => { setSelectedMode(mode); setCurrentPage(1); }}
-                          className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${selectedMode === mode ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                        >
-                          {mode}
-                        </button>
-                      ))}
-                    </div>
+                    ))}
                   </div>
                 )}
               </div>
 
               {/* Language Accordion */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
                 <button
-                  onClick={() => setAccordionOpen({ ...accordionOpen, language: !accordionOpen.language })}
+                  onClick={() => setAccordionOpen({ category: false, workshop: false, mode: false, language: !accordionOpen.language, currency: false })}
                   className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
                 >
-                  <span>Language</span>
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="block truncate">Language</span>
+                    {selectedLanguage && (
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                        {selectedLanguage}
+                      </span>
+                    )}
+                  </span>
                   <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.language ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.language && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                    {['Hindi', 'English', 'Marathi'].map((lang) => (
                       <button
-                        onClick={() => { setSelectedLanguage(null); setCurrentPage(1); }}
-                        className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${!selectedLanguage ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        key={lang}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedLanguage(lang);
+                          setCurrentPage(1);
+                          // Chain: after language selection, open Currency
+                          setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: true });
+                        }}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedLanguage === lang ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                       >
-                        All Languages
+                        {lang}
                       </button>
-                      {['Hindi', 'English', 'Marathi'].map((lang) => (
-                        <button
-                          key={lang}
-                          onClick={() => { setSelectedLanguage(lang); setCurrentPage(1); }}
-                          className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${selectedLanguage === lang ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                        >
-                          {lang}
-                        </button>
-                      ))}
-                    </div>
+                    ))}
                   </div>
                 )}
               </div>
 
               {/* Currency Accordion */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
                 <button
-                  onClick={() => setAccordionOpen({ ...accordionOpen, currency: !accordionOpen.currency })}
+                  onClick={() => setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: !accordionOpen.currency })}
                   className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
                 >
-                  <span>Currency</span>
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="block truncate">Currency</span>
+                    {selectedPayment && (
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                        {selectedPayment}
+                      </span>
+                    )}
+                  </span>
                   <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.currency ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.currency && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <button
-                        onClick={() => { setSelectedPayment(null); setCurrentPage(1); }}
-                        className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${!selectedPayment ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                      >
-                        All Currencies
-                      </button>
-                      {['INR', 'USD', 'NPR'].map((curr) => {
-                        const currencySymbol = { INR: '₹', USD: '$', NPR: 'Rs' }[curr];
-                        return (
-                          <button
-                            key={curr}
-                            onClick={() => { setSelectedPayment(curr); setCurrentPage(1); }}
-                            className={`px-3 py-2 rounded-lg font-semibold text-sm transition-all ${selectedPayment === curr ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                          >
-                            {currencySymbol} {curr}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                    {AVAILABLE_CURRENCIES.map((curr) => {
+                      const currencySymbol = { INR: '₹', USD: '$', NPR: 'Rs' }[curr];
+                      return (
+                        <button
+                          key={curr}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPayment(curr);
+                            setCurrentPage(1);
+                            setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: false });
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedPayment === curr ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        >
+                          {currencySymbol} {curr}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -256,14 +697,17 @@ function WorkshopsPageInner() {
 
               {/* Clear Filters Button */}
               <div className="mt-3 sm:mt-6 flex flex-wrap gap-2">
-                {(selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) && (
+                {(selectedCategory || selectedMode || selectedLanguage || selectedPayment || selectedWorkshop || searchQuery) && (
                   <button
                     onClick={() => {
+                      setSelectedCategory(null);
                       setSelectedMode(null);
                       setSelectedLanguage(null);
                       setSelectedPayment(null);
                       setSelectedWorkshop(null);
+                      setSearchQuery('');
                       setCurrentPage(1);
+                      setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: false });
                     }}
                     className="bg-red-500 hover:bg-red-600 active:scale-95 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 touch-target"
                   >
@@ -278,7 +722,16 @@ function WorkshopsPageInner() {
               {currentWorkshops.map((workshop) => (
                 <div
                   key={workshop.id}
-                  className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-105 group flex flex-col"
+                  className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-105 group flex flex-col cursor-pointer focus:outline-none focus:ring-4 focus:ring-primary-200"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => router.push(`/workshops/${workshop.slug}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      router.push(`/workshops/${workshop.slug}`);
+                    }
+                  }}
                 >
                   {/* Workshop Image */}
                   <div className="relative h-48 sm:h-56 md:h-64 overflow-hidden bg-gray-200 flex-shrink-0">
@@ -318,32 +771,133 @@ function WorkshopsPageInner() {
                       {workshop.description}
                     </p>
 
-                    <div className="flex items-center justify-between mb-4 sm:mb-6 py-2 sm:py-3 border-t border-gray-200 text-xs sm:text-sm">
-                      <span className="text-gray-500 font-medium">
-                        📚 {workshop.duration}
-                      </span>
-                    </div>
+                    {(() => {
+                      const schedule = pickScheduleForCard(workshop.slug);
+                      const now = new Date();
+
+                      const startDateMs = schedule ? Date.parse(schedule.startDate) : Number.NaN;
+                      const hasValidStart = schedule && !Number.isNaN(startDateMs);
+                      const admissionCloseDateMs = hasValidStart ? startDateMs - 5 * MS_PER_DAY : Number.NaN;
+                      const daysToClose = hasValidStart
+                        ? Math.ceil((admissionCloseDateMs - now.getTime()) / MS_PER_DAY)
+                        : null;
+                      const admissionClosed = hasValidStart ? (daysToClose != null && daysToClose <= 0) : false;
+
+                      const availabilityKey = schedule ? `${workshop.slug}|${schedule.id}` : '';
+                      const seatsRemaining = schedule
+                        ? (availabilityByKey[availabilityKey] ?? schedule.seats)
+                        : null;
+
+                      const soldOut = typeof seatsRemaining === 'number' ? seatsRemaining <= 0 : false;
+
+                      return (
+                        <div className="mb-4 sm:mb-6 border-t border-gray-200 pt-3 sm:pt-4 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Fees</p>
+                              <p className="text-sm sm:text-base font-bold text-gray-900">
+                                {schedule ? (
+                                  <>
+                                    {getCurrencySymbol(schedule.currency)}{Number(schedule.price).toLocaleString()}
+                                    <span className="ml-1 text-xs font-semibold text-gray-500">{String(schedule.currency).toUpperCase()}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-500 font-semibold">TBD</span>
+                                )}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Start Date</p>
+                              <p className="text-sm sm:text-base font-bold text-gray-900">
+                                {schedule ? formatDate(schedule.startDate) : <span className="text-gray-500 font-semibold">TBD</span>}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">
+                                {workshop.duration}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-sm sm:text-base font-bold text-gray-900">
+                                {typeof seatsRemaining === 'number' ? (
+                                  <>
+                                    {seatsRemaining}
+                                    <span className="ml-1 text-xs font-semibold text-gray-500">left</span>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-500 font-semibold">TBD</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {admissionClosed ? (
+                                <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">
+                                  Admission Closed
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">
+                                  Admission Open
+                                </span>
+                              )}
+
+                              {!admissionClosed && typeof daysToClose === 'number' && daysToClose <= 5 && (
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">
+                                  {daysToClose <= 0
+                                    ? 'Closes today'
+                                    : `Closes in ${daysToClose} day${daysToClose === 1 ? '' : 's'}`}
+                                </span>
+                              )}
+
+                              {soldOut && (
+                                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-700">
+                                  Sold out
+                                </span>
+                              )}
+                            </div>
+
+                            {schedule?.mode && (
+                              <span className="text-xs font-semibold text-gray-500">
+                                {schedule.mode.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Filter Badges Removed - Only shown in batch details */}
 
                     {/* Batches Section Removed - Only shown on detail page */}
 
                     {/* CTA Buttons Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="flex items-stretch gap-2">
                       <Link
                         href={`/workshops/${workshop.slug}`}
-                        className="bg-white border-2 border-primary-600 hover:bg-gray-50 active:scale-95 text-primary-600 py-2.5 sm:py-3 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-none bg-white border-2 border-primary-600 hover:bg-gray-50 active:scale-95 text-primary-600 px-3 sm:px-4 py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm"
                       >
                         Learn More
                         <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
                       </Link>
-                      <Link
-                        href={`/workshops/${workshop.slug}/register`}
-                        className="bg-primary-600 hover:bg-primary-700 active:scale-95 text-white py-2.5 sm:py-3 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/registernow?workshop=${encodeURIComponent(workshop.slug)}`);
+                        }}
+                        className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed active:scale-95 text-white px-4 py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
                       >
                         Register Now
                         <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -391,7 +945,7 @@ function WorkshopsPageInner() {
             <div className="mt-8 sm:mt-12 md:mt-16 pt-8 sm:pt-12 border-t border-gray-200">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
                 <div className="text-center">
-                  <div className="text-3xl sm:text-4xl font-bold text-primary-600 mb-1 sm:mb-2">14</div>
+                  <div className="text-3xl sm:text-4xl font-bold text-primary-600 mb-1 sm:mb-2">{totalWorkshops}</div>
                   <p className="text-gray-600 font-semibold text-sm sm:text-base">Total Workshops</p>
                 </div>
                 <div className="text-center">

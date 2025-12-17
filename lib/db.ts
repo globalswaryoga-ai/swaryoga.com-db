@@ -114,15 +114,24 @@ const orderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
   items: [
     {
+      kind: { type: String, enum: ['workshop', 'product'], required: false },
       productId: String,
       name: String,
       price: Number,
       quantity: Number,
+
+      // Workshop-specific metadata (optional)
+      workshopSlug: { type: String, required: false },
+      scheduleId: { type: String, required: false },
+      mode: { type: String, required: false },
+      language: { type: String, required: false },
+      currency: { type: String, required: false },
     },
   ],
   total: { type: Number, required: true },
   status: { type: String, default: 'pending' },
   paymentStatus: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  seatInventoryAdjusted: { type: Boolean, default: false },
   paymentMethod: { type: String },
   transactionId: { type: String },
   failureReason: { type: String },
@@ -141,6 +150,21 @@ const orderSchema = new mongoose.Schema({
 });
 
 export const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
+
+// Workshop Seat Inventory Schema (for workshop schedule slots)
+const workshopSeatInventorySchema = new mongoose.Schema({
+  workshopSlug: { type: String, required: true, index: true },
+  scheduleId: { type: String, required: true, index: true },
+  seatsTotal: { type: Number, required: true },
+  seatsRemaining: { type: Number, required: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+workshopSeatInventorySchema.index({ workshopSlug: 1, scheduleId: 1 }, { unique: true });
+
+export const WorkshopSeatInventory =
+  mongoose.models.WorkshopSeatInventory ||
+  mongoose.model('WorkshopSeatInventory', workshopSeatInventorySchema);
 
 // Contact Schema
 const contactSchema = new mongoose.Schema({
@@ -316,3 +340,82 @@ blogNewsletterSchema.index({ email: 1 });
 blogNewsletterSchema.index({ subscribedAt: -1 });
 
 export const BlogNewsletter = mongoose.models.BlogNewsletter || mongoose.model('BlogNewsletter', blogNewsletterSchema);
+
+// ============================================================================
+// Workshops (Metadata + Schedules)
+// ============================================================================
+
+const workshopSchema = new mongoose.Schema(
+  {
+    slug: { type: String, required: true, unique: true, index: true },
+    name: { type: String, required: true },
+    category: { type: String, required: true },
+    image: { type: String, default: '' },
+    description: { type: String, default: '' },
+    duration: { type: String, default: '' },
+    level: { type: String, default: '' },
+    routePath: { type: String, default: '' },
+    videoUrl: { type: String, default: '' },
+    youtubeId: { type: String, default: '' },
+    modes: [{ type: String }],
+    languages: [{ type: String }],
+    currencies: [{ type: String }],
+    isPublished: { type: Boolean, default: true, index: true },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+workshopSchema.index({ slug: 1 }, { unique: true });
+workshopSchema.index({ category: 1, isPublished: 1 });
+
+export const Workshop = mongoose.models.Workshop || mongoose.model('Workshop', workshopSchema);
+
+export type WorkshopScheduleMode = 'online' | 'offline' | 'residential' | 'recorded';
+export type WorkshopScheduleBatch = 'morning' | 'evening' | 'full-day' | 'anytime';
+export type WorkshopScheduleCurrency = 'INR' | 'USD' | 'NPR';
+
+const workshopScheduleSchema = new mongoose.Schema(
+  {
+    // Use a stable string id so schedules are easy to reference from cart/orders.
+    _id: { type: String, required: true },
+    workshopSlug: { type: String, required: true, index: true },
+    workshopName: { type: String, default: '' },
+    mode: {
+      type: String,
+      enum: ['online', 'offline', 'residential', 'recorded'],
+      required: true,
+      index: true,
+    },
+    batch: {
+      type: String,
+      enum: ['morning', 'evening', 'full-day', 'anytime'],
+      default: 'morning',
+      index: true,
+    },
+    startDate: { type: Date, required: false, index: true },
+    endDate: { type: Date, required: false },
+    days: { type: String, default: '' },
+    time: { type: String, default: '' },
+    startTime: { type: String, default: '' },
+    endTime: { type: String, default: '' },
+    seatsTotal: { type: Number, default: 60 },
+    registrationCloseDate: { type: Date, required: false },
+    location: { type: String, default: '' },
+    price: { type: Number, default: 0 },
+    currency: { type: String, enum: ['INR', 'USD', 'NPR'], default: 'INR', index: true },
+    status: { type: String, enum: ['draft', 'published'], default: 'draft', index: true },
+    publishedAt: { type: Date, required: false },
+  },
+  {
+    timestamps: true,
+    id: false,
+  }
+);
+
+workshopScheduleSchema.index({ workshopSlug: 1, mode: 1, status: 1, startDate: 1 });
+workshopScheduleSchema.index({ workshopSlug: 1, mode: 1, batch: 1, currency: 1, startDate: 1 });
+
+export const WorkshopSchedule =
+  mongoose.models.WorkshopSchedule || mongoose.model('WorkshopSchedule', workshopScheduleSchema);

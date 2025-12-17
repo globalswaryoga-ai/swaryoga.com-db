@@ -11,14 +11,14 @@ Added PayU credentials to `.env.local`:
 ```env
 # PayU Payment Gateway Configuration
 PAYU_MODE="TEST"
-PAYU_MERCHANT_KEY="gtKFFx"
-PAYU_MERCHANT_SALT="eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7"
+PAYU_MERCHANT_KEY="<your_key>"
+PAYU_MERCHANT_SALT="<your_salt>"
 ```
 
 ### Credentials Details
 - **PAYU_MODE**: TEST (for development/testing)
-- **PAYU_MERCHANT_KEY**: gtKFFx (test merchant key)
-- **PAYU_MERCHANT_SALT**: eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7 (test salt)
+- **PAYU_MERCHANT_KEY**: <your_key> (test/prod merchant key)
+- **PAYU_MERCHANT_SALT**: <your_salt> (test/prod salt)
 
 ## How to Test Payment Flow
 
@@ -82,7 +82,7 @@ When deploying to production:
 | Component | Status | Details |
 |-----------|--------|---------|
 | PAYU_MODE | ✅ Fixed | Set to TEST |
-| PAYU_MERCHANT_KEY | ✅ Fixed | Added gtKFFx |
+| PAYU_MERCHANT_KEY | ✅ Fixed | Added <your_key> |
 | PAYU_MERCHANT_SALT | ✅ Fixed | Added test salt |
 | Payment Form Submission | ✅ Works | Will now send to PayU gateway |
 | PayU Hash Generation | ✅ Works | Hash validation will pass |

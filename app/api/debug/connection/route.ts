@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 
+// This debug route attempts a live DB connection; ensure it is always runtime-only.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Force rebuild - DEBUG 2025-12-15
 export async function GET() {
   try {

@@ -49,8 +49,8 @@ If you want to test without real PayU account:
 
 ```dotenv
 PAYU_MODE=TEST
-PAYU_MERCHANT_KEY=gtKFFx
-PAYU_MERCHANT_SALT=eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7
+PAYU_MERCHANT_KEY=<your_key>
+PAYU_MERCHANT_SALT=<your_salt>
 ```
 
 **Test Payment Card:**
@@ -89,7 +89,7 @@ grep PAYU_ .env.local
 
 ```dotenv
 # ===== MongoDB =====
-MONGODB_URI=mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://<username>:<password>@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
 
 # ===== JWT Authentication =====
 JWT_SECRET=your_long_random_secret_string_here_min_32_chars

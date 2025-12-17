@@ -39,7 +39,7 @@ You should see a list of variables. Look for:
 4. Clear the field
 5. Paste this exact value:
 ```
-mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
+mongodb+srv://<username>:<password>@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
 ```
 6. Make sure **Production** checkbox is selected
 7. Click **Save**
@@ -91,7 +91,7 @@ The three variables and their exact values:
 
 **Variable 1: MONGODB_URI**
 ```
-mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
+mongodb+srv://<username>:<password>@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority
 ```
 
 **Variable 2: JWT_SECRET**

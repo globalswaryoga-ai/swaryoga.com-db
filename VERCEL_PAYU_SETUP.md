@@ -28,13 +28,13 @@
 
 #### Variable 2:
 - **Name**: `PAYU_MERCHANT_KEY`
-- **Value**: `gtKFFx`
+- **Value**: `<your_test_or_prod_key>`
 - **Environments**: Select all
 - Click **Save**
 
 #### Variable 3:
 - **Name**: `PAYU_MERCHANT_SALT`
-- **Value**: `eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7`
+- **Value**: `<your_test_or_prod_salt>`
 - **Environments**: Select all
 - Click **Save**
 
@@ -51,12 +51,12 @@
 | PAYU_MODE | `.env` | TEST |
 | PAYU_MODE | `.env.local` | TEST |
 | PAYU_MODE | Vercel | TEST |
-| PAYU_MERCHANT_KEY | `.env` | gtKFFx |
-| PAYU_MERCHANT_KEY | `.env.local` | gtKFFx |
-| PAYU_MERCHANT_KEY | Vercel | gtKFFx |
-| PAYU_MERCHANT_SALT | `.env` | eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7 |
-| PAYU_MERCHANT_SALT | `.env.local` | eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7 |
-| PAYU_MERCHANT_SALT | Vercel | eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7 |
+| PAYU_MERCHANT_KEY | `.env` | <your_key> |
+| PAYU_MERCHANT_KEY | `.env.local` | <your_key> |
+| PAYU_MERCHANT_KEY | Vercel | <your_key> |
+| PAYU_MERCHANT_SALT | `.env` | <your_salt> |
+| PAYU_MERCHANT_SALT | `.env.local` | <your_salt> |
+| PAYU_MERCHANT_SALT | Vercel | <your_salt> |
 
 ## Why This Works (Same as MongoDB)
 

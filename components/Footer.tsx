@@ -25,19 +25,19 @@ export default function Footer() {
   const quickLinks = [
     { name: 'Home', href: '/' },
     { name: 'About Us', href: '/about' },
-    { name: 'Workshops', href: '/workshops' },
+    { name: 'Workshops', href: '/workshop' },
     { name: 'Resort', href: '/resort' },
     { name: 'Blog', href: '/blog' },
     { name: 'Contact', href: '/contact' }
   ];
 
   const services = [
-    { name: 'Yoga Classes', href: '/workshops' },
+    { name: 'Yoga Classes', href: '/workshop' },
     { name: 'Meditation Retreats', href: '/resort' },
     { name: 'Personal Coaching', href: '/contact' },
     { name: 'Corporate Wellness', href: '/contact' },
-    { name: 'Teacher Training', href: '/workshops' },
-    { name: 'Online Programs', href: '/workshops' }
+    { name: 'Teacher Training', href: '/workshop' },
+    { name: 'Online Programs', href: '/workshop' }
   ];
 
   const resources = [

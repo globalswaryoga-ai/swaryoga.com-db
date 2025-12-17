@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -53,6 +53,12 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       label: 'Workshop Enquiries',
       href: '/admin/enquiries',
       color: 'text-pink-600'
+    },
+    {
+      icon: Calendar,
+      label: 'Workshop Dates',
+      href: '/admin/workshops/schedules',
+      color: 'text-emerald-500'
     },
     {
       icon: Gift,

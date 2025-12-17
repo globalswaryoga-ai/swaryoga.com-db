@@ -101,8 +101,8 @@ ADMIN_PANEL_TOKEN=...
 ```dotenv
 # Correct setup:
 PAYU_MODE=TEST
-PAYU_MERCHANT_KEY=gtKFFx                           # 6 character merchant key
-PAYU_MERCHANT_SALT=eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7  # Long salt string
+PAYU_MERCHANT_KEY=<your_key>                       # Merchant key from PayU dashboard
+PAYU_MERCHANT_SALT=<your_salt>                     # Merchant salt from PayU dashboard
 ```
 
 ---

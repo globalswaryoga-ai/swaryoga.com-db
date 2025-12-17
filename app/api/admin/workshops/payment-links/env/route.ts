@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { PaymentLink } from '@/lib/workshopDatabase';
+import { isAdminAuthorized } from '@/lib/adminAuth';
 
 const ENV_PAYMENT_PATH = join(process.cwd(), '.env.payment');
 
@@ -167,8 +168,12 @@ function writePaymentLinksToFile(links: PaymentLink[]): string | null {
   }
 }
 
-export async function GET(): Promise<Response> {
+export async function GET(request: NextRequest): Promise<Response> {
   try {
+    if (!isAdminAuthorized(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const links = readPaymentLinksFromFile();
     return NextResponse.json({ data: links });
   } catch (err) {
@@ -178,6 +183,10 @@ export async function GET(): Promise<Response> {
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
+    if (!isAdminAuthorized(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const link = (await request.json()) as PaymentLink;
     const links = readPaymentLinksFromFile();
 
@@ -196,6 +205,10 @@ export async function POST(request: NextRequest): Promise<Response> {
 
 export async function PUT(request: NextRequest): Promise<Response> {
   try {
+    if (!isAdminAuthorized(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id, ...updates } = (await request.json()) as PaymentLink & { id: string };
     const links = readPaymentLinksFromFile();
 
@@ -219,6 +232,10 @@ export async function PUT(request: NextRequest): Promise<Response> {
 
 export async function DELETE(request: NextRequest): Promise<Response> {
   try {
+    if (!isAdminAuthorized(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

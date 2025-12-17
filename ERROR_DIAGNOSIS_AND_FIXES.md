@@ -120,7 +120,7 @@ https://vercel.com/swar-yoga-projects/swar-yoga-web-mohan/settings/environment-v
 
 ```
 # Database
-MONGODB_URI=mongodb+srv://swarsakshi:swarsakshi@swaryogacluster.u3xw2.mongodb.net/swarYogaDB?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-host>/<dbName>?retryWrites=true&w=majority
 
 # Authentication
 JWT_SECRET=swar_yoga_jwt_secret_key_2024_secure_token_authentication
@@ -130,8 +130,8 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=$2a$10$VyX7RfUpKaU7YN3SsOc2K.nC7R5C7C7C7C7C7C7C7C7C7C7C7C7C
 
 # PayU Configuration
-PAYU_MERCHANT_KEY=gtKFFx
-PAYU_MERCHANT_SALT=eCwWELJIl92doCBOxyXPnaVgQnmrjVi6cn0AWfj7
+PAYU_MERCHANT_KEY=<your_key>
+PAYU_MERCHANT_SALT=<your_salt>
 PAYU_MODE=TEST
 
 # Supabase

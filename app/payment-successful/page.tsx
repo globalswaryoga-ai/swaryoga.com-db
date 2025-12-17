@@ -154,7 +154,7 @@ function PaymentSuccessfulInner() {
 
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link
-                  href="/workshops"
+                  href="/workshop"
                   className="inline-flex justify-center items-center px-6 py-3 rounded-xl bg-yoga-600 text-white font-semibold hover:bg-yoga-700 transition"
                 >
                   Explore Workshops
