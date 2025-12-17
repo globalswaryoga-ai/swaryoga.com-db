@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
-export const PAYU_MERCHANT_KEY = process.env.PAYU_MERCHANT_KEY || '';
-export const PAYU_MERCHANT_SALT = process.env.PAYU_MERCHANT_SALT || '';
+export const PAYU_MERCHANT_KEY = (process.env.PAYU_MERCHANT_KEY || '').toString().trim();
+export const PAYU_MERCHANT_SALT = (process.env.PAYU_MERCHANT_SALT || '').toString().trim();
 
 const rawPayuMode = (process.env.PAYU_MODE || 'TEST').toString().trim().toUpperCase();
 const productionTokens = ['PRODUCTION', 'PROD', 'LIVE', 'ONLINE', 'ONLIE'];
@@ -39,7 +39,7 @@ export interface PayUParams {
 }
 
 export function generatePayUHash(params: PayUParams): string {
-  const key = (params.key || PAYU_MERCHANT_KEY).toString();
+  const key = (params.key || PAYU_MERCHANT_KEY).toString().trim();
   const udf = [
     params.udf1 || '',
     params.udf2 || '',

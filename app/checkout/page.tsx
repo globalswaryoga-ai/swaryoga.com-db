@@ -303,7 +303,7 @@ function CheckoutInner() {
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="md:col-span-2">
-              <form onSubmit={handleSubmit} className="space-y-8">
+              <form id="checkout-form" onSubmit={handleSubmit} className="space-y-8">
                 {/* Shipping Information */}
                 <div className="bg-white rounded-lg shadow-md p-8">
                   <h2 className="text-2xl font-bold mb-6 text-yoga-700">Shipping Information</h2>
@@ -503,6 +503,7 @@ function CheckoutInner() {
                 {/* Hidden on desktop, visible on mobile */}
                 <button
                   type="submit"
+                  form="checkout-form"
                   disabled={loading || !hasItemsForSelectedCurrency}
                   className={`md:hidden w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-4 rounded-lg font-bold text-lg transition ${
                     loading || !hasItemsForSelectedCurrency ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-700 hover:to-green-800'
@@ -587,6 +588,7 @@ function CheckoutInner() {
                 {/* Pay Now Button */}
                 <button
                   type="submit"
+                  form="checkout-form"
                   disabled={loading || !hasItemsForSelectedCurrency}
                   className={`w-full bg-green-500 hover:bg-green-400 text-white font-bold text-lg py-4 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg ${
                     loading || !hasItemsForSelectedCurrency ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''
