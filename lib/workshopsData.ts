@@ -24,9 +24,9 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'swar-yoga-basic': {
     name: 'Swar Yoga Basic',
     slug: 'swar-yoga-basic',
-    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
-    description: 'Foundation of Swar Yoga practice with breathing techniques',
-    duration: '3 days',
+    image: '/images/workshops/swar-yoga-basic.png',
+    description: 'Basic Swar Yoga workshop (3 days • daily 1.5 hours) focused on digestion, sleep, constipation and gas issues.',
+    duration: '3 days (daily 1.5 hours)',
     level: 'Beginner',
     category: 'Health',
     mode: ['Online', 'Offline'],
