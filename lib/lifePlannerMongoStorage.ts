@@ -4,6 +4,7 @@
  */
 
 import { Reminder, Vision, Goal, Task, Todo, Word, HealthRoutine, DiamondPerson, ProgressReport, ActionPlan } from '@/lib/types/lifePlanner';
+import { getSession } from '@/lib/sessionManager';
 
 class LifePlannerMongoStorage {
   private getEmail(): string | null {
@@ -18,9 +19,27 @@ class LifePlannerMongoStorage {
     }
   }
 
+  private getEmailFallback(): string | null {
+    if (typeof window === 'undefined') return null;
+
+    // Prefer unified sessionManager if available.
+    const session = getSession();
+    if (session?.user?.email) return session.user.email;
+
+    // Fallback: raw localStorage key used across the app.
+    const userRaw = localStorage.getItem('user');
+    if (!userRaw) return null;
+    try {
+      const user = JSON.parse(userRaw);
+      return typeof user?.email === 'string' ? user.email : null;
+    } catch {
+      return null;
+    }
+  }
+
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('lifePlannerToken');
+    return localStorage.getItem('lifePlannerToken') || localStorage.getItem('token') || getSession()?.token || null;
   }
 
   private authHeaders(): Record<string, string> {
@@ -36,7 +55,7 @@ class LifePlannerMongoStorage {
   }
 
   async getVisions(): Promise<Vision[]> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=visions`, {
@@ -55,7 +74,7 @@ class LifePlannerMongoStorage {
   }
 
   async getActionPlans(): Promise<ActionPlan[]> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=actionPlans`, {
@@ -74,7 +93,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveActionPlans(actionPlans: ActionPlan[]): Promise<void> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return;
     try {
       const response = await fetch('/api/life-planner/data', {
@@ -89,7 +108,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveVisions(visions: Vision[]): Promise<void> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return;
     try {
       const response = await fetch('/api/life-planner/data', {
@@ -104,7 +123,7 @@ class LifePlannerMongoStorage {
   }
 
   async getGoals(): Promise<Goal[]> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=goals`, {
@@ -123,7 +142,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveGoals(goals: Goal[]): Promise<void> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return;
     try {
       const response = await fetch('/api/life-planner/data', {
@@ -138,7 +157,7 @@ class LifePlannerMongoStorage {
   }
 
   async getTasks(): Promise<Task[]> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=tasks`, {
@@ -157,7 +176,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveTasks(tasks: Task[]): Promise<void> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return;
     try {
       const response = await fetch('/api/life-planner/data', {
@@ -172,7 +191,7 @@ class LifePlannerMongoStorage {
   }
 
   async getTodos(): Promise<Todo[]> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=todos`, {
@@ -191,7 +210,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveTodos(todos: Todo[]): Promise<void> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return;
     try {
       const response = await fetch('/api/life-planner/data', {
@@ -206,7 +225,7 @@ class LifePlannerMongoStorage {
   }
 
   async getWords(): Promise<Word[]> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=words`, {
@@ -225,7 +244,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveWords(words: Word[]): Promise<void> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return;
     try {
       const response = await fetch('/api/life-planner/data', {
@@ -240,7 +259,7 @@ class LifePlannerMongoStorage {
   }
 
   async getReminders(): Promise<Reminder[]> {
-    const email = this.getEmail();
+    const email = this.getEmail() || this.getEmailFallback();
     if (!email) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=reminders`, {

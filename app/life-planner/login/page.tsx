@@ -20,8 +20,8 @@ export default function LifePlannerLoginPage() {
 
   // Check if already logged in, redirect to dashboard
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
+    const token = localStorage.getItem('token') || localStorage.getItem('lifePlannerToken');
+    const user = localStorage.getItem('user') || localStorage.getItem('lifePlannerUser');
 
     // Prefill email if available from saved credentials
     if (!email && localStorage.getItem('savedEmail')) {
@@ -99,6 +99,17 @@ export default function LifePlannerLoginPage() {
           countryCode: data.user?.countryCode || '+91'
         }
       });
+
+      // Also keep life-planner specific keys for backward compatibility with existing life planner code.
+      try {
+        localStorage.setItem('lifePlannerToken', data.token);
+        localStorage.setItem(
+          'lifePlannerUser',
+          JSON.stringify({ email: data.user?.email || email.trim(), createdAt: Date.now() })
+        );
+      } catch {
+        // ignore storage failures
+      }
 
       // Redirect to dashboard after success
       setTimeout(() => {

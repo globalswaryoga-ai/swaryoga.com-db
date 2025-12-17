@@ -11,17 +11,42 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const session = localStorage.getItem('lifePlannerUser');
-    const token = localStorage.getItem('lifePlannerToken');
-    if (!session) {
-      router.push('/life-planner/login');
-      return;
+    // Life Planner historically used its own keys, but the rest of the app uses the unified session manager
+    // (token/user). Support both so the dashboard reliably opens.
+    const plannerSessionRaw = localStorage.getItem('lifePlannerUser');
+    const plannerToken = localStorage.getItem('lifePlannerToken');
+
+    const appToken = localStorage.getItem('token');
+    const appUserRaw = localStorage.getItem('user');
+
+    const effectiveToken = plannerToken || appToken;
+
+    // If user has a normal app session, mirror it into Life Planner keys for backward compatibility.
+    // This allows existing life-planner storage code (which reads lifePlannerToken/lifePlannerUser) to work.
+    if (!plannerToken && appToken) {
+      localStorage.setItem('lifePlannerToken', appToken);
     }
-    if (!token) {
+
+    if (!plannerSessionRaw && appUserRaw) {
+      try {
+        const appUser = JSON.parse(appUserRaw);
+        const email = typeof appUser?.email === 'string' ? appUser.email : '';
+        if (email) {
+          localStorage.setItem('lifePlannerUser', JSON.stringify({ email, createdAt: Date.now() }));
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const effectiveSession = localStorage.getItem('lifePlannerUser') || plannerSessionRaw;
+
+    if (!effectiveSession || !effectiveToken) {
       // Token is required for Mongo-backed persistence; without it the API returns 401.
       router.push('/life-planner/login');
       return;
     }
+
     setIsAuthenticated(true);
   }, [router]);
 

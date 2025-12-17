@@ -6,7 +6,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
-import { workshopCatalog, findWorkshopBySlug, workshopDetails } from '@/lib/workshopsData';
+import { workshopCatalog, findWorkshopBySlug, workshopDetails, type Schedule } from '@/lib/workshopsData';
 import { useRouter } from 'next/navigation';
 
 // Schedule interface removed; full-page register view now handles schedules per mode
@@ -151,8 +151,65 @@ export default function WorkshopDetail() {
     return langs.join(' / ');
   };
 
-  const pickSchedule = () => {
-    const schedules = workshopDetails?.[workshopSlug]?.schedules;
+  const [dbSchedules, setDbSchedules] = useState<Schedule[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const qs = new URLSearchParams({ workshopSlug });
+        const res = await fetch(`/api/workshops/schedules?${qs.toString()}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Failed to load schedules');
+
+        const list = Array.isArray(json?.data) ? (json.data as any[]) : [];
+        const normalized: Schedule[] = [];
+
+        for (const raw of list) {
+          const mode = String(raw?.mode || '').trim().toLowerCase() as Schedule['mode'];
+          const id = String(raw?.id || raw?._id || '').trim();
+          const startDate = raw?.startDate ? String(raw.startDate) : '';
+          const endDate = raw?.endDate ? String(raw.endDate) : '';
+          if (!id || !startDate) continue;
+          if (!['online', 'offline', 'residential', 'recorded'].includes(mode)) continue;
+
+          const seats = Number.isFinite(Number(raw?.seatsTotal))
+            ? Number(raw.seatsTotal)
+            : Number.isFinite(Number(raw?.slots))
+              ? Number(raw.slots)
+              : 60;
+
+          const price = Number.isFinite(Number(raw?.price)) ? Number(raw.price) : 0;
+          const currency = String(raw?.currency || 'INR').toUpperCase();
+          const time = String(raw?.time || '').trim() || 'TBD';
+          const location = raw?.location ? String(raw.location) : undefined;
+
+          normalized.push({
+            id,
+            mode,
+            startDate,
+            endDate: endDate || startDate,
+            time,
+            seats,
+            price,
+            currency,
+            location,
+          });
+        }
+
+        normalized.sort((a, b) => Date.parse(a.startDate) - Date.parse(b.startDate));
+        if (cancelled) return;
+        setDbSchedules(normalized);
+      } catch (e) {
+        console.error('Failed to load workshop schedules', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workshopSlug]);
+
+  const pickSchedule = (schedules: Schedule[]) => {
     if (!schedules || schedules.length === 0) return null;
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -165,7 +222,10 @@ export default function WorkshopDetail() {
   };
 
   const [seatsRemaining, setSeatsRemaining] = useState<number | null>(null);
-  const schedule = useMemo(() => pickSchedule(), [workshopSlug]);
+  const schedule = useMemo(() => {
+    const preferred = dbSchedules.length > 0 ? dbSchedules : (workshopDetails?.[workshopSlug]?.schedules || []);
+    return pickSchedule(preferred);
+  }, [dbSchedules, workshopSlug]);
 
   useEffect(() => {
     if (!schedule) return;
@@ -209,7 +269,7 @@ export default function WorkshopDetail() {
     const days = Math.ceil((closeMs - Date.now()) / MS_PER_DAY);
     if (days <= 0) return { open: false, label: 'Admission Closed', closesInDays: 0 };
     return { open: true, label: 'Admission Open', closesInDays: days };
-  }, [schedule]);
+  }, [MS_PER_DAY, schedule]);
 
   const handleRegisterNow = () => {
     // Always send user to the global registration page first

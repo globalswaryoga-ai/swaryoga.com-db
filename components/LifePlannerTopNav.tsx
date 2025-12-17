@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, LogOut, Target, Flag, CheckSquare, Bell, NotebookPen, HeartPulse, Gem, BarChart3, User, Home } from 'lucide-react';
 import HealthTracker from './HealthTracker';
 import ServerStatus from './ServerStatus';
+import { clearSession } from '@/lib/sessionManager';
 
 const topTabs = [
   { href: '/life-planner/dashboard/vision', label: 'Vision Plan', icon: Target },
@@ -28,8 +29,10 @@ export default function LifePlannerTopNav({
   const router = useRouter();
 
   const logout = () => {
+    // Life planner uses the same JWT as the rest of the app; clear both the planner keys and the main session.
     localStorage.removeItem('lifePlannerUser');
-      localStorage.removeItem('lifePlannerToken');
+    localStorage.removeItem('lifePlannerToken');
+    clearSession();
     router.push('/life-planner/login');
   };
 

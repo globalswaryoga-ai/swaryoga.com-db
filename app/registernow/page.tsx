@@ -47,6 +47,13 @@ const formatDate = (iso: string) => {
   return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+const formatScheduleTime = (s: { time?: string; startTime?: string; endTime?: string }) => {
+  const direct = String((s as any)?.time || '').trim();
+  if (direct) return direct;
+  const parts = [String((s as any)?.startTime || '').trim(), String((s as any)?.endTime || '').trim()].filter(Boolean);
+  return parts.join(' - ');
+};
+
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 const addMonths = (d: Date, months: number) => {
@@ -171,7 +178,13 @@ function RegisterNowDashboardPageInner() {
   const sixMonthBlocks = useMemo(() => {
     if (!selectedWorkshopSlug) return [] as Array<{ label: string; dateText: string; available: boolean }>;
 
-    if (selectedMode === 'recorded') {
+    const dated = schedulesFor
+      .map((s) => ({ s, ms: s.startDate ? Date.parse(String(s.startDate)) : NaN }))
+      .filter((p) => !Number.isNaN(p.ms))
+      .sort((a, b) => a.ms - b.ms);
+
+    // Recorded can be truly "Anytime" (no date). But if a dated schedule exists, show it in the correct month.
+    if (selectedMode === 'recorded' && dated.length === 0) {
       const today = new Date();
       const hasRecorded = schedulesFor.length > 0;
       return Array.from({ length: 6 }, (_, i) => {
@@ -184,8 +197,6 @@ function RegisterNowDashboardPageInner() {
       });
     }
 
-    const filtered = schedulesFor;
-
     const today = new Date();
     const monthStarts = Array.from({ length: 6 }, (_, i) => {
       const d = addMonths(today, i);
@@ -194,20 +205,17 @@ function RegisterNowDashboardPageInner() {
 
     return monthStarts.map((m) => {
       const key = monthKey(m);
-      const inMonth = filtered
-        .map((s) => ({ s, ms: s.startDate ? Date.parse(String(s.startDate)) : NaN }))
-        .filter((p) => !Number.isNaN(p.ms))
-        .filter((p) => {
-          const d = new Date(p.ms);
-          return monthKey(d) === key;
-        })
-        .sort((a, b) => a.ms - b.ms);
+      const inMonth = dated.filter((p) => monthKey(new Date(p.ms)) === key);
 
       const picked = inMonth[0]?.s;
       const count = inMonth.length;
+      const pickedTime = picked ? formatScheduleTime(picked) : '';
+      const timeSuffix = pickedTime ? ` • ${pickedTime}` : '';
       return {
         label: m.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
-        dateText: picked ? `${formatDate(String(picked.startDate))}${count > 1 ? ` (${count} batches)` : ''}` : 'Coming soon',
+        dateText: picked
+          ? `${formatDate(String(picked.startDate))}${timeSuffix}${count > 1 ? ` (${count} batches)` : ''}`
+          : 'Coming soon',
         available: Boolean(picked),
       };
     });
@@ -270,7 +278,7 @@ function RegisterNowDashboardPageInner() {
 
               <div className="mb-5">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-600 mb-2">Language</p>
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-2">
                   {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
                     <button
                       key={lang}
@@ -290,7 +298,7 @@ function RegisterNowDashboardPageInner() {
 
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-600 mb-2">Our Workshops</p>
-                <div className="space-y-1">
+                <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-1">
                   {CATEGORY_ORDER.map((cat) => {
                     const heading = getCategoryHeading(cat);
                     const active = selectedCategory === cat;
@@ -348,7 +356,62 @@ function RegisterNowDashboardPageInner() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                {/* Mobile/tablet: cards */}
+                <div className="md:hidden space-y-3">
+                  {rows.map((w) => {
+                    const schedule = allSchedules
+                      .filter((s) => s.workshopSlug === w.slug)
+                      .filter((s) => s.mode === selectedMode)
+                      .sort((a, b) => {
+                        const ams = a.startDate ? Date.parse(String(a.startDate)) : NaN;
+                        const bms = b.startDate ? Date.parse(String(b.startDate)) : NaN;
+                        if (Number.isNaN(ams) && Number.isNaN(bms)) return 0;
+                        if (Number.isNaN(ams)) return 1;
+                        if (Number.isNaN(bms)) return -1;
+                        return ams - bms;
+                      })[0] || null;
+
+                    const active = selectedWorkshopSlug === w.slug;
+                    const feeText = schedule
+                      ? `₹${Number(schedule.price).toLocaleString('en-IN')} ${String(schedule.currency).toUpperCase()}`
+                      : 'TBD';
+
+                    return (
+                      <div
+                        key={w.slug}
+                        className={`rounded-xl border p-4 shadow-sm ${
+                          active ? 'border-primary-200 bg-primary-50' : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-base font-extrabold text-gray-900 leading-tight">{w.name}</div>
+                            <div className="mt-1 text-sm text-gray-700">Duration: {w.duration}</div>
+                            <div className="mt-1 text-sm font-semibold text-gray-900">Fees: {feeText}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedWorkshopSlug(w.slug)}
+                            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-extrabold transition-colors ${
+                              active ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                            }`}
+                          >
+                            {active ? 'Selected' : 'Select'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {rows.length === 0 && (
+                    <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-center text-gray-600">
+                      No workshops found.
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop: table */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200">
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>

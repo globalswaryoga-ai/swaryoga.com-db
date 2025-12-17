@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useCallback, useEffect, useState, Suspense } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowRight, BookOpen, Heart, TrendingUp, Users, Baby, ChevronDown, Search, X } from 'lucide-react';
@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { workshopCatalog, workshopDetails, WorkshopOverview } from '@/lib/workshopsData';
+import { workshopCatalog, workshopDetails, WorkshopOverview, type Schedule } from '@/lib/workshopsData';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +61,7 @@ function WorkshopsPageInner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [availabilityByKey, setAvailabilityByKey] = useState<Record<string, number>>({});
+  const [dbSchedulesBySlug, setDbSchedulesBySlug] = useState<Record<string, Schedule[]>>({});
   const [accordionOpen, setAccordionOpen] = useState({
     category: false,
     workshop: false,
@@ -87,6 +88,74 @@ function WorkshopsPageInner() {
     setSelectedMode(searchParams.get('mode') || null);
     setSelectedLanguage(searchParams.get('language') || null);
   }, [queryString, searchParams]);
+
+  // Load published schedules from MongoDB (public endpoint).
+  // This ensures admin updates are reflected on the main workshops page.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/workshops/schedules', { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Failed to load schedules');
+
+        const list = Array.isArray(json?.data) ? (json.data as any[]) : [];
+        const map: Record<string, Schedule[]> = {};
+
+        for (const raw of list) {
+          const workshopSlug = String(raw?.workshopSlug || '').trim();
+          const mode = String(raw?.mode || '').trim().toLowerCase() as Schedule['mode'];
+          const id = String(raw?.id || raw?._id || '').trim();
+          const startDate = raw?.startDate ? String(raw.startDate) : '';
+          const endDate = raw?.endDate ? String(raw.endDate) : '';
+          if (!workshopSlug || !id || !startDate) continue;
+
+          // Ensure mode is one of the supported keys; skip unknown modes.
+          if (!['online', 'offline', 'residential', 'recorded'].includes(mode)) continue;
+
+          const seats = Number.isFinite(Number(raw?.seatsTotal))
+            ? Number(raw.seatsTotal)
+            : Number.isFinite(Number(raw?.slots))
+              ? Number(raw.slots)
+              : 60;
+
+          const price = Number.isFinite(Number(raw?.price)) ? Number(raw.price) : 0;
+          const currency = String(raw?.currency || 'INR').toUpperCase();
+          const time = String(raw?.time || '').trim() || 'TBD';
+          const location = raw?.location ? String(raw.location) : undefined;
+
+          const s: Schedule = {
+            id,
+            mode,
+            startDate,
+            endDate: endDate || startDate,
+            time,
+            seats,
+            price,
+            currency,
+            location,
+          };
+
+          if (!map[workshopSlug]) map[workshopSlug] = [];
+          map[workshopSlug].push(s);
+        }
+
+        // Sort schedules by date for stable picking.
+        for (const slug of Object.keys(map)) {
+          map[slug].sort((a, b) => Date.parse(a.startDate) - Date.parse(b.startDate));
+        }
+
+        if (cancelled) return;
+        setDbSchedulesBySlug(map);
+      } catch (e) {
+        // Non-fatal. We'll fall back to static schedules.
+        console.error('Failed to load workshop schedules', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Chained UX (robust): selecting a value auto-opens the next dropdown.
   // This avoids "sometimes it doesn't open" issues due to event timing/batching.
@@ -236,7 +305,9 @@ function WorkshopsPageInner() {
 
   // Sort by latest schedule date (desc) when available; fallback to the user-defined ordering.
   const getLatestScheduleDateMs = (slug: string) => {
-    const schedules = workshopDetails?.[slug]?.schedules;
+    const schedules = (dbSchedulesBySlug?.[slug] && dbSchedulesBySlug[slug].length > 0)
+      ? dbSchedulesBySlug[slug]
+      : workshopDetails?.[slug]?.schedules;
     if (!schedules || schedules.length === 0) return Number.NEGATIVE_INFINITY;
     let maxMs = Number.NEGATIVE_INFINITY;
     for (const s of schedules) {
@@ -276,7 +347,7 @@ function WorkshopsPageInner() {
     return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  const normalizeModeToKey = (mode: string | null) => {
+  const normalizeModeToKey = useCallback((mode: string | null) => {
     if (!mode) return null;
     const m = mode.toLowerCase();
     if (m === 'online') return 'online';
@@ -284,10 +355,12 @@ function WorkshopsPageInner() {
     if (m === 'residential') return 'residential';
     if (m === 'recorded') return 'recorded';
     return null;
-  };
+  }, []);
 
-  const pickScheduleForCard = (slug: string) => {
-    const schedules = workshopDetails?.[slug]?.schedules;
+  const pickScheduleForCard = useCallback((slug: string) => {
+    const schedules = (dbSchedulesBySlug?.[slug] && dbSchedulesBySlug[slug].length > 0)
+      ? dbSchedulesBySlug[slug]
+      : workshopDetails?.[slug]?.schedules;
     if (!schedules || schedules.length === 0) return null;
 
     const modeKey = normalizeModeToKey(selectedMode);
@@ -315,7 +388,7 @@ function WorkshopsPageInner() {
     // If nothing upcoming, show the most recent past schedule.
     parsed.sort((a, b) => b.startMs - a.startMs);
     return parsed[0].s;
-  };
+  }, [dbSchedulesBySlug, normalizeModeToKey, selectedMode, selectedPayment]);
 
   // Fetch seats remaining for the schedules currently shown on the page.
   useEffect(() => {
@@ -355,7 +428,7 @@ function WorkshopsPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [currentWorkshops, selectedMode, selectedPayment]);
+  }, [currentWorkshops, pickScheduleForCard, selectedMode, selectedPayment]);
 
   return (
     <>

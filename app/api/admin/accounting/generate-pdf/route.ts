@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateAccountingReportHtml } from '@/lib/accountingReportHtml';
-
-const verifyAdminToken = (token: string): boolean => {
-  const adminToken = process.env.ADMIN_PANEL_TOKEN || 'admin_swar_yoga_2024';
-  return token === adminToken || token.startsWith('admin_');
-};
-
-const isAdminAuthorized = (request: NextRequest) => {
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
-  return Boolean(token && verifyAdminToken(token));
-};
+import { isAdminAuthorized } from '@/lib/adminAuth';
 
 // Simple HTML to PDF using a library-free approach
 export async function POST(request: NextRequest) {

@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Account } from '@/lib/db';
-
-const verifyAdminToken = (token: string): boolean => {
-  const adminToken = process.env.ADMIN_PANEL_TOKEN || 'admin_swar_yoga_2024';
-  return token === adminToken || token.startsWith('admin_');
-};
+import { isAdminAuthorized } from '@/lib/adminAuth';
 
 const getAdminOwner = (request: NextRequest) => {
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
-  if (!token || !verifyAdminToken(token)) return null;
+  if (!isAdminAuthorized(request)) return null;
   return { ownerType: 'admin' as const, ownerId: 'admin' };
 };
 
@@ -31,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB();
-    const accounts = await Account.find(owner).sort({ createdAt: -1 });
+    const accounts = await Account.find(owner).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json({
       success: true,
