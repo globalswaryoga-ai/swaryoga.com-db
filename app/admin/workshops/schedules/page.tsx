@@ -122,6 +122,7 @@ export default function AdminWorkshopSchedulesPage() {
 
     const [selectedMode, setSelectedMode] = useState<ModeKey>('online');
     const [selectedLanguage, setSelectedLanguage] = useState<LanguageKey>('Hindi');
+    const [modePopupOpen, setModePopupOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<string>('Health');
     const [selectedWorkshopSlug, setSelectedWorkshopSlug] = useState<string | null>(null);
 
@@ -509,7 +510,10 @@ export default function AdminWorkshopSchedulesPage() {
                         <button
                           key={lang}
                           type="button"
-                          onClick={() => setSelectedLanguage(lang)}
+                          onClick={() => {
+                            setSelectedLanguage(lang);
+                            setModePopupOpen(true);
+                          }}
                           className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
                             selectedLanguage === lang
                               ? 'bg-green-600 text-white'
@@ -1029,6 +1033,47 @@ export default function AdminWorkshopSchedulesPage() {
             </div>
           </main>
         </div>
+
+        {/* Mode popup overlay (opens when user clicks language) */}
+        {modePopupOpen && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4" role="dialog" aria-modal="true">
+            <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-extrabold text-gray-900">Select Mode</h3>
+                <button
+                  type="button"
+                  onClick={() => setModePopupOpen(false)}
+                  className="rounded-lg px-3 py-2 text-sm font-bold bg-gray-100 hover:bg-gray-200"
+                  aria-label="Close mode popup"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-5 space-y-2">
+                {MODE_LABELS.map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMode(m.key);
+                      setModePopupOpen(false);
+                    }}
+                    className={`w-full rounded-lg px-4 py-3 text-left font-extrabold transition-colors ${
+                      selectedMode === m.key
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-50 text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <div className="px-5 pb-5">
+                <p className="text-xs text-gray-500">Language selected: {selectedLanguage}. Choose the mode to continue.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
