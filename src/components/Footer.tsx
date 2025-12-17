@@ -109,16 +109,10 @@ const Footer = () => {
               <div className="flex items-center space-x-3 mb-6">
                 <div className="relative">
                   <img 
-                    src="/logo with mohan sir.png" 
+                    src="https://i.postimg.cc/Ss56Dxjm/From-Breath-To-Soal.jpg" 
                     alt="Swar Yoga Logo" 
                     className="h-12 w-auto"
                   />
-                </div>
-                <div>
-                  <span className="text-3xl font-bold bg-gradient-to-r from-green-400 to-green-500 bg-clip-text text-transparent">
-                    Swar Yogaa
-                  </span>
-                  <div className="text-sm text-gray-400 -mt-1">The Science of Breath</div>
                 </div>
               </div>
               

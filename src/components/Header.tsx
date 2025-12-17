@@ -87,17 +87,14 @@ const Header = () => {
             <Link to="/" className="flex items-center space-x-3 group">
               <div className="relative">
                 <img 
-                  src="/logo with mohan sir.png" 
+                  src="https://i.postimg.cc/Ss56Dxjm/From-Breath-To-Soal.jpg" 
                   alt="Swar Yoga Logo" 
                   className="h-12 w-auto transition-transform group-hover:scale-105"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"%3E%3Crect width="48" height="48" fill="%23f0f0f0"/%3E%3Ctext x="24" y="28" font-size="12" text-anchor="middle" fill="%23666"%3ESY%3C/text%3E%3C/svg%3E';
-                  }}
                 />
               </div>
               <div className="flex flex-col">
                 <span className="text-2xl font-bold text-black">
-                  Swar Yogaa
+                  Swar Yoga
                 </span>
                 <div className="text-xs text-gray-500 -mt-1">The Science of Breath</div>
               </div>
