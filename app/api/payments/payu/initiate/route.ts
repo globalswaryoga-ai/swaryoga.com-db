@@ -10,10 +10,12 @@ interface PaymentRequest {
   lastName?: string;
   email: string;
   phone: string;
-  address: string;
+  address?: string;
   city: string;
-  state: string;
-  zip: string;
+  state?: string;
+  zip?: string;
+  country: 'india' | 'international' | 'nepal';
+  currency?: string;
   // Optional: server will create a Mongo Order and use its _id as txnid.
   orderId?: string;
   // Deprecated: userId is derived from the Authorization header token.
@@ -30,9 +32,8 @@ interface PaymentRequest {
     language?: string;
     currency?: string;
   }>;
-  successUrl: string;
-  failureUrl: string;
-  currency?: string;
+  successUrl?: string;
+  failureUrl?: string;
 }
 
 function sanitizePayUField(value: unknown): string {
@@ -53,27 +54,94 @@ export async function POST(request: NextRequest) {
 
     const body: PaymentRequest = await request.json();
 
-    const amount = Number(body.amount);
+    // Validate country parameter
+    if (!['india', 'international', 'nepal'].includes(body.country)) {
+      return NextResponse.json(
+        { error: 'Invalid country. Must be "india", "international", or "nepal"' },
+        { status: 400 }
+      );
+    }
+
+    // For Nepal: Return QR data (no PayU processing)
+    if (body.country === 'nepal') {
+      // Calculate total with 3.3% fee
+      const subtotal = Number(body.amount);
+      const chargeAmount = subtotal * 0.033;
+      const totalAmount = subtotal + chargeAmount;
+
+      // Create Order record for Nepal payment
+      await connectDB();
+      const order = new Order({
+        userId: decoded.userId,
+        items: (body.items || []).map((item) => ({
+          kind: item.kind || undefined,
+          productId: item.productId || '',
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          workshopSlug: item.workshopSlug || undefined,
+          scheduleId: item.scheduleId || undefined,
+          mode: item.mode || undefined,
+          language: item.language || undefined,
+          currency: item.currency || body.currency || 'NPR',
+        })),
+        total: totalAmount,
+        currency: body.currency || 'NPR',
+        status: 'pending',
+        paymentStatus: 'pending_manual',
+        paymentMethod: 'nepal_qr',
+        shippingAddress: {
+          firstName: sanitizePayUField(body.firstName),
+          lastName: sanitizePayUField(body.lastName),
+          email: sanitizePayUField(body.email),
+          phone: sanitizePayUField(body.phone),
+          address: sanitizePayUField(body.address),
+          city: sanitizePayUField(body.city),
+          state: sanitizePayUField(body.state),
+          zip: sanitizePayUField(body.zip),
+        },
+      });
+      await order.save();
+
+      console.log('Nepal payment order created:', {
+        orderId: order._id.toString(),
+        amount: totalAmount,
+        email: body.email,
+      });
+
+      return NextResponse.json({
+        success: true,
+        orderId: order._id.toString(),
+        country: 'nepal',
+        paymentMethod: 'qr',
+        amount: totalAmount,
+        currency: body.currency || 'NPR',
+        message: 'QR code displayed for manual payment'
+      });
+    }
+
+    // For India and International: Calculate with 3.3% fee and process with PayU
+    const subtotal = Number(body.amount);
+    const chargeAmount = subtotal * 0.033;
+    const totalAmount = subtotal + chargeAmount;
 
     // Validate required fields
     if (
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
+      !Number.isFinite(subtotal) ||
+      subtotal <= 0 ||
       !body.productInfo ||
       !body.firstName ||
       !body.email ||
       !body.phone ||
-      !body.successUrl ||
-      !body.failureUrl
+      !body.city
     ) {
       console.error('PayU validation error: Missing or invalid required fields', {
-        amount: Number.isFinite(amount),
+        amount: Number.isFinite(subtotal),
         productInfo: !!body.productInfo,
         firstName: !!body.firstName,
         email: !!body.email,
         phone: !!body.phone,
-        successUrl: !!body.successUrl,
-        failureUrl: !!body.failureUrl,
+        city: !!body.city,
       });
       return NextResponse.json(
         { error: 'Missing or invalid required fields' },
@@ -113,21 +181,22 @@ export async function POST(request: NextRequest) {
         scheduleId: item.scheduleId || undefined,
         mode: item.mode || undefined,
         language: item.language || undefined,
-        currency: item.currency || body.currency || 'INR',
+        currency: item.currency || body.currency || (body.country === 'india' ? 'INR' : 'USD'),
       })),
-      total: amount,
-      currency: body.currency || 'INR',
+      total: totalAmount,
+      currency: body.currency || (body.country === 'india' ? 'INR' : 'USD'),
       status: 'pending',
       paymentStatus: 'pending',
+      paymentMethod: body.country === 'india' ? 'india_payu' : 'international_payu',
       shippingAddress: {
         firstName: sanitizePayUField(body.firstName),
         lastName: sanitizePayUField(body.lastName),
         email: sanitizePayUField(body.email),
         phone: sanitizePayUField(body.phone),
-        address: sanitizePayUField(body.address),
+        address: sanitizePayUField(body.address || ''),
         city: sanitizePayUField(body.city),
-        state: sanitizePayUField(body.state),
-        zip: sanitizePayUField(body.zip),
+        state: sanitizePayUField(body.state || ''),
+        zip: sanitizePayUField(body.zip || ''),
       },
     });
     await order.save();
@@ -135,26 +204,32 @@ export async function POST(request: NextRequest) {
 
     console.log('PayU payment initiated:', {
       txnid,
-      amount,
+      amount: totalAmount,
       email: body.email,
+      country: body.country,
       mode: process.env.PAYU_MODE || 'TEST',
     });
+
+    // Set success/failure URLs based on environment
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const successUrl = body.successUrl || `${baseUrl}/payment-successful`;
+    const failureUrl = body.failureUrl || `${baseUrl}/payment-failed`;
 
     // Prepare PayU parameters
     const payuParams: PayUParams & { service_provider: string } = {
       key: PAYU_MERCHANT_KEY,
       txnid,
-      amount: amount.toFixed(2),
+      amount: totalAmount.toFixed(2),
       productinfo: sanitizePayUField(body.productInfo),
       firstname: sanitizePayUField(body.firstName),
       email: sanitizePayUField(body.email),
       phone: sanitizePayUField(body.phone),
-      address1: sanitizePayUField(body.address),
+      address1: sanitizePayUField(body.address || ''),
       city: sanitizePayUField(body.city),
-      state: sanitizePayUField(body.state),
-      zipcode: sanitizePayUField(body.zip),
-      surl: body.successUrl, // Success URL
-      furl: body.failureUrl, // Failure URL
+      state: sanitizePayUField(body.state || ''),
+      zipcode: sanitizePayUField(body.zip || ''),
+      surl: successUrl, // Success URL
+      furl: failureUrl, // Failure URL
       service_provider: 'payu_paisa'
     };
 
@@ -165,6 +240,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       orderId: txnid,
+      country: body.country,
       paymentUrl: `${PAYU_BASE_URL}/_payment`,
       params: {
         ...payuParams,

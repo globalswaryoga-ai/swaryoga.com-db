@@ -19,6 +19,7 @@
     "pm2:monit": "pm2 monit"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.3.1",
     "@supabase/supabase-js": "^2.88.0",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",

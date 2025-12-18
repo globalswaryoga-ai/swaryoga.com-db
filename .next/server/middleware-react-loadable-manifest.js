@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}";
+self.__REACT_LOADABLE_MANIFEST='{"app/profile/page.tsx -> @react-pdf/renderer":{"id":40950,"files":["static/chunks/ff804112.72abc7366f133556.js","static/chunks/11390db7.1891d0426f734b97.js","static/chunks/7064611b.a7ff0c59ca7822ab.js","static/chunks/b2d98e07.c8417174b5c6a4ea.js","static/chunks/6095.94eacb85711bc3dc.js","static/chunks/2480.2dc8c88f57ce68e9.js"]}}';

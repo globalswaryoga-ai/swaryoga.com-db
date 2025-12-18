@@ -6,22 +6,21 @@ import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowLeft } from 'lucide-react';
-import { CartCurrency, CartItem, getStoredCart, persistCart } from '@/lib/cart';
-import { ChargeMethod, convertAmount, getChargeRate, roundMoney } from '@/lib/paymentMath';
+import { CartItem, getStoredCart, persistCart } from '@/lib/cart';
+import { roundMoney } from '@/lib/paymentMath';
 
-const currencySymbols: Record<CartCurrency, string> = {
+const currencySymbols: Record<string, string> = {
   INR: '₹',
   USD: '$',
   NPR: 'Rs',
 };
 
-const getCurrencySymbol = (currency: CartCurrency) => currencySymbols[currency];
+const getCurrencySymbol = (currency: string) => currencySymbols[currency] || currency;
 
 export default function Cart() {
   const router = useRouter();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [chargeMethod, setChargeMethod] = useState<ChargeMethod>('indian');
 
   const handleQuantityChange = (id: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -51,36 +50,8 @@ export default function Cart() {
     }
   }, [cartItems, isLoaded]);
 
-  const [selectedCurrency, setSelectedCurrency] = useState<CartItem['currency']>('INR');
-
-  useEffect(() => {
-    if (!cartItems.length) return;
-    if (!cartItems.some((item) => item.currency === selectedCurrency)) {
-      setSelectedCurrency(cartItems[0].currency);
-    }
-  }, [cartItems, selectedCurrency]);
-
-  const effectiveChargeMethod: ChargeMethod =
-    selectedCurrency === 'NPR'
-      ? 'nepal_qr'
-      : selectedCurrency === 'USD'
-        ? 'international'
-        : chargeMethod;
-
-  const summaryItems = cartItems;
-  const summarySubtotal = roundMoney(
-    summaryItems.reduce((sum, item) => {
-      const line = item.price * item.quantity;
-      return sum + convertAmount(line, item.currency as any, selectedCurrency as any);
-    }, 0)
-  );
-  const chargeRate = getChargeRate(effectiveChargeMethod);
-  const summaryCharges = roundMoney(summarySubtotal * chargeRate);
-  const summaryTotal = roundMoney(summarySubtotal + summaryCharges);
-  const hasItemsForSelectedCurrency = summaryItems.length > 0;
-
   const handleCheckout = () => {
-    if (!hasItemsForSelectedCurrency) return;
+    if (!cartItems.length) return;
 
     // Requirement: without signup/signin no payment should be done.
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -91,14 +62,25 @@ export default function Cart() {
       return;
     }
 
-    router.push(`/checkout?currency=${selectedCurrency}&method=${encodeURIComponent(effectiveChargeMethod)}`);
+    router.push('/checkout');
   };
 
-  const currencyOptions = [
-    { code: 'INR' as CartItem['currency'], label: 'India' },
-    { code: 'NPR' as CartItem['currency'], label: 'Nepal' },
-    { code: 'USD' as CartItem['currency'], label: 'International' },
-  ];
+  // Calculate totals by grouping items by currency
+  const calculateTotals = () => {
+    const totals: Record<string, { subtotal: number; items: CartItem[] }> = {};
+    
+    cartItems.forEach((item) => {
+      if (!totals[item.currency]) {
+        totals[item.currency] = { subtotal: 0, items: [] };
+      }
+      totals[item.currency].subtotal += item.price * item.quantity;
+      totals[item.currency].items.push(item);
+    });
+    
+    return totals;
+  };
+
+  const totals = calculateTotals();
 
   return (
     <>
@@ -174,116 +156,62 @@ export default function Cart() {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-4 sm:mt-6 rounded-2xl bg-white shadow-sm px-4 sm:px-6 py-4 sm:py-5">
-                  <p className="text-xs sm:text-sm font-semibold text-swar-text mb-3">Pick a currency to checkout</p>
-                  <div className="flex flex-wrap gap-2 sm:gap-3">
-                    {currencyOptions.map((option) => {
-                      const isSelected = selectedCurrency === option.code;
-                      return (
-                        <button
-                          key={option.code}
-                          type="button"
-                          onClick={() => setSelectedCurrency(option.code)}
-                          aria-pressed={isSelected}
-                          className={`rounded-2xl border px-3 sm:px-4 py-2 text-xs font-semibold tracking-wide uppercase transition touch-target active:scale-95 ${
-                            isSelected
-                              ? 'border-red-600 bg-red-600 text-white shadow-md'
-                              : 'border-red-200 bg-red-50 text-swar-primary hover:border-red-400'
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {selectedCurrency === 'INR' && (
-                    <div className="mt-4 rounded-xl border border-swar-border bg-swar-bg p-3">
-                      <p className="text-xs font-semibold text-swar-text mb-2">Payment method charges</p>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setChargeMethod('indian')}
-                          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
-                            chargeMethod === 'indian'
-                              ? 'border-green-600 bg-swar-primary text-white'
-                              : 'border-swar-border bg-white text-swar-text hover:bg-swar-primary-light'
-                          }`}
-                        >
-                          Indian (2.5%)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setChargeMethod('credit_card')}
-                          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
-                            chargeMethod === 'credit_card'
-                              ? 'border-green-600 bg-swar-primary text-white'
-                              : 'border-swar-border bg-white text-swar-text hover:bg-swar-primary-light'
-                          }`}
-                        >
-                          Credit Card (5%)
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
 
               <div className="md:col-span-1">
                 <div className="bg-swar-primary-light rounded-lg p-4 sm:p-6 md:p-8 sticky top-24 md:top-32">
                   <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-swar-primary">Order Summary</h2>
                   
-                  <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 border-b border-green-200 pb-4 sm:pb-6 max-h-48 overflow-y-auto">
-                    {summaryItems.length > 0 ? (
-                      summaryItems.map((item) => (
-                        <div key={`${item.id}-${item.currency}`} className="flex justify-between text-swar-text text-sm">
+                  <div className="space-y-3 mb-6 border-b border-green-200 pb-6 max-h-48 overflow-y-auto">
+                    {cartItems.length > 0 ? (
+                      cartItems.map((item) => (
+                        <div key={item.id} className="flex justify-between text-swar-text text-sm">
                           <span className="flex-1 truncate mr-2">{item.name} x{item.quantity}</span>
                           <span className="font-semibold whitespace-nowrap">
-                            {getCurrencySymbol(selectedCurrency)}{roundMoney(convertAmount(item.price * item.quantity, item.currency as any, selectedCurrency as any)).toFixed(0)}
+                            {getCurrencySymbol(item.currency)}{roundMoney(item.price * item.quantity).toFixed(0)}
                           </span>
                         </div>
                       ))
                     ) : (
                       <p className="text-xs sm:text-sm text-swar-text-secondary">
-                        Add a workshop for {selectedCurrency} to start checkout.
+                        Add a workshop to start checkout.
                       </p>
                     )}
                   </div>
                   
-                  <div className="space-y-1 sm:space-y-2 mb-4 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-swar-text">Subtotal</span>
-                      <span className="font-semibold">
-                        {getCurrencySymbol(selectedCurrency)}{summarySubtotal.toFixed(0)}
-                      </span>
+                  {cartItems.length > 0 && (
+                    <div className="space-y-3 mb-4">
+                      {Object.entries(totals).map(([currency, { subtotal }]) => (
+                        <div key={currency} className="space-y-1 sm:space-y-2 pb-3 border-b border-green-200">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-swar-text">Subtotal ({currency})</span>
+                            <span className="font-semibold">
+                              {getCurrencySymbol(currency)}{roundMoney(subtotal).toFixed(0)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-swar-text">3.3% Platform Fee</span>
+                            <span className="font-semibold">{getCurrencySymbol(currency)}{roundMoney(subtotal * 0.033).toFixed(0)}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-swar-text">Charges ({Math.round(chargeRate * 1000) / 10}%)</span>
-                      <span className="font-semibold">{getCurrencySymbol(selectedCurrency)}{summaryCharges.toFixed(0)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between py-2 sm:py-3 border-t border-green-200">
-                    <span className="text-base sm:text-lg font-bold text-red-600">Total</span>
-                    <span className="text-lg sm:text-2xl font-bold text-swar-primary">
-                      {getCurrencySymbol(selectedCurrency)}{summaryTotal.toFixed(0)}
-                    </span>
-                  </div>
+                  )}
 
                   <p className="text-xs text-swar-text-secondary my-3 sm:my-4 leading-relaxed">
-                    Continue to our secure PayU checkout with the selected currency.
+                    Select payment method (India/International/Nepal) during checkout.
                   </p>
                   <button
                     type="button"
                     onClick={handleCheckout}
-                    disabled={!hasItemsForSelectedCurrency}
+                    disabled={!cartItems.length}
                     className={`w-full py-2.5 sm:py-3 rounded-lg text-center font-bold transition touch-target min-h-12 text-sm sm:text-base mb-2 sm:mb-3 ${
-                      hasItemsForSelectedCurrency
+                      cartItems.length
                         ? 'bg-swar-primary text-white hover:bg-swar-primary active:scale-95'
                         : 'bg-gray-300 text-swar-text-secondary cursor-not-allowed'
                     }`}
                   >
-                    Checkout ({selectedCurrency})
+                    Proceed to Checkout
                   </button>
 
                   <Link href="/" className="block w-full border border-yoga-600 text-swar-primary py-2.5 sm:py-3 rounded-lg text-center font-bold hover:bg-yoga-50 transition touch-target min-h-12 text-sm sm:text-base active:scale-95">

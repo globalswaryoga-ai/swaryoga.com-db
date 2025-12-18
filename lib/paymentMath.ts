@@ -34,18 +34,8 @@ export function convertAmount(amount: number, from: CurrencyCode, to: CurrencyCo
 export type ChargeMethod = 'indian' | 'credit_card' | 'international' | 'nepal_qr';
 
 export function getChargeRate(method: ChargeMethod): number {
-  switch (method) {
-    case 'indian':
-      return 0.025;
-    case 'credit_card':
-      return 0.05;
-    case 'international':
-      return 0.08;
-    case 'nepal_qr':
-      return 0;
-    default:
-      return 0;
-  }
+  // Unified 3.3% platform fee for all payment methods
+  return 0.033;
 }
 
 export function roundMoney(amount: number): number {
