@@ -138,7 +138,7 @@ export default function Footer() {
                       fontWeight: 600
                     }}
                   >
-                    The Science of Breath
+                    From Breath To Soul
                   </div>
                 </div>
               </div>
