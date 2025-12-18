@@ -7,8 +7,30 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        poppins: ['Poppins', 'system-ui', 'sans-serif'],
+      },
       colors: {
-        // ===== SWAR YOGA WELLNESS PALETTE (Global Design Standards) =====
+        // ===== SWAR YOGA DESIGN SYSTEM - LOCKED COLOR PALETTE =====
+        'swar-primary': '#1E7F43',
+        'swar-primary-light': '#E6F4EC',
+        'swar-primary-hover': '#166235',
+        
+        'swar-text': '#111111',
+        'swar-text-secondary': '#333333',
+        'swar-text-tertiary': '#666666',
+        
+        'swar-bg': '#F9FAF9',
+        'swar-bg-white': '#FFFFFF',
+        
+        'swar-accent': '#F27A2C',
+        'swar-accent-light': '#FFF3E8',
+        'swar-accent-hover': '#E26B1F',
+        
+        'swar-border': '#2F6F4E',
+        'swar-border-light': '#E0EDE6',
+        
+        // ===== LEGACY WELLNESS PALETTE (Kept for backward compatibility) =====
         
         // PRIMARY: Forest Green (Healing, Growth, Trust, Nature)
         // Used for: Main UI, navigation, headers, primary CTAs
@@ -57,7 +79,6 @@ module.exports = {
           900: '#902a14',
           950: '#7c1f09',
         },
-        
         // BASE: Earth Brown (Stability, Grounding, Trust, Foundation)
         // Used for: Body text, base elements, grounding accents
         'earth-brown': {
