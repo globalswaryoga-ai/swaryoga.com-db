@@ -39,9 +39,9 @@ interface OrderData {
 
 function ThankYouInner() {
   const searchParams = useSearchParams();
-  const registrationId = searchParams.get('registrationId');
-  const email = searchParams.get('email');
-  const orderId = searchParams.get('orderId') || searchParams.get('txnid');
+  const registrationId = searchParams?.get('registrationId');
+  const email = searchParams?.get('email');
+  const orderId = searchParams?.get('orderId') || searchParams?.get('txnid');
   const [registration, setRegistration] = useState<RegistrationData | null>(null);
   const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);

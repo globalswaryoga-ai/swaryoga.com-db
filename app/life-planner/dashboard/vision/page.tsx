@@ -105,7 +105,7 @@ export default function VisionPage() {
   useEffect(() => {
     if (!mounted) return;
     if (didAutoOpen.current) return;
-    if (searchParams.get('create') !== '1') return;
+    if (searchParams?.get('create') !== '1') return;
 
     didAutoOpen.current = true;
     handleAddVision();

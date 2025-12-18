@@ -38,17 +38,17 @@ function PaymentConfirmationInner() {
 
   useEffect(() => {
     // Get user info from URL params
-    const email = searchParams.get('email') || '';
-    const name = searchParams.get('name') || '';
-    const redirect = searchParams.get('redirect') || '/';
+    const email = searchParams?.get('email') || '';
+    const name = searchParams?.get('name') || '';
+    const redirect = searchParams?.get('redirect') || '/';
 
     setUserInfo({ email, name, redirect });
 
     // Get workshop payment info from URL params
-    const workshop = searchParams.get('workshop') || 'swar-yoga-basic';
-    const mode = searchParams.get('mode') || 'online';
-    const language = searchParams.get('language') || 'hindi';
-    const currency = searchParams.get('currency') || getCurrencyForLanguage(language);
+    const workshop = searchParams?.get('workshop') || 'swar-yoga-basic';
+    const mode = searchParams?.get('mode') || 'online';
+    const language = searchParams?.get('language') || 'hindi';
+    const currency = searchParams?.get('currency') || getCurrencyForLanguage(language);
 
     // Get payment link
     setPaymentInfo({

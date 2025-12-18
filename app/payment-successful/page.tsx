@@ -24,10 +24,10 @@ type SafeOrder = {
 function PaymentSuccessfulInner() {
   const searchParams = useSearchParams();
 
-  const orderId = searchParams.get('orderId') || searchParams.get('txnid') || '';
-  const transactionId = searchParams.get('mihpayid') || '';
-  const amount = searchParams.get('amount') || '';
-  const email = searchParams.get('email') || '';
+  const orderId = searchParams?.get('orderId') || searchParams?.get('txnid') || '';
+  const transactionId = searchParams?.get('mihpayid') || '';
+  const amount = searchParams?.get('amount') || '';
+  const email = searchParams?.get('email') || '';
 
   const [order, setOrder] = useState<SafeOrder | null>(null);
   const [loading, setLoading] = useState<boolean>(!!orderId);

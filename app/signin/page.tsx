@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 function SignInInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect') || '/';
+  const redirectPath = searchParams?.get('redirect') || '/';
 
   const [formData, setFormData] = useState({
     email: '',

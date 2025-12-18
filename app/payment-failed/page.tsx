@@ -11,12 +11,12 @@ export const dynamic = 'force-dynamic';
 function PaymentFailedInner() {
   const searchParams = useSearchParams();
 
-  const status = (searchParams.get('status') || 'failure').toLowerCase();
-  const orderId = searchParams.get('orderId') || searchParams.get('txnid') || '';
-  const transactionId = searchParams.get('mihpayid') || '';
-  const amount = searchParams.get('amount') || '';
-  const email = searchParams.get('email') || '';
-  const error = searchParams.get('error') || (status === 'pending' ? 'Payment pending. Please check again later.' : 'Payment failed. Please try again.');
+  const status = (searchParams?.get('status') || 'failure').toLowerCase();
+  const orderId = searchParams?.get('orderId') || searchParams?.get('txnid') || '';
+  const transactionId = searchParams?.get('mihpayid') || '';
+  const amount = searchParams?.get('amount') || '';
+  const email = searchParams?.get('email') || '';
+  const error = searchParams?.get('error') || (status === 'pending' ? 'Payment pending. Please check again later.' : 'Payment failed. Please try again.');
 
   const summary = useMemo(() => {
     const parts: string[] = [];

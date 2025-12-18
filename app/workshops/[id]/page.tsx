@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 export default function WorkshopDetail() {
   const router = useRouter();
   const params = useParams();
-  const workshopSlug = params.id as string;
+  const workshopSlug = params?.id as string;
   
   const workshop = useMemo(() => {
     const found = findWorkshopBySlug(workshopSlug);

@@ -29,12 +29,12 @@ function CheckoutInner() {
 
   const searchParams = useSearchParams();
   const supportedCurrencies = ['INR', 'USD', 'NPR'] as const;
-  const normalizedQueryCurrency = (searchParams.get('currency') || '').toUpperCase();
+  const normalizedQueryCurrency = (searchParams?.get('currency') || '').toUpperCase();
   const isSupportedQueryCurrency = supportedCurrencies.includes(normalizedQueryCurrency as typeof supportedCurrencies[number]);
   const [selectedCurrency, setSelectedCurrency] = useState<CartItem['currency']>(
     isSupportedQueryCurrency ? (normalizedQueryCurrency as CartItem['currency']) : 'INR'
   );
-  const normalizedQueryMethod = (searchParams.get('method') || '').toLowerCase();
+  const normalizedQueryMethod = (searchParams?.get('method') || '').toLowerCase();
   const initialChargeMethod: ChargeMethod =
     normalizedQueryMethod === 'credit_card'
       ? 'credit_card'

@@ -84,9 +84,9 @@ function WorkshopsPageInner() {
 
   useEffect(() => {
     if (!searchParams) return;
-    setSelectedCategory(searchParams.get('category') || null);
-    setSelectedMode(searchParams.get('mode') || null);
-    setSelectedLanguage(searchParams.get('language') || null);
+    setSelectedCategory(searchParams?.get('category') || null);
+    setSelectedMode(searchParams?.get('mode') || null);
+    setSelectedLanguage(searchParams?.get('language') || null);
   }, [queryString, searchParams]);
 
   // Load published schedules from MongoDB (public endpoint).

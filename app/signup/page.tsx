@@ -14,10 +14,10 @@ export const dynamic = 'force-dynamic';
 function SignUpInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect') || '/';
-  const workshop = searchParams.get('workshop') || 'swar-yoga-basic';
-  const mode = searchParams.get('mode') || 'online';
-  const language = searchParams.get('language') || 'hindi';
+  const redirectPath = searchParams?.get('redirect') || '/';
+  const workshop = searchParams?.get('workshop') || 'swar-yoga-basic';
+  const mode = searchParams?.get('mode') || 'online';
+  const language = searchParams?.get('language') || 'hindi';
 
   const currency = (getCurrencyForLanguage(language) as CartCurrency) || 'INR';
 

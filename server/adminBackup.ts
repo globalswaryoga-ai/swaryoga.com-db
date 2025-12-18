@@ -203,7 +203,7 @@ export async function getBackupStats(): Promise<{ total: number; signoutCount: n
 /**
  * Restore from backup
  */
-export async function restoreFromBackup(backupName: string, adminId: string): Promise<RestoreResult> {
+export async function restoreFromBackup(backupName: string, _adminId: string): Promise<RestoreResult> {
   try {
     console.log(`🔄 Restoring from backup: ${backupName}`);
 
