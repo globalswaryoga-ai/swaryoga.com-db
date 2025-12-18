@@ -40,18 +40,8 @@ export interface PayUParams {
 
 export function generatePayUHash(params: PayUParams): string {
   const key = (params.key || PAYU_MERCHANT_KEY).toString().trim();
-  const udf = [
-    params.udf1 || '',
-    params.udf2 || '',
-    params.udf3 || '',
-    params.udf4 || '',
-    params.udf5 || '',
-    params.udf6 || '',
-    params.udf7 || '',
-    params.udf8 || '',
-    params.udf9 || '',
-    params.udf10 || '',
-  ];
+  // PayU hash formula: key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5||||||SALT
+  // Note: 6 empty pipes after udf5 (udf6-udf10 are empty, plus one more)
   const hashString = [
     key,
     params.txnid,
@@ -59,10 +49,25 @@ export function generatePayUHash(params: PayUParams): string {
     params.productinfo,
     params.firstname,
     params.email,
-    ...udf,
+    params.udf1 || '',
+    params.udf2 || '',
+    params.udf3 || '',
+    params.udf4 || '',
+    params.udf5 || '',
+    '', // udf6
+    '', // udf7
+    '', // udf8
+    '', // udf9
+    '', // udf10
+    '', // extra empty field
     PAYU_MERCHANT_SALT,
   ].join('|');
-  return crypto.createHash('sha512').update(hashString).digest('hex');
+  
+  console.log('PayU Hash String:', hashString);
+  const hash = crypto.createHash('sha512').update(hashString).digest('hex');
+  console.log('Generated Hash:', hash);
+  
+  return hash;
 }
 
 export function verifyPayUResponseHash(data: Record<string, string>): boolean {
