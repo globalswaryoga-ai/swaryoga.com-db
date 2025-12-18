@@ -40,26 +40,27 @@ export default function SignupData() {
   const fetchSignupData = async () => {
     try {
       setIsLoading(true);
-      // Placeholder - will fetch from API when backend is ready
+      const token = localStorage.getItem('adminToken');
+      
       const response = await fetch('/api/admin/signups', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+          'Authorization': `Bearer ${token}`
         }
-      }).catch(() => {
-        // If API not available, show mock data
-        return null;
       });
 
-      if (response && response.ok) {
-        const data = await response.json();
-        setSignupData(data);
+      if (response.ok) {
+        const result = await response.json();
+        // API returns { success: true, data: [...] }
+        setSignupData(result.data || []);
+        setError('');
       } else {
-        // Mock data for demo
+        setError('Failed to fetch signup data');
         setSignupData([]);
       }
     } catch (err) {
       setError('Failed to fetch signup data');
       console.error(err);
+      setSignupData([]);
     } finally {
       setIsLoading(false);
     }
