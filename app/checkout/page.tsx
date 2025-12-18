@@ -1,19 +1,40 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import { ArrowLeft, MessageCircle, X } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
-import { CartItem, getStoredCart } from '@/lib/cart';
-import { ChargeMethod, convertAmount, getChargeRate, getCurrencySymbol, roundMoney } from '@/lib/paymentMath';
+import Link from 'next/link';
+import { AlertCircle, ArrowLeft, Download, QrCode } from 'lucide-react';
 
-export const dynamic = 'force-dynamic';
+// Currency exchange rates (INR base)
+const CURRENCY_RATES: Record<string, { code: string; symbol: string; rate: number; country: string; flag: string }> = {
+  INR: { code: 'INR', symbol: '₹', rate: 1, country: 'India', flag: '🇮🇳' },
+  USD: { code: 'USD', symbol: '$', rate: 0.012, country: 'United States', flag: '🇺🇸' },
+  EUR: { code: 'EUR', symbol: '€', rate: 0.011, country: 'Europe', flag: '🇪🇺' },
+  GBP: { code: 'GBP', symbol: '£', rate: 0.0095, country: 'United Kingdom', flag: '🇬🇧' },
+  CAD: { code: 'CAD', symbol: 'C$', rate: 0.017, country: 'Canada', flag: '🇨🇦' },
+  AUD: { code: 'AUD', symbol: 'A$', rate: 0.018, country: 'Australia', flag: '🇦🇺' },
+  JPY: { code: 'JPY', symbol: '¥', rate: 1.8, country: 'Japan', flag: '🇯🇵' },
+  SGD: { code: 'SGD', symbol: 'S$', rate: 0.016, country: 'Singapore', flag: '🇸🇬' },
+  MUR: { code: 'MUR', symbol: '₨', rate: 0.54, country: 'Mauritius', flag: '🇲🇺' },
+  NPR: { code: 'NPR', symbol: '₨', rate: 1.58, country: 'Nepal', flag: '🇳🇵' },
+};
 
-function CheckoutInner() {
+type CheckoutStep = 'currency' | 'payment' | 'qrcode';
+
+function CheckoutContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const [step, setStep] = useState<CheckoutStep>('currency');
+  const [selectedCurrency, setSelectedCurrency] = useState<string>('INR');
+  const [workshopId, setWorkshopId] = useState<string>('');
+  const [quantity, setQuantity] = useState<number>(1);
+  const [workshopData, setWorkshopData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -24,665 +45,405 @@ function CheckoutInner() {
     state: '',
     zip: '',
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const searchParams = useSearchParams();
-  const supportedCurrencies = ['INR', 'USD', 'NPR'] as const;
-  const normalizedQueryCurrency = (searchParams.get('currency') || '').toUpperCase();
-  const isSupportedQueryCurrency = supportedCurrencies.includes(normalizedQueryCurrency as typeof supportedCurrencies[number]);
-  const [selectedCurrency, setSelectedCurrency] = useState<CartItem['currency']>(
-    isSupportedQueryCurrency ? (normalizedQueryCurrency as CartItem['currency']) : 'INR'
-  );
-  const normalizedQueryMethod = (searchParams.get('method') || '').toLowerCase();
-  const initialChargeMethod: ChargeMethod =
-    normalizedQueryMethod === 'credit_card'
-      ? 'credit_card'
-      : normalizedQueryMethod === 'international'
-        ? 'international'
-        : normalizedQueryMethod === 'nepal_qr'
-          ? 'nepal_qr'
-          : 'indian';
-
-  const [chargeMethod, setChargeMethod] = useState<ChargeMethod>(initialChargeMethod);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [isCartLoaded, setIsCartLoaded] = useState(false);
-  const [nepalQrOpen, setNepalQrOpen] = useState(false);
 
   useEffect(() => {
-    const items = getStoredCart();
-    setCartItems(items);
-    setIsCartLoaded(true);
-  }, []);
+    const id = searchParams.get('workshopId') || '';
+    const qty = parseInt(searchParams.get('quantity') || '1');
+    setWorkshopId(id);
+    setQuantity(qty);
 
-  // Requirement: without signup/signin no payment should be done.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-    if (!token || !user) {
-      const returnTo = `${window.location.pathname}${window.location.search}`;
-      router.replace(`/signin?redirect=${encodeURIComponent(returnTo)}`);
-    }
-  }, [router]);
-
-  // Keep charge method in sync with currency selection.
-  useEffect(() => {
-    if (selectedCurrency === 'USD') {
-      setChargeMethod('international');
+    if (!id) {
+      setError('Workshop not found. Please select a workshop.');
+      setLoading(false);
       return;
     }
-    if (selectedCurrency === 'NPR') {
-      setChargeMethod('nepal_qr');
-      return;
+
+    // Fetch workshop data
+    const fetchWorkshopData = async () => {
+      try {
+        const res = await fetch(`/api/workshops/${id}`);
+        if (!res.ok) throw new Error('Failed to fetch workshop');
+        const data = await res.json();
+        setWorkshopData(data);
+      } catch (err) {
+        setError('Failed to load workshop details.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWorkshopData();
+  }, [searchParams]);
+
+  const basePriceInINR = workshopData?.price || 0;
+  const priceInSelectedCurrency = basePriceInINR * CURRENCY_RATES[selectedCurrency].rate * quantity;
+  const paymentFee = priceInSelectedCurrency * 0.033;
+  const totalAmount = priceInSelectedCurrency + paymentFee;
+
+  const handleCurrencySelect = (currency: string) => {
+    setSelectedCurrency(currency);
+    if (currency === 'NPR') {
+      setStep('qrcode');
+    } else {
+      setStep('payment');
     }
-    // INR: default to Indian gateway charges unless user explicitly picked credit card.
-    setChargeMethod((prev) => (prev === 'credit_card' ? 'credit_card' : 'indian'));
-  }, [selectedCurrency]);
-
-  const summaryItems = cartItems;
-  const summaryQuantity = summaryItems.reduce((sum, item) => sum + item.quantity, 0);
-  const summarySubtotal = roundMoney(
-    summaryItems.reduce((sum, item) => {
-      const line = item.price * item.quantity;
-      return sum + convertAmount(line, item.currency as any, selectedCurrency as any);
-    }, 0)
-  );
-  const chargeRate = getChargeRate(chargeMethod);
-  const summaryCharges = roundMoney(summarySubtotal * chargeRate);
-  const summaryTotal = roundMoney(summarySubtotal + summaryCharges);
-  const hasItemsForSelectedCurrency = summaryItems.length > 0;
-  const showEmptyCartNotice = isCartLoaded && cartItems.length === 0;
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setError('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
+    setSubmitting(true);
 
     try {
-      // Auth gate
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const userRaw = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-      if (!token || !userRaw) {
-        const returnTo = typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : '/checkout';
-        router.push(`/signin?redirect=${encodeURIComponent(returnTo)}`);
-        setLoading(false);
+      // Validate form
+      if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone) {
+        setError('Please fill in all required fields.');
+        setSubmitting(false);
         return;
       }
 
-      // Validate all required fields
-      if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone ||
-          !formData.address || !formData.city || !formData.state || !formData.zip) {
-        setError('Please fill in all required fields');
-        setLoading(false);
-        return;
-      }
+      // Prepare PayU data
+      const txnid = `TXN${Date.now()}`;
+      const amount = totalAmount.toFixed(2);
+      const productinfo = `${workshopData.name} (${quantity}x)`;
+      const firstname = formData.firstName;
+      const email = formData.email;
+      const phone = formData.phone;
 
-      if (!hasItemsForSelectedCurrency) {
-        setError('Your cart is empty.');
-        setLoading(false);
-        return;
-      }
-
-      // Handle different payment methods
-      if (selectedCurrency === 'NPR') {
-        // Nepal QR flow: show modal with QR + WhatsApp instructions.
-        const qrUrl = process.env.NEXT_PUBLIC_NEPALI_QR_URL;
-        if (!qrUrl) {
-          setError('Nepal QR payment is not configured. Please use India or International payment.');
-          setLoading(false);
-          return;
-        }
-        setNepalQrOpen(true);
-        setLoading(false);
-        return;
-      }
-
-      const amount = Number(summaryTotal.toFixed(2));
-      const productInfo = summaryItems
-        .map((item) => `${item.name} x${item.quantity}`)
-        .join(', ')
-        .slice(0, 90) || 'Swar Yoga Workshops';
-
-      const lineItems = summaryItems.map((item) => ({
-        productId: item.id,
-        name: item.name,
-        price: roundMoney(convertAmount(item.price, item.currency as any, selectedCurrency as any)),
-        quantity: item.quantity,
-        kind: item.workshop ? 'workshop' : 'product',
-        workshopSlug: item.workshop,
-        scheduleId: item.scheduleId,
-        mode: item.mode,
-        language: item.language,
-        currency: selectedCurrency,
-      }));
-
-      const origin = typeof window !== 'undefined'
-        ? window.location.origin
-        : (process.env.NEXT_PUBLIC_APP_URL || '');
-      const callbackUrl = `${origin}/api/payments/payu/callback`;
-
-      // Call PayU initiation endpoint for INR and USD
-      const response = await fetch('/api/payments/payu/initiate', {
+      // Hash generation happens on server-side for security
+      const response = await fetch('/api/payment/initiate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: amount,
+          txnid,
+          amount,
+          productinfo,
+          firstname,
+          email,
+          phone,
           currency: selectedCurrency,
-          productInfo: productInfo,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          zip: formData.zip,
-          items: lineItems,
-          successUrl: callbackUrl,
-          failureUrl: callbackUrl,
+          workshopId,
+          quantity,
+          formData,
         }),
       });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        const message = data?.error || data?.details || 'Failed to initiate payment';
-        console.error('PayU initiation error:', { status: response.status, data });
-        throw new Error(message);
-      }
-
       const data = await response.json();
-      
-      if (!data.success || !data.paymentUrl || !data.params) {
-        console.error('Invalid PayU response:', data);
-        throw new Error(data.error || 'Invalid payment gateway response');
-      }
+      if (!response.ok) throw new Error(data.message || 'Payment initiation failed');
 
-      const { paymentUrl, params } = data;
-
-      if (!paymentUrl || !params) {
-        throw new Error('Invalid PayU initiation response');
-      }
-
-      // Create hidden form for PayU submission
-      const existingForm = document.getElementById('payu-form');
-      if (existingForm) {
-        existingForm.remove();
-      }
-
-      const form = document.createElement('form');
-      form.id = 'payu-form';
-      form.method = 'POST';
-      form.action = paymentUrl;
-      form.style.display = 'none';
-
-      Object.entries(params).forEach(([key, value]) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = String(value);
-        form.appendChild(input);
-      });
-
-      document.body.appendChild(form);
-      form.submit();
-      setLoading(false);
-    } catch (err) {
-      console.error('Error processing payment:', err);
-      setError(err instanceof Error ? err.message : 'Failed to process payment. Please try again.');
-      setLoading(false);
+      // Redirect to PayU
+      window.location.href = data.paymentUrl;
+    } catch (err: any) {
+      setError(err.message || 'Payment failed. Please try again.');
+      setSubmitting(false);
     }
   };
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (!storedUser) return;
-
-      const parsed = JSON.parse(storedUser);
-      const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
-      const nameParts = name ? name.split(/\s+/) : [];
-      const [firstName = '', ...rest] = nameParts;
-      const lastName = rest.join(' ');
-
-      setFormData((prev) => ({
-        ...prev,
-        firstName: prev.firstName || firstName,
-        lastName: prev.lastName || lastName,
-        email: prev.email || parsed.email || '',
-        phone: prev.phone || parsed.phone || '',
-      }));
-    } catch (error) {
-      console.error('Failed to load stored user for checkout autofill:', error);
+  const downloadQRCode = () => {
+    const qrElement = document.getElementById('qr-code');
+    if (qrElement) {
+      const canvas = qrElement.querySelector('canvas');
+      if (canvas) {
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL();
+        link.download = `Nepal-Payment-QR-${Date.now()}.png`;
+        link.click();
+      }
     }
-  }, []);
+  };
 
-  const nepalQrUrl = process.env.NEXT_PUBLIC_NEPALI_QR_URL || '';
-  const whatsappNumber = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '').replace(/[^0-9]/g, '');
-  const whatsappPrefill = (() => {
-    const itemText = summaryItems
-      .map((item) => `${item.name} x${item.quantity}`)
-      .join(', ')
-      .slice(0, 120);
-    const amountText = `${getCurrencySymbol(selectedCurrency)}${summaryTotal.toFixed(2)} ${selectedCurrency}`;
-    return `Hi Swar Yoga, I completed the Nepal QR payment (${amountText}) for: ${itemText}. Sharing the screenshot for confirmation.`;
-  })();
-  const whatsappLink = whatsappNumber
-    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappPrefill)}`
-    : '';
+  if (loading) {
+    return (
+      <div className="bg-white min-h-screen flex flex-col">
+        <Navigation />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-swar-primary border-t-swar-accent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-swar-text">Loading checkout...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error && step === 'currency') {
+    return (
+      <div className="bg-white min-h-screen flex flex-col">
+        <Navigation />
+        <main className="flex-1 container mx-auto px-4 py-16">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex gap-4">
+              <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h2 className="text-lg font-semibold text-red-900 mb-2">Error</h2>
+                <p className="text-red-800 mb-4">{error}</p>
+                <Link href="/workshop" className="inline-block bg-swar-primary hover:bg-swar-primary-hover text-white px-6 py-2 rounded-lg transition">
+                  Browse Workshops
+                </Link>
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
-    <>
+    <div className="bg-swar-bg min-h-screen flex flex-col">
       <Navigation />
-      <main className="min-h-screen pt-20">
-        <div className="container py-20">
-          <button
-            onClick={() => router.back()}
-            className="mb-6 flex items-center gap-2 text-yoga-600 hover:text-yoga-700 font-semibold transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </button>
-          {showEmptyCartNotice && (
-            <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800">
-              Your cart is empty. Visit the <a href="/workshop" className="underline font-semibold">workshops page</a> to add a program before proceeding to PayU.
-            </div>
+      <main className="flex-1 container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          {step !== 'currency' && (
+            <button
+              onClick={() => setStep('currency')}
+              className="inline-flex items-center gap-2 text-swar-primary hover:text-swar-primary-hover transition mb-6"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Change Currency
+            </button>
           )}
-          <h1 className="text-5xl font-bold mb-12 text-yoga-700">Checkout</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-swar-text mb-2">
+            {step === 'qrcode' ? 'Nepal Payment - QR Code' : step === 'currency' ? 'Select Payment Currency' : 'Payment Details'}
+          </h1>
+          <p className="text-swar-text-secondary">
+            {step === 'currency' && 'Choose your currency to proceed'}
+            {step === 'payment' && `Complete payment in ${selectedCurrency} • ${workshopData?.name}`}
+            {step === 'qrcode' && 'Scan QR code or download for payment'}
+          </p>
+        </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="md:col-span-2">
-              <form id="checkout-form" onSubmit={handleSubmit} className="space-y-8">
-                {/* Shipping Information */}
-                <div className="bg-white rounded-lg shadow-md p-8">
-                  <h2 className="text-2xl font-bold mb-6 text-yoga-700">Shipping Information</h2>
-                  
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">First Name</label>
-                      <input
-                        type="text"
-                        name="firstName"
-                        value={formData.firstName}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="John"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">Last Name</label>
-                      <input
-                        type="text"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="Doe"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">Email</label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="john@example.com"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">Phone</label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="(555) 000-0000"
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-gray-700 font-bold mb-2">Address</label>
-                      <input
-                        type="text"
-                        name="address"
-                        value={formData.address}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="123 Main St"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">City</label>
-                      <input
-                        type="text"
-                        name="city"
-                        value={formData.city}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="New York"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">State</label>
-                      <input
-                        type="text"
-                        name="state"
-                        value={formData.state}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="NY"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-bold mb-2">ZIP Code</label>
-                      <input
-                        type="text"
-                        name="zip"
-                        value={formData.zip}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
-                        placeholder="10001"
-                      />
-                    </div>
-                  </div>
+        {/* Content */}
+        <div className="grid md:grid-cols-3 gap-8">
+          {/* Main Content */}
+          <div className="md:col-span-2">
+            {/* Currency Selection */}
+            {step === 'currency' && (
+              <div className="bg-white rounded-xl border border-swar-border p-8">
+                <h2 className="text-xl font-semibold text-swar-text mb-6">Choose Your Currency</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {Object.entries(CURRENCY_RATES).map(([key, currency]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleCurrencySelect(key)}
+                      className="p-4 border-2 border-swar-border rounded-lg hover:border-swar-primary hover:bg-swar-primary-light transition text-left"
+                    >
+                      <div className="text-2xl mb-2">{currency.flag}</div>
+                      <div className="font-semibold text-swar-text">{currency.country}</div>
+                      <div className="text-sm text-swar-text-secondary">{key} ({currency.symbol})</div>
+                    </button>
+                  ))}
                 </div>
+              </div>
+            )}
 
-                {/* Payment Information - Currency & Method */}
-                <div className="bg-white rounded-lg shadow-md p-8">
-                  <h2 className="text-2xl font-bold mb-4 text-yoga-700">Payment Method</h2>
-                  {cartItems.length === 0 ? (
-                    <p className="text-gray-600">
-                      Add a workshop to your cart to enable PayU checkout.
-                    </p>
-                  ) : (
-                    <>
-                      <p className="text-gray-600 mb-3">
-                        Choose where you are paying from. International payments convert the India amount into USD.
-                      </p>
-
-                      <div className="flex flex-wrap gap-3 mb-4">
-                        {(['INR', 'NPR', 'USD'] as Array<CartItem['currency']>).map((code) => {
-                          const isActive = code === selectedCurrency;
-                          const label = code === 'INR' ? 'India' : code === 'NPR' ? 'Nepal' : 'International';
-                          return (
-                            <button
-                              key={code}
-                              type="button"
-                              onClick={() => setSelectedCurrency(code)}
-                              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                                isActive
-                                  ? 'bg-yoga-600 text-white border-yoga-600 shadow-md'
-                                  : 'bg-white text-yoga-700 border-yoga-200 hover:border-yoga-400'
-                              }`}
-                            >
-                              {label}
-                              <span className="ml-2 text-xs font-normal">({code})</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {selectedCurrency === 'INR' ? (
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                          <p className="text-sm font-semibold text-gray-800 mb-2">Select payment option</p>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setChargeMethod('indian')}
-                              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
-                                chargeMethod === 'indian'
-                                  ? 'border-green-600 bg-green-600 text-white'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
-                              }`}
-                            >
-                              Indian (2.5%)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setChargeMethod('credit_card')}
-                              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
-                                chargeMethod === 'credit_card'
-                                  ? 'border-green-600 bg-green-600 text-white'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
-                              }`}
-                            >
-                              Credit Card (5%)
-                            </button>
-                          </div>
-                          <p className="mt-2 text-xs text-gray-600">
-                            Tax is removed. Only gateway charges are added.
-                          </p>
-                        </div>
-                      ) : selectedCurrency === 'USD' ? (
-                        <p className="text-sm text-gray-600">
-                          International payments include <span className="font-semibold">8%</span> charges (USD/PayPal).
-                        </p>
-                      ) : (
-                        <p className="text-sm text-gray-600">
-                          Nepal payments use QR. Scan & pay in Nepali, then send screenshot on WhatsApp.
-                        </p>
-                      )}
-                    </>
-                  )}
-
+            {/* Payment Form */}
+            {step === 'payment' && (
+              <div className="bg-white rounded-xl border border-swar-border p-8">
+                <h2 className="text-xl font-semibold text-swar-text mb-6">Enter Your Details</h2>
+                <form onSubmit={handlePaymentSubmit} className="space-y-6">
                   {error && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-6">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
                       {error}
                     </div>
                   )}
-                </div>
 
-                {/* Hidden on desktop, visible on mobile */}
-                <button
-                  type="submit"
-                  form="checkout-form"
-                  disabled={loading || !hasItemsForSelectedCurrency}
-                  className={`md:hidden w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-4 rounded-lg font-bold text-lg transition ${
-                    loading || !hasItemsForSelectedCurrency ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-700 hover:to-green-800'
-                  }`}
-                >
-                  {loading
-                    ? 'Processing...'
-                    : hasItemsForSelectedCurrency
-                      ? `💳 Pay Now`
-                      : 'Select a currency with items'}
-                </button>
-              </form>
-            </div>
-
-            {/* Order Summary - Dark Green Sidebar */}
-            <div className="md:col-span-1">
-              <div className="bg-gradient-to-br from-green-800 to-green-900 rounded-lg p-8 sticky top-24 shadow-2xl">
-                <h2 className="text-2xl font-bold mb-6 text-white">Order Summary</h2>
-                
-                {/* Next 6 Months Dates Section */}
-                <div className="mb-6 pb-6 border-b border-green-700">
-                  <p className="text-xs font-semibold text-green-200 uppercase tracking-wide mb-3">Available Dates</p>
-                  <div className="space-y-2">
-                    {(() => {
-                      const today = new Date();
-                      const dates = [];
-                      for (let i = 0; i < 6; i++) {
-                        const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
-                        dates.push(date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
-                      }
-                      return dates.map((date, idx) => (
-                        <div key={idx} className="flex items-center text-sm text-green-100">
-                          <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                          {date}
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-
-                <div className="space-y-4 mb-6 border-b border-green-700 pb-6">
-                  {hasItemsForSelectedCurrency ? (
-                    summaryItems.map((item) => (
-                      <div key={`${item.id}-${item.currency}`} className="flex justify-between">
-                        <div>
-                          <p className="text-white font-semibold text-sm">{item.name}</p>
-                          <p className="text-xs text-green-200">Qty {item.quantity}</p>
-                        </div>
-                        <span className="font-semibold text-green-100">
-                          {getCurrencySymbol(selectedCurrency)}
-                          {roundMoney(convertAmount(item.price * item.quantity, item.currency as any, selectedCurrency as any)).toFixed(2)}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-green-200">
-                      No items available for {selectedCurrency}. Switch currency above or return to the cart.
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-3 mb-8 border-b border-green-700 pb-6">
-                  <div className="flex justify-between text-green-100">
-                    <span>Subtotal</span>
-                    <span>{getCurrencySymbol(selectedCurrency)}{summarySubtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-green-100">
-                    <span>Charges ({Math.round(chargeRate * 1000) / 10}%)</span>
-                    <span>{getCurrencySymbol(selectedCurrency)}{summaryCharges.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <div className="flex justify-between mb-4">
-                    <span className="text-lg font-bold text-white">
-                      Total{summaryQuantity ? ` (${summaryQuantity} item${summaryQuantity === 1 ? '' : 's'})` : ''}
-                    </span>
-                    <span className="text-3xl font-bold text-green-300">{getCurrencySymbol(selectedCurrency)}{summaryTotal.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Pay Now Button */}
-                <button
-                  type="submit"
-                  form="checkout-form"
-                  disabled={loading || !hasItemsForSelectedCurrency}
-                  className={`w-full bg-green-500 hover:bg-green-400 text-white font-bold text-lg py-4 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg ${
-                    loading || !hasItemsForSelectedCurrency ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''
-                  }`}
-                >
-                  {loading
-                    ? 'Processing...'
-                    : hasItemsForSelectedCurrency
-                      ? `💳 Pay Now ${getCurrencySymbol(selectedCurrency)}${summaryTotal.toFixed(2)}`
-                      : 'Select a currency with items'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {nepalQrOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                <div>
-                  <p className="text-lg font-extrabold text-gray-900">Nepal QR Payment</p>
-                  <p className="text-xs text-gray-600">Scan & pay in Nepali rupees</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setNepalQrOpen(false)}
-                  className="rounded-lg p-2 hover:bg-gray-100"
-                  aria-label="Close"
-                >
-                  <X className="h-5 w-5 text-gray-700" />
-                </button>
-              </div>
-
-              <div className="p-5">
-                {nepalQrUrl ? (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 flex items-center justify-center">
-                    <img
-                      src={nepalQrUrl}
-                      alt="Nepal QR code for payment"
-                      className="w-64 h-64 object-contain"
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <input
+                      type="text"
+                      placeholder="First Name *"
+                      value={formData.firstName}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                      className="px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Last Name *"
+                      value={formData.lastName}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                      className="px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                      required
                     />
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 font-semibold">
-                    Nepal QR is not configured. Please select India or International payment.
-                  </div>
-                )}
 
-                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="font-bold text-amber-900">Note:-</p>
-                  <p className="mt-1 text-sm text-amber-900">
-                    Scan this QR and do the payment in Nepali. After payment, send the screenshot on WhatsApp.
+                  <input
+                    type="email"
+                    placeholder="Email *"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    required
+                  />
+
+                  <input
+                    type="tel"
+                    placeholder="Phone Number *"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    required
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                  />
+
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <input
+                      type="text"
+                      placeholder="City"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      className="px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    />
+                    <input
+                      type="text"
+                      placeholder="State"
+                      value={formData.state}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      className="px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    />
+                    <input
+                      type="text"
+                      placeholder="ZIP Code"
+                      value={formData.zip}
+                      onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
+                      className="px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full bg-swar-primary hover:bg-swar-primary-hover text-white py-3 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
+                    {submitting ? 'Processing...' : `Pay ${CURRENCY_RATES[selectedCurrency].symbol}${totalAmount.toFixed(2)}`}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* QR Code Page */}
+            {step === 'qrcode' && (
+              <div className="bg-white rounded-xl border border-swar-border p-8">
+                <h2 className="text-xl font-semibold text-swar-text mb-6">Complete Payment via QR Code</h2>
+                <div className="space-y-6">
+                  <div id="qr-code" className="bg-swar-primary-light rounded-xl p-8 flex justify-center">
+                    <div className="bg-white p-6 rounded-lg">
+                      <QrCode className="w-48 h-48 text-swar-primary" />
+                      <p className="text-center text-sm text-swar-text-secondary mt-4">[Dummy QR - Will be updated]</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-swar-text font-medium">Payment Instructions:</p>
+                    <ol className="space-y-2 text-swar-text-secondary list-decimal list-inside">
+                      <li>Scan the QR code with your mobile payment app</li>
+                      <li>Enter amount: {CURRENCY_RATES[selectedCurrency].symbol}{totalAmount.toFixed(2)} NPR</li>
+                      <li>Confirm and complete the payment</li>
+                      <li>You'll receive a confirmation immediately</li>
+                    </ol>
+                  </div>
+
+                  <button
+                    onClick={downloadQRCode}
+                    className="w-full bg-swar-accent hover:bg-swar-accent-hover text-white py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-5 h-5" />
+                    Download QR Code
+                  </button>
+
+                  <Link
+                    href="/payment-successful?status=pending"
+                    className="w-full block bg-swar-primary hover:bg-swar-primary-hover text-white py-3 rounded-lg font-semibold transition text-center"
+                  >
+                    I've Completed the Payment
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Order Summary */}
+          <div className="md:col-span-1">
+            {workshopData && (
+              <div className="bg-white rounded-xl border border-swar-border p-6 sticky top-24">
+                <h3 className="font-semibold text-swar-text mb-4">Order Summary</h3>
+
+                {/* Workshop Details */}
+                <div className="pb-4 border-b border-swar-border mb-4">
+                  <p className="text-sm text-swar-text-secondary mb-2">Workshop</p>
+                  <p className="font-medium text-swar-text">{workshopData?.name}</p>
+                  {workshopData?.instructor && (
+                    <p className="text-sm text-swar-text-secondary">by {workshopData.instructor}</p>
+                  )}
+                  <p className="text-sm text-swar-text-secondary mt-2">
+                    {workshopData?.duration} • {workshopData?.level}
                   </p>
                 </div>
 
-                <div className="mt-4 flex flex-col sm:flex-row gap-3">
-                  {whatsappLink ? (
-                    <a
-                      href={whatsappLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-white font-bold hover:bg-green-700 transition"
-                    >
-                      <MessageCircle className="h-5 w-5" />
-                      WhatsApp Screenshot
-                    </a>
-                  ) : (
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-3 text-sm text-gray-700">
-                      WhatsApp number not configured.
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setNepalQrOpen(false)}
-                    className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-5 py-3 font-bold text-gray-800 hover:bg-gray-50 transition"
-                  >
-                    Close
-                  </button>
+                {/* Pricing */}
+                <div className="space-y-3 pb-4 border-b border-swar-border mb-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-swar-text-secondary">Price per seat</span>
+                    <span className="text-swar-text font-medium">
+                      {CURRENCY_RATES[selectedCurrency].symbol}{(workshopData?.price * CURRENCY_RATES[selectedCurrency].rate).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-swar-text-secondary">Quantity</span>
+                    <span className="text-swar-text font-medium">× {quantity}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-swar-text-secondary">Subtotal</span>
+                    <span className="text-swar-text font-medium">
+                      {CURRENCY_RATES[selectedCurrency].symbol}{priceInSelectedCurrency.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm bg-orange-50 -mx-2 px-2 py-2 rounded">
+                    <span className="text-swar-text-secondary">Payment Fee (3.3%)</span>
+                    <span className="font-medium text-swar-accent">{CURRENCY_RATES[selectedCurrency].symbol}{paymentFee.toFixed(2)}</span>
+                  </div>
                 </div>
+
+                {/* Total */}
+                <div className="flex justify-between items-center mb-6 pt-2">
+                  <span className="font-semibold text-swar-text">Total</span>
+                  <span className="text-2xl font-bold text-swar-primary">
+                    {CURRENCY_RATES[selectedCurrency].symbol}{totalAmount.toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Currency Indicator */}
+                {step !== 'currency' && (
+                  <div className="bg-swar-primary-light rounded-lg p-4 text-sm">
+                    <p className="text-swar-text font-medium mb-1">Payment Currency</p>
+                    <p className="text-swar-text-secondary">
+                      {CURRENCY_RATES[selectedCurrency].country} ({selectedCurrency})
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </main>
       <Footer />
-    </>
+    </div>
   );
 }
 
-export default function Checkout() {
+export default function CheckoutPage() {
   return (
-    <Suspense fallback={null}>
-      <CheckoutInner />
+    <Suspense fallback={<div>Loading...</div>}>
+      <CheckoutContent />
     </Suspense>
   );
 }
