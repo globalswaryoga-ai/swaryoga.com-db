@@ -112,7 +112,7 @@ export default function Footer() {
                 {/* Logo Image */}
                 <div className="relative w-16 h-16 flex-shrink-0">
                   <img 
-                    src="https://i.postimg.cc/JGGJNwm8/yoga-logo.jpg"
+                    src="https://i.postimg.cc/xTPRSY4X/swar_yoga_new_logo.png"
                     alt="Swar Yoga Logo"
                     className="w-full h-full object-contain"
                   />
