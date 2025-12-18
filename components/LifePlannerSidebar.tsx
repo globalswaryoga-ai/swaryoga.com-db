@@ -38,21 +38,21 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
       ) : null}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-green-100 text-white transform transition-transform duration-300 ease-in-out ${
+        className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-swar-primary text-white transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        <div className="p-6 border-b border-green-200 flex items-center justify-between">
+        <div className="p-6 border-b border-swar-border flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center font-bold text-white text-lg">
+            <div className="w-10 h-10 bg-swar-accent rounded-lg flex items-center justify-center font-bold text-white text-lg">
               LP
             </div>
             <div>
-              <h2 className="font-bold text-lg text-green-900">Life Planner</h2>
-              <p className="text-xs text-green-700">Dashboard</p>
+              <h2 className="font-bold text-lg text-white">Life Planner</h2>
+              <p className="text-xs text-swar-primary-light">Dashboard</p>
             </div>
           </div>
-          <button onClick={onClose} className="md:hidden p-2 hover:bg-green-200 rounded-lg text-green-900" aria-label="Close sidebar">
+          <button onClick={onClose} className="md:hidden p-2 hover:bg-swar-primary-hover rounded-lg text-white" aria-label="Close sidebar">
             ✕
           </button>
         </div>
@@ -68,21 +68,21 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
                 onClick={handleNavClick}
                 className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all group font-medium ${
                   active
-                    ? 'bg-green-300 text-green-900 shadow-md'
-                    : 'hover:bg-green-200 text-green-900'
+                    ? 'bg-swar-accent text-white shadow-md'
+                    : 'hover:bg-swar-primary-hover text-swar-primary-light'
                 }`}
               >
-                <Icon className={`h-5 w-5 ${active ? 'text-green-900' : 'text-green-700'}`} />
+                <Icon className={`h-5 w-5 ${active ? 'text-white' : 'text-swar-primary-light'}`} />
                 <span>{item.label}</span>
-                {active && <ChevronRight className="h-5 w-5 ml-auto text-green-900 font-bold" />}
+                {active && <ChevronRight className="h-5 w-5 ml-auto text-white font-bold" />}
               </Link>
             );
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-green-200">
-          <div className="text-xs text-green-700">
-            <p className="font-semibold text-green-900 mb-2">Planner v1 (demo)</p>
+        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-swar-border">
+          <div className="text-xs text-swar-primary-light">
+            <p className="font-semibold text-white mb-2">Planner v1 (demo)</p>
             <p>Vision Plan → Action Plan → Tasks → Reminders</p>
           </div>
         </div>
