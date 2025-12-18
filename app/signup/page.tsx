@@ -364,16 +364,19 @@ function SignUpInner() {
             )}
 
             {/* Sign Up Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Personal Information */}
-              <div className="space-y-6">
-                <h2 className="text-xl font-bold text-swar-text mb-4">Personal Information</h2>
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Personal Information Section */}
+              <div className="space-y-5 bg-swar-bg rounded-lg p-6 border border-swar-border">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-1 h-6 bg-swar-primary rounded"></div>
+                  <h2 className="text-xl font-bold text-swar-text">Personal Information</h2>
+                </div>
 
+                {/* Full Name & Email */}
                 <div className="grid md:grid-cols-2 gap-6">
-                  {/* Full Name */}
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-swar-text mb-2">
-                      Full Name *
+                    <label htmlFor="name" className="block text-sm font-semibold text-swar-text mb-2">
+                      Full Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -381,20 +384,19 @@ function SignUpInner() {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
-                        errors.name ? 'border-red-400 bg-red-50' : 'border-swar-border'
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all ${
+                        errors.name ? 'border-red-400 bg-red-50' : 'border-swar-border bg-white'
                       }`}
                       placeholder="Enter your full name"
                     />
                     {errors.name && (
-                      <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                      <p className="mt-1 text-sm text-red-600 font-medium">{errors.name}</p>
                     )}
                   </div>
 
-                  {/* Email */}
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-swar-text mb-2">
-                      Email Address *
+                    <label htmlFor="email" className="block text-sm font-semibold text-swar-text mb-2">
+                      Email Address <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
@@ -402,21 +404,21 @@ function SignUpInner() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
-                        errors.email ? 'border-red-400 bg-red-50' : 'border-swar-border'
+                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all ${
+                        errors.email ? 'border-red-400 bg-red-50' : 'border-swar-border bg-white'
                       }`}
                       placeholder="your@email.com"
                     />
                     {errors.email && (
-                      <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                      <p className="mt-1 text-sm text-red-600 font-medium">{errors.email}</p>
                     )}
                   </div>
                 </div>
 
-                {/* Phone */}
-                <div className="grid md:grid-cols-3 gap-6">
+                {/* Country Code & Phone */}
+                <div className="grid md:grid-cols-4 gap-4 md:gap-6">
                   <div>
-                    <label htmlFor="countryCode" className="block text-sm font-medium text-swar-text mb-2">
+                    <label htmlFor="countryCode" className="block text-sm font-semibold text-swar-text mb-2">
                       Country Code
                     </label>
                     <select
@@ -424,18 +426,18 @@ function SignUpInner() {
                       name="countryCode"
                       value={formData.countryCode}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
                     >
                       {countryCodes.map((item) => (
                         <option key={item.code} value={item.code}>
-                          {item.code} {item.country}
+                          {item.code}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label htmlFor="phone" className="block text-sm font-medium text-swar-text mb-2">
+                  <div className="md:col-span-3">
+                    <label htmlFor="phone" className="block text-sm font-semibold text-swar-text mb-2">
                       Phone Number
                     </label>
                     <input
@@ -444,7 +446,7 @@ function SignUpInner() {
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
                       placeholder="Enter your phone number"
                     />
                   </div>
@@ -453,7 +455,7 @@ function SignUpInner() {
                 {/* Country & State */}
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="country" className="block text-sm font-medium text-swar-text mb-2">
+                    <label htmlFor="country" className="block text-sm font-semibold text-swar-text mb-2">
                       Country
                     </label>
                     <select
@@ -461,7 +463,7 @@ function SignUpInner() {
                       name="country"
                       value={formData.country}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
                     >
                       <option value="">Select Country</option>
                       {countries.map((country) => (
@@ -473,8 +475,8 @@ function SignUpInner() {
                   </div>
 
                   <div>
-                    <label htmlFor="state" className="block text-sm font-medium text-swar-text mb-2">
-                      State/Province {formData.country && '*'}
+                    <label htmlFor="state" className="block text-sm font-semibold text-swar-text mb-2">
+                      State/Province {formData.country && <span className="text-red-500">*</span>}
                     </label>
                     {formData.country ? (
                       <select
@@ -482,7 +484,7 @@ function SignUpInner() {
                         name="state"
                         value={formData.state}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
                       >
                         <option value="">Select State/Province</option>
                         {getStatesList(formData.country).map((state) => (
@@ -498,7 +500,7 @@ function SignUpInner() {
                         name="state"
                         value={formData.state}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent bg-swar-bg text-swar-text-secondary cursor-not-allowed"
+                        className="w-full px-4 py-3 border-2 border-dashed border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary cursor-not-allowed"
                         placeholder="Select a country first"
                         disabled
                       />
@@ -509,7 +511,7 @@ function SignUpInner() {
                 {/* Gender, Age, Profession */}
                 <div className="grid md:grid-cols-3 gap-6">
                   <div>
-                    <label htmlFor="gender" className="block text-sm font-medium text-swar-text mb-2">
+                    <label htmlFor="gender" className="block text-sm font-semibold text-swar-text mb-2">
                       Gender
                     </label>
                     <select
@@ -517,16 +519,18 @@ function SignUpInner() {
                       name="gender"
                       value={formData.gender}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
                     >
                       <option value="">Select Gender</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
+                      <option value="other">Other</option>
+                      <option value="prefer-not">Prefer not to say</option>
                     </select>
                   </div>
 
                   <div>
-                    <label htmlFor="age" className="block text-sm font-medium text-swar-text mb-2">
+                    <label htmlFor="age" className="block text-sm font-semibold text-swar-text mb-2">
                       Age
                     </label>
                     <input
@@ -535,7 +539,7 @@ function SignUpInner() {
                       name="age"
                       value={formData.age}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
                       placeholder="Your age"
                       min="1"
                       max="120"
@@ -543,7 +547,7 @@ function SignUpInner() {
                   </div>
 
                   <div>
-                    <label htmlFor="profession" className="block text-sm font-medium text-swar-text mb-2">
+                    <label htmlFor="profession" className="block text-sm font-semibold text-swar-text mb-2">
                       Profession
                     </label>
                     <input
@@ -552,22 +556,25 @@ function SignUpInner() {
                       name="profession"
                       value={formData.profession}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
                       placeholder="Your profession"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Security Information */}
-              <div className="space-y-6 pt-6 border-t border-swar-border">
-                <h2 className="text-xl font-bold text-swar-text mb-4">Security</h2>
+              {/* Security Information Section */}
+              <div className="space-y-5 bg-swar-bg rounded-lg p-6 border border-swar-border">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-1 h-6 bg-swar-accent rounded"></div>
+                  <h2 className="text-xl font-bold text-swar-text">Security</h2>
+                </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Password */}
                   <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-swar-text mb-2">
-                      Password *
+                    <label htmlFor="password" className="block text-sm font-semibold text-swar-text mb-2">
+                      Password <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -576,28 +583,29 @@ function SignUpInner() {
                         name="password"
                         value={formData.password}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
-                          errors.password ? 'border-red-400 bg-red-50' : 'border-swar-border'
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all pr-10 ${
+                          errors.password ? 'border-red-400 bg-red-50' : 'border-swar-border bg-white'
                         }`}
-                        placeholder="Create a password"
+                        placeholder="Create a password (min. 6 characters)"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-text-secondary"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-primary text-lg"
                       >
-                        {showPassword ? '👁️‍🗨️' : '👁️'}
+                        {showPassword ? '👁️' : '🔒'}
                       </button>
                     </div>
                     {errors.password && (
-                      <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                      <p className="mt-1 text-sm text-red-600 font-medium">{errors.password}</p>
                     )}
+                    <p className="mt-2 text-xs text-swar-text-secondary">Password must be at least 6 characters</p>
                   </div>
 
                   {/* Confirm Password */}
                   <div>
-                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-swar-text mb-2">
-                      Confirm Password *
+                    <label htmlFor="confirmPassword" className="block text-sm font-semibold text-swar-text mb-2">
+                      Confirm Password <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -606,43 +614,43 @@ function SignUpInner() {
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
-                          errors.confirmPassword ? 'border-red-400 bg-red-50' : 'border-swar-border'
+                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all pr-10 ${
+                          errors.confirmPassword ? 'border-red-400 bg-red-50' : 'border-swar-border bg-white'
                         }`}
                         placeholder="Confirm your password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-text-secondary"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-primary text-lg"
                       >
-                        {showConfirmPassword ? '👁️‍🗨️' : '👁️'}
+                        {showConfirmPassword ? '👁️' : '🔒'}
                       </button>
                     </div>
                     {errors.confirmPassword && (
-                      <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
+                      <p className="mt-1 text-sm text-red-600 font-medium">{errors.confirmPassword}</p>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Terms and Conditions */}
-              <div className="space-y-4 pt-6 border-t border-swar-border">
-                <label className="flex items-start space-x-3 cursor-pointer">
+              <div className="space-y-4 bg-swar-bg rounded-lg p-6 border border-swar-border">
+                <label className="flex items-start space-x-3 cursor-pointer group">
                   <input
                     type="checkbox"
                     name="agreeToTerms"
                     checked={formData.agreeToTerms}
                     onChange={handleInputChange}
-                    className="mt-1 w-5 h-5 border-swar-border rounded text-swar-primary focus:ring-yoga-500 cursor-pointer"
+                    className="mt-1 w-5 h-5 border-2 border-swar-border rounded text-swar-primary focus:ring-2 focus:ring-swar-primary cursor-pointer"
                   />
-                  <span className="text-sm text-swar-text-secondary">
+                  <span className="text-sm text-swar-text-secondary group-hover:text-swar-text transition-colors">
                     I agree to the{' '}
-                    <Link href="/terms" className="text-swar-primary hover:text-swar-accent font-medium">
+                    <Link href="/terms" className="text-swar-primary hover:text-swar-accent font-semibold">
                       Terms and Conditions
                     </Link>{' '}
                     and{' '}
-                    <Link href="/privacy" className="text-swar-primary hover:text-swar-accent font-medium">
+                    <Link href="/privacy" className="text-swar-primary hover:text-swar-accent font-semibold">
                       Privacy Policy
                     </Link>
                   </span>
