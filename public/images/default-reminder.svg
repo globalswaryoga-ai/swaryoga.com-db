@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
+  <rect width="100%" height="100%" fill="#fff1f6"/>
+  <g fill="#ff4d82" font-family="Arial, Helvetica, sans-serif" font-weight="700">
+    <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-size="48">Reminder</text>
+    <text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" font-size="20" fill="#ff8fb3">Don't forget to breathe</text>
+  </g>
+</svg>

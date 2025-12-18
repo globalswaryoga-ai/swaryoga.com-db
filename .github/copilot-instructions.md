@@ -1,417 +1,247 @@
-# Swar Yoga Life Planner - AI Coding Agent Instructions
+# Swar Yoga Web - AI Copilot Instructions
 
-**Framework:** React 18 + Vite (frontend) + Express.js (backend) + MongoDB  
-**Last Updated:** December 16, 2025  
-**Status:** Production Deployment Complete (Vercel + MongoDB Atlas)
-
-**Note:** Two versions of this project exist:
-- **swar-yoga-web-mohan** (this project) - React/Vite/Express monorepo
-- **swaryoga.com-db** (separate) - Next.js 14 full-stack app
-
----
+**Last Updated:** December 14, 2025  
+**Framework:** Next.js 14 (App Router) + TypeScript + MongoDB + React 18
 
 ## Project Overview
 
-**Swar Yoga** is a full-stack life planning & wellness platform for yoga practitioners. Features include:
-- **Life Planner:** Hierarchical vision → goals → tasks → todos management
-- **Multi-user persistence:** Each user's data isolated via MongoDB + X-User-ID header
-- **Admin dashboard:** Advanced accounting, reporting, user management
-- **Booking & Calendar:** Swar yoga calendar with suncalc library for celestial calculations
-- **E-commerce:** Shopping cart, checkout, workshop enrollment
+A full-stack yoga e-commerce & life-planning platform with complex features: user authentication (JWT), accounting system, life planner with hierarchical data structures, calendar/panchang calculations, and payment integration (PayU).
 
-**Key Architecture:**
-- Frontend: React 18 + TypeScript in `/src`, built with Vite
-- Backend: Express.js in `/server`, API routes in `/server/routes/`
-- Serverless API: `/api` folder contains Vercel serverless function handlers
-- Database: MongoDB Atlas with Mongoose schemas
-- Deployment: Vercel (full-stack) — frontend serves `/dist`, API uses serverless functions
+**Key Sites:**
+- Frontend: [app/](app/) - Next.js pages and components
+- API: [app/api/](app/api/) - Route handlers using Next.js 14 server actions
+- Models & Utilities: [lib/](lib/) - Database schemas, auth, helpers
+- Types: [types/](types/) - TypeScript interfaces
 
----
+## Architecture Patterns
 
-## Critical Architecture Patterns
+### Database Layer (MongoDB + Mongoose)
 
-### 1. **User Data Isolation via MongoDB + User ID Header**
-All user data flows through a **X-User-ID header** system:
-- Frontend extracts `userId` from `localStorage['user']` (set during SignIn in `AuthContext`)
-- Every API request includes `X-User-ID` via axios interceptor in `src/utils/sadhakaPlannerData.ts` (lines 37-51)
-- **Backend routes** filter MongoDB queries by `userId` to ensure isolation
-- **Why:** Enables multi-user sync—same user on Device A/B sees identical data; different users see nothing
-
-**File:** `src/utils/sadhakaPlannerData.ts` (794 lines) - primary data access layer for life planner features (visions, goals, tasks, health, etc.)
-
-### 2. **Dual Authentication: User + Admin**
-- **User Auth:** `src/context/AuthContext.tsx` — manages regular user login/signup, stores `localStorage['user']`
-- **Admin Auth:** `src/context/AdminAuthContext.tsx` — centralized context for admin-only access, stores `localStorage['adminUser']`
-- **Pattern:** Both contexts follow same structure—check localStorage on mount, provide hooks (`useAuth()`, `useAdminAuth()`)
-- **Protected Routes:** `ProtectedAdminRoute` component in `src/App.tsx` redirects unauthenticated admins to `/admin-login`
-
-**Key Insight:** Admin data uses same `X-User-ID` header system but with `adminUser` instead of `user`
-
-### 3. **API Architecture: Serverless Functions on Vercel**
-- **Development:** Backend runs on `localhost:3000` via `cd server && npx tsx server.ts`
-- **Production:** API served as Vercel serverless functions from `/api` folder
-  - Vercel routes all `/api/*` requests to `api/[...path].js` (Express app in serverless handler)
-  - `vercel.json` rewrites `/api/(.*)` → `/api/[...path].js`
-  - Maximum timeout: 60 seconds per function
-- **Vite Proxy:** `vite.config.ts` includes proxy `/api` → `http://localhost:3000` during dev (mirrors prod structure)
-- **URL Resolution:** `sadhakaPlannerData.ts` auto-detects environment:
-  - Development: `http://localhost:3000/api`
-  - Production: `/api` (relative path, Vercel routes correctly)
-
-### 4. **Context Provider Nesting Order** (src/main.tsx)
-```
-BrowserRouter
-  → AuthProvider
-    → AdminAuthProvider  
-      → AdminProvider
-        → App + ToastContainer
-```
-**Why:** AuthContext must be available first (admin needs user checks); AdminAuthProvider provides admin context; AdminProvider wraps both
-
----
-
-## Core API Routes & Data Models
-
-### Available Backend Routes (26 endpoints total)
-All routes are at `/api/[endpoint]` and filtered by `X-User-ID` header (except public routes):
-
-| Endpoint | Filtered | Purpose |
-|----------|----------|---------|
-| `/auth` | ❌ | Signup/signin (creates JWT in localStorage) |
-| `/users` | ✅ | User profile, preferences, account data |
-| `/visions` | ✅ | Life visions (top of hierarchy) |
-| `/goals` | ✅ | Goals linked to visions |
-| `/tasks` | ✅ | Tasks linked to goals |
-| `/todos` | ✅ | Daily todos linked to tasks |
-| `/mywords` | ✅ | Inspirational words/quotes user saves |
-| `/health` | ✅ | Health tracker (sleep, exercise, diet) |
-| `/dailyplans` | ✅ | Daily plan entries |
-| `/reminders` | ✅ | User reminders |
-| `/milestones` | ✅ | Milestone tracking |
-| `/carts` | ✅ | Shopping cart items |
-| `/checkout` | ✅ | Checkout orders |
-| `/accounting` | ✅ | Financial transactions & reports |
-| `/admin` | ✅ | Admin-only operations |
-| `/admin/mongo` | ✅ | MongoDB admin tools |
-| `/workshops/public` | ❌ | Public workshop listings |
-| `/contact` | ❌ | Contact form submissions |
-| `/pagestate` | ✅ | Save UI state (page scroll, tabs, filters) |
-| `/assignment` | ✅ | Workshop/course assignments |
-| `/enrollment` | ✅ | Workshop enrollments |
-| `/student-progress` | ✅ | Student progress tracking |
-| `/payment` | ✅ | Payment processing |
-| `/zoom-meeting` | ✅ | Zoom meeting integration |
-| `/chat` | ✅ | Chat messages between users |
-
-**Key Rule:** Backend extracts `userId` from `X-User-ID` header automatically and filters all queries. If header missing → request rejected with 401.
-
-### Mongoose Models in `/server/models/`
-- `User.ts` - User accounts, auth, preferences
-- `Vision.ts`, `Goal.ts`, `Task.ts`, `Todo.ts`, `MyWord.ts` - Life planner hierarchy
-- `HealthTracker.ts` - Health data
-- `DailyPlan.ts`, `Reminder.ts`, `Milestone.ts` - Planning features
-- `Cart.ts`, `Checkout.ts` - E-commerce
-- `Transaction.ts`, `Account.ts` - Accounting system
-- `Workshop.ts`, `Assignment.ts` - Workshop/course management
-- `AdminUser.ts` - Admin-only accounts
-
-### SadhakaPlannerData.ts - Frontend API SDK (794 lines)
-**Location:** `src/utils/sadhakaPlannerData.ts` — the **single source of truth** for all data access
+**Location:** [lib/db.ts](lib/db.ts)
 
 ```typescript
-// Exports for each feature:
-export const visionAPI = { list(), create(), update(), delete(), ... }
-export const goalAPI = { ... }
-export const taskAPI = { ... }
-export const todoAPI = { ... }
-export const healthAPI = { ... }
-export const reminderAPI = { ... }
-export const mywordAPI = { ... }
-export const dailyplanAPI = { ... }
-export const milestoneAPI = { ... }
-export const userAPI = { ... }
-export const accountingAPI = { ... }
+// Pattern: Connection pooling with singleton pattern
+export const connectDB = async () => {
+  if (mongoose.connection.readyState === 1) return mongoose.connection;
+  return await mongoose.connect(MONGODB_URI);
+};
+
+// Pattern: Always add indexes for frequently queried fields
+userSchema.index({ email: 1 });
+userSchema.index({ profileId: 1 });
+userSchema.index({ createdAt: -1 });
 ```
 
-**Critical Pattern:** Always use these API objects instead of direct axios calls:
-- Automatically injects `X-User-ID` header from `localStorage['user']` (lines 37-51)
-- Handles errors with localStorage fallback (offline mode support)
-- Caches responses locally for faster subsequent loads
-- Auto-detects environment (localhost:4000 vs. production Vercel URL)
+**Critical Performance Rules:**
+- Use `.lean()` on read-only queries for 2-3x speedup
+- Use `.select()` to limit returned fields
+- Add compound indexes for multi-field queries: `schema.index({ field1: 1, field2: -1 })`
+- Use `.limit()` on large result sets to prevent memory issues
+- Avoid N+1 queries; use aggregation pipelines for complex stats
 
-**Example Usage:**
+**Models in use:** User, Order, Contact, Offer, Account, Transaction, Investment, Batch, Enquiry, Vision, Message, Treatment, Workshop
+
+### Authentication & Authorization
+
+**Location:** [lib/auth.ts](lib/auth.ts) + [app/api/auth/](app/api/auth/)
+
 ```typescript
-const visions = await visionAPI.list();  // Fetches all user visions
-const newVision = await visionAPI.create({ title: 'Learn Yoga' });
-await visionAPI.update(id, { title: 'Advanced Yoga' });
-await visionAPI.delete(id);
+// Pattern: JWT with verifyToken middleware
+const decoded = verifyToken(token);
+if (!decoded?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+// Pattern: Owner-based access control
+const getUserOwner = (request: NextRequest) => {
+  const token = request.headers.get('authorization')?.slice('Bearer '.length);
+  const decoded = verifyToken(token);
+  return { ownerType: decoded?.isAdmin ? 'admin' : 'user', ownerId: decoded?.userId };
+};
 ```
 
----
+**Rules:**
+- All protected API routes must verify JWT from `Authorization: Bearer <token>` header
+- Use `ownerType` + `ownerId` for document-level access control (see [app/api/accounting/accounts/route.ts](app/api/accounting/accounts/route.ts))
+- Admin routes check `isAdmin` flag in token payload
 
-## Developer Workflows
+### API Response Pattern
 
-### Local Development Setup
+**Standard structure** (used across all API routes):
+
+```typescript
+// Success
+NextResponse.json({ success: true, data: {...} }, { status: 200 })
+
+// Error
+NextResponse.json({ error: 'message' }, { status: 4xx | 5xx })
+```
+
+**Response Optimization:**
+- Add `Cache-Control: public, s-maxage=300` for GET endpoints (300s cache)
+- Use [lib/cacheManager.ts](lib/cacheManager.ts) for in-app caching on expensive queries
+- Add rate limiting with [lib/rateLimit.ts](lib/rateLimit.ts) for expensive operations
+
+### Component Architecture
+
+**Pattern: Client components with server API integration**
+
+```typescript
+// app/admin/accounting/page.tsx
+'use client'; // All interactive pages are client components
+
+const [data, setData] = useState([]);
+useEffect(() => {
+  const headers = { 'Authorization': `Bearer ${token}` };
+  fetch('/api/admin/accounting/accounts', { headers })
+    .then(r => r.json())
+    .then(r => setData(r.data));
+}, []);
+```
+
+**Rules:**
+- Use `'use client'` for interactive pages, `'use server'` for API routes
+- Always pass JWT token in Authorization header for protected endpoints
+- Handle loading/error states explicitly (see [components/EnhancedVisionModal.tsx](components/EnhancedVisionModal.tsx))
+
+### Complex Features
+
+**Life Planner Hierarchical Storage:** [lib/lifePlannerMongoStorage.ts](lib/lifePlannerMongoStorage.ts)
+- Vision → Milestones → Goals → Tasks → Todos → Words structure
+- Full hierarchical save/restore from MongoDB
+- Atomic operations: entire vision tree saved as single document
+
+**Calendar & Panchang Calculations:** [lib/panchang.ts](lib/panchang.ts) + [lib/calendarCalculations.ts](lib/calendarCalculations.ts)
+- Uses `@bidyashish/panchang` library for Hindu calendar calculations
+- Location-based calculations (latitude/longitude from [lib/globalLocationData.ts](lib/globalLocationData.ts))
+- Caches results to avoid expensive recalculations
+
+**Accounting System:** [app/admin/accounting/](app/admin/accounting/)
+- Double-entry bookkeeping with Account → Transaction model
+- Investment tracking with recurring reminders
+- Monthly/quarterly/yearly report generation (see [lib/accountingReportPeriod.ts](lib/accountingReportPeriod.ts))
+
+## Development Workflows
+
+### Setup & Running
+
 ```bash
-# Terminal 1: Frontend (Vite dev server on port 5173)
-npm run dev
+# 1. Install dependencies
+npm install
 
-# Terminal 2: Backend (Express on port 3000)
-cd server && npx tsx server.ts
+# 2. Configure environment (copy from .env.local template)
+# MONGODB_URI, JWT_SECRET, NEXT_PUBLIC_API_URL required
+
+# 3. Start development server
+npm run dev    # Runs on http://localhost:3000
+
+# 4. Build & test
+npm run build
+npm run lint
+npm run type-check
 ```
-**Verify:** Open `http://localhost:5173` → check Console for `🔗 Using API URL: http://localhost:3000/api`
 
-### Building & Deployment
-```bash
-npm run build       # Builds frontend to /dist, backend to /server/dist
-npm start          # Starts server.js (production mode, serves dist)
-```
+### Adding New API Routes
 
-### PM2 Process Management (Development/Local Server)
-```bash
-pm2 start ecosystem.config.cjs   # Starts frontend (5173) + backend (3000)
-pm2 logs swar-backend             # Tail backend logs
-pm2 logs swar-frontend            # Tail frontend logs
-pm2 stop all                       # Stop all services
-```
-**Note:** PM2 is for local development only; production uses Vercel serverless functions
+1. Create file at `app/api/[feature]/route.ts`
+2. Import `connectDB` and models from `lib/db.ts`
+3. Verify JWT if protected: use `verifyToken()` from `lib/auth.ts`
+4. Apply `.lean()`, `.select()`, `.limit()` to queries
+5. Return standard JSON response structure
+6. Add error logging for debugging
 
-### Testing API Endpoints
-Shell scripts in root (e.g., `test-api.py`, `test-all-endpoints.sh`) provide curl-based testing.
-**Tip:** All requests need `X-User-ID` header; use test scripts or Postman with headers set.
+**Example:** [app/api/accounting/accounts/route.ts](app/api/accounting/accounts/route.ts)
 
-### Database & Backups
-- **MongoDB Atlas:** Primary database (URI in `.env`)
-- **Daily backups:** Automated via `server/backup.ts` (runs at midnight)
-- **Admin backups:** Triggered by `server/adminBackup.ts` on logout
-- **Restore:** Endpoint `/api/backup/restore` (requires valid backup filename)
+### Adding New Pages
 
----
+1. Create `app/[route]/page.tsx` with `'use client'` directive
+2. Import Navigation & Footer components
+3. Add loading/error states with useState/useEffect
+4. Fetch data from `/api/` endpoints with JWT if needed
+5. Use Tailwind classes with yoga theme colors (`yoga-50` through `yoga-700`)
 
-## Component Hierarchy & File Locations
+### Database Modifications
 
-### Page Structure
-- **Public pages** (no auth): `src/pages/{HomePage, AboutPage, Blog, Workshop, Resort, Contact}`
-- **User pages** (login required): `src/pages/{SadhakaPlannerPage, SwarCalendar, CartPage}`
-- **Admin pages** (admin login required): `src/pages/admin/{AdminDashboard, AdminSigninData, AdminAccounting, CertificateCreator}`
+1. Update schema in [lib/db.ts](lib/db.ts)
+2. Add indexes immediately: `schema.index({ field: 1 })`
+3. Add corresponding API route(s) in [app/api/](app/api/)
+4. Test with `.lean()` and `.select()` on reads
+5. Document in MongoDB comment: connection string, cluster name, database name
 
-### Key Page Files & Their Purpose
-| File | Purpose | Uses API |
-|------|---------|----------|
-| `SadhakaPlannerPage.tsx` | Main life planner hub—tabs for visions, goals, tasks, health | ✅ sadhakaPlannerData.ts |
-| `SwarCalendar.tsx` | Swar Yoga calendar (sunrises, celestial data via suncalc) | ❌ (suncalc library) |
-| `AdminAccounting.tsx` | Financial tracking for admins | ✅ accountingAPI |
-| `UserAccount.tsx` | User profile, order history, preferences | ✅ userAPI |
+## Critical Files Reference
 
-### Component Patterns
-- **Form components** (`GoalForm`, `VisionForm`): Use local state + manual API calls, emit on save
-- **List components** (`GoalsComponent`, `TasksComponent`): Load on mount, refresh on create/delete, map API response to state
-- **Dashboard components** (`Dashboard.tsx`): Aggregate multiple APIs, track loading + errors
+| File | Purpose |
+|------|---------|
+| [lib/db.ts](lib/db.ts) | All MongoDB schemas & connection |
+| [lib/auth.ts](lib/auth.ts) | JWT utilities (generate, verify token) |
+| [next.config.js](next.config.js) | Workshop URL overrides, environment loading |
+| [tailwind.config.js](tailwind.config.js) | Yoga color theme definitions |
+| [tsconfig.json](tsconfig.json) | Path alias `@/*` → root directory |
+| [PERFORMANCE_BUG_ANALYSIS.md](PERFORMANCE_BUG_ANALYSIS.md) | 12 known issues & fixes |
+| [DATABASE_OPTIMIZATION.md](DATABASE_OPTIMIZATION.md) | Query optimization guide |
 
-**Common Hook:** `useAuth()` + `useNavigate()` for redirects on logout
+## Known Issues & Fixes
 
----
+**Performance Bottlenecks:**
+1. Missing database indexes → Add to `lib/db.ts` schema definitions
+2. N+1 queries in dashboard → Use aggregation pipelines
+3. Synchronous file I/O → Replace `readFileSync` with async `readFile`
+4. No API response caching → Implement with [lib/cacheManager.ts](lib/cacheManager.ts)
 
-## Project-Specific Conventions
+See [PERFORMANCE_BUG_ANALYSIS.md](PERFORMANCE_BUG_ANALYSIS.md) for complete list with code examples.
 
-### 1. **API Error Handling**
-All APIs include fallback to `localStorage` if backend unavailable:
-```typescript
-// sadhakaPlannerData.ts pattern
-try {
-  const response = await apiClient.get('/visions');
-  return response.data;
-} catch (error) {
-  console.error('Error fetching visions:', error);
-  // Fallback to localStorage cache
-  return JSON.parse(localStorage.getItem('cached_visions') || '[]');
-}
-```
-**Why:** Enables app to work offline; always cache successful API responses.
+## Type System
 
-### 2. **User ID Detection (Critical Fix)**
-```typescript
-// In interceptors - MUST extract from localStorage['user'] object
-const userStr = localStorage.getItem('user');
-const userObj = JSON.parse(userStr);
-const userId = userObj.id || userObj._id;  // Both fields may exist
-```
-**Pitfall:** Old code looked for `localStorage['userId']` (doesn't exist); always parse the `user` object.
+**Key types in [types/](types/):**
+- `Vision`, `Goal`, `Task`, `Todo`, `Word` - Life planner hierarchy
+- `Account`, `Transaction`, `Investment` - Accounting system
+- `Order`, `User`, `Contact` - E-commerce core
+- `Batch`, `Workshop` - Yoga courses
+- `CalendarData`, `LocationData` - Panchang system
 
-### 3. **Type Definitions**
-All data models defined in `src/utils/sadhakaPlannerData.ts` (exports Vision, Goal, Task, etc. interfaces).
-**When adding new feature:** 
-1. Define interface at top of file
-2. Add API methods to export object
-3. Update backend route in `server/routes/[feature].ts`
-4. Ensure TypeScript compilation: `npm run build`
-
-### 4. **Styling: Tailwind + Lucide**
-- All CSS via Tailwind utility classes (no separate .css files except `index.css`, `main.css`)
-- Icons from `lucide-react` (e.g., `<Eye>`, `<Target>`, `<CheckCircle>`)
-- Theme colors: Primary indigo (`text-indigo-600`, `bg-indigo-500`), grays for UI (`gray-100` to `gray-900`)
-
-### 5. **SPA Routing**
-- All routes in `src/App.tsx` via `<Routes>` + `<Route>`
-- **Fallback:** `server.js` serves `index.html` for all unknown paths (SPA pattern)
-- **No page-specific URLs** in API (e.g., `/admin/visions` → must be `/api/visions` with header-based filtering)
-
-### 6. **Vision Schema Alignment (Recent Fix)**
-Recent commits aligned the Vision model with MongoDB validation:
-- `visualImageUrl` (renamed from `imageUrl`)
-- `visionStatement`, `affirmations`, `category`, `timeFrame` fields added
-- Frontend interface in `sadhakaPlannerData.ts` updated to match backend
-- Always verify TypeScript compilation after schema changes
-
----
-
-## Common Gotchas & Recent Fixes
-
-### 1. **Data Disappears After Sign Out/In**
-❌ **Root cause:** User ID not correctly detected when making API requests  
-✅ **Fix:** `src/utils/sadhakaPlannerData.ts` lines 37-51—always extract from `localStorage['user']` object  
-**Action:** When debugging persistence issues, check the X-User-ID header in network tab.
-
-### 2. **Network Error When Adding Visions**
-❌ **Root cause:** Backend port was 3000 previously, then 3001, now standardized to 4000  
-✅ **Fix:** All references now use port 4000; updated `sadhakaPlannerData.ts`  
-**Action:** Verify `API_URL` logs on app load—should show `http://localhost:4000/api` or Vercel URL.
-
-### 3. **Admin Data Not Syncing Across Devices**
-❌ **Root cause:** Admin requests didn't include user ID in header  
-✅ **Fix:** Admin API calls now use same interceptor pattern as user API  
-**Action:** For admin features, extract `localStorage['adminUser']` and pass correctly.
-
-### 4. **Build Failures on Vercel**
-❌ **Root cause:** Missing `.env` variables (MONGODB_URI, API_URL)  
-✅ **Fix:** Set environment variables in Vercel project settings  
-**Action:** Before deploying, run `npm run build` locally to catch errors.
-
-### 5. **TypeScript Errors After Schema Updates**
-❌ **Root cause:** Frontend types don't match backend Mongoose schema
-✅ **Fix:** Latest commit (Dec 10) aligned Vision schema — update both `server/models/Vision.ts` and `src/utils/sadhakaPlannerData.ts` interfaces
-**Action:** Run `npm run lint` and verify no TypeScript errors before committing.
-
----
+**Rules:**
+- Always use interfaces for API request/response bodies
+- Enums for fixed sets: `type: 'bank' | 'cash' | 'investment' | 'loan'`
+- Use `NextRequest`, `NextResponse` for API types (not generic Request/Response)
+- Optional fields: mark with `?`, don't use `| undefined`
 
 ## Environment Variables
 
-### Frontend (.env)
-```
-NODE_ENV=development  # Development only; use 'production' for builds
-VITE_API_URL=http://localhost:4000/api  # Dev: localhost, Production: leave empty (uses relative /api)
-```
-
-### Backend (server/.env)
-```
-MONGODB_URI=mongodb+srv://[user]:[pass]@cluster.mongodb.net/swar-yoga-db
-PORT=4000
-NODE_ENV=development
+**Required for development (.env.local):**
+```env
+MONGODB_URI=mongodb+srv://...
+JWT_SECRET=<32+ char string>
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+PAYU_MERCHANT_KEY=...
+PAYU_MERCHANT_SALT=...
 ```
 
-**Never commit real credentials;** use `.env.example` as template.
+**Never commit:** `.env.local`, credentials, API keys. Use `.env.example` as template.
+
+## Testing & Validation
+
+**Query validation patterns:**
+```typescript
+// Always validate required fields before DB operations
+const missingFields = [];
+if (!email?.trim()) missingFields.push('email');
+if (!password?.trim()) missingFields.push('password');
+if (missingFields.length > 0) {
+  return NextResponse.json(
+    { error: `Missing: ${missingFields.join(', ')}` },
+    { status: 400 }
+  );
+}
+
+// Use bcryptjs for password hashing (see signup route)
+const hashedPassword = await bcrypt.hash(password, 10);
+```
+
+**Manual testing scripts available:**
+- [test-api.js](test-api.js) - Test API endpoints
+- [test-mongodb.js](test-mongodb.js) - Test database connectivity
+- [diagnose-login-error.sh](diagnose-login-error.sh) - Debug auth issues
 
 ---
 
-## Deployment & Monitoring
-
-### Current Deployment Setup
-- **Frontend:** Vercel (auto-deploy on `main` branch to `dist/` output)
-- **Backend API:** Vercel serverless functions (`/api` folder)
-  - Routes compiled from `server/routes/*.ts` and bundled into `/api/[...path].js`
-  - Each function has 60-second max duration
-- **Database:** MongoDB Atlas (cloud-hosted)
-- **Build process:** `npm run build` compiles frontend to `/dist` and backend to `/server/dist`
-- **Live Deployment:** https://swar-yoga-web-mohan-eykoa9s5x-swar-yoga-projects.vercel.app/
-
-### Local Testing Before Deployment
-```bash
-# Verify both services run locally
-npm run dev                    # Frontend on port 5173
-cd server && npx tsx server.ts # Backend on port 4000 (in another terminal)
-
-# Run build to catch errors
-npm run build                  # Must succeed before deploying
-npm run lint                   # Check for linting issues
-```
-
-### Vercel Configuration
-- **vercel.json** defines:
-  - API rewrites: `/api/(.*)` → `/api/[...path].js`
-  - SPA fallback: `/(.*)`  → `/index.html`
-  - Function timeout: 60 seconds per endpoint
-- **Build command:** `npm ci && npm run build`
-- **Output directory:** `dist/`
-
-### Health Checks
-- **Frontend:** Vercel provides automatic uptime monitoring
-- **API:** Test key endpoints from browser dev tools or `test-all-endpoints.sh`
-- **Database:** MongoDB Atlas alerts on connection issues
-- **Endpoint:** `/api/health` for status checks (if implemented)
-
-### Backup Schedule
-- **Automatic:** Daily at midnight via `server/backup.ts`
-- **Manual:** Admin can trigger via "Backup" button in admin dashboard
-- **Restore:** Via admin panel or `/api/backup/restore` endpoint
-- **Storage:** Backups stored in `/backups/mongodb/` directory locally; exported to `.json` format
-
----
-
-## Testing & API Verification
-
-### Local API Testing
-```bash
-# Using provided test scripts
-python test-api.py                    # Python-based API tests
-bash test-all-endpoints.sh            # Shell script covering all routes
-
-# Manual testing with curl
-curl -X GET http://localhost:4000/api/visions \
-  -H "X-User-ID: your-user-id" \
-  -H "Content-Type: application/json"
-```
-
-### Critical Headers Required
-- **X-User-ID:** User identifier (set automatically by sadhakaPlannerData.ts interceptor)
-- **X-Admin-ID:** Admin identifier (when testing admin endpoints)
-- **Content-Type:** `application/json` (for POST/PUT requests)
-
----
-
-## Additional Resources
-
-- **Deployment reports:** `FINAL_DEPLOYMENT_REPORT.txt`, `DEPLOYMENT_SUMMARY_DEC_9_2025.txt`
-- **Architecture docs:** `DATA_PERSISTENCE_AND_SYNC_FIX.txt`, `ADMIN_AUTH_CONTEXT_FIX.txt`
-- **Fix history:** `SADHAKA_PLANNER_FIXES.txt`, `NETWORK_ERROR_ROOT_CAUSE_FIX.txt`
-- **GitHub Repositories:**
-  - Main Project: https://github.com/globalswaryoga-ai/swar-yoga-web-mohan
-  - DB5 Project (Next.js): https://github.com/globalswaryoga-ai/swaryoga.com-db
-
----
-
-## Quick Troubleshooting
-
-| Issue | Check |
-|-------|-------|
-| API 404 errors | Verify backend running on 4000; check `API_URL` logs on app load |
-| User data not persisting | Check localStorage['user'] exists after login; verify X-User-ID header in Network tab |
-| Admin can't log in | Check AdminAuthContext provider in main.tsx; verify localStorage['adminUser'] JSON format |
-| Build fails | Run `npm run lint` locally; check .env variables; ensure no TypeScript errors |
-| MongoDB connection fails | Verify MONGODB_URI in .env; check IP whitelist on MongoDB Atlas; test connection string |
-| Vision schema type errors | Verify `visualImageUrl` field exists in backend Vision.ts and frontend interface |
-
----
-
-## Writing Code
-
-### When adding a feature:
-1. **Backend:** Add route in `server/routes/`, model in `server/models/`, type in database schema
-2. **API SDK:** Add methods to appropriate API object in `src/utils/sadhakaPlannerData.ts`
-3. **Component:** Use the API SDK, not direct axios
-4. **State:** Use React hooks (`useState`, `useEffect`), not direct localStorage reads
-5. **Testing:** Use `test-all-endpoints.sh` or Postman to verify API works with X-User-ID header
-6. **TypeScript:** Run `npm run build` to verify no compilation errors
-
----
-
-**Last Updated:** December 16, 2025 | **Status:** Production Deployment Complete
+**When unclear:** Check existing implementations in [app/api/](app/api/) and [components/](components/) as reference patterns. Read [PERFORMANCE_BUG_ANALYSIS.md](PERFORMANCE_BUG_ANALYSIS.md) for context on why certain patterns are used.

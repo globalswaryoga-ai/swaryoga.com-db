@@ -1,42 +1,16 @@
-# Environment variables
+node_modules
+.next
 .env
 .env.local
 .env.*.local
-
-# Dependencies
-
-# IDE
-.vscode
-.idea
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Cache
-.cache
-.eslintcache
-
-node_modules
+.env.payment
+.env.workshop
+dist
 build
-# Build output
-/build
-
-# Local backups
-backups/
-*.backup
-
-# Testing
-coverage/
-.nyc_output
+*.log
+.DS_Store
 .vercel
+.idea
+.vscode
 .env*.local
+*.tsbuildinfo

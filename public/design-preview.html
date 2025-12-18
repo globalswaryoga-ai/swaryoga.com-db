@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swar Yoga - Design Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Primary: Forest Green */
+            --color-forest-green: #2D6A4F;
+            --color-forest-green-light: #4A9367;
+            --color-forest-green-dark: #1E4037;
+            --color-forest-green-bg: #E8F5E9;
+            
+            /* Secondary: Teal */
+            --color-teal: #4ECDC4;
+            --color-teal-light: #6FE0D9;
+            --color-teal-dark: #3BA89F;
+            --color-teal-bg: #E8FFFE;
+            
+            /* Accent: Coral-Rose */
+            --color-coral-rose: #E07B69;
+            --color-coral-rose-light: #E8A498;
+            --color-coral-rose-dark: #D66B58;
+            --color-coral-rose-bg: #FFE8E0;
+            
+            /* Base: Earth Brown */
+            --color-earth-brown: #6F4E37;
+            --color-earth-brown-light: #9B8B7E;
+            --color-earth-brown-dark: #4A3728;
+            --color-earth-brown-bg: #F5F5F0;
+            
+            /* Neutrals */
+            --color-cream: #F5F5F0;
+            --color-off-white: #FAFAF8;
+            --color-white: #FFFFFF;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: var(--color-earth-brown);
+            background-color: var(--color-white);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            background: var(--color-forest-green);
+            color: white;
+            padding: 2rem 0;
+            box-shadow: 0 2px 10px rgba(45, 106, 79, 0.2);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--color-forest-green);
+            margin-bottom: 1rem;
+        }
+
+        h2 {
+            font-size: 2rem;
+            color: var(--color-forest-green);
+            margin: 2rem 0 1rem 0;
+            border-bottom: 3px solid var(--color-teal);
+            padding-bottom: 0.5rem;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            color: var(--color-forest-green);
+            margin: 1.5rem 0 0.75rem 0;
+        }
+
+        /* Navigation */
+        nav {
+            background: var(--color-forest-green);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(45, 106, 79, 0.2);
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        nav a:hover {
+            color: var(--color-coral-rose);
+        }
+
+        /* Buttons */
+        button, .btn {
+            border: none;
+            border-radius: 0.625rem;
+            padding: 0.875rem 2rem;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.5px;
+        }
+
+        /* Primary Button */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--color-coral-rose) 0%, var(--color-coral-rose-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(224, 123, 105, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--color-coral-rose-dark) 0%, #c55b48 100%);
+            box-shadow: 0 8px 25px rgba(224, 123, 105, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .btn-primary:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        /* Secondary Button */
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-teal-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, var(--color-teal-dark) 0%, #2a9b93 100%);
+            box-shadow: 0 8px 25px rgba(78, 205, 196, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .btn-secondary:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        /* Success Button */
+        .btn-success {
+            background: linear-gradient(135deg, var(--color-forest-green) 0%, var(--color-forest-green-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(45, 106, 79, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-success::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, var(--color-forest-green-dark) 0%, #0d4437 100%);
+            box-shadow: 0 8px 25px rgba(45, 106, 79, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .btn-success:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        /* Danger Button */
+        .btn-danger {
+            background: linear-gradient(135deg, var(--color-coral-rose-dark) 0%, #c55b48 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(214, 107, 88, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-danger::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #b84a36 0%, #a43a25 100%);
+            box-shadow: 0 8px 25px rgba(214, 107, 88, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .btn-danger:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        /* Ghost Button */
+        .btn-ghost {
+            background-color: transparent;
+            border: 2.5px solid var(--color-forest-green);
+            color: var(--color-forest-green);
+            font-weight: 700;
+            position: relative;
+            overflow: visible;
+        }
+
+        .btn-ghost::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background-color: var(--color-forest-green-bg);
+            z-index: -1;
+            transition: width 0.4s ease;
+        }
+
+        .btn-ghost:hover::before {
+            width: 100%;
+        }
+
+        .btn-ghost:hover {
+            color: var(--color-forest-green);
+            box-shadow: 0 4px 12px rgba(45, 106, 79, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Size Variants */
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            border-radius: 0.375rem;
+        }
+
+        .btn-lg {
+            padding: 1rem 2.5rem;
+            font-size: 1.125rem;
+            border-radius: 0.75rem;
+        }
+
+        .btn-xl {
+            padding: 1.25rem 3rem;
+            font-size: 1.25rem;
+            border-radius: 0.875rem;
+        }
+
+        /* Sections */
+        section {
+            padding: 3rem 0;
+        }
+
+        section:nth-child(even) {
+            background-color: var(--color-cream);
+        }
+
+        /* Color Swatches */
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .color-swatch {
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .color-swatch:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .color-box {
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-info {
+            padding: 1rem;
+            background: white;
+        }
+
+        .color-name {
+            font-weight: 700;
+            color: var(--color-forest-green);
+            margin-bottom: 0.5rem;
+        }
+
+        .color-hex {
+            font-family: monospace;
+            font-size: 0.875rem;
+            color: var(--color-earth-brown);
+        }
+
+        /* Button Grid */
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .button-showcase {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .button-showcase h4 {
+            color: var(--color-earth-brown);
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .button-showcase button {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, var(--color-forest-green) 0%, var(--color-forest-green-dark) 100%);
+            color: white;
+            padding: 5rem 0;
+            text-align: center;
+        }
+
+        .hero h2 {
+            color: white;
+            border-bottom-color: var(--color-coral-rose);
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .hero p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--color-forest-green);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 0.75rem;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(45, 106, 79, 0.1);
+            transition: box-shadow 0.3s ease;
+            margin-bottom: 1rem;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 16px rgba(45, 106, 79, 0.15);
+        }
+
+        .card-header {
+            color: var(--color-forest-green);
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--color-teal);
+        }
+
+        /* Alerts */
+        .alert {
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+
+        .alert-success {
+            background-color: var(--color-forest-green-bg);
+            border-left: 4px solid var(--color-forest-green);
+            color: var(--color-forest-green);
+        }
+
+        .alert-warning {
+            background-color: var(--color-coral-rose-bg);
+            border-left: 4px solid var(--color-coral-rose);
+            color: var(--color-coral-rose);
+        }
+
+        .alert-info {
+            background-color: var(--color-teal-bg);
+            border-left: 4px solid var(--color-teal);
+            color: var(--color-teal-dark);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            h2 {
+                font-size: 1.5rem;
+            }
+
+            nav ul {
+                gap: 1rem;
+                flex-wrap: wrap;
+            }
+
+            .hero h2 {
+                font-size: 2rem;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="container">
+            <ul>
+                <li><a href="#colors">🎨 Colors</a></li>
+                <li><a href="#buttons">🔘 Buttons</a></li>
+                <li><a href="#hero">🌟 Hero</a></li>
+                <li><a href="#cards">📇 Cards</a></li>
+                <li><a href="#alerts">⚠️ Alerts</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <h1>🧘 Swar Yoga - Design System Preview</h1>
+            <p style="font-size: 1.1rem; margin-top: 0.5rem;">Global Design Standards • Tetrad Color Harmony • Attractive Interactive Components</p>
+        </div>
+    </header>
+
+    <!-- Color Palette Section -->
+    <section id="colors">
+        <div class="container">
+            <h2>🎨 Color Palette</h2>
+            <p>Yoga & Health Professional Colors - No Blue, No Yellow - Follows Global Design Standards</p>
+            
+            <div class="color-grid">
+                <!-- Forest Green -->
+                <div class="color-swatch">
+                    <div class="color-box" style="background: var(--color-forest-green);">
+                        Forest Green
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Primary</div>
+                        <div class="color-hex">#2D6A4F</div>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--color-earth-brown);">Growth, Healing, Trust, Nature</p>
+                    </div>
+                </div>
+
+                <!-- Teal -->
+                <div class="color-swatch">
+                    <div class="color-box" style="background: var(--color-teal);">
+                        Teal
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Secondary</div>
+                        <div class="color-hex">#4ECDC4</div>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--color-earth-brown);">Calm, Clarity, Tranquility, Water</p>
+                    </div>
+                </div>
+
+                <!-- Coral-Rose -->
+                <div class="color-swatch">
+                    <div class="color-box" style="background: var(--color-coral-rose);">
+                        Coral-Rose
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Accent</div>
+                        <div class="color-hex">#E07B69</div>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--color-earth-brown);">Energy, Vitality, Prana, Life Force</p>
+                    </div>
+                </div>
+
+                <!-- Earth Brown -->
+                <div class="color-swatch">
+                    <div class="color-box" style="background: var(--color-earth-brown);">
+                        Earth Brown
+                    </div>
+                    <div class="color-info">
+                        <div class="color-name">Base</div>
+                        <div class="color-hex">#6F4E37</div>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--color-earth-brown);">Stability, Grounding, Trust, Foundation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Buttons Section -->
+    <section id="buttons">
+        <div class="container">
+            <h2>🔘 Button Styles</h2>
+            <p>Attractive, interactive buttons with ripple effects, smooth animations, and size variants</p>
+
+            <h3>Primary Buttons (Coral-Rose - Main CTAs)</h3>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <h4>Standard</h4>
+                    <button class="btn-primary">Get Started</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Small</h4>
+                    <button class="btn-primary btn-sm">Small Button</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Large</h4>
+                    <button class="btn-primary btn-lg">Large Button</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Extra Large</h4>
+                    <button class="btn-primary btn-xl">Sign Up Now</button>
+                </div>
+            </div>
+
+            <h3>Secondary Buttons (Teal - Support Actions)</h3>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <h4>Standard</h4>
+                    <button class="btn-secondary">Continue</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Small</h4>
+                    <button class="btn-secondary btn-sm">Next</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Large</h4>
+                    <button class="btn-secondary btn-lg">Learn More</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Extra Large</h4>
+                    <button class="btn-secondary btn-xl">Explore Course</button>
+                </div>
+            </div>
+
+            <h3>Success Buttons (Forest Green - Confirmations)</h3>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <h4>Standard</h4>
+                    <button class="btn-success">Confirm</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Small</h4>
+                    <button class="btn-success btn-sm">Save</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Large</h4>
+                    <button class="btn-success btn-lg">Save Changes</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Extra Large</h4>
+                    <button class="btn-success btn-xl">Complete Order</button>
+                </div>
+            </div>
+
+            <h3>Danger Buttons (Dark Coral - Destructive)</h3>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <h4>Standard</h4>
+                    <button class="btn-danger">Delete</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Small</h4>
+                    <button class="btn-danger btn-sm">Remove</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Large</h4>
+                    <button class="btn-danger btn-lg">Delete Account</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Extra Large</h4>
+                    <button class="btn-danger btn-xl">Delete Permanently</button>
+                </div>
+            </div>
+
+            <h3>Ghost Buttons (Outline - Optional)</h3>
+            <div class="button-grid">
+                <div class="button-showcase">
+                    <h4>Standard</h4>
+                    <button class="btn-ghost">Cancel</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Small</h4>
+                    <button class="btn-ghost btn-sm">Back</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Large</h4>
+                    <button class="btn-ghost btn-lg">Previous</button>
+                </div>
+                <div class="button-showcase">
+                    <h4>Extra Large</h4>
+                    <button class="btn-ghost btn-xl">← Go Back</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Hero Section -->
+    <section id="hero" class="hero">
+        <div class="container">
+            <h2>Discover Your Yoga Path</h2>
+            <p>Ancient wisdom, modern timing - Accurate Tithis & Sunrise Times</p>
+            <div class="button-group">
+                <button class="btn-primary btn-lg">Get Started Free</button>
+                <button class="btn-secondary btn-lg">Learn More</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cards Section -->
+    <section id="cards">
+        <div class="container">
+            <h2>📇 Card Components</h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+                <div class="card">
+                    <div class="card-header">Accurate Tithis</div>
+                    <p>Get precise Hindu calendar calculations powered by reliable Panchang APIs. Our multi-tier system ensures accuracy with fallback options.</p>
+                    <button class="btn-secondary">Learn More</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Sunrise Times</div>
+                    <p>Calculate exact sunrise times based on your location coordinates. Auto-timezone detection from longitude coordinates.</p>
+                    <button class="btn-secondary">Explore Feature</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Global Locations</div>
+                    <p>Access 300+ metro cities across 6 countries with accurate coordinates. Perfect for users worldwide.</p>
+                    <button class="btn-secondary">See Locations</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Alerts Section -->
+    <section id="alerts">
+        <div class="container">
+            <h2>⚠️ Alert & Feedback Messages</h2>
+            
+            <div class="alert alert-success">
+                ✅ <strong>Success!</strong> Your profile has been updated successfully. Changes will be reflected immediately.
+            </div>
+
+            <div class="alert alert-info">
+                ℹ️ <strong>Information:</strong> Your calendar will sync with the Hindu Calendar API for the most accurate Tithi data.
+            </div>
+
+            <div class="alert alert-warning">
+                ⚠️ <strong>Warning:</strong> Please double-check your location coordinates for accurate sunrise times. Accuracy within 0.0001° is recommended.
+            </div>
+
+            <div class="alert alert-warning" style="border-left-color: var(--color-coral-rose-dark); color: var(--color-coral-rose-dark); background-color: var(--color-coral-rose-bg);">
+                🚨 <strong>Error:</strong> Unable to fetch calendar data. Please try again or check your internet connection.
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <h3 style="color: white; border: none;">🧘 Swar Yoga Platform</h3>
+            <p style="color: rgba(255, 255, 255, 0.8); margin-top: 0.5rem;">Professional Design • Global Standards • Yoga & Health Wellness</p>
+            <p style="margin-top: 1rem; font-size: 0.9rem;">© 2025 Swar Yoga. Ancient wisdom, modern technology.</p>
+        </div>
+    </footer>
+</body>
+</html>

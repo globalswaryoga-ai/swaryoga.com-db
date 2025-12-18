@@ -1,0 +1,195 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Users, LogOut, Menu, X, Download } from 'lucide-react';
+import AdminSidebar from '@/components/AdminSidebar';
+
+interface SignupUser {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  country: string;
+  state: string;
+  gender: string;
+  age: number;
+  profession: string;
+  createdAt: string;
+}
+
+export default function SignupData() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [signupData, setSignupData] = useState<SignupUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const adminToken = localStorage.getItem('adminToken');
+
+    if (!adminToken) {
+      router.push('/admin/login');
+    } else {
+      setIsAuthenticated(true);
+      fetchSignupData();
+    }
+  }, [router]);
+
+  const fetchSignupData = async () => {
+    try {
+      setIsLoading(true);
+      // Placeholder - will fetch from API when backend is ready
+      const response = await fetch('/api/admin/signups', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        }
+      }).catch(() => {
+        // If API not available, show mock data
+        return null;
+      });
+
+      if (response && response.ok) {
+        const data = await response.json();
+        setSignupData(data);
+      } else {
+        // Mock data for demo
+        setSignupData([]);
+      }
+    } catch (err) {
+      setError('Failed to fetch signup data');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
+    router.push('/admin/login');
+  };
+
+  const handleExport = () => {
+    const csv = [
+      ['Name', 'Email', 'Phone', 'Country', 'State', 'Gender', 'Age', 'Profession', 'Date'].join(','),
+      ...signupData.map(user =>
+        [user.name, user.email, user.phone, user.country, user.state, user.gender, user.age, user.profession, new Date(user.createdAt).toLocaleDateString()].join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'signup_data.csv';
+    a.click();
+  };
+
+  if (!isAuthenticated) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  return (
+    <div className="flex h-screen bg-swar-primary-light">
+      <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="bg-white shadow">
+          <div className="px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden p-2 rounded-lg bg-swar-primary-light hover:bg-swar-primary-light"
+              >
+                {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+              <h1 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
+                <Users className="h-8 w-8 text-swar-primary" />
+                <span>Signup Data</span>
+              </h1>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleExport}
+                className="p-2 rounded-lg bg-swar-primary-light text-swar-primary hover:bg-swar-border transition-colors flex items-center space-x-2"
+              >
+                <Download className="h-5 w-5" />
+                <span className="hidden sm:inline text-sm font-medium">Export CSV</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
+              >
+                <LogOut className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-auto p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-swar-primary"></div>
+            </div>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
+              {error}
+            </div>
+          ) : signupData.length === 0 ? (
+            <div className="bg-swar-bg border border-swar-border rounded-lg p-8 text-center">
+              <Users className="h-12 w-12 text-swar-text-secondary mx-auto mb-4" />
+              <p className="text-swar-text-secondary text-lg">No signup data available yet</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-swar-bg border-b border-swar-border">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Name</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Email</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Phone</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Country</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">State</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Gender</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Age</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Profession</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {signupData.map((user, index) => (
+                      <tr key={user._id} className={index % 2 === 0 ? 'bg-white' : 'bg-swar-bg'}>
+                        <td className="px-6 py-4 text-sm text-swar-text">{user.name}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.email}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.phone}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.country}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.state}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.gender}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.age}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.profession}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{new Date(user.createdAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Stats Footer */}
+              <div className="bg-swar-bg border-t border-swar-border px-6 py-4">
+                <p className="text-sm text-swar-text-secondary">
+                  Total signups: <span className="font-semibold text-swar-text">{signupData.length}</span>
+                </p>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
