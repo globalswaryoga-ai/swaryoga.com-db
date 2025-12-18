@@ -81,7 +81,7 @@ export default function SwarYogaBasicOnlineDemo() {
 
           {/* English Batches */}
           <div className="mb-16">
-            <h2 className="text-3xl font-bold text-swar-text mb-8 pb-4 border-b-2 border-blue-600">
+            <h2 className="text-3xl font-bold text-swar-text mb-8 pb-4 border-b-2 border-swar-primary">
               🌍 English
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -132,7 +132,7 @@ export default function SwarYogaBasicOnlineDemo() {
 
           {/* Marathi Batches */}
           <div className="mb-16">
-            <h2 className="text-3xl font-bold text-swar-text mb-8 pb-4 border-b-2 border-purple-600">
+            <h2 className="text-3xl font-bold text-swar-text mb-8 pb-4 border-b-2 border-swar-primary">
               🇮🇳 Marathi (मराठी)
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

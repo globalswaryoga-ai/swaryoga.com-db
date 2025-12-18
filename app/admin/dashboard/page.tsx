@@ -129,14 +129,14 @@ export default function AdminDashboard() {
               </div>
               <Link
                 href="/"
-                className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
                 title="Go to Home"
               >
                 <Home className="h-6 w-6" />
               </Link>
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
                 title="Logout"
               >
                 <LogOut className="h-6 w-6" />
@@ -148,7 +148,7 @@ export default function AdminDashboard() {
         {/* Dashboard Content */}
         <main className="flex-1 overflow-auto p-6">
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            <div className="bg-swar-primary-light border border-red-400 text-swar-primary px-4 py-3 rounded mb-6">
               {error}
             </div>
           )}
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
               {/* Revenue Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {/* Total Revenue USD */}
-                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow p-6 text-white">
+                <div className="bg-gradient-to-br from-green-500 to-swar-primary rounded-lg shadow p-6 text-white">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-swar-primary-light text-sm">Total Revenue (USD)</p>

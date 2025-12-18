@@ -201,7 +201,7 @@ export default function UserProfile() {
         <Navigation />
         <div className="container mx-auto px-4 py-20 text-center">
           <p className="text-swar-text-secondary mb-4">Please log in to view your profile</p>
-          <Link href="/signin" className="inline-block bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700">
+          <Link href="/signin" className="inline-block bg-swar-primary text-white px-6 py-2 rounded-lg hover:bg-swar-primary-hover">
             Sign In
           </Link>
         </div>
@@ -225,7 +225,7 @@ export default function UserProfile() {
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition font-medium"
+              className="flex items-center gap-2 bg-swar-accent text-white px-4 py-2 rounded-lg hover:bg-swar-accent-hover transition font-medium"
             >
               <LogOut size={18} />
               Logout
@@ -250,7 +250,7 @@ export default function UserProfile() {
                       onClick={() => setActiveTab('profile')}
                       className={`px-4 py-2 rounded-lg font-medium transition ${
                         activeTab === 'profile'
-                          ? 'bg-primary-600 text-white'
+                          ? 'bg-swar-primary text-white'
                           : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                       }`}
                     >
@@ -261,14 +261,14 @@ export default function UserProfile() {
                       onClick={() => setActiveTab('messages')}
                       className={`px-4 py-2 rounded-lg font-medium transition relative ${
                         activeTab === 'messages'
-                          ? 'bg-primary-600 text-white'
+                          ? 'bg-swar-primary text-white'
                           : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                       }`}
                     >
                       <MessageSquare size={18} className="inline mr-2" />
                       Messages
                       {messages.length > 0 && (
-                        <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
+                        <span className="ml-2 px-2 py-1 bg-swar-accent text-white text-xs rounded-full">
                           {messages.length}
                         </span>
                       )}
@@ -277,7 +277,7 @@ export default function UserProfile() {
                       onClick={() => setActiveTab('security')}
                       className={`px-4 py-2 rounded-lg font-medium transition ${
                         activeTab === 'security'
-                          ? 'bg-primary-600 text-white'
+                          ? 'bg-swar-primary text-white'
                           : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                       }`}
                     >
@@ -458,7 +458,7 @@ export default function UserProfile() {
                           <button
                             type="submit"
                             disabled={submitting}
-                            className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 font-medium"
+                            className="bg-swar-primary text-white px-6 py-2 rounded-lg hover:bg-swar-primary-hover disabled:opacity-50 font-medium"
                           >
                             {submitting ? 'Sending...' : 'Send Reply'}
                           </button>
@@ -491,7 +491,7 @@ export default function UserProfile() {
                   {!showChangePassword ? (
                     <button
                       onClick={() => setShowChangePassword(true)}
-                      className="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 font-medium transition"
+                      className="bg-swar-primary text-white px-6 py-3 rounded-lg hover:bg-swar-primary-hover font-medium transition"
                     >
                       Change Password
                     </button>
@@ -535,7 +535,7 @@ export default function UserProfile() {
                         <div className={`p-4 rounded-lg text-sm font-medium ${
                           passwordMessage.includes('successfully')
                             ? 'bg-swar-primary-light text-swar-primary'
-                            : 'bg-red-100 text-red-800'
+                            : 'bg-swar-primary-light text-red-800'
                         }`}>
                           {passwordMessage}
                         </div>
@@ -545,7 +545,7 @@ export default function UserProfile() {
                         <button
                           type="submit"
                           disabled={submitting}
-                          className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 font-medium"
+                          className="bg-swar-primary text-white px-6 py-2 rounded-lg hover:bg-swar-primary-hover disabled:opacity-50 font-medium"
                         >
                           {submitting ? 'Updating...' : 'Update Password'}
                         </button>

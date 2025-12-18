@@ -53,12 +53,12 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ className = '' }) => {
         {/* Color dot */}
         <div
           className={`w-3 h-3 rounded-full transition-all ${
-            isConnected ? 'bg-swar-primary-light0 animate-pulse' : 'bg-red-500'
+            isConnected ? 'bg-swar-primary-light0 animate-pulse' : 'bg-swar-accent'
           }`}
         />
 
         {/* Status text */}
-        <span className={`text-sm font-medium ${isConnected ? 'text-swar-primary' : 'text-red-700'}`}>
+        <span className={`text-sm font-medium ${isConnected ? 'text-swar-primary' : 'text-swar-primary'}`}>
           {isConnected ? 'Connected' : 'Disconnected'}
         </span>
 

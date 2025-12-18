@@ -89,7 +89,7 @@ export default function HealthTracker() {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-swar-accent to-pink-500 px-6 py-6 flex items-center justify-between text-white">
+            <div className="sticky top-0 bg-gradient-to-r from-swar-accent to-swar-accent px-6 py-6 flex items-center justify-between text-white">
               <div className="flex items-center gap-3">
                 <Activity className="h-6 w-6" />
                 <h2 className="text-2xl font-bold">Health Tracker</h2>
@@ -262,7 +262,7 @@ export default function HealthTracker() {
               <div className="flex gap-3 pt-4 border-t border-swar-border">
                 <button
                   onClick={handleSave}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+                  className="flex-1 rounded-lg bg-gradient-to-r from-swar-accent to-swar-accent px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
                 >
                   Save Health Data
                 </button>

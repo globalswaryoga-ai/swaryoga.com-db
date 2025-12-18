@@ -493,7 +493,7 @@ export default function AdminWorkshopSchedulesPage() {
 
           <main className="flex-1 overflow-auto p-6">
             {error && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-swar-primary">
                 {error}
               </div>
             )}
@@ -566,7 +566,7 @@ export default function AdminWorkshopSchedulesPage() {
                               onClick={() => setSelectedMode(m.key)}
                               className={`rounded-lg px-4 py-2 text-sm font-bold transition-all ${
                                 active
-                                  ? 'bg-primary-600 text-white shadow-sm'
+                                  ? 'bg-swar-primary text-white shadow-sm'
                                   : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                               }`}
                             >
@@ -614,7 +614,7 @@ export default function AdminWorkshopSchedulesPage() {
                                 type="button"
                                 onClick={() => setSelectedWorkshopSlug(w.slug)}
                                 className={`shrink-0 rounded-lg px-4 py-2 text-sm font-extrabold transition-colors ${
-                                  active ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
+                                  active ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                                 }`}
                               >
                                 {active ? 'Selected' : 'Select'}
@@ -654,7 +654,7 @@ export default function AdminWorkshopSchedulesPage() {
                                     onClick={() => setSelectedWorkshopSlug(w.slug)}
                                     className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
                                       active
-                                        ? 'bg-primary-600 text-white'
+                                        ? 'bg-swar-primary text-white'
                                         : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                                     }`}
                                   >

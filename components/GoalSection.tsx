@@ -30,7 +30,7 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
         <h4 className="font-semibold text-blue-800">Goal {index + 1}</h4>
         <button
           onClick={() => onDelete(goal.id)}
-          className="text-red-500 hover:text-red-700 font-bold"
+          className="text-red-500 hover:text-swar-primary font-bold"
         >
           Delete
         </button>

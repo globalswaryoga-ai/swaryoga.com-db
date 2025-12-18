@@ -54,7 +54,7 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
 
         {/* Badge showing pending count */}
         {pendingReminders.length > 0 && (
-          <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold h-5 w-5 rounded-full flex items-center justify-center animate-pulse">
+          <span className="absolute top-0 right-0 bg-swar-accent text-white text-xs font-bold h-5 w-5 rounded-full flex items-center justify-center animate-pulse">
             {pendingReminders.length}
           </span>
         )}

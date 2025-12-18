@@ -163,7 +163,7 @@ export default function ActionPlanPage() {
         </div>
         <button
           onClick={handleAddPlan}
-          className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-lg hover:from-swar-primary hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
+          className="flex items-center space-x-2 bg-gradient-to-r from-swar-primary to-swar-accent text-white px-6 py-3 rounded-lg hover:from-swar-primary hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
         >
           <Plus className="h-5 w-5" />
           <span>Create Action Plan</span>
@@ -369,7 +369,7 @@ export default function ActionPlanPage() {
                         </div>
                         <div className="w-full bg-swar-primary-light rounded-full h-2">
                           <div
-                            className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all duration-300"
+                            className="bg-gradient-to-r from-swar-primary to-swar-accent h-2 rounded-full transition-all duration-300"
                             style={{ width: `${plan.progress || 0}%` }}
                           />
                         </div>
@@ -474,7 +474,7 @@ export default function ActionPlanPage() {
                       </button>
                       <button
                         onClick={() => handleDeletePlan(plan.id)}
-                        className="flex-1 px-2 py-2 bg-red-100 text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
+                        className="flex-1 px-2 py-2 bg-swar-primary-light text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
                       >
                         Delete
                       </button>

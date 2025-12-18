@@ -51,10 +51,10 @@ export default function Footer() {
   ];
 
   const socialLinks = [
-    { name: 'Facebook', icon: Facebook, href: '#', color: 'hover:text-blue-600' },
-    { name: 'Twitter', icon: Twitter, href: '#', color: 'hover:text-sky-500' },
-    { name: 'Instagram', icon: Instagram, href: '#', color: 'hover:text-pink-600' },
-    { name: 'YouTube', icon: Youtube, href: '#', color: 'hover:text-red-600' }
+    { name: 'Facebook', icon: Facebook, href: '#', color: 'hover:text-swar-primary' },
+    { name: 'Twitter', icon: Twitter, href: '#', color: 'hover:text-swar-primary' },
+    { name: 'Instagram', icon: Instagram, href: '#', color: 'hover:text-swar-accent' },
+    { name: 'YouTube', icon: Youtube, href: '#', color: 'hover:text-swar-accent' }
   ];
 
   const stats = [
@@ -90,7 +90,7 @@ export default function Footer() {
               const Icon = stat.icon;
               return (
                 <div key={index} className="text-center group">
-                  <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                  <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-swar-primary rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg">
                     <Icon className="h-8 w-8 text-white" />
                   </div>
                   <div className="text-3xl font-bold text-white mb-2">{stat.number}</div>
@@ -162,7 +162,7 @@ export default function Footer() {
                     placeholder="Enter your email"
                     className="flex-1 px-4 py-3 bg-gray-800 border border-gray-600 rounded-l-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent text-white placeholder-gray-400"
                   />
-                  <button className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-r-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg">
+                  <button className="bg-gradient-to-r from-green-500 to-swar-primary text-white px-6 py-3 rounded-r-lg hover:from-swar-primary hover:to-green-700 transition-all shadow-lg">
                     <ArrowRight className="h-5 w-5" />
                   </button>
                 </div>

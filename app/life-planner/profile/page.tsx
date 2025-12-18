@@ -169,7 +169,7 @@ export default function LifePlannerProfilePage() {
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="bg-gradient-to-r from-swar-accent to-pink-500 text-white px-6 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all"
+                className="bg-gradient-to-r from-swar-accent to-swar-accent text-white px-6 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all"
               >
                 Edit Profile
               </button>
@@ -177,7 +177,7 @@ export default function LifePlannerProfilePage() {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-swar-primary">
               {error}
             </div>
           )}
@@ -329,7 +329,7 @@ export default function LifePlannerProfilePage() {
                 <div className="flex gap-4 pt-6">
                   <button
                     onClick={handleSave}
-                    className="flex-1 bg-gradient-to-r from-swar-accent to-pink-500 text-white font-semibold py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all"
+                    className="flex-1 bg-gradient-to-r from-swar-accent to-swar-accent text-white font-semibold py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all"
                   >
                     Save Changes
                   </button>

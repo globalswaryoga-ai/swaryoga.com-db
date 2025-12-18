@@ -171,7 +171,7 @@ export default function EnquiriesPage() {
               {/* Refresh Button */}
               <button
                 onClick={fetchEnquiries}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                className="px-4 py-2 bg-swar-primary text-white rounded-lg hover:bg-swar-primary-hover transition-colors"
               >
                 Refresh
               </button>
@@ -185,7 +185,7 @@ export default function EnquiriesPage() {
             </div>
           ) : error ? (
             <div className="bg-red-50 border border-red-200 rounded-lg shadow-md p-8 text-center">
-              <p className="text-red-700">{error}</p>
+              <p className="text-swar-primary">{error}</p>
             </div>
           ) : filteredEnquiries.length === 0 ? (
             <div className="bg-white rounded-lg shadow-md p-8 text-center">
@@ -234,7 +234,7 @@ export default function EnquiriesPage() {
 
                     <button
                       onClick={() => handleDelete(enquiry.id)}
-                      className="w-full text-sm text-red-600 hover:text-red-700 font-medium py-1"
+                      className="w-full text-sm text-red-600 hover:text-swar-primary font-medium py-1"
                     >
                       Delete
                     </button>

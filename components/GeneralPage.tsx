@@ -115,7 +115,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
       Education: 'bg-blue-100 text-blue-800',
       Lifestyle: 'bg-orange-100 text-orange-800',
       Spiritual: 'bg-purple-100 text-purple-800',
-      Workshop: 'bg-red-100 text-red-800',
+      Workshop: 'bg-swar-primary-light text-red-800',
       Resource: 'bg-indigo-100 text-indigo-800',
       News: 'bg-yellow-100 text-yellow-800',
       Events: 'bg-swar-primary-light text-pink-800',

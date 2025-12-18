@@ -95,7 +95,7 @@ export default function DailyViewPage() {
       <div className="flex items-center">
         <button
           onClick={handlePreviousDay}
-          className="flex items-center justify-center h-16 w-16 rounded-2xl bg-red-500 hover:bg-red-600 transition shadow-lg active:scale-95"
+          className="flex items-center justify-center h-16 w-16 rounded-2xl bg-swar-accent hover:bg-swar-accent-hover transition shadow-lg active:scale-95"
           title="Previous day"
         >
           <ChevronLeft className="h-10 w-10 text-white" />
@@ -112,7 +112,7 @@ export default function DailyViewPage() {
             {!isToday && (
               <button
                 onClick={handleToday}
-                className="mt-3 px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition"
+                className="mt-3 px-4 py-2 rounded-lg bg-swar-accent text-white text-sm font-semibold hover:bg-swar-accent-hover transition"
               >
                 Go to Today
               </button>
@@ -148,7 +148,7 @@ export default function DailyViewPage() {
         </div>
         <div className="w-full bg-gray-300 rounded-full h-3">
           <div
-            className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-300"
+            className="bg-gradient-to-r from-green-500 to-swar-primary h-3 rounded-full transition-all duration-300"
             style={{ width: `${completionStats.percentage}%` }}
           />
         </div>
@@ -267,7 +267,7 @@ export default function DailyViewPage() {
       <div className="flex items-center">
         <button
           onClick={handleNextDay}
-          className="flex items-center justify-center h-16 w-16 rounded-2xl bg-red-500 hover:bg-red-600 transition shadow-lg active:scale-95"
+          className="flex items-center justify-center h-16 w-16 rounded-2xl bg-swar-accent hover:bg-swar-accent-hover transition shadow-lg active:scale-95"
           title="Next day"
         >
           <ChevronRight className="h-10 w-10 text-white" />

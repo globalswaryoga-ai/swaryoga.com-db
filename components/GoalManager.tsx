@@ -374,7 +374,7 @@ export default function GoalManager({
                 {/* Priority Badge */}
                 <div>
                   <span className={`px-3 py-1 rounded text-xs font-medium ${
-                    goal.priority === 'high' ? 'bg-red-100 text-red-700' : 
+                    goal.priority === 'high' ? 'bg-swar-primary-light text-swar-primary' : 
                     goal.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' : 
                     'bg-swar-primary-light text-swar-primary'
                   }`}>

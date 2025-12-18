@@ -100,7 +100,7 @@ export default function RoutinesPage() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-swar-accent to-swar-accent px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
         >
           <Plus className="h-5 w-5" />
           Add Routine
@@ -158,7 +158,7 @@ export default function RoutinesPage() {
           <h2 className="text-xl font-semibold text-swar-text mb-4">Create New Routine</h2>
 
           {error && (
-            <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+            <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-swar-primary flex items-center gap-2">
               <AlertCircle className="h-5 w-5" />
               {error}
             </div>
@@ -219,7 +219,7 @@ export default function RoutinesPage() {
             <div className="flex gap-3 pt-4">
               <button
                 onClick={handleAddRoutine}
-                className="flex-1 rounded-lg bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+                className="flex-1 rounded-lg bg-gradient-to-r from-swar-accent to-swar-accent px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
               >
                 Create Routine
               </button>
@@ -279,7 +279,7 @@ export default function RoutinesPage() {
                     <div className="flex gap-2 mt-auto pt-3 border-t">
                       <button
                         onClick={() => handleDeleteRoutine(routine.id)}
-                        className="flex-1 flex items-center justify-center gap-1 px-3 py-1 text-sm bg-red-50 text-red-600 hover:bg-red-100 rounded transition font-bold"
+                        className="flex-1 flex items-center justify-center gap-1 px-3 py-1 text-sm bg-red-50 text-red-600 hover:bg-swar-primary-light rounded transition font-bold"
                       >
                         <X className="h-5 w-5" /> Delete
                       </button>

@@ -71,7 +71,7 @@ export default function LifePlannerTopNav({
 
           <button
             onClick={logout}
-            className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+            className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
             title="Logout"
           >
             <LogOut className="h-6 w-6" />
@@ -85,7 +85,7 @@ export default function LifePlannerTopNav({
             href="/"
             className={`w-full flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 rounded-lg px-2 md:px-3 py-2 text-[11px] md:text-sm font-medium transition-colors text-center md:text-left md:snap-start ${
               pathname === '/'
-                ? 'bg-red-100 text-red-700 border border-red-300'
+                ? 'bg-swar-primary-light text-swar-primary border border-red-300'
                 : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
             }`}
             title="Go to Home"

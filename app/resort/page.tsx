@@ -534,7 +534,7 @@ export default function ResortPage() {
                   <div
                     className={`p-4 rounded-lg mb-6 ${
                       message.type === 'error'
-                        ? 'bg-red-50 text-red-700 border border-red-200'
+                        ? 'bg-red-50 text-swar-primary border border-red-200'
                         : 'bg-swar-primary-light text-swar-primary border border-green-200'
                     }`}
                   >

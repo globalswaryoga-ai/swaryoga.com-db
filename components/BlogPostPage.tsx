@@ -81,7 +81,7 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
       Education: 'bg-blue-100 text-blue-800',
       Lifestyle: 'bg-orange-100 text-orange-800',
       Spiritual: 'bg-purple-100 text-purple-800',
-      Research: 'bg-red-100 text-red-800',
+      Research: 'bg-swar-primary-light text-red-800',
       Wellness: 'bg-indigo-100 text-indigo-800',
     };
     return colorMap[cat || ''] || 'bg-swar-primary-light text-swar-text';

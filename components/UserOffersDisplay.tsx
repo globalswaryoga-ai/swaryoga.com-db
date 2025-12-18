@@ -83,7 +83,7 @@ export default function UserOffersDisplay() {
                 <div className="flex items-center gap-3 mb-2">
                   <h4 className="text-xl font-bold text-swar-text">{offer.title}</h4>
                   {isExpiringSoon && (
-                    <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-semibold animate-pulse">
+                    <span className="bg-swar-primary-light text-swar-primary px-2 py-1 rounded text-xs font-semibold animate-pulse">
                       Expires Soon!
                     </span>
                   )}

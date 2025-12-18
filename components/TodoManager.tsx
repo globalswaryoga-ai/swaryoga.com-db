@@ -100,7 +100,7 @@ export default function TodoManager({
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-swar-primary-light text-swar-primary border-red-200';
       case 'medium':
         return 'bg-yellow-100 text-yellow-700 border-yellow-200';
       case 'low':
@@ -121,7 +121,7 @@ export default function TodoManager({
         <h2 className="text-3xl font-bold text-swar-text">Todos</h2>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-swar-primary text-white rounded-lg hover:bg-purple-600 transition-colors"
         >
           <Plus className="w-5 h-5" />
           Add Todo
@@ -298,7 +298,7 @@ export default function TodoManager({
               <button
                 onClick={handleAddTodo}
                 disabled={!formData.title.trim()}
-                className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-swar-primary text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {editingId ? 'Update Todo' : 'Add Todo'}
               </button>
@@ -402,7 +402,7 @@ export default function TodoManager({
                   </button>
                   <button
                     onClick={() => handleDeleteTodo(todo.id)}
-                    className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                    className="p-2 bg-red-50 text-red-600 rounded hover:bg-swar-primary-light transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

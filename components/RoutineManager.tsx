@@ -98,7 +98,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl font-bold hover:from-emerald-600 hover:to-green-700 transition shadow-lg"
+          className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-swar-primary text-white px-6 py-3 rounded-xl font-bold hover:from-emerald-600 hover:to-green-700 transition shadow-lg"
         >
           <Plus className="h-5 w-5" />
           Add Routine
@@ -209,7 +209,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
             <div className="flex gap-3 pt-4">
               <button
                 onClick={handleAddRoutine}
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl font-bold hover:from-emerald-600 hover:to-green-700 transition"
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-swar-primary text-white px-6 py-3 rounded-xl font-bold hover:from-emerald-600 hover:to-green-700 transition"
               >
                 {editingId ? 'Update Routine' : 'Add Routine'}
               </button>
@@ -287,7 +287,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
                         handleDeleteRoutine(routine.id);
                       }
                     }}
-                    className="p-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition border-2 border-red-200"
+                    className="p-3 bg-red-50 text-red-600 hover:bg-swar-primary-light rounded-lg transition border-2 border-red-200"
                     title="Delete routine"
                   >
                     <Trash2 className="h-5 w-5" />

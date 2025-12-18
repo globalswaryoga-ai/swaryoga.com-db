@@ -524,7 +524,7 @@ export default function Accounting() {
 
                 <div className="bg-white p-6 rounded-lg shadow-md">
                   <div className="flex items-center">
-                    <div className="p-2 bg-red-100 rounded-lg">
+                    <div className="p-2 bg-swar-primary-light rounded-lg">
                       <TrendingDown className="text-red-600" size={24} />
                     </div>
                     <div className="ml-4">

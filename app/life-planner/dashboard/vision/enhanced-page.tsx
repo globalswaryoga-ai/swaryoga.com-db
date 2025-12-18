@@ -101,7 +101,7 @@ export default function EnhancedVisionDashboard() {
 
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-swar-primary-light text-red-800';
       case 'medium': return 'bg-orange-100 text-orange-800';
       case 'low': return 'bg-swar-primary-light text-swar-primary';
       default: return 'bg-swar-primary-light text-swar-text';
@@ -120,7 +120,7 @@ export default function EnhancedVisionDashboard() {
         </div>
         <button
           onClick={handleAddVision}
-          className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl"
+          className="flex items-center space-x-2 bg-gradient-to-r from-swar-primary to-pink-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl"
         >
           <Plus className="h-5 w-5" />
           <span>New Vision</span>
@@ -168,7 +168,7 @@ export default function EnhancedVisionDashboard() {
               onClick={() => setSelectedVision(vision)}
             >
               {/* Image Section */}
-              <div className="relative h-48 bg-gradient-to-br from-purple-500 to-pink-500 overflow-hidden">
+              <div className="relative h-48 bg-gradient-to-br from-swar-accent to-swar-primary overflow-hidden">
                 {vision.imageUrl ? (
                   <img
                     src={vision.imageUrl}
@@ -245,7 +245,7 @@ export default function EnhancedVisionDashboard() {
                   </div>
                   <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all duration-300"
+                      className="bg-gradient-to-r from-swar-accent to-swar-primary h-full transition-all duration-300"
                       style={{ width: `${stats.progress}%` }}
                     />
                   </div>
@@ -270,7 +270,7 @@ export default function EnhancedVisionDashboard() {
                         handleDeleteVision(vision.id);
                       }
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-swar-primary-light transition-colors text-sm font-medium"
                   >
                     <Trash2 size={16} />
                     Delete
@@ -292,7 +292,7 @@ export default function EnhancedVisionDashboard() {
           </p>
           <button
             onClick={handleAddVision}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-swar-primary to-pink-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all"
           >
             <Plus className="h-5 w-5" />
             Create First Vision
@@ -315,7 +315,7 @@ export default function EnhancedVisionDashboard() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             {/* Detail Header */}
             <div
-              className="relative h-64 bg-gradient-to-br from-purple-500 to-pink-500"
+              className="relative h-64 bg-gradient-to-br from-swar-accent to-swar-primary"
               onClick={() => setSelectedVision(null)}
             >
               {selectedVision.imageUrl && (
@@ -380,7 +380,7 @@ export default function EnhancedVisionDashboard() {
                   <div className="flex-1">
                     <div className="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
                       <div
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all"
+                        className="bg-gradient-to-r from-swar-accent to-swar-primary h-full transition-all"
                         style={{ width: `${calculateStats(selectedVision).progress}%` }}
                       />
                     </div>

@@ -357,7 +357,7 @@ export default function ReminderManager({
                     </span>
                   )}
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    reminder.priority === 'high' ? 'bg-red-100 text-red-700' : 
+                    reminder.priority === 'high' ? 'bg-swar-primary-light text-swar-primary' : 
                     reminder.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' : 
                     'bg-swar-primary-light text-swar-primary'
                   }`}>

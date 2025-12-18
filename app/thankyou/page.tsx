@@ -291,7 +291,7 @@ function ThankYouInner() {
           <div className="space-y-4 text-center">
             <Link
               href="/workshop"
-              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-green-700 text-white px-8 py-4 rounded-lg hover:shadow-lg hover:scale-105 transition-all font-semibold text-lg"
+              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-swar-primary to-green-700 text-white px-8 py-4 rounded-lg hover:shadow-lg hover:scale-105 transition-all font-semibold text-lg"
             >
               <Home className="w-5 h-5" />
               Explore More Workshops

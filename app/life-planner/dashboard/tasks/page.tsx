@@ -315,7 +315,7 @@ export default function TasksPage() {
                   </button>
                   <button
                     onClick={() => handleDeleteTask(task.id)}
-                    className="flex-1 px-3 py-2 bg-red-100 text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
+                    className="flex-1 px-3 py-2 bg-swar-primary-light text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
                   >
                     Delete
                   </button>

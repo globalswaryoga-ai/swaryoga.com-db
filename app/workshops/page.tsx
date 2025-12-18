@@ -19,28 +19,28 @@ const WORKSHOP_CATEGORIES = [
     name: 'Health',
     icon: Heart,
     description: 'Workshops focused on physical health, wellness, and fitness',
-    color: 'from-swar-accent to-pink-500'
+    color: 'from-swar-accent to-swar-accent'
   },
   {
     id: 'wealth',
     name: 'Wealth',
     icon: TrendingUp,
     description: 'Programs for prosperity, abundance, and financial wellness',
-    color: 'from-green-500 to-emerald-500'
+    color: 'from-swar-primary to-swar-accent'
   },
   {
     id: 'married',
     name: 'Married',
     icon: Users,
     description: 'Workshops for couples and family harmony',
-    color: 'from-blue-500 to-cyan-500'
+    color: 'from-swar-primary to-swar-accent'
   },
   {
     id: 'youth',
     name: 'Youth & Children',
     icon: Baby,
     description: 'Programs designed for young people and children',
-    color: 'from-purple-500 to-pink-500'
+    color: 'from-swar-accent to-swar-primary'
   },
   {
     id: 'trainings',
@@ -466,7 +466,7 @@ function WorkshopsPageInner() {
 
               <Link
                 href="/calendar"
-                className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 group hover:shadow-lg font-semibold text-sm sm:text-base touch-target"
+                className="inline-flex items-center gap-2 bg-swar-primary hover:bg-swar-primary-hover active:scale-95 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 group hover:shadow-lg font-semibold text-sm sm:text-base touch-target"
               >
                 Explore Schedules
                 <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 group-hover:translate-x-1 transition-transform flex-shrink-0" />
@@ -529,7 +529,7 @@ function WorkshopsPageInner() {
                       // Search applies instantly via state; button kept per UI request.
                       setCurrentPage(1);
                     }}
-                    className="bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 whitespace-nowrap"
+                    className="bg-swar-primary hover:bg-swar-primary-hover active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 whitespace-nowrap"
                   >
                     Search
                   </button>
@@ -546,7 +546,7 @@ function WorkshopsPageInner() {
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Category</span>
                     {selectedCategoryName && (
-                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-swar-primary px-2 py-0.5 text-xs font-semibold text-white">
                         {selectedCategoryName}
                       </span>
                     )}
@@ -567,7 +567,7 @@ function WorkshopsPageInner() {
                           // Auto-open Workshops dropdown so user immediately sees the workshops list
                           setAccordionOpen({ category: false, workshop: true, mode: false, language: false, currency: false });
                         }}
-                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedCategory === cat.id ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedCategory === cat.id ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                       >
                         {cat.name}
                       </button>
@@ -596,7 +596,7 @@ function WorkshopsPageInner() {
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Workshops</span>
                     {selectedWorkshopName && (
-                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-swar-primary px-2 py-0.5 text-xs font-semibold text-white">
                         {selectedWorkshopName}
                       </span>
                     )}
@@ -617,7 +617,7 @@ function WorkshopsPageInner() {
                             // Chain: after workshop selection, open Mode
                             setAccordionOpen({ category: false, workshop: false, mode: true, language: false, currency: false });
                           }}
-                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
+                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                         >
                           {option.name}
                         </button>
@@ -640,7 +640,7 @@ function WorkshopsPageInner() {
                                     // Chain: after workshop selection, open Mode
                                     setAccordionOpen({ category: false, workshop: false, mode: true, language: false, currency: false });
                                   }}
-                                  className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
+                                  className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                                 >
                                   {option.name}
                                 </button>
@@ -663,7 +663,7 @@ function WorkshopsPageInner() {
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Mode</span>
                     {selectedMode && (
-                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-swar-primary px-2 py-0.5 text-xs font-semibold text-white">
                         {selectedMode}
                       </span>
                     )}
@@ -682,7 +682,7 @@ function WorkshopsPageInner() {
                           // Chain: after mode selection, open Language
                           setAccordionOpen({ category: false, workshop: false, mode: false, language: true, currency: false });
                         }}
-                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedMode === mode ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedMode === mode ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                       >
                         {mode}
                       </button>
@@ -700,7 +700,7 @@ function WorkshopsPageInner() {
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Language</span>
                     {selectedLanguage && (
-                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-swar-primary px-2 py-0.5 text-xs font-semibold text-white">
                         {selectedLanguage}
                       </span>
                     )}
@@ -719,7 +719,7 @@ function WorkshopsPageInner() {
                           // Chain: after language selection, open Currency
                           setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: true });
                         }}
-                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedLanguage === lang ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedLanguage === lang ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                       >
                         {lang}
                       </button>
@@ -737,7 +737,7 @@ function WorkshopsPageInner() {
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Currency</span>
                     {selectedPayment && (
-                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">
+                      <span className="mt-1 inline-block max-w-full truncate rounded-full bg-swar-primary px-2 py-0.5 text-xs font-semibold text-white">
                         {selectedPayment}
                       </span>
                     )}
@@ -757,7 +757,7 @@ function WorkshopsPageInner() {
                             setCurrentPage(1);
                             setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: false });
                           }}
-                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedPayment === curr ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
+                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedPayment === curr ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                         >
                           {currencySymbol} {curr}
                         </button>
@@ -782,7 +782,7 @@ function WorkshopsPageInner() {
                       setCurrentPage(1);
                       setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: false });
                     }}
-                    className="bg-red-500 hover:bg-red-600 active:scale-95 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 touch-target"
+                    className="bg-swar-accent hover:bg-swar-accent-hover active:scale-95 text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 touch-target"
                   >
                     ✕ Clear Filters
                   </button>
@@ -824,10 +824,10 @@ function WorkshopsPageInner() {
                           workshop.level === 'Beginner'
                             ? 'bg-swar-primary-light0'
                             : workshop.level === 'Intermediate'
-                            ? 'bg-blue-500'
+                            ? 'bg-swar-primary'
                             : workshop.level === 'Advanced'
-                            ? 'bg-red-500'
-                            : 'bg-purple-500'
+                            ? 'bg-swar-accent'
+                            : 'bg-swar-primary'
                         }`}
                       >
                         {workshop.level}
@@ -912,7 +912,7 @@ function WorkshopsPageInner() {
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex flex-wrap items-center gap-2">
                               {admissionClosed ? (
-                                <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">
+                                <span className="inline-flex items-center rounded-full bg-swar-primary-light px-2.5 py-1 text-xs font-bold text-swar-primary">
                                   Admission Closed
                                 </span>
                               ) : (
@@ -922,7 +922,7 @@ function WorkshopsPageInner() {
                               )}
 
                               {!admissionClosed && typeof daysToClose === 'number' && daysToClose <= 5 && (
-                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">
+                                <span className="inline-flex items-center rounded-full bg-swar-primary-light px-2.5 py-1 text-xs font-bold text-swar-text">
                                   {daysToClose <= 0
                                     ? 'Closes today'
                                     : `Closes in ${daysToClose} day${daysToClose === 1 ? '' : 's'}`}
@@ -966,7 +966,7 @@ function WorkshopsPageInner() {
                           e.stopPropagation();
                           router.push(`/registernow?workshop=${encodeURIComponent(workshop.slug)}`);
                         }}
-                        className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed active:scale-95 text-white px-4 py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
+                        className="flex-1 bg-swar-primary hover:bg-swar-primary-hover disabled:bg-gray-300 disabled:cursor-not-allowed active:scale-95 text-white px-4 py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
                       >
                         Register Now
                         <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
@@ -983,7 +983,7 @@ function WorkshopsPageInner() {
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="px-3 sm:px-6 py-2 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-xs sm:text-sm active:scale-95"
+                  className="px-3 sm:px-6 py-2 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-swar-primary hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-xs sm:text-sm active:scale-95"
                 >
                   ← Previous
                 </button>
@@ -995,7 +995,7 @@ function WorkshopsPageInner() {
                       onClick={() => setCurrentPage(page)}
                       className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold transition-all duration-300 touch-target text-xs sm:text-sm active:scale-95 ${
                         currentPage === page
-                          ? 'bg-primary-600 text-white shadow-lg'
+                          ? 'bg-swar-primary text-white shadow-lg'
                           : 'bg-white border-2 border-swar-border text-swar-text hover:border-primary-600'
                       }`}
                     >
@@ -1007,7 +1007,7 @@ function WorkshopsPageInner() {
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-3 sm:px-6 py-2 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-xs sm:text-sm active:scale-95"
+                  className="px-3 sm:px-6 py-2 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-swar-primary hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-xs sm:text-sm active:scale-95"
                 >
                   Next →
                 </button>

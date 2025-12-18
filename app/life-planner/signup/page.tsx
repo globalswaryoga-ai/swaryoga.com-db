@@ -115,7 +115,7 @@ export default function LifePlannerSignupPage() {
 
             <div className="bg-white border border-swar-border rounded-3xl p-8 shadow-lg">
               <div className="flex items-center gap-3 mb-6">
-                <div className="h-10 w-10 rounded-2xl bg-red-100 flex items-center justify-center text-xl">✨</div>
+                <div className="h-10 w-10 rounded-2xl bg-swar-primary-light flex items-center justify-center text-xl">✨</div>
                 <div>
                   <h2 className="text-2xl font-semibold text-swar-text">Sign Up</h2>
                   <p className="text-sm text-swar-text-secondary">Create your Life Planner account</p>
@@ -123,7 +123,7 @@ export default function LifePlannerSignupPage() {
               </div>
 
               {error ? (
-                <div className="mb-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="mb-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-swar-primary">
                   {error}
                 </div>
               ) : null}
@@ -198,7 +198,7 @@ export default function LifePlannerSignupPage() {
                 <button
                   type="submit"
                   disabled={!canSubmit || isLoading}
-                  className="w-full rounded-2xl bg-gradient-to-r from-swar-accent to-pink-500 px-5 py-3 font-semibold text-white shadow-lg hover:from-red-600 hover:to-pink-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full rounded-2xl bg-gradient-to-r from-swar-accent to-swar-accent px-5 py-3 font-semibold text-white shadow-lg hover:from-red-600 hover:to-pink-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isLoading ? 'Creating account...' : 'Create account →'}
                 </button>
@@ -209,7 +209,7 @@ export default function LifePlannerSignupPage() {
                   Already have an account?{' '}
                   <a
                     href="/life-planner/login"
-                    className="font-semibold text-red-600 hover:text-red-700 transition"
+                    className="font-semibold text-red-600 hover:text-swar-primary transition"
                   >
                     Log in here
                   </a>

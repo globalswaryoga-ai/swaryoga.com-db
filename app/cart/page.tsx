@@ -188,7 +188,7 @@ export default function Cart() {
                           className={`rounded-2xl border px-3 sm:px-4 py-2 text-xs font-semibold tracking-wide uppercase transition touch-target active:scale-95 ${
                             isSelected
                               ? 'border-red-600 bg-red-600 text-white shadow-md'
-                              : 'border-red-200 bg-red-50 text-red-700 hover:border-red-400'
+                              : 'border-red-200 bg-red-50 text-swar-primary hover:border-red-400'
                           }`}
                         >
                           {option.label}

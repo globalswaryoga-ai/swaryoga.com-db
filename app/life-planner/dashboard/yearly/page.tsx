@@ -93,7 +93,7 @@ export default function YearlyViewPage() {
       <div className="flex items-center">
         <button
           onClick={handlePreviousYear}
-          className="flex items-center justify-center h-16 w-16 rounded-2xl bg-red-500 hover:bg-red-600 transition shadow-lg active:scale-95"
+          className="flex items-center justify-center h-16 w-16 rounded-2xl bg-swar-accent hover:bg-swar-accent-hover transition shadow-lg active:scale-95"
           title="Previous year"
         >
           <ChevronLeft className="h-10 w-10 text-white" />
@@ -124,7 +124,7 @@ export default function YearlyViewPage() {
         </div>
         <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
           <div
-            className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-300"
+            className="bg-gradient-to-r from-green-500 to-swar-primary h-3 rounded-full transition-all duration-300"
             style={{ width: `${yearStats.percentage}%` }}
           />
         </div>
@@ -318,7 +318,7 @@ export default function YearlyViewPage() {
       <div className="flex items-center">
         <button
           onClick={handleNextYear}
-          className="flex items-center justify-center h-16 w-16 rounded-2xl bg-red-500 hover:bg-red-600 transition shadow-lg active:scale-95"
+          className="flex items-center justify-center h-16 w-16 rounded-2xl bg-swar-accent hover:bg-swar-accent-hover transition shadow-lg active:scale-95"
           title="Next year"
         >
           <ChevronRight className="h-10 w-10 text-white" />

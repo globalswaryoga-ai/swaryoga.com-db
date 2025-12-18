@@ -94,7 +94,7 @@ export default function Navigation() {
   return (
     <>
       {/* Top Bar */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white py-2 px-4 hidden lg:block">
+      <div className="bg-gradient-to-r from-swar-primary to-green-700 text-white py-2 px-4 hidden lg:block">
         <div className="container mx-auto flex items-center justify-between text-sm">
           <div className="flex items-center space-x-2">
             <span>Contact: globalswaryoga@gmail.com</span>
@@ -200,7 +200,7 @@ export default function Navigation() {
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-medium group relative"
+                    className="flex items-center space-x-2 text-red-600 hover:text-swar-primary hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-medium group relative"
                   >
                     <LogOut className="h-5 w-5" />
                     <span>Logout</span>
@@ -212,7 +212,7 @@ export default function Navigation() {
                   {/* Sign In */}
                   <Link
                     href="/signin"
-                    className="hidden sm:flex items-center space-x-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-medium group relative"
+                    className="hidden sm:flex items-center space-x-2 text-red-600 hover:text-swar-primary hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-medium group relative"
                   >
                     <span>Sign In</span>
                     <div className="absolute inset-0 rounded-lg bg-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
@@ -221,7 +221,7 @@ export default function Navigation() {
                   {/* Sign Up */}
                   <Link
                     href="/signup"
-                    className="hidden sm:block bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
+                    className="hidden sm:block bg-gradient-to-r from-swar-primary to-green-700 text-white px-6 py-2 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
                   >
                     Sign Up
                   </Link>
@@ -283,7 +283,7 @@ export default function Navigation() {
                           handleLogout();
                           setIsMenuOpen(false);
                         }}
-                        className="flex items-center space-x-2 px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 font-medium touch-manipulation"
+                        className="flex items-center space-x-2 px-4 py-3 text-red-600 hover:text-swar-primary hover:bg-red-50 rounded-lg transition-all duration-200 font-medium touch-manipulation"
                       >
                         <LogOut className="h-5 w-5" />
                         <span>Logout</span>
@@ -293,14 +293,14 @@ export default function Navigation() {
                     <>
                       <Link
                         href="/signin"
-                        className="flex items-center space-x-2 px-4 py-3 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200 font-medium touch-manipulation"
+                        className="flex items-center space-x-2 px-4 py-3 text-red-600 hover:text-swar-primary hover:bg-red-50 rounded-lg transition-all duration-200 font-medium touch-manipulation"
                         onClick={closeMenu}
                       >
                         <span>Sign In</span>
                       </Link>
                       <Link
                         href="/signup"
-                        className="bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-3 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 text-center font-medium shadow-lg touch-manipulation"
+                        className="bg-gradient-to-r from-swar-primary to-green-700 text-white px-4 py-3 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 text-center font-medium shadow-lg touch-manipulation"
                         onClick={closeMenu}
                       >
                         Sign Up

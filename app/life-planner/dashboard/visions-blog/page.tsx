@@ -114,7 +114,7 @@ export default function VisionsBlogPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white py-16">
+      <div className="bg-gradient-to-r from-swar-primary via-pink-600 to-red-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>
@@ -145,8 +145,8 @@ export default function VisionsBlogPage() {
               onClick={() => setFilterStatus(status)}
               className={`px-6 py-3 rounded-full font-bold transition-all ${
                 filterStatus === status
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105'
-                  : 'bg-white text-swar-text border-2 border-swar-border hover:border-purple-600'
+                  ? 'bg-gradient-to-r from-swar-primary to-pink-600 text-white shadow-lg scale-105'
+                  : 'bg-white text-swar-text border-2 border-swar-border hover:border-swar-primary'
               }`}
             >
               {status === 'all' ? '📊 All Visions' : 
@@ -172,7 +172,7 @@ export default function VisionsBlogPage() {
             </p>
             <button
               onClick={handleAddVision}
-              className="inline-flex items-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl hover:scale-105 transition-all"
+              className="inline-flex items-center gap-3 bg-gradient-to-r from-swar-primary to-pink-600 text-white px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl hover:scale-105 transition-all"
             >
               <Plus className="h-6 w-6" />
               Create Vision
@@ -269,7 +269,7 @@ export default function VisionsBlogPage() {
                       </div>
                       <div className="h-4 bg-swar-primary-light rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 transition-all duration-500"
+                          className="h-full bg-gradient-to-r from-swar-primary via-pink-600 to-red-600 transition-all duration-500"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
@@ -313,7 +313,7 @@ export default function VisionsBlogPage() {
                     <div className="flex flex-wrap gap-4">
                       <button
                         onClick={() => handleViewDetails(vision)}
-                        className="flex-1 sm:flex-none flex items-center justify-center gap-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:shadow-xl hover:scale-105 transition-all"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-3 bg-gradient-to-r from-swar-primary to-pink-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:shadow-xl hover:scale-105 transition-all"
                       >
                         <Eye className="h-5 w-5" />
                         View Full Details
@@ -327,7 +327,7 @@ export default function VisionsBlogPage() {
                       </button>
                       <button
                         onClick={() => handleDeleteVision(vision.id)}
-                        className="flex-1 sm:flex-none flex items-center justify-center gap-3 bg-red-100 text-red-700 px-8 py-4 rounded-xl font-bold text-lg hover:bg-red-200 hover:shadow-lg hover:scale-105 transition-all"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-3 bg-swar-primary-light text-swar-primary px-8 py-4 rounded-xl font-bold text-lg hover:bg-red-200 hover:shadow-lg hover:scale-105 transition-all"
                       >
                         <Trash2 className="h-5 w-5" />
                         Delete

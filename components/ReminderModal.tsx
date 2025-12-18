@@ -30,7 +30,7 @@ export default function ReminderModal({ reminders, onDismiss }: ReminderModalPro
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className={`p-3 rounded-full ${
-              priority === 'high' ? 'bg-red-100' :
+              priority === 'high' ? 'bg-swar-primary-light' :
               priority === 'medium' ? 'bg-orange-100' :
               'bg-swar-primary-light'
             }`}>
@@ -67,7 +67,7 @@ export default function ReminderModal({ reminders, onDismiss }: ReminderModalPro
         {/* Metadata */}
         <div className="flex flex-wrap gap-2 mb-6">
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-            priority === 'high' ? 'bg-red-100 text-red-700' :
+            priority === 'high' ? 'bg-swar-primary-light text-swar-primary' :
             priority === 'medium' ? 'bg-orange-100 text-orange-700' :
             'bg-swar-primary-light text-swar-primary'
           }`}>
@@ -81,7 +81,7 @@ export default function ReminderModal({ reminders, onDismiss }: ReminderModalPro
         {/* Close Button */}
         <button
           onClick={() => onDismiss(reminder.id)}
-          className="w-full bg-gradient-to-r from-swar-accent to-pink-500 text-white font-semibold py-3 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all"
+          className="w-full bg-gradient-to-r from-swar-accent to-swar-accent text-white font-semibold py-3 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all"
         >
           Got it ✓
         </button>

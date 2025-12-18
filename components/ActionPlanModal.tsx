@@ -614,7 +614,7 @@ function MilestoneCard({
         <h4 className="font-semibold text-swar-text">Milestone {index + 1}</h4>
         <button
           onClick={() => onDelete(milestone.id)}
-          className="text-red-500 hover:text-red-700 font-bold"
+          className="text-red-500 hover:text-swar-primary font-bold"
         >
           Delete
         </button>

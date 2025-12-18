@@ -258,7 +258,7 @@ const EnhancedVisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClo
               onClick={() => setActiveTab(tab.id)}
               className={`flex-shrink-0 px-4 sm:px-6 py-3 font-medium transition-colors text-sm sm:text-base flex items-center gap-2 ${
                 activeTab === tab.id
-                  ? 'text-purple-600 border-b-2 border-purple-600'
+                  ? 'text-purple-600 border-b-2 border-swar-primary'
                   : 'text-swar-text-secondary hover:text-swar-text'
               }`}
             >
@@ -508,7 +508,7 @@ const EnhancedVisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClo
                       <button
                         type="button"
                         onClick={() => removeMilestone(milestone.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition"
+                        className="p-2 text-red-600 hover:bg-swar-primary-light rounded-lg transition"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -678,7 +678,7 @@ const EnhancedVisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClo
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition shadow-lg font-semibold"
+              className="px-6 py-3 bg-gradient-to-r from-swar-primary to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition shadow-lg font-semibold"
             >
               {vision?.id ? '✏️ Update Vision' : '🌟 Create Vision'}
             </button>

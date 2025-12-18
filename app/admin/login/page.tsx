@@ -191,7 +191,7 @@ export default function AdminLogin() {
           {/* Security Notice */}
           <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-sm text-amber-900 font-medium mb-2">🔒 Security Notice</p>
-            <p className="text-xs text-amber-800">Admin credentials are confidential. Contact your administrator if you need access.</p>
+            <p className="text-xs text-swar-text">Admin credentials are confidential. Contact your administrator if you need access.</p>
           </div>
 
           {/* Back to Home */}

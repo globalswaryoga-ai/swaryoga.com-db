@@ -314,7 +314,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
               onClick={() => setActiveTab(tab.id)}
               className={`flex-shrink-0 px-6 py-3 font-medium transition-colors ${
                 activeTab === tab.id
-                  ? 'text-purple-600 border-b-2 border-purple-600'
+                  ? 'text-purple-600 border-b-2 border-swar-primary'
                   : 'text-swar-text-secondary hover:text-swar-text'
               }`}
             >
@@ -427,7 +427,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                   <label className="block text-sm font-semibold text-swar-text mb-2">📊 Progress: {calculateProgress()}%</label>
                   <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
                     <div 
-                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all"
+                      className="bg-gradient-to-r from-swar-accent to-swar-primary h-full transition-all"
                       style={{ width: `${calculateProgress()}%` }}
                     />
                   </div>
@@ -838,7 +838,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition shadow-lg font-semibold"
+              className="px-6 py-3 bg-gradient-to-r from-swar-primary to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition shadow-lg font-semibold"
             >
               {vision?.id ? '✏️ Update Vision' : '🌟 Create Vision'}
             </button>

@@ -126,14 +126,14 @@ export default function LifePlannerRestoreBackup() {
         </button>
       </div>
 
-      {error ? <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      {error ? <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-swar-primary">{error}</div> : null}
       {done ? <div className="mt-3 rounded-lg border border-green-200 bg-swar-primary-light px-3 py-2 text-sm text-swar-primary">Restored. Reloading…</div> : null}
 
       <div className="mt-4 flex gap-2">
         <button
           onClick={onRestore}
           disabled={isMigrating}
-          className="flex-1 rounded-xl bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-2 text-sm font-semibold text-white hover:from-red-600 hover:to-pink-600 disabled:opacity-60"
+          className="flex-1 rounded-xl bg-gradient-to-r from-swar-accent to-swar-accent px-4 py-2 text-sm font-semibold text-white hover:from-red-600 hover:to-pink-600 disabled:opacity-60"
         >
           {isMigrating ? 'Restoring…' : 'Restore now'}
         </button>

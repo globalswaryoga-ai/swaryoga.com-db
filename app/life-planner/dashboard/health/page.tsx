@@ -190,7 +190,7 @@ export default function HealthPage() {
   return (
     <div className="max-w-7xl mx-auto">
       {error && (
-        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+        <div className="mb-4 p-4 bg-swar-primary-light border border-red-400 text-swar-primary rounded-lg">
           {error}
           <button 
             onClick={loadRoutines}
@@ -316,7 +316,7 @@ export default function HealthPage() {
               <span className="text-xs font-medium text-swar-text">✓ {cat}</span>
               <button 
                 onClick={() => removeCategory(cat)}
-                className="text-red-500 hover:text-red-700 font-bold text-base leading-none"
+                className="text-red-500 hover:text-swar-primary font-bold text-base leading-none"
                 title="Remove category"
               >
                 ×

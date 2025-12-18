@@ -201,7 +201,7 @@ export default function VisionPage() {
         </div>
         <button
           onClick={handleAddVision}
-          className="flex items-center space-x-2 bg-gradient-to-r from-swar-accent to-pink-500 text-white px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl"
+          className="flex items-center space-x-2 bg-gradient-to-r from-swar-accent to-swar-accent text-white px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl"
         >
           <Plus className="h-5 w-5" />
           <span>Add Vision Plan</span>
@@ -365,7 +365,7 @@ export default function VisionPage() {
                       </button>
                       <button
                         onClick={() => handleDeleteVision(vision.id)}
-                        className="flex-1 px-3 py-2 bg-red-100 text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
+                        className="flex-1 px-3 py-2 bg-swar-primary-light text-red-600 text-xs font-bold rounded-lg hover:bg-red-200 transition"
                       >
                         Delete
                       </button>

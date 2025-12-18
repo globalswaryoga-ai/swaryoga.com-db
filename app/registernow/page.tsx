@@ -335,7 +335,7 @@ function RegisterNowDashboardPageInner() {
                           onClick={() => onSelectMode(m.key)}
                           className={`rounded-lg px-4 py-2 text-sm font-bold transition-all ${
                             active
-                              ? 'bg-primary-600 text-white shadow-sm'
+                              ? 'bg-swar-primary text-white shadow-sm'
                               : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                           }`}
                         >
@@ -393,7 +393,7 @@ function RegisterNowDashboardPageInner() {
                             type="button"
                             onClick={() => setSelectedWorkshopSlug(w.slug)}
                             className={`shrink-0 rounded-lg px-4 py-2 text-sm font-extrabold transition-colors ${
-                              active ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
+                              active ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                             }`}
                           >
                             {active ? 'Selected' : 'Select'}
@@ -446,7 +446,7 @@ function RegisterNowDashboardPageInner() {
                                 type="button"
                                 onClick={() => setSelectedWorkshopSlug(w.slug)}
                                 className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                                  active ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
+                                  active ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                                 }`}
                               >
                                 {active ? 'Selected' : 'Select'}

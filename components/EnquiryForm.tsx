@@ -129,7 +129,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
           )}
           <p
             className={`text-sm ${
-              message.type === 'success' ? 'text-swar-primary' : 'text-red-700'
+              message.type === 'success' ? 'text-swar-primary' : 'text-swar-primary'
             }`}
           >
             {message.text}
@@ -218,7 +218,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
           className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-all duration-300 ${
             loading
               ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-primary-600 hover:bg-primary-700 active:scale-95'
+              : 'bg-swar-primary hover:bg-swar-primary-hover active:scale-95'
           }`}
         >
           {loading ? 'Submitting...' : 'Notify Me When Available'}

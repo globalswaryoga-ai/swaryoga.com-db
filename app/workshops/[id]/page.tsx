@@ -282,7 +282,7 @@ export default function WorkshopDetail() {
       <button
         type="button"
         onClick={handleRegisterNow}
-        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-6 py-3 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] group"
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-swar-primary px-6 py-3 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-swar-primary-hover hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] group"
       >
         {label}
         <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
@@ -295,7 +295,7 @@ export default function WorkshopDetail() {
       <button
         type="button"
         onClick={handleRegisterNow}
-        className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-10 py-4 font-extrabold text-white shadow-lg transition-all duration-200 hover:bg-primary-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] group animate-pulse"
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-swar-primary px-10 py-4 font-extrabold text-white shadow-lg transition-all duration-200 hover:bg-swar-primary-hover hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] group animate-pulse"
       >
         {label}
         <ArrowRight className="h-6 w-6 transition-transform duration-200 group-hover:translate-x-1" />
@@ -405,7 +405,7 @@ export default function WorkshopDetail() {
 
           <div className="container mx-auto px-4 md:px-6 relative z-10 max-w-6xl">
             <div className="max-w-3xl">
-              <div className="inline-block bg-primary-600 text-white px-4 py-2 rounded-full mb-6 font-semibold">
+              <div className="inline-block bg-swar-primary text-white px-4 py-2 rounded-full mb-6 font-semibold">
                 {workshop.level}
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4">
@@ -444,11 +444,11 @@ export default function WorkshopDetail() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${admissionInfo.open ? 'bg-swar-primary-light text-swar-primary' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${admissionInfo.open ? 'bg-swar-primary-light text-swar-primary' : 'bg-swar-primary-light text-swar-primary'}`}>
                         {admissionInfo.label}
                       </span>
                       {admissionInfo.open && typeof admissionInfo.closesInDays === 'number' && admissionInfo.closesInDays <= 5 && (
-                        <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-bold">
+                        <span className="inline-flex items-center rounded-full bg-swar-primary-light text-swar-text px-3 py-1 text-xs font-bold">
                           {admissionInfo.closesInDays <= 0
                             ? 'Closes today'
                             : `Closes in ${admissionInfo.closesInDays} day${admissionInfo.closesInDays === 1 ? '' : 's'}`}
@@ -710,7 +710,7 @@ export default function WorkshopDetail() {
         <button
           type="button"
           onClick={handleRegisterNow}
-          className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-lg py-3 transition-transform duration-200 active:scale-[0.99]"
+          className="w-full bg-swar-primary hover:bg-swar-primary-hover text-white font-semibold rounded-lg py-3 transition-transform duration-200 active:scale-[0.99]"
         >
           Register Now
         </button>

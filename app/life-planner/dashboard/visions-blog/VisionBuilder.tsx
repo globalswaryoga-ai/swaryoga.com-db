@@ -336,7 +336,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
       <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4 sm:p-6 md:p-8 flex items-center justify-between gap-3">
+        <div className="bg-gradient-to-r from-swar-primary to-pink-600 p-4 sm:p-6 md:p-8 flex items-center justify-between gap-3">
           <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white truncate">
             {initialVision ? '✏️ Edit Vision' : '🌟 Create New Vision'}
           </h1>
@@ -356,7 +356,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex-shrink-0 px-2 sm:px-4 md:px-6 py-2 sm:py-3 text-xs sm:text-sm md:text-base font-bold transition-all whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'bg-white border-b-4 border-purple-600 text-purple-600'
+                  ? 'bg-white border-b-4 border-swar-primary text-purple-600'
                   : 'text-swar-text-secondary hover:text-swar-text'
               }`}
             >
@@ -379,7 +379,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                     type="text"
                     value={vision.title}
                     onChange={(e) => setVision({ ...vision, title: e.target.value })}
-                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-lg sm:text-2xl font-bold focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-lg sm:text-2xl font-bold focus:outline-none focus:border-swar-primary"
                     placeholder="e.g., Master Advanced Yoga & Transform Life"
                   />
                 </div>
@@ -393,7 +393,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="url"
                       value={vision.imageUrl || ''}
                       onChange={(e) => setVision({ ...vision, imageUrl: e.target.value })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                       placeholder="https://example.com/image.jpg"
                     />
                     <div className="text-xs sm:text-sm text-swar-text-secondary bg-blue-50 p-2 sm:p-3 rounded-lg border-l-4 border-blue-400">
@@ -405,7 +405,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         type="file" 
                         accept="image/*" 
                         onChange={handleFileChange} 
-                        className="text-xs sm:text-sm px-3 sm:px-4 py-2 border-2 border-dashed border-swar-border rounded-lg w-full cursor-pointer hover:border-purple-600 transition" 
+                        className="text-xs sm:text-sm px-3 sm:px-4 py-2 border-2 border-dashed border-swar-border rounded-lg w-full cursor-pointer hover:border-swar-primary transition" 
                       />
                     </div>
                   </div>
@@ -482,7 +482,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                     value={vision.description}
                     onChange={(e) => setVision({ ...vision, description: e.target.value })}
                     rows={4}
-                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                     placeholder="Describe your big vision in detail..."
                   />
                 </div>
@@ -494,7 +494,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={vision.category || ''}
                       onChange={(e) => setVision({ ...vision, category: e.target.value as any })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                       placeholder="e.g., Health, Wealth, Personal"
                     />
                   </div>
@@ -503,7 +503,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                     <select
                       value={vision.priority || 'medium'}
                       onChange={(e) => setVision({ ...vision, priority: e.target.value as any })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                     >
                       <option value="low">🟢 Low</option>
                       <option value="medium">🟡 Medium</option>
@@ -519,7 +519,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="date"
                       value={vision.startDate}
                       onChange={(e) => setVision({ ...vision, startDate: e.target.value })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                     />
                   </div>
                   <div>
@@ -528,7 +528,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="date"
                       value={vision.endDate}
                       onChange={(e) => setVision({ ...vision, endDate: e.target.value })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                     />
                   </div>
                 </div>
@@ -538,7 +538,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                   <select
                     value={vision.status || 'not-started'}
                     onChange={(e) => setVision({ ...vision, status: e.target.value as any })}
-                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                   >
                     <option value="not-started">⏳ Not Started</option>
                     <option value="in-progress">⚡ In Progress</option>
@@ -567,7 +567,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       <button
                         type="button"
                         onClick={() => deleteMilestone(m.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
+                        className="p-2 text-red-600 hover:bg-swar-primary-light rounded-lg transition flex-shrink-0"
                       >
                         <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
@@ -576,14 +576,14 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={m.title}
                       onChange={(e) => updateMilestone(m.id, 'title', e.target.value)}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                       placeholder="Milestone title"
                     />
                     <textarea
                       value={m.description || ''}
                       onChange={(e) => updateMilestone(m.id, 'description', e.target.value)}
                       rows={3}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                       placeholder="Description"
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -591,18 +591,18 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         type="date"
                         value={m.startDate}
                         onChange={(e) => updateMilestone(m.id, 'startDate', e.target.value)}
-                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                       />
                       <input
                         type="date"
                         value={m.endDate}
                         onChange={(e) => updateMilestone(m.id, 'endDate', e.target.value)}
-                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                       />
                       <select
                         value={m.status}
                         onChange={(e) => updateMilestone(m.id, 'status', e.target.value)}
-                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                       >
                         <option value="not-started">⏳ Not Started</option>
                         <option value="in-progress">⚡ In Progress</option>
@@ -632,7 +632,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       <button
                         type="button"
                         onClick={() => deleteGoal(g.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
+                        className="p-2 text-red-600 hover:bg-swar-primary-light rounded-lg transition flex-shrink-0"
                       >
                         <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
@@ -751,7 +751,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       <button
                         type="button"
                         onClick={() => deleteTask(t.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
+                        className="p-2 text-red-600 hover:bg-swar-primary-light rounded-lg transition flex-shrink-0"
                       >
                         <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
@@ -760,14 +760,14 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={t.title}
                       onChange={(e) => updateTask(t.id, 'title', e.target.value)}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-blue-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-swar-primary"
                       placeholder="Task title (e.g., Research providers)"
                     />
                     <textarea
                       value={t.description || ''}
                       onChange={(e) => updateTask(t.id, 'description', e.target.value)}
                       rows={2}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-blue-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-swar-primary"
                       placeholder="Task description..."
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
@@ -777,7 +777,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                           type="date"
                           value={t.startDate}
                           onChange={(e) => updateTask(t.id, 'startDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-swar-primary text-xs sm:text-base"
                         />
                       </div>
                       <div>
@@ -786,7 +786,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                           type="date"
                           value={t.dueDate}
                           onChange={(e) => updateTask(t.id, 'dueDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-swar-primary text-xs sm:text-base"
                         />
                       </div>
                       <div>
@@ -795,7 +795,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                           type="number"
                           value={t.budget || ''}
                           onChange={(e) => updateTask(t.id, 'budget', e.target.value ? parseFloat(e.target.value) : undefined)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-swar-primary text-xs sm:text-base"
                           placeholder="Amount"
                         />
                       </div>
@@ -806,7 +806,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         <select
                           value={t.priority}
                           onChange={(e) => updateTask(t.id, 'priority', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-swar-primary text-xs sm:text-base"
                         >
                           <option value="low">🟢 Low</option>
                           <option value="medium">🟡 Medium</option>
@@ -818,7 +818,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         <select
                           value={t.status}
                           onChange={(e) => updateTask(t.id, 'status', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-swar-primary text-xs sm:text-base"
                         >
                           <option value="not-started">⏳ Not Started</option>
                           <option value="in-progress">⚡ In Progress</option>
@@ -851,7 +851,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       <button
                         type="button"
                         onClick={() => deleteTodo(to.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
+                        className="p-2 text-red-600 hover:bg-swar-primary-light rounded-lg transition flex-shrink-0"
                       >
                         <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
@@ -934,7 +934,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       <button
                         type="button"
                         onClick={() => deleteWord(w.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
+                        className="p-2 text-red-600 hover:bg-swar-primary-light rounded-lg transition flex-shrink-0"
                       >
                         <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
@@ -1007,7 +1007,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       <button
                         type="button"
                         onClick={() => deleteReminder(r.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition flex-shrink-0"
+                        className="p-2 text-red-600 hover:bg-swar-primary-light rounded-lg transition flex-shrink-0"
                       >
                         <Trash2 className="h-4 sm:h-6 w-4 sm:w-6" />
                       </button>
@@ -1122,7 +1122,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         />
                       </div>
                       <div className="flex items-end">
-                        <label className="flex items-center gap-2 sm:gap-3 w-full cursor-pointer p-2 bg-white rounded-lg border-2 border-red-300 hover:bg-red-100 transition">
+                        <label className="flex items-center gap-2 sm:gap-3 w-full cursor-pointer p-2 bg-white rounded-lg border-2 border-red-300 hover:bg-swar-primary-light transition">
                           <input
                             type="checkbox"
                             checked={r.completed || false}
@@ -1150,7 +1150,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
           </button>
           <button
             onClick={handleSubmit}
-            className="px-4 sm:px-8 py-2 sm:py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg hover:shadow-lg transition"
+            className="px-4 sm:px-8 py-2 sm:py-4 bg-gradient-to-r from-swar-primary to-pink-600 text-white rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg hover:shadow-lg transition"
           >
             {initialVision ? '✏️ Update' : '🌟 Save Vision'}
           </button>

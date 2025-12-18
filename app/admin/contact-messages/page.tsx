@@ -180,7 +180,7 @@ export default function ContactMessages() {
               </button>
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
               >
                 <LogOut className="h-6 w-6" />
               </button>

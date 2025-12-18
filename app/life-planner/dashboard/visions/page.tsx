@@ -277,7 +277,7 @@ export default function VisionPage() {
                     <div className="space-y-1">
                       <div className="h-2 bg-gray-300 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all"
+                          className="h-full bg-gradient-to-r from-purple-500 to-swar-primary transition-all"
                           style={{ width: `${stats.percentage}%` }}
                         />
                       </div>
@@ -304,7 +304,7 @@ export default function VisionPage() {
                           e.stopPropagation();
                           handleDeleteVision(vision.id);
                         }}
-                        className="flex-1 flex items-center justify-center gap-1 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition text-xs font-medium"
+                        className="flex-1 flex items-center justify-center gap-1 py-2 bg-red-50 text-swar-primary rounded-lg hover:bg-swar-primary-light transition text-xs font-medium"
                       >
                         <Trash2 size={14} />
                         Delete
@@ -367,7 +367,7 @@ export default function VisionPage() {
                           <p className="text-swar-text-secondary">{goal.startDate} → {goal.endDate}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                              goal.priority === 'high' ? 'bg-red-100 text-red-700' :
+                              goal.priority === 'high' ? 'bg-swar-primary-light text-swar-primary' :
                               goal.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
                               'bg-swar-primary-light text-swar-primary'
                             }`}>

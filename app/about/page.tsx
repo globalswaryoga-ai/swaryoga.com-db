@@ -139,7 +139,7 @@ export default function About() {
       </section>
 
       {/* Achievements Section */}
-      <section className="py-20 bg-primary-700 text-white">
+      <section className="py-20 bg-swar-primary-hover text-white">
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">Our Achievements</h2>
@@ -152,7 +152,7 @@ export default function About() {
             {achievements.map((achievement, index) => (
               <div
                 key={index}
-                className="text-center p-6 rounded-lg bg-primary-600 hover:bg-primary-800 transition-colors"
+                className="text-center p-6 rounded-lg bg-swar-primary hover:bg-primary-800 transition-colors"
               >
                 <div className="text-5xl font-bold mb-3">{achievement.number}</div>
                 <div className="text-primary-100 text-lg">{achievement.label}</div>

@@ -281,7 +281,7 @@ export default function AdminOffers() {
                   selectedUserEmails: '',
                 });
               }}
-              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+              className="bg-swar-primary text-white px-4 py-2 rounded-lg hover:bg-swar-primary-hover flex items-center gap-2"
             >
               <Plus size={20} />
               New Offer
@@ -293,7 +293,7 @@ export default function AdminOffers() {
         {message && (
           <div
             className={`mx-6 mt-4 p-4 rounded-lg flex items-center justify-between ${
-              messageType === 'success' ? 'bg-swar-primary-light text-swar-primary' : 'bg-red-100 text-red-700'
+              messageType === 'success' ? 'bg-swar-primary-light text-swar-primary' : 'bg-swar-primary-light text-swar-primary'
             }`}
           >
             <span>{message}</span>
@@ -424,7 +424,7 @@ export default function AdminOffers() {
                 <div className="flex gap-4">
                   <button
                     type="submit"
-                    className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2"
+                    className="bg-swar-primary text-white px-6 py-2 rounded-lg hover:bg-swar-primary-hover flex items-center gap-2"
                   >
                     <Check size={20} />
                     {editingOffer ? 'Update Offer' : 'Create Offer'}
@@ -518,7 +518,7 @@ export default function AdminOffers() {
                     </button>
                     <button
                       onClick={() => handleDelete(offer._id)}
-                      className="flex-1 bg-red-100 text-red-700 hover:bg-red-200 px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
+                      className="flex-1 bg-swar-primary-light text-swar-primary hover:bg-red-200 px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors"
                     >
                       <Trash2 size={16} />
                       Delete

@@ -67,7 +67,7 @@ export default function CommunityCreatePostPage() {
           <p className="mt-2 text-sm text-swar-text-secondary">Posts are visible only to members.</p>
 
           {error && (
-            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-swar-primary">{error}</div>
           )}
 
           <div className="mt-6 rounded-lg border border-swar-border bg-white p-4">

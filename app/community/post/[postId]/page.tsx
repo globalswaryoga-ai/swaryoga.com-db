@@ -204,7 +204,7 @@ export default function CommunityPostPage() {
           {loading && <p className="mt-6 text-sm text-swar-text-secondary">Loading...</p>}
 
           {!loading && error && (
-            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-swar-primary">{error}</div>
           )}
 
           {!loading && !error && post && (

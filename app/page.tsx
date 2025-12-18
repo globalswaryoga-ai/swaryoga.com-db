@@ -23,8 +23,8 @@ const HomePage = () => {
 
   const workshopTypes = [
     { type: 'Online', color: 'from-swar-primary to-blue-700' },
-    { type: 'Offline', color: 'from-purple-600 to-purple-700' },
-    { type: 'Residential', color: 'from-green-600 to-green-700' },
+    { type: 'Offline', color: 'from-swar-primary to-purple-700' },
+    { type: 'Residential', color: 'from-swar-primary to-green-700' },
     { type: 'Recorded', color: 'from-orange-600 to-orange-700' }
   ];
 
@@ -111,7 +111,7 @@ const HomePage = () => {
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="absolute -bottom-6 -left-6 bg-red-500 text-white p-4 sm:p-6 rounded-lg shadow-lg hidden lg:block">
+              <div className="absolute -bottom-6 -left-6 bg-swar-accent text-white p-4 sm:p-6 rounded-lg shadow-lg hidden lg:block">
                 <p className="text-xl font-serif">25+ Years</p>
                 <p className="text-sm">of teaching experience</p>
               </div>

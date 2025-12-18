@@ -122,7 +122,7 @@ export default function SignupData() {
               </button>
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
               >
                 <LogOut className="h-6 w-6" />
               </button>
@@ -134,7 +134,7 @@ export default function SignupData() {
         <main className="flex-1 overflow-auto p-6">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-swar-primary"></div>
             </div>
           ) : error ? (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">

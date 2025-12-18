@@ -295,7 +295,7 @@ function CheckoutInner() {
             Back
           </button>
           {showEmptyCartNotice && (
-            <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800">
+            <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-swar-text">
               Your cart is empty. Visit the <a href="/workshop" className="underline font-semibold">workshops page</a> to add a program before proceeding to PayU.
             </div>
           )}
@@ -494,7 +494,7 @@ function CheckoutInner() {
                   )}
 
                   {error && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-6">
+                    <div className="bg-swar-primary-light border border-red-400 text-swar-primary px-4 py-3 rounded mt-6">
                       {error}
                     </div>
                   )}
@@ -505,7 +505,7 @@ function CheckoutInner() {
                   type="submit"
                   form="checkout-form"
                   disabled={loading || !hasItemsForSelectedCurrency}
-                  className={`md:hidden w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-4 rounded-lg font-bold text-lg transition ${
+                  className={`md:hidden w-full bg-gradient-to-r from-swar-primary to-green-700 text-white py-4 rounded-lg font-bold text-lg transition ${
                     loading || !hasItemsForSelectedCurrency ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-700 hover:to-green-800'
                   }`}
                 >
@@ -633,7 +633,7 @@ function CheckoutInner() {
                     />
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 font-semibold">
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-swar-primary font-semibold">
                     Nepal QR is not configured. Please select India or International payment.
                   </div>
                 )}
