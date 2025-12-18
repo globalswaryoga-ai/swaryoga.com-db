@@ -529,7 +529,7 @@ function CheckoutInner() {
                   <div className="space-y-2">
                     {(() => {
                       const today = new Date();
-                      const dates = [];
+                      const dates: string[] = [];
                       for (let i = 0; i < 6; i++) {
                         const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
                         dates.push(date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
