@@ -120,21 +120,22 @@ export default function Footer() {
                 
                 <div>
                   <span 
-                    className="text-2xl font-bold text-green-400" 
+                    className="text-2xl font-bold" 
                     style={{
                       fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                       letterSpacing: "-0.01em",
-                      fontWeight: 700
+                      fontWeight: 700,
+                      color: "#000000"
                     }}
                   >
-                    SWAR YOGA
+                    Swar Yoga
                   </span>
                   <div 
-                    className="text-xs sm:text-sm text-gray-400 -mt-1" 
+                    className="text-xs sm:text-sm -mt-1" 
                     style={{
-                      fontFamily: "var(--font-space-grotesk), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
+                      fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                       letterSpacing: "0.02em",
-                      color: "#86EFAC",
+                      color: "#ff751f",
                       fontWeight: 600
                     }}
                   >
