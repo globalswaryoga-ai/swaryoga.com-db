@@ -78,7 +78,7 @@ function App() {
     
     // Restore last visited page on app mount
     const restorePage = async () => {
-      const restored = await restoreLastPage();
+      await restoreLastPage();
       setPageRestored(true);
     };
     
