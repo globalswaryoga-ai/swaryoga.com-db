@@ -14,3 +14,7 @@ build
 .vscode
 .env*.local
 *.tsbuildinfo
+api/
+server/
+models/
+bolt/
