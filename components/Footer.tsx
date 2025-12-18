@@ -122,7 +122,7 @@ export default function Footer() {
                   <span 
                     className="text-2xl font-bold text-green-400" 
                     style={{
-                      fontFamily: "var(--font-space-grotesk), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
+                      fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                       letterSpacing: "-0.01em",
                       fontWeight: 700
                     }}

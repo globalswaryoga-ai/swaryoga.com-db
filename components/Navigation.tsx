@@ -124,12 +124,12 @@ export default function Navigation() {
                 />
               </div>
               
-              {/* Text - Space Grotesk Geometric Font */}
+              {/* Text - Poppins Font */}
               <div className="flex flex-col tracking-tight">
                 <span 
                   className="text-xl sm:text-2xl font-bold text-gray-900" 
                   style={{
-                    fontFamily: "var(--font-space-grotesk), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
+                    fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                     letterSpacing: "-0.01em",
                     fontWeight: 700
                   }}
