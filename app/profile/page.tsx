@@ -385,7 +385,7 @@ export default function UserProfile() {
       <>
         <Navigation />
         <div className="container mx-auto px-4 py-20 text-center">
-          <div className="animate-spin inline-block w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full"></div>
+          <div className="animate-spin inline-block w-8 h-8 border-4 border-swar-primary border-t-transparent rounded-full"></div>
           <p className="mt-4 text-swar-text-secondary">Loading your profile...</p>
         </div>
         <Footer />
@@ -416,7 +416,7 @@ export default function UserProfile() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <Link href="/" className="flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium">
+              <Link href="/" className="flex items-center gap-2 text-swar-primary hover:text-swar-primary-hover font-medium">
                 <ArrowLeft size={20} />
                 Back to Home
               </Link>
@@ -441,10 +441,10 @@ export default function UserProfile() {
                       <img 
                         src={profileImagePreview} 
                         alt={user.name}
-                        className="w-24 h-24 mx-auto rounded-full object-cover border-4 border-primary-600"
+                        className="w-24 h-24 mx-auto rounded-full object-cover border-4 border-swar-primary"
                       />
                     ) : (
-                      <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-600 to-secondary-600 rounded-full flex items-center justify-center text-white text-4xl font-bold">
+                      <div className="w-24 h-24 mx-auto bg-gradient-to-br from-swar-primary to-swar-accent rounded-full flex items-center justify-center text-white text-4xl font-bold">
                         {user.name.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -466,7 +466,7 @@ export default function UserProfile() {
                   </div>
 
                   <h2 className="text-2xl font-bold text-swar-text">{user.name}</h2>
-                  <p className="text-primary-600 font-medium mt-1">ID: {user.profileId || user.id?.slice(-6) || 'N/A'}</p>
+                  <p className="text-swar-primary font-medium mt-1">ID: {user.profileId || user.id?.slice(-6) || 'N/A'}</p>
                   <p className="text-sm text-swar-text-secondary mt-1">{user.profession || 'Member'}</p>
                   <p className="text-xs text-swar-text-secondary mt-2 break-all">{user.email}</p>
                   
@@ -537,7 +537,7 @@ export default function UserProfile() {
               {activeTab === 'profile' && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
                   <h3 className="text-2xl font-bold text-swar-text mb-6 flex items-center gap-2">
-                    <User size={24} className="text-primary-600" />
+                    <User size={24} className="text-swar-primary" />
                     Profile Information
                   </h3>
 
@@ -545,7 +545,7 @@ export default function UserProfile() {
                     {/* Profile ID */}
                     <div className="bg-swar-bg p-4 rounded-lg">
                       <label className="text-sm font-medium text-swar-text-secondary">Profile ID</label>
-                      <p className="text-lg font-mono font-bold text-primary-600 mt-2">{user.profileId || user.id?.slice(-6) || 'N/A'}</p>
+                      <p className="text-lg font-mono font-bold text-swar-primary mt-2">{user.profileId || user.id?.slice(-6) || 'N/A'}</p>
                       <p className="text-xs text-swar-text-secondary mt-1">6-digit unique identifier</p>
                     </div>
 
@@ -632,7 +632,7 @@ export default function UserProfile() {
               {activeTab === 'orders' && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
                   <h3 className="text-2xl font-bold text-swar-text mb-6 flex items-center gap-2">
-                    <ShoppingCart size={24} className="text-primary-600" />
+                    <ShoppingCart size={24} className="text-swar-primary" />
                     Your Orders & Purchases ({orders.length})
                   </h3>
 
@@ -734,7 +734,7 @@ export default function UserProfile() {
               {activeTab === 'messages' && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
                   <h3 className="text-2xl font-bold text-swar-text mb-4 flex items-center gap-2">
-                    <MessageSquare size={24} className="text-primary-600" />
+                    <MessageSquare size={24} className="text-swar-primary" />
                     Support Chat ({messages.length})
                   </h3>
 
@@ -794,7 +794,7 @@ export default function UserProfile() {
                         value={chatMessage}
                         onChange={(e) => setChatMessage(e.target.value)}
                         rows={5}
-                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary focus:border-transparent"
                         placeholder="Type your message to the admin here"
                         required
                       />
@@ -825,7 +825,7 @@ export default function UserProfile() {
               {activeTab === 'security' && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
                   <h3 className="text-2xl font-bold text-swar-text mb-6 flex items-center gap-2">
-                    <Shield size={24} className="text-primary-600" />
+                    <Shield size={24} className="text-swar-primary" />
                     Security Settings
                   </h3>
 

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import BookSeatModal from '@/components/BookSeatModal';
 import { workshopCatalog } from '@/lib/workshopsData';
 import { addCartItem, type CartCurrency, getStoredCart } from '@/lib/cart';
 
@@ -77,6 +78,12 @@ function RegisterNowDashboardPageInner() {
   const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [schedulesError, setSchedulesError] = useState<string>('');
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
+
+  // Book seat modal state
+  const [bookSeatModal, setBookSeatModal] = useState<{
+    isOpen: boolean;
+    month?: string;
+  }>({ isOpen: false });
 
   // Load published schedules once (used for fees + date blocks + Pay Now schedule id).
   useEffect(() => {
@@ -520,14 +527,23 @@ function RegisterNowDashboardPageInner() {
                     {sixMonthBlocks.map((b) => (
                       <div
                         key={b.label}
-                        className={`rounded-lg px-3 py-3 border text-sm font-semibold ${
+                        className={`rounded-lg px-3 py-3 border text-sm font-semibold transition-all ${
                           b.available
                             ? 'bg-swar-primary-light border-green-200 text-swar-text'
-                            : 'bg-white border-swar-border text-swar-text-secondary'
+                            : 'bg-white border-swar-border text-swar-text-secondary hover:border-swar-primary hover:bg-swar-primary/5'
                         }`}
                       >
                         <div className="text-[11px] font-bold uppercase tracking-wide">{b.label}</div>
-                        <div className="mt-1">{b.dateText}</div>
+                        <div className="mt-1 mb-2">{b.dateText}</div>
+                        {!b.available && selectedWorkshopSlug && (
+                          <button
+                            type="button"
+                            onClick={() => setBookSeatModal({ isOpen: true, month: b.label })}
+                            className="w-full mt-2 rounded-md px-2 py-1 bg-swar-primary text-white text-xs font-bold hover:bg-swar-primary/90 transition-colors active:scale-95"
+                          >
+                            Book Seat
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -592,6 +608,18 @@ function RegisterNowDashboardPageInner() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Book Seat Modal */}
+        {bookSeatModal.isOpen && selectedWorkshop && (
+          <BookSeatModal
+            workshopId={selectedWorkshop.slug}
+            workshopName={selectedWorkshop.name}
+            mode={selectedMode}
+            language={selectedLanguage}
+            month={bookSeatModal.month || 'Coming soon'}
+            onClose={() => setBookSeatModal({ isOpen: false })}
+          />
         )}
       </main>
       <Footer />

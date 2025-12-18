@@ -25,8 +25,6 @@ export default function ContactMessages() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [replySubject, setReplySubject] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -88,9 +86,10 @@ export default function ContactMessages() {
 
   const handleViewMessage = (msg: ContactMessage) => {
     setSelectedMessage(msg);
-    setReplySubject(`Re: ${msg.subject}`);
     setReplyMessage('');
-    setShowModal(true);
+    if (!msg.isRead) {
+      handleMarkAsRead(msg._id);
+    }
   };
 
   const handleSendReply = async (e: React.FormEvent) => {
@@ -110,7 +109,7 @@ export default function ContactMessages() {
         body: JSON.stringify({
           contactId: selectedMessage._id,
           userEmail: selectedMessage.email,
-          subject: replySubject || `Re: ${selectedMessage.subject}`,
+          subject: `Re: ${selectedMessage.subject}`,
           reply: replyMessage,
         }),
       });
@@ -118,8 +117,6 @@ export default function ContactMessages() {
       if (response.ok) {
         alert('Reply sent successfully!');
         setReplyMessage('');
-        setReplySubject('');
-        setShowModal(false);
         setSelectedMessage(null);
         // Refresh messages
         fetchMessages();
@@ -188,202 +185,159 @@ export default function ContactMessages() {
           </div>
         </header>
 
-        {/* Content */}
-        <main className="flex-1 overflow-auto p-6">
+        {/* Main Content - Split View */}
+        <main className="flex-1 overflow-hidden flex gap-6 p-6">
           {isLoading ? (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex items-center justify-center h-64 flex-1">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
             </div>
           ) : error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800 flex-1">
               {error}
             </div>
           ) : messages.length === 0 ? (
-            <div className="bg-swar-bg border border-swar-border rounded-lg p-8 text-center">
+            <div className="bg-swar-bg border border-swar-border rounded-lg p-8 text-center flex-1">
               <MessageSquare className="h-12 w-12 text-swar-text-secondary mx-auto mb-4" />
               <p className="text-swar-text-secondary text-lg">No contact messages yet</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-swar-bg border-b border-swar-border">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Status</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Name</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Email</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Subject</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Date</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {messages.map((msg, index) => (
-                      <tr key={msg._id} className={index % 2 === 0 ? 'bg-white' : 'bg-swar-bg'}>
-                        <td className="px-6 py-4 text-sm">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                            msg.isRead 
-                              ? 'bg-swar-primary-light text-swar-text' 
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {msg.isRead ? 'Read' : 'Unread'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-swar-text font-medium">{msg.name}</td>
-                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{msg.email}</td>
-                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{msg.subject}</td>
-                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{new Date(msg.createdAt).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <button
-                            onClick={() => handleViewMessage(msg)}
-                            className="inline-flex items-center space-x-1 px-3 py-1 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
-                          >
-                            <Eye className="h-4 w-4" />
-                            <span>View</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <>
+              {/* Messages List - Left Column */}
+              <div className="w-80 bg-white rounded-lg shadow overflow-hidden flex flex-col">
+                <div className="bg-swar-primary-light px-4 py-3 border-b border-swar-border">
+                  <p className="text-sm font-semibold text-swar-text">Messages ({messages.length})</p>
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+                  {messages.map((msg) => (
+                    <button
+                      key={msg._id}
+                      onClick={() => handleViewMessage(msg)}
+                      className={`w-full text-left px-4 py-3 border-b border-swar-border transition-colors ${
+                        selectedMessage?._id === msg._id
+                          ? 'bg-blue-50 border-l-4 border-l-swar-primary'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-swar-text truncate">{msg.name}</p>
+                          <p className="text-xs text-swar-text-secondary truncate">{msg.subject}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(msg.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {!msg.isRead && (
+                          <div className="ml-2 w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1"></div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="bg-swar-bg border-t border-swar-border px-4 py-3">
+                  <p className="text-xs text-swar-text-secondary">
+                    Unread: {messages.filter(m => !m.isRead).length}
+                  </p>
+                </div>
               </div>
 
-              {/* Stats Footer */}
-              <div className="bg-swar-bg border-t border-swar-border px-6 py-4 flex items-center justify-between">
-                <p className="text-sm text-swar-text-secondary">
-                  Total messages: <span className="font-semibold text-swar-text">{messages.length}</span>
-                </p>
-                <p className="text-sm text-swar-text-secondary">
-                  Unread: <span className="font-semibold text-blue-800">{messages.filter(m => !m.isRead).length}</span>
-                </p>
-              </div>
-            </div>
+              {/* Chat View - Right Column */}
+              {selectedMessage ? (
+                <div className="flex-1 bg-white rounded-lg shadow overflow-hidden flex flex-col">
+                  {/* Chat Header */}
+                  <div className="bg-swar-primary-light px-6 py-4 border-b border-swar-border">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h2 className="text-lg font-bold text-swar-text">{selectedMessage.name}</h2>
+                        <p className="text-sm text-swar-text-secondary">{selectedMessage.email}</p>
+                        {selectedMessage.phone && (
+                          <p className="text-sm text-swar-text-secondary">{selectedMessage.phone}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                          selectedMessage.isRead 
+                            ? 'bg-white text-swar-text' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {selectedMessage.isRead ? 'Read' : 'Unread'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Chat Messages */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
+                    {/* Original Message */}
+                    <div className="flex gap-3 mb-6">
+                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {selectedMessage.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="bg-gray-100 rounded-lg px-4 py-3">
+                          <p className="text-sm font-semibold text-swar-text mb-1">{selectedMessage.subject}</p>
+                          <p className="text-sm text-swar-text whitespace-pre-wrap">{selectedMessage.message}</p>
+                        </div>
+                        <p className="text-xs text-swar-text-secondary mt-1">
+                          {new Date(selectedMessage.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* TODO: Display existing replies here */}
+                  </div>
+
+                  {/* Reply Form */}
+                  <div className="border-t border-swar-border p-6 bg-white">
+                    <form onSubmit={handleSendReply} className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-1">
+                          Your Reply
+                        </label>
+                        <textarea
+                          value={replyMessage}
+                          onChange={(e) => setReplyMessage(e.target.value)}
+                          className="w-full px-3 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent resize-none text-sm"
+                          rows={3}
+                          placeholder="Type your reply message here..."
+                          required
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={submitting || !replyMessage.trim()}
+                          className="flex-1 bg-swar-primary text-white px-4 py-2 rounded-lg hover:bg-swar-primary disabled:bg-gray-400 transition-colors font-medium text-sm"
+                        >
+                          {submitting ? 'Sending...' : 'Send Reply'}
+                        </button>
+                        {!selectedMessage.isRead && (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkAsRead(selectedMessage._id)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                          >
+                            Mark as Read
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 bg-white rounded-lg shadow flex items-center justify-center text-center">
+                  <div>
+                    <MessageSquare className="h-12 w-12 text-swar-text-secondary mx-auto mb-4" />
+                    <p className="text-swar-text-secondary">Select a message to reply</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
-
-      {/* Message Modal */}
-      {showModal && selectedMessage && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-swar-text">Message Details</h2>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-swar-text-secondary hover:text-swar-text"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-swar-text-secondary">Status</label>
-                  <p className={`mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                    selectedMessage.isRead 
-                      ? 'bg-swar-primary-light text-swar-text' 
-                      : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {selectedMessage.isRead ? 'Read' : 'Unread'}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-swar-text-secondary">Name</label>
-                  <p className="mt-1 text-swar-text">{selectedMessage.name}</p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-swar-text-secondary">Email</label>
-                  <p className="mt-1 text-swar-text">{selectedMessage.email}</p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-swar-text-secondary">Subject</label>
-                  <p className="mt-1 text-swar-text">{selectedMessage.subject}</p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-swar-text-secondary">Message</label>
-                  <p className="mt-1 text-swar-text whitespace-pre-wrap">{selectedMessage.message}</p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-swar-text-secondary">Date</label>
-                  <p className="mt-1 text-swar-text">{new Date(selectedMessage.createdAt).toLocaleString()}</p>
-                </div>
-                {selectedMessage.phone && (
-                  <div>
-                    <label className="text-sm font-medium text-swar-text-secondary">Phone</label>
-                    <p className="mt-1 text-swar-text">{selectedMessage.phone}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Reply Form */}
-              <div className="mt-6 border-t pt-6">
-                <h3 className="text-lg font-semibold text-swar-text mb-4">Send Reply</h3>
-                <form onSubmit={handleSendReply} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-swar-text mb-2">
-                      Subject
-                    </label>
-                    <input
-                      type="text"
-                      value={replySubject}
-                      onChange={(e) => setReplySubject(e.target.value)}
-                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Reply subject..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-swar-text mb-2">
-                      Your Reply Message
-                    </label>
-                    <textarea
-                      value={replyMessage}
-                      onChange={(e) => setReplyMessage(e.target.value)}
-                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      rows={5}
-                      placeholder="Type your reply message here..."
-                      required
-                    />
-                  </div>
-
-                  <div className="flex space-x-3">
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="flex-1 bg-swar-primary text-white px-4 py-2 rounded-lg hover:bg-swar-primary disabled:bg-gray-400 transition-colors font-medium"
-                    >
-                      {submitting ? 'Sending...' : 'Send Reply'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              <div className="mt-6 flex space-x-3">
-                {!selectedMessage.isRead && (
-                  <button
-                    onClick={() => handleMarkAsRead(selectedMessage._id)}
-                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    Mark as Read
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-300 text-swar-text px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors font-medium"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

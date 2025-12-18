@@ -93,12 +93,12 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
         {/* Sidebar Header */}
         <div className="p-4 sm:p-6 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center space-x-2 min-w-0">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-lg flex-shrink-0">
-              SP
+            <div className="w-10 h-10 bg-swar-primary rounded-lg flex items-center justify-center font-bold text-white text-lg flex-shrink-0">
+              SY
             </div>
             <div className="min-w-0">
               <h2 className="font-bold text-base sm:text-lg truncate">Swar Yoga</h2>
-              <p className="text-xs text-swar-text-secondary">Admin Panel</p>
+              <p className="text-xs text-gray-400">Admin Panel</p>
             </div>
           </div>
           <button
