@@ -11,6 +11,8 @@ yarn-error.log*
 .DS_Store
 .next/cache
 .vercel
+src
+server
 
 # Don't ignore .env.local - Vercel needs it
 # but set env vars in Vercel dashboard instead
