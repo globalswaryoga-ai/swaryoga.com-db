@@ -118,7 +118,7 @@ export default function Navigation() {
               {/* Logo Image */}
               <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center flex-shrink-0">
                 <img 
-                  src="https://i.postimg.cc/VkVFzhxB/facebook_logo.png"
+                  src="https://postimg.cc/JGGJNwm8"
                   alt="Swar Yoga Logo"
                   className="w-full h-full object-contain"
                 />
