@@ -1,5 +1,5 @@
 {
-  "buildCommand": "next build",
+  "buildCommand": "npm run vercel-build",
   "framework": "nextjs",
   "env": {
     "NEXT_PUBLIC_API_URL": "https://swaryoga.com"

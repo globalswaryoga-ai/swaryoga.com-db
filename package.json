@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "mv src src-temp 2>/dev/null; next build; mv src-temp src 2>/dev/null || true",
+    "vercel-build": "mv src src.bak 2>/dev/null || true && next build",
+    "vercel-start": "mv src.bak src 2>/dev/null || true && next start",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
