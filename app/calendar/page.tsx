@@ -330,10 +330,10 @@ const SwarCalendar: React.FC = () => {
       <Navigation />
       <div className="container mx-auto px-4 py-8 space-y-8 min-h-screen">
         {/* Hero Section */}
-        <section className="text-center py-20 bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 text-white rounded-3xl shadow-2xl overflow-hidden relative">
+        <section className="text-center py-20 bg-gradient-to-r from-swar-primary via-swar-accent to-swar-primary text-white rounded-3xl shadow-2xl overflow-hidden relative">
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full mix-blend-multiply filter blur-3xl"></div>
-            <div className="absolute top-0 right-0 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl"></div>
+            <div className="absolute top-0 right-0 w-96 h-96 bg-swar-primary-light rounded-full mix-blend-multiply filter blur-3xl"></div>
           </div>
           <div className="relative z-10">
             <Calendar className="w-20 h-20 mx-auto mb-6 animate-pulse" />
@@ -361,7 +361,7 @@ const SwarCalendar: React.FC = () => {
         {/* Features Section */}
         <section className="py-16 bg-gradient-to-b from-gray-50 to-white rounded-3xl">
           <div className="space-y-12">
-            <h2 className="text-4xl font-bold text-center text-gray-800">
+            <h2 className="text-4xl font-bold text-center text-swar-text">
               Powerful Astrological Features
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -370,8 +370,8 @@ const SwarCalendar: React.FC = () => {
                 <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
                   <Sun className="w-6 h-6 text-orange-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-gray-800">Sunrise Time</h3>
-                <p className="text-gray-600 leading-relaxed">
+                <h3 className="text-xl font-semibold mb-3 text-swar-text">Sunrise Time</h3>
+                <p className="text-swar-text-secondary leading-relaxed">
                   Precise sunrise calculations based on your exact latitude and longitude coordinates.
                 </p>
               </div>
@@ -392,19 +392,19 @@ const SwarCalendar: React.FC = () => {
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
                   <div className="w-6 h-6 text-purple-600 text-lg">☄️</div>
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-gray-800">Nadi Analysis</h3>
-                <p className="text-gray-600 leading-relaxed">
+                <h3 className="text-xl font-semibold mb-3 text-swar-text">Nadi Analysis</h3>
+                <p className="text-swar-text-secondary leading-relaxed">
                   Surya and Chandra Nadi calculations based on traditional Hindu astrology principles.
                 </p>
               </div>
 
               {/* Location Based */}
               <div className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 border-l-4 border-green-500">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <MapPin className="w-6 h-6 text-green-600" />
+                <div className="w-12 h-12 bg-swar-primary-light rounded-lg flex items-center justify-center mb-4">
+                  <MapPin className="w-6 h-6 text-swar-primary" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-gray-800">Global Coverage</h3>
-                <p className="text-gray-600 leading-relaxed">
+                <h3 className="text-xl font-semibold mb-3 text-swar-text">Global Coverage</h3>
+                <p className="text-swar-text-secondary leading-relaxed">
                   Calculations tailored to 100+ countries and thousands of cities worldwide.
                 </p>
               </div>
@@ -416,14 +416,14 @@ const SwarCalendar: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="flex items-center space-x-2 mb-6">
             <MapPin className="w-6 h-6 text-blue-600" />
-            <h2 className="text-2xl font-bold text-gray-800">Location & Date Information</h2>
+            <h2 className="text-2xl font-bold text-swar-text">Location & Date Information</h2>
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Date */}
               <div>
-                <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="date" className="block text-sm font-medium text-swar-text mb-1">
                   Select Date
                 </label>
                 <input

@@ -74,17 +74,17 @@ function PaymentSuccessfulInner() {
       <Navigation />
       <main className="min-h-screen pt-20 pb-16 px-4">
         <div className="container mx-auto max-w-3xl">
-          <div className="bg-white rounded-2xl shadow-xl border border-green-100 overflow-hidden">
-            <div className="p-8 sm:p-10 bg-gradient-to-r from-green-50 to-white border-b border-green-100">
+          <div className="bg-white rounded-2xl shadow-xl border border-swar-border overflow-hidden">
+            <div className="p-8 sm:p-10 bg-gradient-to-r from-swar-primary-light to-white border-b border-swar-border">
               <div className="flex items-start gap-4">
-                <div className="shrink-0 w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                  <span className="text-green-700 text-2xl">✓</span>
+                <div className="shrink-0 w-12 h-12 rounded-full bg-swar-primary-light flex items-center justify-center">
+                  <span className="text-swar-primary text-2xl">✓</span>
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-3xl sm:text-4xl font-bold text-green-800">{heading}</h1>
-                  <p className="mt-2 text-gray-700 text-lg">{subheading}</p>
+                  <h1 className="text-3xl sm:text-4xl font-bold text-swar-primary">{heading}</h1>
+                  <p className="mt-2 text-swar-text text-lg">{subheading}</p>
                   {summaryLine ? (
-                    <p className="mt-3 text-sm text-gray-600 break-words">{summaryLine}</p>
+                    <p className="mt-3 text-sm text-swar-text-secondary break-words">{summaryLine}</p>
                   ) : null}
                 </div>
               </div>
@@ -155,21 +155,21 @@ function PaymentSuccessfulInner() {
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link
                   href="/workshop"
-                  className="inline-flex justify-center items-center px-6 py-3 rounded-xl bg-yoga-600 text-white font-semibold hover:bg-yoga-700 transition"
+                  className="inline-flex justify-center items-center px-6 py-3 rounded-xl bg-swar-primary text-white font-semibold hover:bg-swar-primary-hover transition"
                 >
                   Explore Workshops
                 </Link>
                 <Link
                   href="/"
-                  className="inline-flex justify-center items-center px-6 py-3 rounded-xl border border-gray-300 text-gray-800 font-semibold hover:bg-gray-50 transition"
+                  className="inline-flex justify-center items-center px-6 py-3 rounded-xl border border-swar-border text-swar-text font-semibold hover:bg-swar-primary-light transition"
                 >
                   Home
                 </Link>
               </div>
 
-              <p className="mt-6 text-sm text-gray-500">
+              <p className="mt-6 text-sm text-swar-text-secondary">
                 Need help? Email{' '}
-                <a className="text-yoga-700 font-semibold" href="mailto:support@swaryoga.com">
+                <a className="text-swar-accent font-semibold" href="mailto:support@swaryoga.com">
                   support@swaryoga.com
                 </a>
               </p>
