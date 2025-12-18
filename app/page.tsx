@@ -48,14 +48,14 @@ const HomePage = () => {
             >
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-serif mb-4 sm:mb-6">
                 <span className="text-white font-light block mb-2">Welcome to</span>
-                <span className="text-green-400 font-medium">Swar Yoga</span>
+                <span className="text-swar-accent font-medium">Swar Yoga</span>
               </h1>
             </div>
 
             <div
             >
               <p className="text-lg sm:text-xl md:text-2xl text-gray-200 mb-6 sm:mb-8 leading-relaxed">
-                The Science of Breath - Ancient yogic practices that unlock the secrets of conscious breathing for optimal health and vitality.
+                From Breath To Soul - Ancient yogic practices that unlock the secrets of conscious breathing for optimal health and vitality.
               </p>
             </div>
 
@@ -64,7 +64,7 @@ const HomePage = () => {
             >
               <Link
                 href="/workshop"
-                className="bg-green-600 hover:bg-green-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 flex items-center justify-center group hover:translate-y-[-2px] hover:shadow-lg touch-target"
+                className="bg-swar-primary hover:bg-swar-primary-hover text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 flex items-center justify-center group hover:translate-y-[-2px] hover:shadow-lg touch-target"
               >
                 <span className="text-base sm:text-lg">Start Your Journey</span>
                 <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6 transform group-hover:translate-x-1 transition-transform" />
