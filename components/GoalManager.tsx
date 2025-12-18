@@ -120,7 +120,7 @@ export default function GoalManager({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-gray-800">Goals</h2>
+        <h2 className="text-3xl font-bold text-swar-text">Goals</h2>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
@@ -134,21 +134,21 @@ export default function GoalManager({
       <div className="bg-white rounded-lg p-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               type="text"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder="Search title / description"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Status</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
             >
               <option value="all">All</option>
               {uniqueStatuses.map((s) => (
@@ -162,13 +162,13 @@ export default function GoalManager({
                 setSearchText('');
                 setFilterStatus('all');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
-        <p className="text-sm text-gray-600">Showing {filteredGoals.length} of {goals.length} goals</p>
+        <p className="text-sm text-swar-text-secondary">Showing {filteredGoals.length} of {goals.length} goals</p>
       </div>
 
       {/* Form Modal */}
@@ -176,43 +176,43 @@ export default function GoalManager({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-800">
+              <h3 className="text-xl font-bold text-swar-text">
                 {editingId ? 'Edit Goal' : 'Add New Goal'}
               </h3>
-              <button onClick={() => resetForm()} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <X className="w-6 h-6 text-gray-500" />
+              <button onClick={() => resetForm()} className="p-2 hover:bg-swar-primary-light rounded-lg transition-colors">
+                <X className="w-6 h-6 text-swar-text-secondary" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Goal Title *</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Goal Title *</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Enter goal title"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Enter goal description"
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Linked Vision (Optional)</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Linked Vision (Optional)</label>
                 <select
                   value={formData.visionId || ''}
                   onChange={(e) => setFormData({ ...formData, visionId: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="">No Vision Selected</option>
                   {visions.map((v) => (
@@ -222,39 +222,39 @@ export default function GoalManager({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Image URL (Optional)</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Image URL (Optional)</label>
                 <input
                   type="url"
                   value={formData.imageUrl || ''}
                   onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Start Date</label>
                   <input
                     type="date"
                     value={formData.startDate}
                     onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Date</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Target Date</label>
                   <input
                     type="date"
                     value={formData.targetDate}
                     onChange={(e) => setFormData({ ...formData, targetDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Budget (Optional)</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Budget (Optional)</label>
                 <input
                   type="number"
                   value={formData.budget || ''}
@@ -262,17 +262,17 @@ export default function GoalManager({
                   placeholder="Enter budget amount"
                   min="0"
                   step="0.01"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Priority</label>
                   <select
                     value={formData.priority}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -280,11 +280,11 @@ export default function GoalManager({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Status</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="not-started">Not Started</option>
                     <option value="in-progress">In Progress</option>
@@ -295,7 +295,7 @@ export default function GoalManager({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Progress: {formData.progress}%</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Progress: {formData.progress}%</label>
                 <input
                   type="range"
                   min="0"
@@ -309,7 +309,7 @@ export default function GoalManager({
             </div>
 
             <div className="flex gap-3 justify-end">
-              <button onClick={() => resetForm()} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+              <button onClick={() => resetForm()} className="px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg">
                 Cancel
               </button>
               <button
@@ -327,7 +327,7 @@ export default function GoalManager({
       {/* Goals Grid (Vision Design Style) */}
       {filteredGoals.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No goals yet. Create your first goal!</p>
+          <p className="text-swar-text-secondary text-lg">No goals yet. Create your first goal!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
@@ -344,13 +344,13 @@ export default function GoalManager({
               {/* Card Content */}
               <div className="p-5 flex-1 flex flex-col">
                 {/* Title - bold, large with top spacing */}
-                <h3 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2">{goal.title}</h3>
+                <h3 className="text-xl font-bold text-swar-text mb-3 line-clamp-2">{goal.title}</h3>
                 
                 {/* Description - gray with medium spacing */}
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{goal.description}</p>
+                <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{goal.description}</p>
 
                 {/* Metadata Icons (single column format) */}
-                <div className="space-y-2 text-sm text-gray-700 mb-auto font-medium">
+                <div className="space-y-2 text-sm text-swar-text mb-auto font-medium">
                   {goal.visionId && <div className="flex items-center gap-2">👁️ {getVisionTitle(goal.visionId)}</div>}
                   {goal.targetDate && (
                     <div className="flex items-center gap-2">
@@ -363,10 +363,10 @@ export default function GoalManager({
                 {/* Progress Bar */}
                 <div className="mt-3 mb-3">
                   <div className="flex justify-between mb-1">
-                    <span className="text-xs font-semibold text-gray-700">Progress</span>
+                    <span className="text-xs font-semibold text-swar-text">Progress</span>
                     <span className="text-xs font-semibold text-emerald-600">{goal.progress}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-swar-primary-light rounded-full h-2">
                     <div className="bg-emerald-600 h-2 rounded-full transition-all" style={{ width: `${goal.progress}%` }} />
                   </div>
                 </div>
@@ -376,7 +376,7 @@ export default function GoalManager({
                   <span className={`px-3 py-1 rounded text-xs font-medium ${
                     goal.priority === 'high' ? 'bg-red-100 text-red-700' : 
                     goal.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' : 
-                    'bg-green-100 text-green-700'
+                    'bg-swar-primary-light text-swar-primary'
                   }`}>
                     {goal.priority.toUpperCase()} PRIORITY
                   </span>

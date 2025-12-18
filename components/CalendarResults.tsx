@@ -25,20 +25,20 @@ const CalendarResults: React.FC<CalendarResultsProps> = ({ data }) => {
       <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500 hover:shadow-xl transition-shadow">
         <div className="flex items-center space-x-2 mb-3">
           <Calendar className="w-6 h-6 text-blue-500" />
-          <h3 className="text-lg font-semibold text-gray-800">Date & Day</h3>
+          <h3 className="text-lg font-semibold text-swar-text">Date & Day</h3>
         </div>
         <p className="text-2xl font-bold text-blue-600">{data.date}</p>
-        <p className="text-gray-600 mt-1">{data.day}</p>
+        <p className="text-swar-text-secondary mt-1">{data.day}</p>
       </div>
 
       {/* Paksh (Moon Phase) */}
       <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500 hover:shadow-xl transition-shadow">
         <div className="flex items-center space-x-2 mb-3">
-          <Moon className="w-6 h-6 text-green-500" />
-          <h3 className="text-lg font-semibold text-gray-800">Paksh</h3>
+          <Moon className="w-6 h-6 text-swar-primary-light0" />
+          <h3 className="text-lg font-semibold text-swar-text">Paksh</h3>
         </div>
-        <p className="text-2xl font-bold text-green-600">{data.paksh}</p>
-        <p className="text-gray-600 mt-1">
+        <p className="text-2xl font-bold text-swar-primary">{data.paksh}</p>
+        <p className="text-swar-text-secondary mt-1">
           {data.paksh === 'Shukla Paksha' ? '🌕 Waxing Moon' : '🌑 Waning Moon'}
         </p>
       </div>
@@ -47,20 +47,20 @@ const CalendarResults: React.FC<CalendarResultsProps> = ({ data }) => {
       <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-purple-500 hover:shadow-xl transition-shadow">
         <div className="flex items-center space-x-2 mb-3">
           <Star className="w-6 h-6 text-purple-500" />
-          <h3 className="text-lg font-semibold text-gray-800">Tithi</h3>
+          <h3 className="text-lg font-semibold text-swar-text">Tithi</h3>
         </div>
         <p className="text-2xl font-bold text-purple-600">{data.tithi}</p>
-        <p className="text-gray-600 mt-1">{getTithiName(data.tithi)}</p>
+        <p className="text-swar-text-secondary mt-1">{getTithiName(data.tithi)}</p>
       </div>
 
       {/* Sunrise Time */}
       <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-orange-500 hover:shadow-xl transition-shadow">
         <div className="flex items-center space-x-2 mb-3">
           <Sun className="w-6 h-6 text-orange-500" />
-          <h3 className="text-lg font-semibold text-gray-800">Sunrise</h3>
+          <h3 className="text-lg font-semibold text-swar-text">Sunrise</h3>
         </div>
         <p className="text-2xl font-bold text-orange-600">{data.sunrise}</p>
-        <p className="text-gray-600 mt-1">Local Time</p>
+        <p className="text-swar-text-secondary mt-1">Local Time</p>
       </div>
 
       {/* Nadi (Energy) */}
@@ -71,10 +71,10 @@ const CalendarResults: React.FC<CalendarResultsProps> = ({ data }) => {
           ) : (
             <Moon className="w-6 h-6 text-indigo-500" />
           )}
-          <h3 className="text-lg font-semibold text-gray-800">Nadi</h3>
+          <h3 className="text-lg font-semibold text-swar-text">Nadi</h3>
         </div>
         <p className="text-2xl font-bold text-indigo-600">{data.nadi}</p>
-        <p className="text-gray-600 mt-1">
+        <p className="text-swar-text-secondary mt-1">
           {data.nadi === 'Surya Nadi' ? '☀️ Sun Energy' : '🌙 Moon Energy'}
         </p>
       </div>
@@ -83,10 +83,10 @@ const CalendarResults: React.FC<CalendarResultsProps> = ({ data }) => {
       <div className="bg-white p-6 rounded-xl shadow-lg border-l-4 border-teal-500 hover:shadow-xl transition-shadow">
         <div className="flex items-center space-x-2 mb-3">
           <MapPin className="w-6 h-6 text-teal-500" />
-          <h3 className="text-lg font-semibold text-gray-800">Location</h3>
+          <h3 className="text-lg font-semibold text-swar-text">Location</h3>
         </div>
         <p className="text-lg font-bold text-teal-600">{data.location}</p>
-        <p className="text-gray-600 text-sm mt-1">
+        <p className="text-swar-text-secondary text-sm mt-1">
           {(typeof data.coordinates.latitude === 'number' && isFinite(data.coordinates.latitude) ? data.coordinates.latitude.toFixed(4) : '0.0000')}°, {(typeof data.coordinates.longitude === 'number' && isFinite(data.coordinates.longitude) ? data.coordinates.longitude.toFixed(4) : '0.0000')}°
         </p>
       </div>

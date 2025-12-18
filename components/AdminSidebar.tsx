@@ -34,7 +34,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       icon: Users,
       label: 'Signup Data',
       href: '/admin/signup-data',
-      color: 'text-green-600'
+      color: 'text-swar-primary'
     },
     {
       icon: LogIn,
@@ -98,7 +98,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             </div>
             <div className="min-w-0">
               <h2 className="font-bold text-base sm:text-lg truncate">Swar Yoga</h2>
-              <p className="text-xs text-gray-400">Admin Panel</p>
+              <p className="text-xs text-swar-text-secondary">Admin Panel</p>
             </div>
           </div>
           <button
@@ -142,7 +142,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
 
         {/* Footer Info */}
         <div className="p-4 sm:p-6 border-t border-gray-800 flex-shrink-0 safe-area-bottom">
-          <div className="text-xs text-gray-400">
+          <div className="text-xs text-swar-text-secondary">
             <p className="font-semibold text-gray-300 mb-2">Admin Panel v1.0</p>
             <p className="line-clamp-2">Manage all user data and site content</p>
           </div>

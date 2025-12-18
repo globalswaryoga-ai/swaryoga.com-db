@@ -140,7 +140,7 @@ export default function LifePlannerProfilePage() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600">Loading profile...</p>
+          <p className="text-swar-text-secondary">Loading profile...</p>
         </div>
       </div>
     );
@@ -163,13 +163,13 @@ export default function LifePlannerProfilePage() {
         <div className="max-w-2xl mx-auto px-6">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-              <p className="text-gray-600 mt-2">View and manage your personal information</p>
+              <h1 className="text-3xl font-bold text-swar-text">My Profile</h1>
+              <p className="text-swar-text-secondary mt-2">View and manage your personal information</p>
             </div>
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all"
+                className="bg-gradient-to-r from-swar-accent to-pink-500 text-white px-6 py-2 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all"
               >
                 Edit Profile
               </button>
@@ -184,11 +184,11 @@ export default function LifePlannerProfilePage() {
 
           {isEditing ? (
             // Edit Mode
-            <div className="bg-white border border-pink-200 rounded-2xl p-8 shadow-lg">
+            <div className="bg-white border border-swar-border rounded-2xl p-8 shadow-lg">
               <div className="space-y-6">
                 {/* Name */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">
                     Full Name
                   </label>
                   <input
@@ -196,28 +196,28 @@ export default function LifePlannerProfilePage() {
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-pink-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                    className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                     placeholder="Your name"
                   />
                 </div>
 
                 {/* Email (Read-only) */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">
                     Email (Cannot be changed)
                   </label>
                   <input
                     type="email"
                     value={profile.email}
                     disabled
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                    className="w-full px-4 py-3 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary cursor-not-allowed"
                   />
                 </div>
 
                 {/* Phone */}
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    <label className="block text-sm font-semibold text-swar-text mb-2">
                       Country Code
                     </label>
                     <input
@@ -225,12 +225,12 @@ export default function LifePlannerProfilePage() {
                       name="countryCode"
                       value={formData.countryCode}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-pink-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                       placeholder="+91"
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    <label className="block text-sm font-semibold text-swar-text mb-2">
                       Phone Number
                     </label>
                     <input
@@ -238,7 +238,7 @@ export default function LifePlannerProfilePage() {
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-pink-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                       placeholder="Your phone number"
                     />
                   </div>
@@ -247,7 +247,7 @@ export default function LifePlannerProfilePage() {
                 {/* Country & State */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    <label className="block text-sm font-semibold text-swar-text mb-2">
                       Country
                     </label>
                     <input
@@ -255,12 +255,12 @@ export default function LifePlannerProfilePage() {
                       name="country"
                       value={formData.country}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-pink-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                       placeholder="Your country"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    <label className="block text-sm font-semibold text-swar-text mb-2">
                       State
                     </label>
                     <input
@@ -268,7 +268,7 @@ export default function LifePlannerProfilePage() {
                       name="state"
                       value={formData.state}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-pink-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                       placeholder="Your state"
                     />
                   </div>
@@ -277,14 +277,14 @@ export default function LifePlannerProfilePage() {
                 {/* Gender & Age */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    <label className="block text-sm font-semibold text-swar-text mb-2">
                       Gender
                     </label>
                     <select
                       name="gender"
                       value={formData.gender}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-pink-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                     >
                       <option value="">Select gender</option>
                       <option value="male">Male</option>
@@ -294,7 +294,7 @@ export default function LifePlannerProfilePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                    <label className="block text-sm font-semibold text-swar-text mb-2">
                       Age
                     </label>
                     <input
@@ -302,7 +302,7 @@ export default function LifePlannerProfilePage() {
                       name="age"
                       value={formData.age}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-pink-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                       placeholder="Your age"
                       min="13"
                       max="150"
@@ -312,7 +312,7 @@ export default function LifePlannerProfilePage() {
 
                 {/* Profession */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <label className="block text-sm font-semibold text-swar-text mb-2">
                     Profession
                   </label>
                   <input
@@ -320,7 +320,7 @@ export default function LifePlannerProfilePage() {
                     name="profession"
                     value={formData.profession}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-pink-200 rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                    className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                     placeholder="Your profession"
                   />
                 </div>
@@ -329,13 +329,13 @@ export default function LifePlannerProfilePage() {
                 <div className="flex gap-4 pt-6">
                   <button
                     onClick={handleSave}
-                    className="flex-1 bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all"
+                    className="flex-1 bg-gradient-to-r from-swar-accent to-pink-500 text-white font-semibold py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all"
                   >
                     Save Changes
                   </button>
                   <button
                     onClick={handleCancel}
-                    className="flex-1 border border-pink-300 text-gray-700 font-semibold py-3 rounded-lg hover:bg-pink-50 transition-all"
+                    className="flex-1 border border-pink-300 text-swar-text font-semibold py-3 rounded-lg hover:bg-swar-primary-light transition-all"
                   >
                     Cancel
                   </button>
@@ -346,34 +346,34 @@ export default function LifePlannerProfilePage() {
             // View Mode
             <div className="space-y-6">
               {/* Basic Info Card */}
-              <div className="bg-white border border-pink-200 rounded-2xl p-8 shadow-lg">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Basic Information</h2>
+              <div className="bg-white border border-swar-border rounded-2xl p-8 shadow-lg">
+                <h2 className="text-xl font-bold text-swar-text mb-6">Basic Information</h2>
                 
                 <div className="space-y-4">
                   {/* Name */}
-                  <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                  <div className="flex items-center gap-4 pb-4 border-b border-swar-border">
                     <User className="h-6 w-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-600">Full Name</p>
-                      <p className="text-lg font-semibold text-gray-900">{profile.name}</p>
+                      <p className="text-sm text-swar-text-secondary">Full Name</p>
+                      <p className="text-lg font-semibold text-swar-text">{profile.name}</p>
                     </div>
                   </div>
 
                   {/* Email */}
-                  <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                  <div className="flex items-center gap-4 pb-4 border-b border-swar-border">
                     <Mail className="h-6 w-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-600">Email</p>
-                      <p className="text-lg font-semibold text-gray-900">{profile.email}</p>
+                      <p className="text-sm text-swar-text-secondary">Email</p>
+                      <p className="text-lg font-semibold text-swar-text">{profile.email}</p>
                     </div>
                   </div>
 
                   {/* Phone */}
-                  <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                  <div className="flex items-center gap-4 pb-4 border-b border-swar-border">
                     <Phone className="h-6 w-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-600">Phone</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-sm text-swar-text-secondary">Phone</p>
+                      <p className="text-lg font-semibold text-swar-text">
                         {profile.countryCode} {profile.phone}
                       </p>
                     </div>
@@ -382,16 +382,16 @@ export default function LifePlannerProfilePage() {
               </div>
 
               {/* Location Card */}
-              <div className="bg-white border border-pink-200 rounded-2xl p-8 shadow-lg">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Location</h2>
+              <div className="bg-white border border-swar-border rounded-2xl p-8 shadow-lg">
+                <h2 className="text-xl font-bold text-swar-text mb-6">Location</h2>
                 
                 <div className="space-y-4">
                   {/* Country */}
-                  <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                  <div className="flex items-center gap-4 pb-4 border-b border-swar-border">
                     <MapPin className="h-6 w-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-600">Country</p>
-                      <p className="text-lg font-semibold text-gray-900">{profile.country}</p>
+                      <p className="text-sm text-swar-text-secondary">Country</p>
+                      <p className="text-lg font-semibold text-swar-text">{profile.country}</p>
                     </div>
                   </div>
 
@@ -399,35 +399,35 @@ export default function LifePlannerProfilePage() {
                   <div className="flex items-center gap-4">
                     <div className="h-6 w-6 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-600">State</p>
-                      <p className="text-lg font-semibold text-gray-900">{profile.state}</p>
+                      <p className="text-sm text-swar-text-secondary">State</p>
+                      <p className="text-lg font-semibold text-swar-text">{profile.state}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Additional Info Card */}
-              <div className="bg-white border border-pink-200 rounded-2xl p-8 shadow-lg">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Additional Information</h2>
+              <div className="bg-white border border-swar-border rounded-2xl p-8 shadow-lg">
+                <h2 className="text-xl font-bold text-swar-text mb-6">Additional Information</h2>
                 
                 <div className="space-y-4">
                   {/* Gender */}
-                  <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                  <div className="flex items-center gap-4 pb-4 border-b border-swar-border">
                     <User className="h-6 w-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-600">Gender</p>
-                      <p className="text-lg font-semibold text-gray-900 capitalize">
+                      <p className="text-sm text-swar-text-secondary">Gender</p>
+                      <p className="text-lg font-semibold text-swar-text capitalize">
                         {profile.gender === 'prefer-not-to-say' ? 'Prefer not to say' : profile.gender}
                       </p>
                     </div>
                   </div>
 
                   {/* Age */}
-                  <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                  <div className="flex items-center gap-4 pb-4 border-b border-swar-border">
                     <Calendar className="h-6 w-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-600">Age</p>
-                      <p className="text-lg font-semibold text-gray-900">{profile.age} years</p>
+                      <p className="text-sm text-swar-text-secondary">Age</p>
+                      <p className="text-lg font-semibold text-swar-text">{profile.age} years</p>
                     </div>
                   </div>
 
@@ -435,8 +435,8 @@ export default function LifePlannerProfilePage() {
                   <div className="flex items-center gap-4">
                     <Briefcase className="h-6 w-6 text-red-600 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-600">Profession</p>
-                      <p className="text-lg font-semibold text-gray-900">{profile.profession}</p>
+                      <p className="text-sm text-swar-text-secondary">Profession</p>
+                      <p className="text-lg font-semibold text-swar-text">{profile.profession}</p>
                     </div>
                   </div>
                 </div>

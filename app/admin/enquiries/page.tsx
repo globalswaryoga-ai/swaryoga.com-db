@@ -100,9 +100,9 @@ export default function EnquiriesPage() {
       case 'contacted':
         return 'bg-yellow-100 text-yellow-800';
       case 'registered':
-        return 'bg-green-100 text-green-800';
+        return 'bg-swar-primary-light text-swar-primary';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-swar-primary-light text-swar-text';
     }
   };
 
@@ -117,15 +117,15 @@ export default function EnquiriesPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-swar-primary-light">
       <AdminSidebar isOpen={true} onClose={() => {}} />
 
       <main className="flex-1 p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Workshop Enquiries</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl md:text-4xl font-bold text-swar-text mb-2">Workshop Enquiries</h1>
+            <p className="text-swar-text-secondary">
               Total Enquiries: <span className="font-semibold">{enquiries.length}</span>
             </p>
           </div>
@@ -139,14 +139,14 @@ export default function EnquiriesPage() {
                 placeholder="Search by name, mobile, or city..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
 
               {/* Status Filter */}
               <select
                 value={selectedFilter}
                 onChange={(e) => setSelectedFilter(e.target.value as any)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="all">All Status</option>
                 <option value="new">New</option>
@@ -158,7 +158,7 @@ export default function EnquiriesPage() {
               <select
                 value={selectedWorkshop}
                 onChange={(e) => setSelectedWorkshop(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="all">All Workshops</option>
                 {workshops.map((ws) => (
@@ -181,7 +181,7 @@ export default function EnquiriesPage() {
           {/* Enquiries Table */}
           {loading ? (
             <div className="bg-white rounded-lg shadow-md p-8 text-center">
-              <p className="text-gray-500">Loading enquiries...</p>
+              <p className="text-swar-text-secondary">Loading enquiries...</p>
             </div>
           ) : error ? (
             <div className="bg-red-50 border border-red-200 rounded-lg shadow-md p-8 text-center">
@@ -189,7 +189,7 @@ export default function EnquiriesPage() {
             </div>
           ) : filteredEnquiries.length === 0 ? (
             <div className="bg-white rounded-lg shadow-md p-8 text-center">
-              <p className="text-gray-500">No enquiries found</p>
+              <p className="text-swar-text-secondary">No enquiries found</p>
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -198,12 +198,12 @@ export default function EnquiriesPage() {
                 {filteredEnquiries.map((enquiry) => (
                   <div
                     key={enquiry.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                    className="border border-swar-border rounded-lg p-4 hover:shadow-md transition-shadow"
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h3 className="font-semibold text-gray-800">{enquiry.name}</h3>
-                        <p className="text-sm text-gray-600">{enquiry.workshopName}</p>
+                        <h3 className="font-semibold text-swar-text">{enquiry.name}</h3>
+                        <p className="text-sm text-swar-text-secondary">{enquiry.workshopName}</p>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(enquiry.status)}`}>
                         {enquiry.status}
@@ -211,21 +211,21 @@ export default function EnquiriesPage() {
                     </div>
 
                     <div className="space-y-2 mb-3 text-sm">
-                      <div className="flex items-center gap-2 text-gray-600">
+                      <div className="flex items-center gap-2 text-swar-text-secondary">
                         <Phone className="w-4 h-4" />
                         {enquiry.mobile}
                       </div>
-                      <div className="flex items-center gap-2 text-gray-600">
+                      <div className="flex items-center gap-2 text-swar-text-secondary">
                         <MapPin className="w-4 h-4" />
                         {enquiry.city} • {enquiry.gender}
                       </div>
-                      <div className="text-xs text-gray-500">{formatDate(enquiry.submittedAt)}</div>
+                      <div className="text-xs text-swar-text-secondary">{formatDate(enquiry.submittedAt)}</div>
                     </div>
 
                     <select
                       value={enquiry.status}
                       onChange={(e) => handleStatusChange(enquiry.id, e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-2 py-1 text-sm border border-swar-border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="new">New</option>
                       <option value="contacted">Contacted</option>
@@ -246,40 +246,40 @@ export default function EnquiriesPage() {
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Contact</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Location</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Workshop</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Submitted</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                    <tr className="bg-swar-bg border-b border-swar-border">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Contact</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Location</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Workshop</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Submitted</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-swar-text-secondary uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredEnquiries.map((enquiry) => (
                       <React.Fragment key={enquiry.id}>
-                        <tr className="border-b border-gray-200 hover:bg-gray-50">
+                        <tr className="border-b border-swar-border hover:bg-swar-bg">
                           <td className="px-6 py-4">
-                            <div className="font-semibold text-gray-800">{enquiry.name}</div>
-                            <div className="text-sm text-gray-600">{enquiry.gender}</div>
+                            <div className="font-semibold text-swar-text">{enquiry.name}</div>
+                            <div className="text-sm text-swar-text-secondary">{enquiry.gender}</div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
-                              <Phone className="w-4 h-4 text-gray-400" />
+                              <Phone className="w-4 h-4 text-swar-text-secondary" />
                               <a href={`tel:${enquiry.mobile}`} className="text-primary-600 hover:underline">
                                 {enquiry.mobile}
                               </a>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2 text-gray-700">
-                              <MapPin className="w-4 h-4 text-gray-400" />
+                            <div className="flex items-center gap-2 text-swar-text">
+                              <MapPin className="w-4 h-4 text-swar-text-secondary" />
                               {enquiry.city}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-gray-700">{enquiry.workshopName}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{formatDate(enquiry.submittedAt)}</td>
+                          <td className="px-6 py-4 text-swar-text">{enquiry.workshopName}</td>
+                          <td className="px-6 py-4 text-sm text-swar-text-secondary">{formatDate(enquiry.submittedAt)}</td>
                           <td className="px-6 py-4">
                             <select
                               value={enquiry.status}
@@ -296,7 +296,7 @@ export default function EnquiriesPage() {
                               onClick={() =>
                                 setExpandedRow(expandedRow === enquiry.id ? null : enquiry.id)
                               }
-                              className="mr-2 text-gray-600 hover:text-gray-800"
+                              className="mr-2 text-swar-text-secondary hover:text-swar-text"
                               title="View details"
                             >
                               {expandedRow === enquiry.id ? (
@@ -315,13 +315,13 @@ export default function EnquiriesPage() {
                           </td>
                         </tr>
                         {expandedRow === enquiry.id && (
-                          <tr className="bg-gray-50 border-b border-gray-200">
+                          <tr className="bg-swar-bg border-b border-swar-border">
                             <td colSpan={7} className="px-6 py-4">
                               <div className="text-sm">
-                                <p className="text-gray-600 mb-2">
+                                <p className="text-swar-text-secondary mb-2">
                                   <strong>ID:</strong> {enquiry.id}
                                 </p>
-                                <p className="text-gray-600">
+                                <p className="text-swar-text-secondary">
                                   <strong>Notes:</strong> {enquiry.notes || 'No notes'}
                                 </p>
                               </div>
@@ -343,19 +343,19 @@ export default function EnquiriesPage() {
                 <div className="text-3xl font-bold text-blue-600">
                   {enquiries.filter((e) => e.status === 'new').length}
                 </div>
-                <p className="text-gray-600 mt-2">New Enquiries</p>
+                <p className="text-swar-text-secondary mt-2">New Enquiries</p>
               </div>
               <div className="bg-white rounded-lg shadow-md p-6 text-center">
                 <div className="text-3xl font-bold text-yellow-600">
                   {enquiries.filter((e) => e.status === 'contacted').length}
                 </div>
-                <p className="text-gray-600 mt-2">Contacted</p>
+                <p className="text-swar-text-secondary mt-2">Contacted</p>
               </div>
               <div className="bg-white rounded-lg shadow-md p-6 text-center">
-                <div className="text-3xl font-bold text-green-600">
+                <div className="text-3xl font-bold text-swar-primary">
                   {enquiries.filter((e) => e.status === 'registered').length}
                 </div>
-                <p className="text-gray-600 mt-2">Registered</p>
+                <p className="text-swar-text-secondary mt-2">Registered</p>
               </div>
             </div>
           )}

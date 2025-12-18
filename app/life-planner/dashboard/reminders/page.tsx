@@ -184,12 +184,12 @@ export default function RemindersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Reminders</h1>
-          <p className="text-gray-600 mt-1">Set up reminders for important tasks and events</p>
+          <h1 className="text-3xl font-bold text-swar-text">Reminders</h1>
+          <p className="text-swar-text-secondary mt-1">Set up reminders for important tasks and events</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
         >
           <Plus className="h-5 w-5" />
           Add Reminder
@@ -200,21 +200,21 @@ export default function RemindersPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder="Search reminder text"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-pink-200"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Status</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
             >
               <option value="all">All</option>
               <option value="pending">Pending</option>
@@ -223,11 +223,11 @@ export default function RemindersPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Frequency</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Frequency</label>
             <select
               value={filterFrequency}
               onChange={(e) => setFilterFrequency(e.target.value as any)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
             >
               <option value="all">All</option>
               <option value="once">Once</option>
@@ -240,11 +240,11 @@ export default function RemindersPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Month</label>
             <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
             >
               <option value="all">All</option>
               {MONTHS.map((m) => (
@@ -262,21 +262,21 @@ export default function RemindersPage() {
                 setFilterFrequency('all');
                 setFilterMonth('all');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-gray-600">Showing {filteredReminders.length} of {reminders.length} reminders</p>
+        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredReminders.length} of {reminders.length} reminders</p>
       </div>
 
       {/* Add Reminder Modal (Task-form style, keep pink theme) */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-red-500 to-pink-500 p-6 text-white flex items-center justify-between">
+            <div className="sticky top-0 bg-gradient-to-r from-swar-accent to-pink-500 p-6 text-white flex items-center justify-between">
               <h2 className="text-2xl font-bold text-white">Create New Reminder</h2>
               <button
                 onClick={() => {
@@ -299,27 +299,27 @@ export default function RemindersPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Reminder Text *</label>
+                <label className="block text-sm font-medium text-swar-text mb-2">Reminder Text *</label>
                 <textarea
                   value={formData.text}
                   onChange={(e) => setFormData({ ...formData, text: e.target.value })}
                   placeholder="What should you be reminded about?"
-                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
+                  className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
                   rows={3}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
+                <label className="block text-sm font-medium text-swar-text mb-2">Image URL</label>
                 <input
                   type="text"
                   value={formData.imageUrl}
                   onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
                   placeholder="https://example.com/image.jpg"
-                  className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                  className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                 />
                 {formData.imageUrl && (
-                  <div className="mt-2 rounded-lg overflow-hidden border border-pink-200">
+                  <div className="mt-2 rounded-lg overflow-hidden border border-swar-border">
                     <img src={formData.imageUrl} alt="Preview" className="w-full h-40 object-cover" onError={(e) => (e.currentTarget.src = DEFAULT_IMAGE)} />
                   </div>
                 )}
@@ -327,27 +327,27 @@ export default function RemindersPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                  <label className="block text-sm font-medium text-swar-text mb-2">Date *</label>
                   <input
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                    className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
+                  <label className="block text-sm font-medium text-swar-text mb-2">Time *</label>
                   <input
                     type="time"
                     value={formData.time}
                     onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                    className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Frequency</label>
+                <label className="block text-sm font-medium text-swar-text mb-3">Frequency</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {(['once', 'daily', 'weekly', 'monthly', 'yearly', 'custom'] as const).map((freq) => (
                     <label key={freq} className="flex items-center gap-3 cursor-pointer">
@@ -364,7 +364,7 @@ export default function RemindersPage() {
                         }
                         className="h-5 w-5 rounded-full border-2 border-pink-300 text-red-600 focus:ring-2 focus:ring-red-500 cursor-pointer"
                       />
-                      <span className="text-sm text-gray-700 font-medium">{frequencyLabels[freq]}</span>
+                      <span className="text-sm text-swar-text font-medium">{frequencyLabels[freq]}</span>
                     </label>
                   ))}
                 </div>
@@ -372,19 +372,19 @@ export default function RemindersPage() {
 
               {formData.frequency === 'custom' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Repeat every (days)</label>
+                  <label className="block text-sm font-medium text-swar-text mb-2">Repeat every (days)</label>
                   <input
                     type="number"
                     min="1"
                     max="365"
                     value={formData.customDays}
                     onChange={(e) => setFormData({ ...formData, customDays: parseInt(e.target.value) || 1 })}
-                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                    className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                   />
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-3 pt-5 pb-5 border-t-2 border-pink-200 bg-gradient-to-r from-pink-50 via-white to-red-50 sticky bottom-0">
+              <div className="flex items-center justify-end gap-3 pt-5 pb-5 border-t-2 border-swar-border bg-gradient-to-r from-pink-50 via-white to-red-50 sticky bottom-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -399,14 +399,14 @@ export default function RemindersPage() {
                       imageUrl: DEFAULT_IMAGE,
                     });
                   }}
-                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  className="px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleAddReminder}
-                  className="px-6 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-colors disabled:opacity-60"
+                  className="px-6 py-2 bg-gradient-to-r from-swar-accent to-pink-500 text-white rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-colors disabled:opacity-60"
                 >
                   Create Reminder
                 </button>

@@ -105,8 +105,8 @@ export default function YearlyViewPage() {
         {/* Header with Year Navigation */}
         <div className="flex items-center justify-center bg-gradient-to-r from-orange-50 to-amber-50 rounded-3xl p-6 border border-orange-200">
           <div className="text-center flex-1">
-            <p className="text-sm font-medium text-gray-600">Year View</p>
-            <h1 className="text-4xl font-bold text-gray-900 mt-1">{currentYear}</h1>
+            <p className="text-sm font-medium text-swar-text-secondary">Year View</p>
+            <h1 className="text-4xl font-bold text-swar-text mt-1">{currentYear}</h1>
             <button
               onClick={handleCurrentYear}
               className="mt-3 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition"
@@ -117,10 +117,10 @@ export default function YearlyViewPage() {
         </div>
 
       {/* Yearly Progress Bar */}
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
+      <div className="rounded-2xl border border-green-200 bg-swar-primary-light p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Yearly Progress</h3>
-          <span className="text-2xl font-bold text-green-600">{yearStats.percentage}%</span>
+          <h3 className="text-lg font-semibold text-swar-text">Yearly Progress</h3>
+          <span className="text-2xl font-bold text-swar-primary">{yearStats.percentage}%</span>
         </div>
         <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
           <div
@@ -128,26 +128,26 @@ export default function YearlyViewPage() {
             style={{ width: `${yearStats.percentage}%` }}
           />
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-swar-text-secondary mb-4">
           {yearStats.completed} of {yearStats.todos} todos completed
         </p>
 
         {/* Yearly Stats */}
         <div className="grid grid-cols-4 gap-3 mt-4">
           <div className="rounded-lg bg-purple-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Visions</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Visions</p>
             <p className="text-2xl font-bold text-purple-600 mt-1">{yearStats.visions}</p>
           </div>
           <div className="rounded-lg bg-blue-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Goals</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Goals</p>
             <p className="text-2xl font-bold text-blue-600 mt-1">{yearStats.goals}</p>
           </div>
-          <div className="rounded-lg bg-green-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Todos</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{yearStats.todos}</p>
+          <div className="rounded-lg bg-swar-primary-light p-2 text-center">
+            <p className="text-xs font-medium text-swar-text-secondary">Todos</p>
+            <p className="text-2xl font-bold text-swar-primary mt-1">{yearStats.todos}</p>
           </div>
           <div className="rounded-lg bg-orange-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Reminders</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Reminders</p>
             <p className="text-2xl font-bold text-orange-600 mt-1">{yearStats.reminders}</p>
           </div>
         </div>
@@ -171,16 +171,16 @@ export default function YearlyViewPage() {
                   ? 'ring-2 ring-offset-2 ring-blue-500 bg-blue-100 border-2 border-blue-400'
                   : isCurrentMonth
                   ? 'bg-red-50 border-2 border-red-400'
-                  : 'bg-white border-2 border-gray-200 hover:border-gray-300'
+                  : 'bg-white border-2 border-swar-border hover:border-swar-border'
               }`}
             >
-              <p className="font-semibold text-gray-900 text-sm">{month}</p>
+              <p className="font-semibold text-swar-text text-sm">{month}</p>
               <p className={`text-2xl font-bold mt-2 ${
-                itemCount > 0 ? 'text-green-600' : 'text-gray-400'
+                itemCount > 0 ? 'text-swar-primary' : 'text-swar-text-secondary'
               }`}>
                 {itemCount}
               </p>
-              <p className="text-xs text-gray-500 mt-1">items</p>
+              <p className="text-xs text-swar-text-secondary mt-1">items</p>
             </button>
           );
         })}
@@ -188,30 +188,30 @@ export default function YearlyViewPage() {
 
       {/* Selected Month Details */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900">
+        <h2 className="text-2xl font-bold text-swar-text">
           {months[selectedMonth.getMonth()]} {currentYear}
         </h2>
 
         {selectedMonthItems.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center">
-            <p className="text-gray-600 text-lg">No items for this month</p>
+          <div className="rounded-2xl border-2 border-dashed border-swar-border p-12 text-center">
+            <p className="text-swar-text-secondary text-lg">No items for this month</p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Visions */}
             {groupedItems.visions.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Target className="h-5 w-5 text-purple-600" />
                   Visions ({groupedItems.visions.length})
                 </h3>
                 <div className="grid gap-2">
                   {groupedItems.visions.map((item) => (
                     <div key={item.id} className="rounded-lg border border-purple-200 bg-purple-50 p-3">
-                      <p className="font-medium text-gray-900">{item.title}</p>
-                      <p className="text-xs text-gray-500 mt-1">{item.date}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
+                      <p className="text-xs text-swar-text-secondary mt-1">{item.date}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}
@@ -222,17 +222,17 @@ export default function YearlyViewPage() {
             {/* Goals */}
             {groupedItems.goals.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Flag className="h-5 w-5 text-blue-600" />
                   Goals ({groupedItems.goals.length})
                 </h3>
                 <div className="grid gap-2">
                   {groupedItems.goals.map((item) => (
                     <div key={item.id} className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                      <p className="font-medium text-gray-900">{item.title}</p>
-                      <p className="text-xs text-gray-500 mt-1">{item.date}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
+                      <p className="text-xs text-swar-text-secondary mt-1">{item.date}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}
@@ -243,8 +243,8 @@ export default function YearlyViewPage() {
             {/* Todos */}
             {groupedItems.todos.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <CheckSquare className="h-5 w-5 text-green-600" />
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
+                  <CheckSquare className="h-5 w-5 text-swar-primary" />
                   Todos ({groupedItems.todos.length})
                 </h3>
                 <div className="grid gap-2">
@@ -253,8 +253,8 @@ export default function YearlyViewPage() {
                       key={item.id}
                       className={`rounded-lg border-2 p-3 transition ${
                         item.completed
-                          ? 'border-green-300 bg-green-50 opacity-60'
-                          : 'border-green-200 bg-green-50'
+                          ? 'border-green-300 bg-swar-primary-light opacity-60'
+                          : 'border-green-200 bg-swar-primary-light'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -270,19 +270,19 @@ export default function YearlyViewPage() {
                               )
                             );
                           }}
-                          className="w-4 h-4 rounded text-green-600 cursor-pointer"
+                          className="w-4 h-4 rounded text-swar-primary cursor-pointer"
                         />
                         <p
                           className={`font-medium ${
                             item.completed
-                              ? 'line-through text-gray-500'
-                              : 'text-gray-900'
+                              ? 'line-through text-swar-text-secondary'
+                              : 'text-swar-text'
                           }`}
                         >
                           {item.title}
                         </p>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">{item.date}</p>
+                      <p className="text-xs text-swar-text-secondary mt-1">{item.date}</p>
                     </div>
                   ))}
                 </div>
@@ -292,17 +292,17 @@ export default function YearlyViewPage() {
             {/* Reminders */}
             {groupedItems.reminders.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Bell className="h-5 w-5 text-orange-600" />
                   Reminders ({groupedItems.reminders.length})
                 </h3>
                 <div className="grid gap-2">
                   {groupedItems.reminders.map((item) => (
                     <div key={item.id} className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                      <p className="font-medium text-gray-900">{item.title}</p>
-                      <p className="text-xs text-gray-500 mt-1">{item.date}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
+                      <p className="text-xs text-swar-text-secondary mt-1">{item.date}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}

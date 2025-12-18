@@ -153,20 +153,20 @@ export default function Footer() {
               {/* Newsletter Signup */}
               <div className="mb-8">
                 <h4 className="font-semibold mb-4 flex items-center">
-                  <Sparkles className="h-5 w-5 text-green-500 mr-2" />
+                  <Sparkles className="h-5 w-5 text-swar-primary-light0 mr-2" />
                   Stay Connected
                 </h4>
                 <div className="flex">
                   <input
                     type="email"
                     placeholder="Enter your email"
-                    className="flex-1 px-4 py-3 bg-gray-800 border border-gray-600 rounded-l-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-gray-400"
+                    className="flex-1 px-4 py-3 bg-gray-800 border border-gray-600 rounded-l-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent text-white placeholder-gray-400"
                   />
                   <button className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-r-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg">
                     <ArrowRight className="h-5 w-5" />
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-swar-text-secondary mt-2">
                   Subscribe to receive updates, special offers, and wellness tips.
                 </p>
               </div>
@@ -199,7 +199,7 @@ export default function Footer() {
                       href={link.href} 
                       className="text-gray-300 hover:text-green-400 transition-colors flex items-center group"
                     >
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="w-1.5 h-1.5 bg-swar-primary-light0 rounded-full mr-2 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                       {link.name}
                     </Link>
                   </li>
@@ -217,7 +217,7 @@ export default function Footer() {
                       href={service.href} 
                       className="text-gray-300 hover:text-green-400 transition-colors flex items-center group"
                     >
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="w-1.5 h-1.5 bg-swar-primary-light0 rounded-full mr-2 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                       {service.name}
                     </Link>
                   </li>
@@ -235,7 +235,7 @@ export default function Footer() {
                       href={resource.href} 
                       className="text-gray-300 hover:text-green-400 transition-colors flex items-center group"
                     >
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="w-1.5 h-1.5 bg-swar-primary-light0 rounded-full mr-2 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                       {resource.name}
                     </Link>
                   </li>
@@ -296,10 +296,10 @@ export default function Footer() {
       <div className="relative bg-black/30 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between text-center md:text-left space-y-2 md:space-y-0">
-            <p className="text-gray-400 text-sm">
+            <p className="text-swar-text-secondary text-sm">
               &copy; {currentYear} SwarYoga.com. All rights reserved.
             </p>
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-swar-text-secondary">
               <span>Made with </span>
               <Heart className="h-4 w-4 text-red-500 inline animate-pulse" />
               <span> and ancient wisdom</span>

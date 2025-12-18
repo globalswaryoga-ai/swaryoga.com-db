@@ -186,7 +186,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white flex items-center justify-between">
+        <div className="sticky top-0 bg-gradient-to-r from-swar-primary to-blue-700 p-6 text-white flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white">
             {editingTask ? 'Edit Task' : 'Create New Task'}
           </h2>
@@ -225,13 +225,13 @@ const TaskModal: React.FC<TaskModalProps> = ({
         >
           {/* Head Selection */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Head / Category <span className="text-red-500">*</span>
             </label>
             <select
               value={formState.visionHead}
               onChange={(e) => handleHeadChange(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Select a head...</option>
               {availableHeads.map(head => (
@@ -244,18 +244,18 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
           {/* Vision Selection */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Vision <span className="text-red-500">*</span>
             </label>
             {!formState.visionHead ? (
-              <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary">
                 Choose a heading first
               </div>
             ) : (
               <select
                 value={formState.visionId}
                 onChange={(e) => handleVisionChange(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select a vision...</option>
                 {visionsForHead.map(vision => (
@@ -269,22 +269,22 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
           {/* Goal Selection */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Goal <span className="text-red-500">*</span>
             </label>
             {!formState.visionId ? (
-              <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary">
                 Choose a vision first
               </div>
             ) : goalsForVision.length === 0 ? (
-              <div className="px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+              <div className="px-4 py-2 border border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary">
                 No goals found for this vision
               </div>
             ) : (
               <select
                 value={formState.goalId}
                 onChange={(e) => handleGoalChange(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select a goal...</option>
                 {goalsForVision.map(goal => (
@@ -311,7 +311,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
           {/* Task Title */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Task Title <span className="text-red-500">*</span>
             </label>
             <input
@@ -320,14 +320,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
               onChange={(e) =>
                 setFormState(prev => ({ ...prev, title: e.target.value }))
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter task title"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Description
             </label>
             <textarea
@@ -336,7 +336,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 setFormState(prev => ({ ...prev, description: e.target.value }))
               }
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter task description"
             />
           </div>
@@ -344,7 +344,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
           {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-swar-text mb-2">
                 Start Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -353,11 +353,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 onChange={(e) =>
                   setFormState(prev => ({ ...prev, startDate: e.target.value }))
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-swar-text mb-2">
                 Due Date <span className="text-red-500">*</span>
               </label>
               <input
@@ -366,7 +366,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 onChange={(e) =>
                   setFormState(prev => ({ ...prev, dueDate: e.target.value }))
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -374,7 +374,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
           {/* Time */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-swar-text mb-2">
                 Start Time
               </label>
               <input
@@ -383,11 +383,11 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 onChange={(e) =>
                   setFormState(prev => ({ ...prev, timeStart: e.target.value }))
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-swar-text mb-2">
                 End Time
               </label>
               <input
@@ -396,14 +396,14 @@ const TaskModal: React.FC<TaskModalProps> = ({
                 onChange={(e) =>
                   setFormState(prev => ({ ...prev, timeEnd: e.target.value }))
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
 
           {/* Place */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Place <span className="text-red-500">*</span>
             </label>
             <input
@@ -412,7 +412,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
               onChange={(e) =>
                 setFormState(prev => ({ ...prev, place: e.target.value }))
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter location"
             />
           </div>
@@ -420,7 +420,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
           {/* Image */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-2">
-              <label className="block text-sm font-bold text-gray-800">
+              <label className="block text-sm font-bold text-swar-text">
                 Default Image (Editable)
               </label>
               <button
@@ -433,7 +433,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
               </button>
             </div>
 
-            <div className="rounded-lg overflow-hidden h-48 border-2 border-gray-200 bg-gray-50">
+            <div className="rounded-lg overflow-hidden h-48 border-2 border-swar-border bg-swar-bg">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={computedDefaultImageUrl}
@@ -548,17 +548,17 @@ const TaskModal: React.FC<TaskModalProps> = ({
                           type="text"
                           value={todo.title}
                           onChange={(e) => updateTodo(todo.id, { title: e.target.value })}
-                          className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                          className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-swar-text-secondary line-through' : 'text-swar-text'}`}
                         />
 
                         {/* Line 2: date + time + checkbox + remove */}
                         <div className="mt-2 flex flex-col md:flex-row md:items-center gap-2">
-                          <label className="inline-flex items-center gap-2 text-sm text-gray-700 md:mr-1">
+                          <label className="inline-flex items-center gap-2 text-sm text-swar-text md:mr-1">
                             <input
                               type="checkbox"
                               checked={!!todo.completed}
                               onChange={() => toggleTodo(todo.id)}
-                              className="rounded border-gray-300"
+                              className="rounded border-swar-border"
                             />
                             <span className="text-xs">Done</span>
                           </label>
@@ -601,7 +601,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
             >
               Cancel
             </button>

@@ -133,15 +133,15 @@ export default function LifePlannerLoginPage() {
           <div className="bg-white rounded-2xl shadow-xl p-8 border border-yoga-100">
             {/* Header */}
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-              <p className="text-gray-600">Access your Life Planner dashboard</p>
+              <h1 className="text-3xl font-bold text-swar-text mb-2">Welcome Back</h1>
+              <p className="text-swar-text-secondary">Access your Life Planner dashboard</p>
             </div>
 
             {/* Success Message */}
             {success && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3">
-                <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                <span className="text-green-800 font-medium">Login successful! Redirecting...</span>
+              <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-center space-x-3">
+                <CheckCircle className="h-5 w-5 text-swar-primary flex-shrink-0" />
+                <span className="text-swar-primary font-medium">Login successful! Redirecting...</span>
               </div>
             )}
 
@@ -157,7 +157,7 @@ export default function LifePlannerLoginPage() {
             <form onSubmit={onSubmit} className="space-y-5">
               {/* Email */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="email" className="block text-sm font-medium text-swar-text mb-2">
                   Email Address
                 </label>
                 <input
@@ -165,7 +165,7 @@ export default function LifePlannerLoginPage() {
                   id="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors"
+                  className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors"
                   placeholder="Enter your email"
                   autoComplete="email"
                   disabled={isLoading}
@@ -174,7 +174,7 @@ export default function LifePlannerLoginPage() {
 
               {/* Password */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="password" className="block text-sm font-medium text-swar-text mb-2">
                   Password
                 </label>
                 <div className="relative">
@@ -183,7 +183,7 @@ export default function LifePlannerLoginPage() {
                     id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors"
+                    className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors"
                     placeholder="Enter your password"
                     autoComplete="current-password"
                     disabled={isLoading}
@@ -191,7 +191,7 @@ export default function LifePlannerLoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-text-secondary"
                     tabIndex={-1}
                   >
                     {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
@@ -206,10 +206,10 @@ export default function LifePlannerLoginPage() {
                   id="savePassword"
                   checked={savePassword}
                   onChange={handleSavePassword}
-                  className="w-4 h-4 text-yoga-600 rounded focus:ring-2 focus:ring-yoga-500"
+                  className="w-4 h-4 text-swar-primary rounded focus:ring-2 focus:ring-yoga-500"
                   disabled={isLoading}
                 />
-                <label htmlFor="savePassword" className="text-sm text-gray-700 cursor-pointer flex-1">
+                <label htmlFor="savePassword" className="text-sm text-swar-text cursor-pointer flex-1">
                   Save password on this device
                 </label>
               </div>
@@ -233,21 +233,21 @@ export default function LifePlannerLoginPage() {
 
             {/* Divider */}
             <div className="my-6 flex items-center">
-              <div className="flex-1 border-t border-gray-300"></div>
-              <span className="px-3 text-sm text-gray-500">or</span>
-              <div className="flex-1 border-t border-gray-300"></div>
+              <div className="flex-1 border-t border-swar-border"></div>
+              <span className="px-3 text-sm text-swar-text-secondary">or</span>
+              <div className="flex-1 border-t border-swar-border"></div>
             </div>
 
             {/* Sign Up Link */}
             <div className="text-center space-y-3">
-              <p className="text-gray-600 text-sm">
+              <p className="text-swar-text-secondary text-sm">
                 Don't have an account?{' '}
-                <a href="/signup" className="text-yoga-600 hover:text-yoga-700 font-semibold">
+                <a href="/signup" className="text-swar-primary hover:text-swar-accent font-semibold">
                   Sign up here
                 </a>
               </p>
-              <p className="text-gray-600 text-sm">
-                <a href="/signin" className="text-yoga-600 hover:text-yoga-700 font-semibold">
+              <p className="text-swar-text-secondary text-sm">
+                <a href="/signin" className="text-swar-primary hover:text-swar-accent font-semibold">
                   Continue as guest →
                 </a>
               </p>

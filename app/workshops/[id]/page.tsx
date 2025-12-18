@@ -355,14 +355,14 @@ export default function WorkshopDetail() {
       <section className="mb-12 sm:mb-16" aria-label={title}>
         <div className="flex items-end justify-between gap-4 mb-5 sm:mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">{title}</h2>
-            {subtitle && <p className="mt-1 text-sm text-gray-600">{subtitle}</p>}
+            <h2 className="text-2xl sm:text-3xl font-bold text-swar-text">{title}</h2>
+            {subtitle && <p className="mt-1 text-sm text-swar-text-secondary">{subtitle}</p>}
           </div>
           <div className="hidden sm:flex gap-2">
             <button
               type="button"
               onClick={() => scrollByCard(-1)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold text-swar-text hover:bg-swar-bg"
               aria-label="Scroll left"
             >
               ←
@@ -370,7 +370,7 @@ export default function WorkshopDetail() {
             <button
               type="button"
               onClick={() => scrollByCard(1)}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold text-swar-text hover:bg-swar-bg"
               aria-label="Scroll right"
             >
               →
@@ -421,30 +421,30 @@ export default function WorkshopDetail() {
         </section>
 
         {/* Workshop Details */}
-        <section className="py-16 md:py-24 bg-gray-50">
+        <section className="py-16 md:py-24 bg-swar-bg">
           <div className="container mx-auto px-4 md:px-6 max-w-6xl">
             {/* Section 2: Image right, left information (date & time) */}
             <section className="bg-white rounded-xl shadow-lg p-6 sm:p-8 md:p-12 mb-10" aria-label="Workshop schedule overview">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-start">
                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">Workshop Schedule</h2>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-4">Workshop Schedule</h2>
                   <div className="space-y-4">
-                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Date</p>
-                      <p className="mt-1 text-lg font-extrabold text-gray-900">
+                    <div className="rounded-xl border border-gray-100 bg-swar-bg p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary">Date</p>
+                      <p className="mt-1 text-lg font-extrabold text-swar-text">
                         {schedule ? formatDate(schedule.startDate) : 'TBD'}
                       </p>
                     </div>
 
-                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Workshop Time</p>
-                      <p className="mt-1 text-lg font-extrabold text-gray-900">
+                    <div className="rounded-xl border border-gray-100 bg-swar-bg p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary">Workshop Time</p>
+                      <p className="mt-1 text-lg font-extrabold text-swar-text">
                         {schedule ? schedule.time : 'TBD'}
                       </p>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${admissionInfo.open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${admissionInfo.open ? 'bg-swar-primary-light text-swar-primary' : 'bg-red-100 text-red-700'}`}>
                         {admissionInfo.label}
                       </span>
                       {admissionInfo.open && typeof admissionInfo.closesInDays === 'number' && admissionInfo.closesInDays <= 5 && (
@@ -463,7 +463,7 @@ export default function WorkshopDetail() {
                 </div>
 
                 <div>
-                  <div className="relative w-full overflow-hidden rounded-xl bg-gray-100" style={{ aspectRatio: '4 / 3' }}>
+                  <div className="relative w-full overflow-hidden rounded-xl bg-swar-primary-light" style={{ aspectRatio: '4 / 3' }}>
                     <Image
                       src={workshop.image || 'https://images.pexels.com/photos/3052361/pexels-photo-3052361.jpeg'}
                       alt={`${workshop.name} workshop image`}
@@ -480,16 +480,16 @@ export default function WorkshopDetail() {
             {/* New section: 6–10 lines of information */}
             <section className="mb-12 sm:mb-16" aria-label="Workshop information">
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 sm:p-8">
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">Workshop Information</h2>
-                <div className="space-y-2 text-sm sm:text-base text-gray-700 leading-relaxed">
-                  <p>1) Program: <span className="font-semibold text-gray-900">{workshop.name}</span></p>
-                  <p>2) Duration: <span className="font-semibold text-gray-900">{workshop.duration}</span></p>
-                  <p>3) Start date: <span className="font-semibold text-gray-900">{schedule ? formatDate(schedule.startDate) : 'TBD'}</span></p>
-                  <p>4) Workshop time: <span className="font-semibold text-gray-900">{schedule ? schedule.time : 'TBD'}</span></p>
-                  <p>5) Mode: <span className="font-semibold text-gray-900">{schedule ? String(schedule.mode).toUpperCase() : 'TBD'}</span></p>
-                  <p>6) Language: <span className="font-semibold text-gray-900">{getLanguageLabel()}</span></p>
-                  <p>7) Fees: <span className="font-semibold text-gray-900">{schedule ? `${getCurrencySymbol(schedule.currency)}${Number(schedule.price).toLocaleString('en-IN')} ${String(schedule.currency).toUpperCase()}` : 'TBD'}</span></p>
-                  <p>8) Seats: <span className="font-semibold text-gray-900">{typeof seatsRemaining === 'number' ? `${seatsRemaining} left` : schedule ? `${schedule.seats} total` : 'TBD'}</span></p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-4">Workshop Information</h2>
+                <div className="space-y-2 text-sm sm:text-base text-swar-text leading-relaxed">
+                  <p>1) Program: <span className="font-semibold text-swar-text">{workshop.name}</span></p>
+                  <p>2) Duration: <span className="font-semibold text-swar-text">{workshop.duration}</span></p>
+                  <p>3) Start date: <span className="font-semibold text-swar-text">{schedule ? formatDate(schedule.startDate) : 'TBD'}</span></p>
+                  <p>4) Workshop time: <span className="font-semibold text-swar-text">{schedule ? schedule.time : 'TBD'}</span></p>
+                  <p>5) Mode: <span className="font-semibold text-swar-text">{schedule ? String(schedule.mode).toUpperCase() : 'TBD'}</span></p>
+                  <p>6) Language: <span className="font-semibold text-swar-text">{getLanguageLabel()}</span></p>
+                  <p>7) Fees: <span className="font-semibold text-swar-text">{schedule ? `${getCurrencySymbol(schedule.currency)}${Number(schedule.price).toLocaleString('en-IN')} ${String(schedule.currency).toUpperCase()}` : 'TBD'}</span></p>
+                  <p>8) Seats: <span className="font-semibold text-swar-text">{typeof seatsRemaining === 'number' ? `${seatsRemaining} left` : schedule ? `${schedule.seats} total` : 'TBD'}</span></p>
                 </div>
 
                 <div className="mt-8 flex justify-center">
@@ -501,7 +501,7 @@ export default function WorkshopDetail() {
             {/* Section 3: 5 small blocks */}
             <section className="mb-12 sm:mb-16" aria-label="Quick workshop details">
               <div className="flex items-center justify-between gap-4 mb-5">
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">Quick Details</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold text-swar-text">Quick Details</h2>
                 <div className="hidden sm:block">
                   <RegisterNowButton />
                 </div>
@@ -509,30 +509,30 @@ export default function WorkshopDetail() {
 
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Duration</p>
-                  <p className="mt-1 text-sm sm:text-base font-extrabold text-gray-900">{workshop.duration}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-swar-text-secondary">Duration</p>
+                  <p className="mt-1 text-sm sm:text-base font-extrabold text-swar-text">{workshop.duration}</p>
                 </div>
                 <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Slots</p>
-                  <p className="mt-1 text-sm sm:text-base font-extrabold text-gray-900">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-swar-text-secondary">Slots</p>
+                  <p className="mt-1 text-sm sm:text-base font-extrabold text-swar-text">
                     {typeof seatsRemaining === 'number' ? seatsRemaining : schedule ? schedule.seats : 'TBD'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Language</p>
-                  <p className="mt-1 text-sm sm:text-base font-extrabold text-gray-900 line-clamp-2">{getLanguageLabel()}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-swar-text-secondary">Language</p>
+                  <p className="mt-1 text-sm sm:text-base font-extrabold text-swar-text line-clamp-2">{getLanguageLabel()}</p>
                 </div>
                 <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Zoom</p>
-                  <p className="mt-1 text-sm sm:text-base font-extrabold text-gray-900">{getZoomLabel(schedule?.mode)}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-swar-text-secondary">Zoom</p>
+                  <p className="mt-1 text-sm sm:text-base font-extrabold text-swar-text">{getZoomLabel(schedule?.mode)}</p>
                 </div>
                 <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Fees</p>
-                  <p className="mt-1 text-sm sm:text-base font-extrabold text-gray-900">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-swar-text-secondary">Fees</p>
+                  <p className="mt-1 text-sm sm:text-base font-extrabold text-swar-text">
                     {schedule ? (
                       <>
                         {getCurrencySymbol(schedule.currency)}{Number(schedule.price).toLocaleString()}
-                        <span className="ml-1 text-xs font-bold text-gray-500">{String(schedule.currency).toUpperCase()}</span>
+                        <span className="ml-1 text-xs font-bold text-swar-text-secondary">{String(schedule.currency).toUpperCase()}</span>
                       </>
                     ) : (
                       'TBD'
@@ -552,8 +552,8 @@ export default function WorkshopDetail() {
               className={`rounded-xl p-6 sm:p-8 md:p-12 mb-12 sm:mb-16 bg-primary-50 border border-primary-100 transition-opacity duration-700 ${experienceVisible ? 'opacity-100' : 'opacity-0'}`}
               aria-label="What you will experience"
             >
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">What You Will Experience</h2>
-              <p className="text-gray-700 text-sm sm:text-base leading-relaxed mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-4">What You Will Experience</h2>
+              <p className="text-swar-text text-sm sm:text-base leading-relaxed mb-6">
                 This workshop is designed to feel calm, grounded, and practical—something you can carry into your daily life.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -564,8 +564,8 @@ export default function WorkshopDetail() {
                   { title: 'Daily life clarity', desc: 'Better decisions and consistency with a simple practice routine.' },
                 ].map((b) => (
                   <article key={b.title} className="bg-white rounded-xl border border-primary-100 p-5">
-                    <h3 className="font-semibold text-gray-900 mb-1">{b.title}</h3>
-                    <p className="text-sm text-gray-600">{b.desc}</p>
+                    <h3 className="font-semibold text-swar-text mb-1">{b.title}</h3>
+                    <p className="text-sm text-swar-text-secondary">{b.desc}</p>
                   </article>
                 ))}
               </div>
@@ -574,7 +574,7 @@ export default function WorkshopDetail() {
             {/* Section 5: Big video (main workshop details) */}
             <section className="mb-12 sm:mb-16" aria-label="Main workshop video">
               <div className="flex items-center justify-between gap-4 mb-5 sm:mb-6">
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">Main Workshop Video</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold text-swar-text">Main Workshop Video</h2>
                 <div className="hidden sm:block">
                   <RegisterNowButton />
                 </div>
@@ -607,7 +607,7 @@ export default function WorkshopDetail() {
                     <video className="w-full h-full object-cover" src={v.src} controls preload="metadata" playsInline />
                   </div>
                   <div className="p-4">
-                    <h3 className="text-sm font-bold text-gray-900 line-clamp-2">{v.title}</h3>
+                    <h3 className="text-sm font-bold text-swar-text line-clamp-2">{v.title}</h3>
                   </div>
                 </article>
               ))}
@@ -618,8 +618,8 @@ export default function WorkshopDetail() {
 
             {/* Section 7: Workshop benefits (6 bullets) */}
             <section className="mb-12 sm:mb-16" aria-label="Workshop benefits">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">Workshop Benefits</h2>
-              <ul className="list-disc pl-5 space-y-2 text-gray-700 text-sm sm:text-base">
+              <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-4">Workshop Benefits</h2>
+              <ul className="list-disc pl-5 space-y-2 text-swar-text text-sm sm:text-base">
                 <li>Improve breath awareness and energy balance</li>
                 <li>Better focus, calmness, and emotional stability</li>
                 <li>Structured daily practice you can continue at home</li>
@@ -632,7 +632,7 @@ export default function WorkshopDetail() {
             {/* Section 8: What you will get (materials) */}
             <section className="mb-12 sm:mb-16" aria-label="What you will get">
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 sm:p-8">
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">What You Will Get</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-4">What You Will Get</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     'Recordings',
@@ -642,7 +642,7 @@ export default function WorkshopDetail() {
                     'Joined in community',
                     'Future offers',
                   ].map((item) => (
-                    <div key={item} className="rounded-lg bg-gray-50 border border-gray-100 px-4 py-3 font-semibold text-gray-800">
+                    <div key={item} className="rounded-lg bg-swar-bg border border-gray-100 px-4 py-3 font-semibold text-swar-text">
                       {item}
                     </div>
                   ))}
@@ -663,10 +663,10 @@ export default function WorkshopDetail() {
                   key={t.id}
                   className="snap-start flex-none w-[280px] sm:w-[320px] lg:w-[360px] rounded-xl border border-gray-100 bg-white shadow-sm p-5"
                 >
-                  <p className="text-gray-800 text-sm sm:text-base leading-relaxed italic">“{t.quote}”</p>
+                  <p className="text-swar-text text-sm sm:text-base leading-relaxed italic">“{t.quote}”</p>
                   <div className="mt-4">
-                    <p className="font-extrabold text-gray-900">{t.name}</p>
-                    <p className="text-sm text-gray-600">{t.location}</p>
+                    <p className="font-extrabold text-swar-text">{t.name}</p>
+                    <p className="text-sm text-swar-text-secondary">{t.location}</p>
                   </div>
                 </article>
               ))}
@@ -689,7 +689,7 @@ export default function WorkshopDetail() {
                     <video className="w-full h-full object-cover" src={v.src} controls preload="metadata" playsInline />
                   </div>
                   <div className="p-4">
-                    <h3 className="text-sm font-bold text-gray-900 line-clamp-2">{v.title}</h3>
+                    <h3 className="text-sm font-bold text-swar-text line-clamp-2">{v.title}</h3>
                   </div>
                 </article>
               ))}
@@ -703,7 +703,7 @@ export default function WorkshopDetail() {
 
       {/* Mobile sticky CTA (after 30% scroll) */}
       <div
-        className={`md:hidden fixed left-0 right-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 backdrop-blur px-4 py-3 transition-transform duration-300 ${showStickyCta ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`md:hidden fixed left-0 right-0 bottom-0 z-50 border-t border-swar-border bg-white/95 backdrop-blur px-4 py-3 transition-transform duration-300 ${showStickyCta ? 'translate-y-0' : 'translate-y-full'}`}
         role="region"
         aria-label="Sticky enroll button"
       >

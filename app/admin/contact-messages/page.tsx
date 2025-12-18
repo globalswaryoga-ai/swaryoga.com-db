@@ -150,7 +150,7 @@ export default function ContactMessages() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-swar-primary-light">
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -160,11 +160,11 @@ export default function ContactMessages() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="md:hidden p-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+                className="md:hidden p-2 rounded-lg bg-swar-primary-light hover:bg-swar-primary-light"
               >
                 {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
-              <h1 className="text-2xl font-bold text-gray-800 flex items-center space-x-2">
+              <h1 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
                 <MessageSquare className="h-8 w-8 text-orange-600" />
                 <span>Contact Messages</span>
               </h1>
@@ -199,40 +199,40 @@ export default function ContactMessages() {
               {error}
             </div>
           ) : messages.length === 0 ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-              <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg">No contact messages yet</p>
+            <div className="bg-swar-bg border border-swar-border rounded-lg p-8 text-center">
+              <MessageSquare className="h-12 w-12 text-swar-text-secondary mx-auto mb-4" />
+              <p className="text-swar-text-secondary text-lg">No contact messages yet</p>
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-swar-bg border-b border-swar-border">
                     <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Action</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Status</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Name</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Email</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Subject</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Date</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {messages.map((msg, index) => (
-                      <tr key={msg._id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <tr key={msg._id} className={index % 2 === 0 ? 'bg-white' : 'bg-swar-bg'}>
                         <td className="px-6 py-4 text-sm">
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                             msg.isRead 
-                              ? 'bg-gray-100 text-gray-800' 
+                              ? 'bg-swar-primary-light text-swar-text' 
                               : 'bg-blue-100 text-blue-800'
                           }`}>
                             {msg.isRead ? 'Read' : 'Unread'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-800 font-medium">{msg.name}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{msg.email}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{msg.subject}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(msg.createdAt).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text font-medium">{msg.name}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{msg.email}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{msg.subject}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{new Date(msg.createdAt).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-sm">
                           <button
                             onClick={() => handleViewMessage(msg)}
@@ -249,11 +249,11 @@ export default function ContactMessages() {
               </div>
 
               {/* Stats Footer */}
-              <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Total messages: <span className="font-semibold text-gray-800">{messages.length}</span>
+              <div className="bg-swar-bg border-t border-swar-border px-6 py-4 flex items-center justify-between">
+                <p className="text-sm text-swar-text-secondary">
+                  Total messages: <span className="font-semibold text-swar-text">{messages.length}</span>
                 </p>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-swar-text-secondary">
                   Unread: <span className="font-semibold text-blue-800">{messages.filter(m => !m.isRead).length}</span>
                 </p>
               </div>
@@ -268,10 +268,10 @@ export default function ContactMessages() {
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">Message Details</h2>
+                <h2 className="text-2xl font-bold text-swar-text">Message Details</h2>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-swar-text-secondary hover:text-swar-text"
                 >
                   <X className="h-6 w-6" />
                 </button>
@@ -279,10 +279,10 @@ export default function ContactMessages() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Status</label>
+                  <label className="text-sm font-medium text-swar-text-secondary">Status</label>
                   <p className={`mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                     selectedMessage.isRead 
-                      ? 'bg-gray-100 text-gray-800' 
+                      ? 'bg-swar-primary-light text-swar-text' 
                       : 'bg-blue-100 text-blue-800'
                   }`}>
                     {selectedMessage.isRead ? 'Read' : 'Unread'}
@@ -290,62 +290,62 @@ export default function ContactMessages() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Name</label>
-                  <p className="mt-1 text-gray-800">{selectedMessage.name}</p>
+                  <label className="text-sm font-medium text-swar-text-secondary">Name</label>
+                  <p className="mt-1 text-swar-text">{selectedMessage.name}</p>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Email</label>
-                  <p className="mt-1 text-gray-800">{selectedMessage.email}</p>
+                  <label className="text-sm font-medium text-swar-text-secondary">Email</label>
+                  <p className="mt-1 text-swar-text">{selectedMessage.email}</p>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Subject</label>
-                  <p className="mt-1 text-gray-800">{selectedMessage.subject}</p>
+                  <label className="text-sm font-medium text-swar-text-secondary">Subject</label>
+                  <p className="mt-1 text-swar-text">{selectedMessage.subject}</p>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Message</label>
-                  <p className="mt-1 text-gray-800 whitespace-pre-wrap">{selectedMessage.message}</p>
+                  <label className="text-sm font-medium text-swar-text-secondary">Message</label>
+                  <p className="mt-1 text-swar-text whitespace-pre-wrap">{selectedMessage.message}</p>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Date</label>
-                  <p className="mt-1 text-gray-800">{new Date(selectedMessage.createdAt).toLocaleString()}</p>
+                  <label className="text-sm font-medium text-swar-text-secondary">Date</label>
+                  <p className="mt-1 text-swar-text">{new Date(selectedMessage.createdAt).toLocaleString()}</p>
                 </div>
                 {selectedMessage.phone && (
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Phone</label>
-                    <p className="mt-1 text-gray-800">{selectedMessage.phone}</p>
+                    <label className="text-sm font-medium text-swar-text-secondary">Phone</label>
+                    <p className="mt-1 text-swar-text">{selectedMessage.phone}</p>
                   </div>
                 )}
               </div>
 
               {/* Reply Form */}
               <div className="mt-6 border-t pt-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Send Reply</h3>
+                <h3 className="text-lg font-semibold text-swar-text mb-4">Send Reply</h3>
                 <form onSubmit={handleSendReply} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-swar-text mb-2">
                       Subject
                     </label>
                     <input
                       type="text"
                       value={replySubject}
                       onChange={(e) => setReplySubject(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Reply subject..."
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-swar-text mb-2">
                       Your Reply Message
                     </label>
                     <textarea
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       rows={5}
                       placeholder="Type your reply message here..."
                       required
@@ -356,7 +356,7 @@ export default function ContactMessages() {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors font-medium"
+                      className="flex-1 bg-swar-primary text-white px-4 py-2 rounded-lg hover:bg-swar-primary disabled:bg-gray-400 transition-colors font-medium"
                     >
                       {submitting ? 'Sending...' : 'Send Reply'}
                     </button>
@@ -375,7 +375,7 @@ export default function ContactMessages() {
                 )}
                 <button
                   onClick={() => setShowModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+                  className="flex-1 bg-gray-300 text-swar-text px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors font-medium"
                 >
                   Close
                 </button>

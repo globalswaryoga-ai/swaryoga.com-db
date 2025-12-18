@@ -33,7 +33,7 @@ export const PanchangDisplay: React.FC<PanchangDisplayProps> = ({
       'Air': { icon: '💨', color: 'text-cyan-600' },
       'Water': { icon: '💧', color: 'text-blue-600' },
     };
-    return elementMap[element] || { icon: '○', color: 'text-gray-600' };
+    return elementMap[element] || { icon: '○', color: 'text-swar-text-secondary' };
   };
 
   return (
@@ -63,22 +63,22 @@ export const PanchangDisplay: React.FC<PanchangDisplayProps> = ({
         <div className="bg-white rounded-xl shadow-lg border-t-4 border-[#E07B69] p-6 hover:shadow-xl transition-shadow">
           <div className="flex items-center mb-3">
             <Moon className="w-5 h-5 text-[#E07B69] mr-2" />
-            <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">Tithi</h3>
+            <h3 className="font-semibold text-swar-text text-sm uppercase tracking-wide">Tithi</h3>
           </div>
           <p className="text-2xl font-bold text-[#E07B69] mb-1">{panchang.tithi.name}</p>
-          <p className="text-xs text-gray-600">{panchang.tithi.paksha}</p>
-          <p className="text-xs text-gray-500 mt-2">{panchang.tithi.number}/30</p>
+          <p className="text-xs text-swar-text-secondary">{panchang.tithi.paksha}</p>
+          <p className="text-xs text-swar-text-secondary mt-2">{panchang.tithi.number}/30</p>
         </div>
 
         {/* Nakshatra */}
         <div className="bg-white rounded-xl shadow-lg border-t-4 border-[#4ECDC4] p-6 hover:shadow-xl transition-shadow">
           <div className="flex items-center mb-3">
             <Star className="w-5 h-5 text-[#4ECDC4] mr-2" />
-            <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">Nakshatra</h3>
+            <h3 className="font-semibold text-swar-text text-sm uppercase tracking-wide">Nakshatra</h3>
           </div>
           <p className="text-2xl font-bold text-[#4ECDC4] mb-1">{panchang.nakshatra.name}</p>
-          <p className="text-xs text-gray-600">{panchang.nakshatra.deity}</p>
-          <p className="text-xs text-gray-500 mt-2">{panchang.nakshatra.number}/27</p>
+          <p className="text-xs text-swar-text-secondary">{panchang.nakshatra.deity}</p>
+          <p className="text-xs text-swar-text-secondary mt-2">{panchang.nakshatra.number}/27</p>
         </div>
 
         {/* Yoga */}
@@ -99,24 +99,24 @@ export const PanchangDisplay: React.FC<PanchangDisplayProps> = ({
         <div className="bg-white rounded-xl shadow-lg border-t-4 border-[#6F4E37] p-6 hover:shadow-xl transition-shadow">
           <div className="flex items-center mb-3">
             <Zap className="w-5 h-5 text-[#6F4E37] mr-2" />
-            <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">Karana</h3>
+            <h3 className="font-semibold text-swar-text text-sm uppercase tracking-wide">Karana</h3>
           </div>
           <p className="text-2xl font-bold text-[#6F4E37] mb-1">{panchang.karana.name}</p>
-          <p className="text-xs text-gray-600 capitalize">{panchang.karana.type}</p>
+          <p className="text-xs text-swar-text-secondary capitalize">{panchang.karana.type}</p>
         </div>
 
         {/* Raasi */}
         <div className="bg-white rounded-xl shadow-lg border-t-4 border-[#2D6A4F] p-6 hover:shadow-xl transition-shadow">
           <div className="flex items-center mb-3">
             <Wind className="w-5 h-5 text-[#2D6A4F] mr-2" />
-            <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wide">Raasi</h3>
+            <h3 className="font-semibold text-swar-text text-sm uppercase tracking-wide">Raasi</h3>
           </div>
           <p className="text-2xl font-bold text-[#2D6A4F] mb-1">{panchang.raasi.name}</p>
           <div className="flex items-center gap-2 mt-2">
             <span className={`text-lg ${getRaasiElement(panchang.raasi.element).color}`}>
               {getRaasiElement(panchang.raasi.element).icon}
             </span>
-            <span className="text-xs text-gray-600">{panchang.raasi.element}</span>
+            <span className="text-xs text-swar-text-secondary">{panchang.raasi.element}</span>
           </div>
         </div>
       </div>
@@ -124,7 +124,7 @@ export const PanchangDisplay: React.FC<PanchangDisplayProps> = ({
       {/* Festival Suggestions */}
       {festivals.length > 0 && (
         <div className="bg-gradient-to-r from-[#FFE8E0] to-[#E8F5E9] rounded-xl p-6 border border-[#E07B69]/30">
-          <h3 className="font-bold text-gray-800 mb-3 flex items-center">
+          <h3 className="font-bold text-swar-text mb-3 flex items-center">
             <span className="text-2xl mr-2">🎉</span>
             Auspicious Activities
           </h3>
@@ -145,32 +145,32 @@ export const PanchangDisplay: React.FC<PanchangDisplayProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Day of Week */}
         <div className="bg-[#E8F5E9] rounded-xl p-4 border border-[#2D6A4F]/20">
-          <p className="text-xs uppercase text-gray-600 font-semibold mb-1">Day of Week</p>
+          <p className="text-xs uppercase text-swar-text-secondary font-semibold mb-1">Day of Week</p>
           <p className="text-xl font-bold text-[#2D6A4F]">{panchang.vaara.name}</p>
         </div>
 
         {/* Ayanamsa */}
         <div className="bg-[#E8FFFE] rounded-xl p-4 border border-[#4ECDC4]/20">
-          <p className="text-xs uppercase text-gray-600 font-semibold mb-1">Ayanamsa</p>
+          <p className="text-xs uppercase text-swar-text-secondary font-semibold mb-1">Ayanamsa</p>
           <p className="text-xl font-bold text-[#4ECDC4]">{typeof panchang.ayanamsa === 'number' && isFinite(panchang.ayanamsa) ? panchang.ayanamsa.toFixed(2) : '0.00'}°</p>
         </div>
       </div>
 
       {/* Time Ranges */}
-      <div className="bg-white rounded-xl p-6 border border-gray-200">
-        <h3 className="font-semibold text-gray-800 mb-4">Time Boundaries</h3>
+      <div className="bg-white rounded-xl p-6 border border-swar-border">
+        <h3 className="font-semibold text-swar-text mb-4">Time Boundaries</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
           <div>
-            <p className="text-gray-600 font-medium mb-1">Tithi Ends</p>
-            <p className="text-gray-800 font-semibold">{panchang.tithi.endTime}</p>
+            <p className="text-swar-text-secondary font-medium mb-1">Tithi Ends</p>
+            <p className="text-swar-text font-semibold">{panchang.tithi.endTime}</p>
           </div>
           <div>
-            <p className="text-gray-600 font-medium mb-1">Nakshatra Ends</p>
-            <p className="text-gray-800 font-semibold">{panchang.nakshatra.endTime}</p>
+            <p className="text-swar-text-secondary font-medium mb-1">Nakshatra Ends</p>
+            <p className="text-swar-text font-semibold">{panchang.nakshatra.endTime}</p>
           </div>
           <div>
-            <p className="text-gray-600 font-medium mb-1">Yoga Ends</p>
-            <p className="text-gray-800 font-semibold">{panchang.yoga.endTime}</p>
+            <p className="text-swar-text-secondary font-medium mb-1">Yoga Ends</p>
+            <p className="text-swar-text font-semibold">{panchang.yoga.endTime}</p>
           </div>
         </div>
       </div>

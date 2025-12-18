@@ -289,7 +289,7 @@ function CheckoutInner() {
         <div className="container py-20">
           <button
             onClick={() => router.back()}
-            className="mb-6 flex items-center gap-2 text-yoga-600 hover:text-yoga-700 font-semibold transition-colors"
+            className="mb-6 flex items-center gap-2 text-swar-primary hover:text-swar-accent font-semibold transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -299,116 +299,116 @@ function CheckoutInner() {
               Your cart is empty. Visit the <a href="/workshop" className="underline font-semibold">workshops page</a> to add a program before proceeding to PayU.
             </div>
           )}
-          <h1 className="text-5xl font-bold mb-12 text-yoga-700">Checkout</h1>
+          <h1 className="text-5xl font-bold mb-12 text-swar-accent">Checkout</h1>
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="md:col-span-2">
               <form id="checkout-form" onSubmit={handleSubmit} className="space-y-8">
                 {/* Shipping Information */}
                 <div className="bg-white rounded-lg shadow-md p-8">
-                  <h2 className="text-2xl font-bold mb-6 text-yoga-700">Shipping Information</h2>
+                  <h2 className="text-2xl font-bold mb-6 text-swar-accent">Shipping Information</h2>
                   
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-gray-700 font-bold mb-2">First Name</label>
+                      <label className="block text-swar-text font-bold mb-2">First Name</label>
                       <input
                         type="text"
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:border-yoga-600"
                         placeholder="John"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-gray-700 font-bold mb-2">Last Name</label>
+                      <label className="block text-swar-text font-bold mb-2">Last Name</label>
                       <input
                         type="text"
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:border-yoga-600"
                         placeholder="Doe"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-gray-700 font-bold mb-2">Email</label>
+                      <label className="block text-swar-text font-bold mb-2">Email</label>
                       <input
                         type="email"
                         name="email"
                         value={formData.email}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:border-yoga-600"
                         placeholder="john@example.com"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-gray-700 font-bold mb-2">Phone</label>
+                      <label className="block text-swar-text font-bold mb-2">Phone</label>
                       <input
                         type="tel"
                         name="phone"
                         value={formData.phone}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:border-yoga-600"
                         placeholder="(555) 000-0000"
                       />
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className="block text-gray-700 font-bold mb-2">Address</label>
+                      <label className="block text-swar-text font-bold mb-2">Address</label>
                       <input
                         type="text"
                         name="address"
                         value={formData.address}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:border-yoga-600"
                         placeholder="123 Main St"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-gray-700 font-bold mb-2">City</label>
+                      <label className="block text-swar-text font-bold mb-2">City</label>
                       <input
                         type="text"
                         name="city"
                         value={formData.city}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:border-yoga-600"
                         placeholder="New York"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-gray-700 font-bold mb-2">State</label>
+                      <label className="block text-swar-text font-bold mb-2">State</label>
                       <input
                         type="text"
                         name="state"
                         value={formData.state}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:border-yoga-600"
                         placeholder="NY"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-gray-700 font-bold mb-2">ZIP Code</label>
+                      <label className="block text-swar-text font-bold mb-2">ZIP Code</label>
                       <input
                         type="text"
                         name="zip"
                         value={formData.zip}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:border-yoga-600"
                         placeholder="10001"
                       />
                     </div>
@@ -417,14 +417,14 @@ function CheckoutInner() {
 
                 {/* Payment Information - Currency & Method */}
                 <div className="bg-white rounded-lg shadow-md p-8">
-                  <h2 className="text-2xl font-bold mb-4 text-yoga-700">Payment Method</h2>
+                  <h2 className="text-2xl font-bold mb-4 text-swar-accent">Payment Method</h2>
                   {cartItems.length === 0 ? (
-                    <p className="text-gray-600">
+                    <p className="text-swar-text-secondary">
                       Add a workshop to your cart to enable PayU checkout.
                     </p>
                   ) : (
                     <>
-                      <p className="text-gray-600 mb-3">
+                      <p className="text-swar-text-secondary mb-3">
                         Choose where you are paying from. International payments convert the India amount into USD.
                       </p>
 
@@ -439,8 +439,8 @@ function CheckoutInner() {
                               onClick={() => setSelectedCurrency(code)}
                               className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                                 isActive
-                                  ? 'bg-yoga-600 text-white border-yoga-600 shadow-md'
-                                  : 'bg-white text-yoga-700 border-yoga-200 hover:border-yoga-400'
+                                  ? 'bg-swar-primary text-white border-yoga-600 shadow-md'
+                                  : 'bg-white text-swar-accent border-yoga-200 hover:border-yoga-400'
                               }`}
                             >
                               {label}
@@ -451,16 +451,16 @@ function CheckoutInner() {
                       </div>
 
                       {selectedCurrency === 'INR' ? (
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                          <p className="text-sm font-semibold text-gray-800 mb-2">Select payment option</p>
+                        <div className="rounded-xl border border-swar-border bg-swar-bg p-4">
+                          <p className="text-sm font-semibold text-swar-text mb-2">Select payment option</p>
                           <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
                               onClick={() => setChargeMethod('indian')}
                               className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
                                 chargeMethod === 'indian'
-                                  ? 'border-green-600 bg-green-600 text-white'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                                  ? 'border-green-600 bg-swar-primary text-white'
+                                  : 'border-swar-border bg-white text-swar-text hover:bg-swar-primary-light'
                               }`}
                             >
                               Indian (2.5%)
@@ -470,23 +470,23 @@ function CheckoutInner() {
                               onClick={() => setChargeMethod('credit_card')}
                               className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
                                 chargeMethod === 'credit_card'
-                                  ? 'border-green-600 bg-green-600 text-white'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                                  ? 'border-green-600 bg-swar-primary text-white'
+                                  : 'border-swar-border bg-white text-swar-text hover:bg-swar-primary-light'
                               }`}
                             >
                               Credit Card (5%)
                             </button>
                           </div>
-                          <p className="mt-2 text-xs text-gray-600">
+                          <p className="mt-2 text-xs text-swar-text-secondary">
                             Tax is removed. Only gateway charges are added.
                           </p>
                         </div>
                       ) : selectedCurrency === 'USD' ? (
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-swar-text-secondary">
                           International payments include <span className="font-semibold">8%</span> charges (USD/PayPal).
                         </p>
                       ) : (
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-swar-text-secondary">
                           Nepal payments use QR. Scan & pay in Nepali, then send screenshot on WhatsApp.
                         </p>
                       )}
@@ -525,7 +525,7 @@ function CheckoutInner() {
                 
                 {/* Next 6 Months Dates Section */}
                 <div className="mb-6 pb-6 border-b border-green-700">
-                  <p className="text-xs font-semibold text-green-200 uppercase tracking-wide mb-3">Available Dates</p>
+                  <p className="text-xs font-semibold text-swar-border uppercase tracking-wide mb-3">Available Dates</p>
                   <div className="space-y-2">
                     {(() => {
                       const today = new Date();
@@ -535,8 +535,8 @@ function CheckoutInner() {
                         dates.push(date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
                       }
                       return dates.map((date, idx) => (
-                        <div key={idx} className="flex items-center text-sm text-green-100">
-                          <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                        <div key={idx} className="flex items-center text-sm text-swar-primary-light">
+                          <span className="w-2 h-2 bg-swar-accent rounded-full mr-2"></span>
                           {date}
                         </div>
                       ));
@@ -550,27 +550,27 @@ function CheckoutInner() {
                       <div key={`${item.id}-${item.currency}`} className="flex justify-between">
                         <div>
                           <p className="text-white font-semibold text-sm">{item.name}</p>
-                          <p className="text-xs text-green-200">Qty {item.quantity}</p>
+                          <p className="text-xs text-swar-border">Qty {item.quantity}</p>
                         </div>
-                        <span className="font-semibold text-green-100">
+                        <span className="font-semibold text-swar-primary-light">
                           {getCurrencySymbol(selectedCurrency)}
                           {roundMoney(convertAmount(item.price * item.quantity, item.currency as any, selectedCurrency as any)).toFixed(2)}
                         </span>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-green-200">
+                    <p className="text-sm text-swar-border">
                       No items available for {selectedCurrency}. Switch currency above or return to the cart.
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-3 mb-8 border-b border-green-700 pb-6">
-                  <div className="flex justify-between text-green-100">
+                  <div className="flex justify-between text-swar-primary-light">
                     <span>Subtotal</span>
                     <span>{getCurrencySymbol(selectedCurrency)}{summarySubtotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-green-100">
+                  <div className="flex justify-between text-swar-primary-light">
                     <span>Charges ({Math.round(chargeRate * 1000) / 10}%)</span>
                     <span>{getCurrencySymbol(selectedCurrency)}{summaryCharges.toFixed(2)}</span>
                   </div>
@@ -590,7 +590,7 @@ function CheckoutInner() {
                   type="submit"
                   form="checkout-form"
                   disabled={loading || !hasItemsForSelectedCurrency}
-                  className={`w-full bg-green-500 hover:bg-green-400 text-white font-bold text-lg py-4 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg ${
+                  className={`w-full bg-swar-primary-light0 hover:bg-swar-accent text-white font-bold text-lg py-4 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg ${
                     loading || !hasItemsForSelectedCurrency ? 'opacity-50 cursor-not-allowed hover:scale-100' : ''
                   }`}
                 >
@@ -607,25 +607,25 @@ function CheckoutInner() {
 
         {nepalQrOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-swar-border overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-swar-border">
                 <div>
-                  <p className="text-lg font-extrabold text-gray-900">Nepal QR Payment</p>
-                  <p className="text-xs text-gray-600">Scan & pay in Nepali rupees</p>
+                  <p className="text-lg font-extrabold text-swar-text">Nepal QR Payment</p>
+                  <p className="text-xs text-swar-text-secondary">Scan & pay in Nepali rupees</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setNepalQrOpen(false)}
-                  className="rounded-lg p-2 hover:bg-gray-100"
+                  className="rounded-lg p-2 hover:bg-swar-primary-light"
                   aria-label="Close"
                 >
-                  <X className="h-5 w-5 text-gray-700" />
+                  <X className="h-5 w-5 text-swar-text" />
                 </button>
               </div>
 
               <div className="p-5">
                 {nepalQrUrl ? (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 flex items-center justify-center">
+                  <div className="rounded-xl border border-swar-border bg-swar-bg p-4 flex items-center justify-center">
                     <img
                       src={nepalQrUrl}
                       alt="Nepal QR code for payment"
@@ -651,20 +651,20 @@ function CheckoutInner() {
                       href={whatsappLink}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-white font-bold hover:bg-green-700 transition"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-swar-primary px-5 py-3 text-white font-bold hover:bg-swar-primary transition"
                     >
                       <MessageCircle className="h-5 w-5" />
                       WhatsApp Screenshot
                     </a>
                   ) : (
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-3 text-sm text-gray-700">
+                    <div className="rounded-xl border border-swar-border bg-swar-bg px-5 py-3 text-sm text-swar-text">
                       WhatsApp number not configured.
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => setNepalQrOpen(false)}
-                    className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-5 py-3 font-bold text-gray-800 hover:bg-gray-50 transition"
+                    className="inline-flex items-center justify-center rounded-xl border border-swar-border px-5 py-3 font-bold text-swar-text hover:bg-swar-bg transition"
                   >
                     Close
                   </button>

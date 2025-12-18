@@ -107,21 +107,21 @@ export default function Cart() {
         <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-12 md:py-20">
           <button
             onClick={() => router.back()}
-            className="mb-4 sm:mb-6 flex items-center gap-2 text-yoga-600 hover:text-yoga-700 font-semibold transition-colors touch-target active:scale-95 py-2"
+            className="mb-4 sm:mb-6 flex items-center gap-2 text-swar-primary hover:text-swar-accent font-semibold transition-colors touch-target active:scale-95 py-2"
           >
             <ArrowLeft className="w-4 h-4 flex-shrink-0" />
             Back
           </button>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 sm:mb-8 md:mb-12 text-yoga-700">Shopping Cart</h1>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 sm:mb-8 md:mb-12 text-swar-accent">Shopping Cart</h1>
 
           {cartItems.length === 0 ? (
             <div className="text-center py-12 sm:py-20">
-              <p className="text-lg sm:text-2xl text-gray-600 mb-6 sm:mb-8">Your cart is empty</p>
-              <Link href="/" className="inline-block bg-yoga-600 text-white px-6 sm:px-8 py-3 sm:py-3 rounded-lg hover:bg-yoga-700 transition touch-target active:scale-95 font-semibold">
+              <p className="text-lg sm:text-2xl text-swar-text-secondary mb-6 sm:mb-8">Your cart is empty</p>
+              <Link href="/" className="inline-block bg-swar-primary text-white px-6 sm:px-8 py-3 sm:py-3 rounded-lg hover:bg-swar-primary-hover transition touch-target active:scale-95 font-semibold">
                 Continue Shopping
               </Link>
-              <p className="mt-6 text-gray-500 text-sm sm:text-base">
-                Add a workshop from the <Link href="/workshop" className="text-yoga-600 underline">workshops page</Link> to start your cart.
+              <p className="mt-6 text-swar-text-secondary text-sm sm:text-base">
+                Add a workshop from the <Link href="/workshop" className="text-swar-primary underline">workshops page</Link> to start your cart.
               </p>
             </div>
           ) : (
@@ -131,19 +131,19 @@ export default function Cart() {
                   <table className="w-full text-sm sm:text-base">
                     <thead className="bg-yoga-50 border-b">
                       <tr>
-                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-yoga-700 font-bold text-xs sm:text-sm">Product</th>
-                        <th className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-yoga-700 font-bold text-xs sm:text-sm">Price</th>
-                        <th className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-yoga-700 font-bold text-xs sm:text-sm">Qty</th>
-                        <th className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-yoga-700 font-bold text-xs sm:text-sm">Total</th>
-                        <th className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-yoga-700 font-bold text-xs sm:text-sm">Action</th>
+                        <th className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-swar-accent font-bold text-xs sm:text-sm">Product</th>
+                        <th className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-swar-accent font-bold text-xs sm:text-sm">Price</th>
+                        <th className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-swar-accent font-bold text-xs sm:text-sm">Qty</th>
+                        <th className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-swar-accent font-bold text-xs sm:text-sm">Total</th>
+                        <th className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-left text-swar-accent font-bold text-xs sm:text-sm">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {cartItems.map((item) => (
-                        <tr key={item.id} className="border-t border-gray-200 hover:bg-gray-50">
+                        <tr key={item.id} className="border-t border-swar-border hover:bg-swar-bg">
                             <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-                              <div className="text-gray-800 font-semibold text-xs sm:text-sm line-clamp-2">{item.name}</div>
-                              <div className="text-xs text-gray-500">{item.currency}</div>
+                              <div className="text-swar-text font-semibold text-xs sm:text-sm line-clamp-2">{item.name}</div>
+                              <div className="text-xs text-swar-text-secondary">{item.currency}</div>
                             </td>
                             <td className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium whitespace-nowrap">{getCurrencySymbol(item.currency)}{item.price.toFixed(0)}</td>
                             <td className="px-2 sm:px-4 md:px-6 py-3 sm:py-4">
@@ -155,7 +155,7 @@ export default function Cart() {
                                   const value = Number(e.target.value);
                                   handleQuantityChange(item.id, Number.isNaN(value) ? 1 : value);
                                 }}
-                                className="w-12 sm:w-14 px-2 py-1 border border-gray-300 rounded text-sm touch-target"
+                                className="w-12 sm:w-14 px-2 py-1 border border-swar-border rounded text-sm touch-target"
                               />
                             </td>
                             <td className="px-2 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-xs sm:text-sm whitespace-nowrap">
@@ -175,7 +175,7 @@ export default function Cart() {
                   </table>
                 </div>
                 <div className="mt-4 sm:mt-6 rounded-2xl bg-white shadow-sm px-4 sm:px-6 py-4 sm:py-5">
-                  <p className="text-xs sm:text-sm font-semibold text-gray-700 mb-3">Pick a currency to checkout</p>
+                  <p className="text-xs sm:text-sm font-semibold text-swar-text mb-3">Pick a currency to checkout</p>
                   <div className="flex flex-wrap gap-2 sm:gap-3">
                     {currencyOptions.map((option) => {
                       const isSelected = selectedCurrency === option.code;
@@ -198,16 +198,16 @@ export default function Cart() {
                   </div>
 
                   {selectedCurrency === 'INR' && (
-                    <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
-                      <p className="text-xs font-semibold text-gray-700 mb-2">Payment method charges</p>
+                    <div className="mt-4 rounded-xl border border-swar-border bg-swar-bg p-3">
+                      <p className="text-xs font-semibold text-swar-text mb-2">Payment method charges</p>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => setChargeMethod('indian')}
                           className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
                             chargeMethod === 'indian'
-                              ? 'border-green-600 bg-green-600 text-white'
-                              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                              ? 'border-green-600 bg-swar-primary text-white'
+                              : 'border-swar-border bg-white text-swar-text hover:bg-swar-primary-light'
                           }`}
                         >
                           Indian (2.5%)
@@ -217,8 +217,8 @@ export default function Cart() {
                           onClick={() => setChargeMethod('credit_card')}
                           className={`rounded-lg border px-3 py-2 text-xs font-semibold transition active:scale-95 ${
                             chargeMethod === 'credit_card'
-                              ? 'border-green-600 bg-green-600 text-white'
-                              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                              ? 'border-green-600 bg-swar-primary text-white'
+                              : 'border-swar-border bg-white text-swar-text hover:bg-swar-primary-light'
                           }`}
                         >
                           Credit Card (5%)
@@ -230,13 +230,13 @@ export default function Cart() {
               </div>
 
               <div className="md:col-span-1">
-                <div className="bg-green-50 rounded-lg p-4 sm:p-6 md:p-8 sticky top-24 md:top-32">
-                  <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-green-700">Order Summary</h2>
+                <div className="bg-swar-primary-light rounded-lg p-4 sm:p-6 md:p-8 sticky top-24 md:top-32">
+                  <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-swar-primary">Order Summary</h2>
                   
                   <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 border-b border-green-200 pb-4 sm:pb-6 max-h-48 overflow-y-auto">
                     {summaryItems.length > 0 ? (
                       summaryItems.map((item) => (
-                        <div key={`${item.id}-${item.currency}`} className="flex justify-between text-gray-700 text-sm">
+                        <div key={`${item.id}-${item.currency}`} className="flex justify-between text-swar-text text-sm">
                           <span className="flex-1 truncate mr-2">{item.name} x{item.quantity}</span>
                           <span className="font-semibold whitespace-nowrap">
                             {getCurrencySymbol(selectedCurrency)}{roundMoney(convertAmount(item.price * item.quantity, item.currency as any, selectedCurrency as any)).toFixed(0)}
@@ -244,7 +244,7 @@ export default function Cart() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-xs sm:text-sm text-gray-600">
+                      <p className="text-xs sm:text-sm text-swar-text-secondary">
                         Add a workshop for {selectedCurrency} to start checkout.
                       </p>
                     )}
@@ -252,25 +252,25 @@ export default function Cart() {
                   
                   <div className="space-y-1 sm:space-y-2 mb-4 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-700">Subtotal</span>
+                      <span className="text-swar-text">Subtotal</span>
                       <span className="font-semibold">
                         {getCurrencySymbol(selectedCurrency)}{summarySubtotal.toFixed(0)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-700">Charges ({Math.round(chargeRate * 1000) / 10}%)</span>
+                      <span className="text-swar-text">Charges ({Math.round(chargeRate * 1000) / 10}%)</span>
                       <span className="font-semibold">{getCurrencySymbol(selectedCurrency)}{summaryCharges.toFixed(0)}</span>
                     </div>
                   </div>
 
                   <div className="flex justify-between py-2 sm:py-3 border-t border-green-200">
                     <span className="text-base sm:text-lg font-bold text-red-600">Total</span>
-                    <span className="text-lg sm:text-2xl font-bold text-green-600">
+                    <span className="text-lg sm:text-2xl font-bold text-swar-primary">
                       {getCurrencySymbol(selectedCurrency)}{summaryTotal.toFixed(0)}
                     </span>
                   </div>
 
-                  <p className="text-xs text-gray-600 my-3 sm:my-4 leading-relaxed">
+                  <p className="text-xs text-swar-text-secondary my-3 sm:my-4 leading-relaxed">
                     Continue to our secure PayU checkout with the selected currency.
                   </p>
                   <button
@@ -279,14 +279,14 @@ export default function Cart() {
                     disabled={!hasItemsForSelectedCurrency}
                     className={`w-full py-2.5 sm:py-3 rounded-lg text-center font-bold transition touch-target min-h-12 text-sm sm:text-base mb-2 sm:mb-3 ${
                       hasItemsForSelectedCurrency
-                        ? 'bg-green-600 text-white hover:bg-green-700 active:scale-95'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        ? 'bg-swar-primary text-white hover:bg-swar-primary active:scale-95'
+                        : 'bg-gray-300 text-swar-text-secondary cursor-not-allowed'
                     }`}
                   >
                     Checkout ({selectedCurrency})
                   </button>
 
-                  <Link href="/" className="block w-full border border-yoga-600 text-yoga-600 py-2.5 sm:py-3 rounded-lg text-center font-bold hover:bg-yoga-50 transition touch-target min-h-12 text-sm sm:text-base active:scale-95">
+                  <Link href="/" className="block w-full border border-yoga-600 text-swar-primary py-2.5 sm:py-3 rounded-lg text-center font-bold hover:bg-yoga-50 transition touch-target min-h-12 text-sm sm:text-base active:scale-95">
                     Continue Shopping
                   </Link>
                 </div>

@@ -328,12 +328,12 @@ function SignUpInner() {
               <div className="w-16 h-16 bg-yoga-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-3xl">👤</span>
               </div>
-              <h1 className="text-4xl font-bold text-yoga-700 mb-2">Create Your Account</h1>
-              <p className="text-lg text-gray-600">
+              <h1 className="text-4xl font-bold text-swar-accent mb-2">Create Your Account</h1>
+              <p className="text-lg text-swar-text-secondary">
                 Join Swar Yoga and start your transformation journey
               </p>
               {redirectPath && redirectPath !== '/' && (
-                <div className="mt-3 text-sm text-yoga-600 font-medium">
+                <div className="mt-3 text-sm text-swar-primary font-medium">
                   Sign up to continue to{' '}
                   {redirectPath === 'account'
                     ? 'your account'
@@ -348,9 +348,9 @@ function SignUpInner() {
 
             {/* Status Messages */}
             {submitStatus === 'success' && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3">
-                <span className="text-green-600 text-xl">✓</span>
-                <span className="text-green-800 font-medium">
+              <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-center space-x-3">
+                <span className="text-swar-primary text-xl">✓</span>
+                <span className="text-swar-primary font-medium">
                   Account created successfully! Redirecting...
                 </span>
               </div>
@@ -367,12 +367,12 @@ function SignUpInner() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Personal Information */}
               <div className="space-y-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Personal Information</h2>
+                <h2 className="text-xl font-bold text-swar-text mb-4">Personal Information</h2>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Full Name */}
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="name" className="block text-sm font-medium text-swar-text mb-2">
                       Full Name *
                     </label>
                     <input
@@ -382,7 +382,7 @@ function SignUpInner() {
                       value={formData.name}
                       onChange={handleInputChange}
                       className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
-                        errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                        errors.name ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                       placeholder="Enter your full name"
                     />
@@ -393,7 +393,7 @@ function SignUpInner() {
 
                   {/* Email */}
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="email" className="block text-sm font-medium text-swar-text mb-2">
                       Email Address *
                     </label>
                     <input
@@ -403,7 +403,7 @@ function SignUpInner() {
                       value={formData.email}
                       onChange={handleInputChange}
                       className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
-                        errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                        errors.email ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                       placeholder="your@email.com"
                     />
@@ -416,7 +416,7 @@ function SignUpInner() {
                 {/* Phone */}
                 <div className="grid md:grid-cols-3 gap-6">
                   <div>
-                    <label htmlFor="countryCode" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="countryCode" className="block text-sm font-medium text-swar-text mb-2">
                       Country Code
                     </label>
                     <select
@@ -424,7 +424,7 @@ function SignUpInner() {
                       name="countryCode"
                       value={formData.countryCode}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                     >
                       {countryCodes.map((item) => (
                         <option key={item.code} value={item.code}>
@@ -435,7 +435,7 @@ function SignUpInner() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="phone" className="block text-sm font-medium text-swar-text mb-2">
                       Phone Number
                     </label>
                     <input
@@ -444,7 +444,7 @@ function SignUpInner() {
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                       placeholder="Enter your phone number"
                     />
                   </div>
@@ -453,7 +453,7 @@ function SignUpInner() {
                 {/* Country & State */}
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="country" className="block text-sm font-medium text-swar-text mb-2">
                       Country
                     </label>
                     <select
@@ -461,7 +461,7 @@ function SignUpInner() {
                       name="country"
                       value={formData.country}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                     >
                       <option value="">Select Country</option>
                       {countries.map((country) => (
@@ -473,7 +473,7 @@ function SignUpInner() {
                   </div>
 
                   <div>
-                    <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="state" className="block text-sm font-medium text-swar-text mb-2">
                       State/Province {formData.country && '*'}
                     </label>
                     {formData.country ? (
@@ -482,7 +482,7 @@ function SignUpInner() {
                         name="state"
                         value={formData.state}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                       >
                         <option value="">Select State/Province</option>
                         {getStatesList(formData.country).map((state) => (
@@ -498,7 +498,7 @@ function SignUpInner() {
                         name="state"
                         value={formData.state}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent bg-gray-50 text-gray-500 cursor-not-allowed"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent bg-swar-bg text-swar-text-secondary cursor-not-allowed"
                         placeholder="Select a country first"
                         disabled
                       />
@@ -509,7 +509,7 @@ function SignUpInner() {
                 {/* Gender, Age, Profession */}
                 <div className="grid md:grid-cols-3 gap-6">
                   <div>
-                    <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="gender" className="block text-sm font-medium text-swar-text mb-2">
                       Gender
                     </label>
                     <select
@@ -517,7 +517,7 @@ function SignUpInner() {
                       name="gender"
                       value={formData.gender}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                     >
                       <option value="">Select Gender</option>
                       <option value="male">Male</option>
@@ -526,7 +526,7 @@ function SignUpInner() {
                   </div>
 
                   <div>
-                    <label htmlFor="age" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="age" className="block text-sm font-medium text-swar-text mb-2">
                       Age
                     </label>
                     <input
@@ -535,7 +535,7 @@ function SignUpInner() {
                       name="age"
                       value={formData.age}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                       placeholder="Your age"
                       min="1"
                       max="120"
@@ -543,7 +543,7 @@ function SignUpInner() {
                   </div>
 
                   <div>
-                    <label htmlFor="profession" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="profession" className="block text-sm font-medium text-swar-text mb-2">
                       Profession
                     </label>
                     <input
@@ -552,7 +552,7 @@ function SignUpInner() {
                       name="profession"
                       value={formData.profession}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
+                      className="w-full px-4 py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                       placeholder="Your profession"
                     />
                   </div>
@@ -560,13 +560,13 @@ function SignUpInner() {
               </div>
 
               {/* Security Information */}
-              <div className="space-y-6 pt-6 border-t border-gray-200">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Security</h2>
+              <div className="space-y-6 pt-6 border-t border-swar-border">
+                <h2 className="text-xl font-bold text-swar-text mb-4">Security</h2>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Password */}
                   <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="password" className="block text-sm font-medium text-swar-text mb-2">
                       Password *
                     </label>
                     <div className="relative">
@@ -577,14 +577,14 @@ function SignUpInner() {
                         value={formData.password}
                         onChange={handleInputChange}
                         className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
-                          errors.password ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                          errors.password ? 'border-red-400 bg-red-50' : 'border-swar-border'
                         }`}
                         placeholder="Create a password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-text-secondary"
                       >
                         {showPassword ? '👁️‍🗨️' : '👁️'}
                       </button>
@@ -596,7 +596,7 @@ function SignUpInner() {
 
                   {/* Confirm Password */}
                   <div>
-                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-swar-text mb-2">
                       Confirm Password *
                     </label>
                     <div className="relative">
@@ -607,14 +607,14 @@ function SignUpInner() {
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
                         className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
-                          errors.confirmPassword ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                          errors.confirmPassword ? 'border-red-400 bg-red-50' : 'border-swar-border'
                         }`}
                         placeholder="Confirm your password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-text-secondary"
                       >
                         {showConfirmPassword ? '👁️‍🗨️' : '👁️'}
                       </button>
@@ -627,22 +627,22 @@ function SignUpInner() {
               </div>
 
               {/* Terms and Conditions */}
-              <div className="space-y-4 pt-6 border-t border-gray-200">
+              <div className="space-y-4 pt-6 border-t border-swar-border">
                 <label className="flex items-start space-x-3 cursor-pointer">
                   <input
                     type="checkbox"
                     name="agreeToTerms"
                     checked={formData.agreeToTerms}
                     onChange={handleInputChange}
-                    className="mt-1 w-5 h-5 border-gray-300 rounded text-yoga-600 focus:ring-yoga-500 cursor-pointer"
+                    className="mt-1 w-5 h-5 border-swar-border rounded text-swar-primary focus:ring-yoga-500 cursor-pointer"
                   />
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-swar-text-secondary">
                     I agree to the{' '}
-                    <Link href="/terms" className="text-yoga-600 hover:text-yoga-700 font-medium">
+                    <Link href="/terms" className="text-swar-primary hover:text-swar-accent font-medium">
                       Terms and Conditions
                     </Link>{' '}
                     and{' '}
-                    <Link href="/privacy" className="text-yoga-600 hover:text-yoga-700 font-medium">
+                    <Link href="/privacy" className="text-swar-primary hover:text-swar-accent font-medium">
                       Privacy Policy
                     </Link>
                   </span>
@@ -674,11 +674,11 @@ function SignUpInner() {
 
             {/* Sign In Link */}
             <div className="mt-8 text-center">
-              <p className="text-gray-600">
+              <p className="text-swar-text-secondary">
                 Already have an account?{' '}
                 <Link
                   href={`/signin${redirectPath && redirectPath !== '/' ? `?redirect=${redirectPath}` : ''}`}
-                  className="text-yoga-600 hover:text-yoga-700 font-bold"
+                  className="text-swar-primary hover:text-swar-accent font-bold"
                 >
                   Sign in here
                 </Link>

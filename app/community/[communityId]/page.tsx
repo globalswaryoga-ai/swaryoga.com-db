@@ -130,15 +130,15 @@ export default function CommunityFeedPage() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-20 bg-gray-50">
+      <main className="min-h-screen pt-20 bg-swar-bg">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between gap-4">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Community Feed</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-swar-text">Community Feed</h1>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => router.push(`/community/${communityId}/create`)}
-                className="rounded-lg bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700"
+                className="rounded-lg bg-swar-primary text-white px-4 py-2 text-sm font-bold hover:bg-swar-primary"
               >
                 Create Post
               </button>
@@ -155,52 +155,52 @@ export default function CommunityFeedPage() {
                     setLoading(false);
                   }
                 }}
-                className="rounded-lg bg-gray-100 text-gray-900 px-4 py-2 text-sm font-bold hover:bg-gray-200"
+                className="rounded-lg bg-swar-primary-light text-swar-text px-4 py-2 text-sm font-bold hover:bg-swar-primary-light"
               >
                 Refresh
               </button>
             </div>
           </div>
 
-          {loading && <p className="mt-6 text-sm text-gray-600">Loading...</p>}
+          {loading && <p className="mt-6 text-sm text-swar-text-secondary">Loading...</p>}
 
           {!loading && error && (
             <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
           )}
 
           {!loading && !error && posts.length === 0 && (
-            <div className="mt-6 rounded-lg border border-gray-200 bg-white px-4 py-6">
-              <p className="text-sm text-gray-800">No posts yet</p>
+            <div className="mt-6 rounded-lg border border-swar-border bg-white px-4 py-6">
+              <p className="text-sm text-swar-text">No posts yet</p>
             </div>
           )}
 
           {!loading && !error && posts.length > 0 && (
             <div className="mt-6 space-y-3">
               {posts.map((p) => (
-                <div key={p.id} className="rounded-lg border border-gray-200 bg-white px-4 py-4">
-                  <div className="text-sm text-gray-900 whitespace-pre-wrap">{p.content}</div>
+                <div key={p.id} className="rounded-lg border border-swar-border bg-white px-4 py-4">
+                  <div className="text-sm text-swar-text whitespace-pre-wrap">{p.content}</div>
                   <div className="mt-2 flex items-center justify-between gap-4">
-                    <div className="text-xs text-gray-500">{p.createdAt ? new Date(p.createdAt).toLocaleString() : ''}</div>
+                    <div className="text-xs text-swar-text-secondary">{p.createdAt ? new Date(p.createdAt).toLocaleString() : ''}</div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => onToggleLike(p.id)}
-                        className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-200"
+                        className="rounded-lg bg-swar-primary-light px-3 py-1.5 text-xs font-bold text-swar-text hover:bg-swar-primary-light"
                       >
                         {p.likedByMe ? 'Unlike' : 'Like'}
                       </button>
-                      <div className="text-xs text-gray-600">Likes: {p.likesCount}</div>
+                      <div className="text-xs text-swar-text-secondary">Likes: {p.likesCount}</div>
                       <button
                         type="button"
                         onClick={() => router.push(`/community/post/${p.id}`)}
-                        className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-200"
+                        className="rounded-lg bg-swar-primary-light px-3 py-1.5 text-xs font-bold text-swar-text hover:bg-swar-primary-light"
                       >
                         Open
                       </button>
                     </div>
                   </div>
                   {p.comments?.length > 0 && (
-                    <div className="mt-3 text-xs text-gray-600">Comments: {p.comments.length}</div>
+                    <div className="mt-3 text-xs text-swar-text-secondary">Comments: {p.comments.length}</div>
                   )}
                 </div>
               ))}

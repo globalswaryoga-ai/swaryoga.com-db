@@ -45,7 +45,7 @@ export default function AddSampleVisionsButton() {
       disabled={loading || success}
       className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
         success
-          ? 'bg-green-600 text-white'
+          ? 'bg-swar-primary text-white'
           : 'bg-emerald-600 text-white hover:bg-emerald-700'
       } disabled:opacity-50 disabled:cursor-not-allowed`}
     >

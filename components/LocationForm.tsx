@@ -196,7 +196,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Globe className="w-6 h-6 text-indigo-600" />
-        <h3 className="text-2xl font-bold text-gray-800">Select Location & Date</h3>
+        <h3 className="text-2xl font-bold text-swar-text">Select Location & Date</h3>
       </div>
 
       {/* Error Message */}
@@ -209,7 +209,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
 
       {/* Date Input */}
       <div className="space-y-2">
-        <label className="flex items-center gap-2 text-gray-700 font-semibold">
+        <label className="flex items-center gap-2 text-swar-text font-semibold">
           <Calendar className="w-5 h-5 text-indigo-600" />
           Select Date
         </label>
@@ -223,7 +223,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
 
       {/* Country Selector */}
       <div className="space-y-2">
-        <label className="flex items-center gap-2 text-gray-700 font-semibold">
+        <label className="flex items-center gap-2 text-swar-text font-semibold">
           <Globe className="w-5 h-5 text-indigo-600" />
           Country
         </label>
@@ -246,7 +246,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
 
       {/* State Selector */}
       <div className="space-y-2">
-        <label className="flex items-center gap-2 text-gray-700 font-semibold">
+        <label className="flex items-center gap-2 text-swar-text font-semibold">
           <MapPin className="w-5 h-5 text-indigo-600" />
           State / Province
         </label>
@@ -255,7 +255,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
             value={formData.state}
             onChange={handleStateChange}
             disabled={states.length === 0}
-            className="w-full px-4 py-3 border border-indigo-300 rounded-lg appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition bg-white disabled:bg-gray-100 disabled:text-gray-500"
+            className="w-full px-4 py-3 border border-indigo-300 rounded-lg appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition bg-white disabled:bg-swar-primary-light disabled:text-swar-text-secondary"
           >
             <option value="">Select a state/province</option>
             {states.map((state) => (
@@ -270,7 +270,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
 
       {/* City/Capital Selector */}
       <div className="space-y-2">
-        <label className="flex items-center gap-2 text-gray-700 font-semibold">
+        <label className="flex items-center gap-2 text-swar-text font-semibold">
           <MapPin className="w-5 h-5 text-indigo-600" />
           City / Capital
         </label>
@@ -279,7 +279,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
             value={formData.capitalCity}
             onChange={handleCityChange}
             disabled={cities.length === 0}
-            className="w-full px-4 py-3 border border-indigo-300 rounded-lg appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition bg-white disabled:bg-gray-100 disabled:text-gray-500"
+            className="w-full px-4 py-3 border border-indigo-300 rounded-lg appearance-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition bg-white disabled:bg-swar-primary-light disabled:text-swar-text-secondary"
           >
             <option value="">Select a city</option>
             {cities.map((city) => (
@@ -294,22 +294,22 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
 
       {/* Location Info Box */}
       <div className="bg-white rounded-lg p-4 border border-indigo-200">
-        <h4 className="text-sm font-semibold text-gray-700 mb-3">Location Details</h4>
+        <h4 className="text-sm font-semibold text-swar-text mb-3">Location Details</h4>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-gray-600 font-medium">Latitude</p>
+            <p className="text-swar-text-secondary font-medium">Latitude</p>
             <p className="text-indigo-600 font-mono font-bold">{typeof formData.latitude === 'number' && isFinite(formData.latitude) ? formData.latitude.toFixed(4) : '0.0000'}°</p>
           </div>
           <div>
-            <p className="text-gray-600 font-medium">Longitude</p>
+            <p className="text-swar-text-secondary font-medium">Longitude</p>
             <p className="text-indigo-600 font-mono font-bold">{typeof formData.longitude === 'number' && isFinite(formData.longitude) ? formData.longitude.toFixed(4) : '0.0000'}°</p>
           </div>
           <div>
-            <p className="text-gray-600 font-medium">Timezone</p>
+            <p className="text-swar-text-secondary font-medium">Timezone</p>
             <p className="text-indigo-600 font-mono font-bold">UTC{timezone >= 0 ? '+' : ''}{(typeof timezone === 'number' && isFinite(timezone) ? timezone.toFixed(1) : '0.0')}</p>
           </div>
           <div>
-            <p className="text-gray-600 font-medium">Location</p>
+            <p className="text-swar-text-secondary font-medium">Location</p>
             <p className="text-indigo-600 font-mono font-bold truncate">
               {formData.capitalCity}, {formData.country}
             </p>
@@ -337,7 +337,7 @@ const LocationForm: React.FC<LocationFormProps> = ({ onSubmit, loading }) => {
       </button>
 
       {/* Info Text */}
-      <p className="text-xs text-gray-600 text-center">
+      <p className="text-xs text-swar-text-secondary text-center">
         Coordinates and timezone are automatically populated from our global database of {countries.length}+ countries
       </p>
     </form>

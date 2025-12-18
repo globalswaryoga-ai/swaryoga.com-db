@@ -94,14 +94,14 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
       {/* Parent Goal */}
       {goals.length > 0 && (
         <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-3">
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             🎯 Link to Goal (Optional)
           </label>
           <select
             name="goalId"
             value={formData.goalId}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           >
             <option value="">-- No parent goal --</option>
             {goals.map(goal => (
@@ -118,7 +118,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
 
       {/* Task Title */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Task Title *
         </label>
         <input
@@ -127,7 +127,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
           value={formData.title}
           onChange={handleChange}
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition ${
-            errors.title ? 'border-red-500' : 'border-gray-300'
+            errors.title ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder="e.g., Complete Week 1 Training, Setup Development Environment"
           required
@@ -137,7 +137,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Description *
         </label>
         <textarea
@@ -145,7 +145,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
           value={formData.description}
           onChange={handleChange}
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition ${
-            errors.description ? 'border-red-500' : 'border-gray-300'
+            errors.description ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder="Describe the task details, steps, and deliverables"
           rows={4}
@@ -156,7 +156,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
 
       {/* Priority */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <Zap size={18} className="text-yellow-600" />
           Priority
         </label>
@@ -164,7 +164,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
           name="priority"
           value={formData.priority}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
         >
           <option value="high">🔴 High - Urgent</option>
           <option value="medium">🟡 Medium - Important</option>
@@ -174,7 +174,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
 
       {/* Vision Head (Category) */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Vision Category (Optional)
         </label>
         <input
@@ -182,21 +182,21 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
           name="visionHead"
           value={formData.visionHead}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
           placeholder="e.g., Health, Wealth, Success"
         />
       </div>
 
       {/* Status */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Status
         </label>
         <select
           name="status"
           value={formData.status}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
         >
           <option value="not-started">⭕ Not Started</option>
           <option value="in-progress">🔵 In Progress</option>
@@ -209,7 +209,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
       {/* Start & End Dates */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
             Start Date *
           </label>
@@ -219,7 +219,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
             value={formData.startDate}
             onChange={handleChange}
             className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition ${
-              errors.startDate ? 'border-red-500' : 'border-gray-300'
+              errors.startDate ? 'border-red-500' : 'border-swar-border'
             }`}
             required
           />
@@ -227,7 +227,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
             Due Date *
           </label>
@@ -237,7 +237,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
             value={formData.dueDate}
             onChange={handleChange}
             className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition ${
-              errors.dueDate ? 'border-red-500' : 'border-gray-300'
+              errors.dueDate ? 'border-red-500' : 'border-swar-border'
             }`}
             required
           />
@@ -248,7 +248,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
 
       {/* Budget (Optional) */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Budget (Optional)
         </label>
         <input
@@ -256,7 +256,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
           name="budget"
           value={formData.budget || ''}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
           placeholder="Enter budget amount"
           min="0"
         />
@@ -264,7 +264,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
 
       {/* Place (Optional) */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Location (Optional)
         </label>
         <input
@@ -272,7 +272,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
           name="place"
           value={formData.place}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
           placeholder="e.g., Office, Gym, Home"
         />
       </div>
@@ -280,7 +280,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
       {/* Time Window (Optional) */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2">
             Start Time (Optional)
           </label>
           <input
@@ -288,11 +288,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
             name="timeStart"
             value={formData.timeStart}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
           />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2">
             End Time (Optional)
           </label>
           <input
@@ -300,14 +300,14 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
             name="timeEnd"
             value={formData.timeEnd}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
           />
         </div>
       </div>
 
       {/* Image URL */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <Image size={18} className="text-orange-600" />
           Task Image URL (Optional)
         </label>
@@ -316,11 +316,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
           name="imageUrl"
           value={formData.imageUrl}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 transition"
           placeholder="https://example.com/image.jpg"
         />
         {formData.imageUrl && (
-          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm">
+          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-swar-border shadow-sm">
             <img 
               src={formData.imageUrl} 
               alt="Task preview" 
@@ -334,11 +334,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-end gap-3 pt-5 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-5 border-t border-swar-border">
         <button
           type="button"
           onClick={onCancel}
-          className="px-5 py-2.5 border-2 border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+          className="px-5 py-2.5 border-2 border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
         >
           Cancel
         </button>

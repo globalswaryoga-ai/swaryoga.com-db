@@ -37,17 +37,17 @@ export default function LifePlannerTopNav({
   };
 
   return (
-    <header className="bg-white border-b border-pink-200 shadow-sm">
+    <header className="bg-white border-b border-swar-border shadow-sm">
       <div className="px-6 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center space-x-4">
           <button
             onClick={onToggleSidebar}
-            className="md:hidden p-2 rounded-lg bg-pink-100 hover:bg-pink-200 text-green-700"
+            className="md:hidden p-2 rounded-lg bg-swar-primary-light hover:bg-swar-primary-light text-swar-primary"
             aria-label="Toggle sidebar"
           >
             {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
-          <h1 className="text-2xl font-bold text-green-700 flex items-center space-x-2 whitespace-nowrap">
+          <h1 className="text-2xl font-bold text-swar-primary flex items-center space-x-2 whitespace-nowrap">
             <span>🗓️</span>
             <span>Life Planner</span>
           </h1>
@@ -61,8 +61,8 @@ export default function LifePlannerTopNav({
             href="/life-planner/profile"
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               pathname === '/life-planner/profile'
-                ? 'bg-green-100 text-green-700 border border-green-300'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-pink-50'
+                ? 'bg-swar-primary-light text-swar-primary border border-green-300'
+                : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
             }`}
           >
             <User className="h-5 w-5" />
@@ -79,14 +79,14 @@ export default function LifePlannerTopNav({
         </div>
       </div>
 
-      <div className="border-t border-pink-100 px-2 sm:px-4 md:px-6 py-2 overflow-visible md:overflow-x-auto md:scroll-smooth md:snap-x md:snap-proximity">
+      <div className="border-t border-swar-border px-2 sm:px-4 md:px-6 py-2 overflow-visible md:overflow-x-auto md:scroll-smooth md:snap-x md:snap-proximity">
         <nav className="grid grid-cols-4 gap-2 md:flex md:items-center md:gap-2 md:min-w-max">
           <Link
             href="/"
             className={`w-full flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 rounded-lg px-2 md:px-3 py-2 text-[11px] md:text-sm font-medium transition-colors text-center md:text-left md:snap-start ${
               pathname === '/'
                 ? 'bg-red-100 text-red-700 border border-red-300'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-pink-50'
+                : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
             }`}
             title="Go to Home"
           >
@@ -102,8 +102,8 @@ export default function LifePlannerTopNav({
                 href={tab.href}
                 className={`w-full flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 rounded-lg px-2 md:px-3 py-2 text-[11px] md:text-sm font-medium transition-colors text-center md:text-left md:snap-start ${
                   active
-                    ? 'bg-green-100 text-green-700 border border-green-300'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-pink-50'
+                    ? 'bg-swar-primary-light text-swar-primary border border-green-300'
+                    : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
                 }`}
               >
                 <Icon className="h-4 w-4" />

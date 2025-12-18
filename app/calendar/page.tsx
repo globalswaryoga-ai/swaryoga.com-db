@@ -381,8 +381,8 @@ const SwarCalendar: React.FC = () => {
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
                   <Calendar className="w-6 h-6 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3 text-gray-800">Paksh & Tithi</h3>
-                <p className="text-gray-600 leading-relaxed">
+                <h3 className="text-xl font-semibold mb-3 text-swar-text">Paksh & Tithi</h3>
+                <p className="text-swar-text-secondary leading-relaxed">
                   Accurate determination of Shukla/Krishna Paksh and detailed Tithi (lunar day) calculations.
                 </p>
               </div>
@@ -431,21 +431,21 @@ const SwarCalendar: React.FC = () => {
                   id="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                   required
                 />
               </div>
               
               {/* Country */}
               <div>
-                <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="country" className="block text-sm font-medium text-swar-text mb-1">
                   Country
                 </label>
                 <select
                   id="country"
                   value={selectedCountry}
                   onChange={handleCountryChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                   required
                 >
                   <option value="">Select Country</option>
@@ -459,14 +459,14 @@ const SwarCalendar: React.FC = () => {
               
               {/* State */}
               <div>
-                <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="state" className="block text-sm font-medium text-swar-text mb-1">
                   State/Region
                 </label>
                 <select
                   id="state"
                   value={selectedState}
                   onChange={handleStateChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                   required
                   disabled={!selectedCountry}
                 >
@@ -481,14 +481,14 @@ const SwarCalendar: React.FC = () => {
               
               {/* Capital City */}
               <div>
-                <label htmlFor="capital" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="capital" className="block text-sm font-medium text-swar-text mb-1">
                   Capital City
                 </label>
                 <select
                   id="capital"
                   value={selectedCapital}
                   onChange={handleCapitalChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                   required
                   disabled={!selectedState}
                 >
@@ -503,7 +503,7 @@ const SwarCalendar: React.FC = () => {
               
               {/* Latitude */}
               <div>
-                <label htmlFor="latitude" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="latitude" className="block text-sm font-medium text-swar-text mb-1">
                   Latitude
                 </label>
                 <input
@@ -513,14 +513,14 @@ const SwarCalendar: React.FC = () => {
                   onChange={(e) => setLatitude(parseFloat(e.target.value) || 0)}
                   step="0.000001"
                   placeholder="e.g., 19.0760"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                   required
                 />
               </div>
               
               {/* Longitude */}
               <div>
-                <label htmlFor="longitude" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="longitude" className="block text-sm font-medium text-swar-text mb-1">
                   Longitude
                 </label>
                 <input
@@ -530,10 +530,10 @@ const SwarCalendar: React.FC = () => {
                   onChange={(e) => setLongitude(parseFloat(e.target.value) || 0)}
                   step="0.000001"
                   placeholder="e.g., 72.8777"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-swar-text-secondary mt-1">
                   Coordinates auto-fill from the selected city so sunrise time reflects the exact location.
                 </p>
               </div>
@@ -542,7 +542,7 @@ const SwarCalendar: React.FC = () => {
             <button
               type="submit"
               disabled={loading || !selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-swar-primary hover:bg-swar-primary text-white py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <>
@@ -570,8 +570,8 @@ const SwarCalendar: React.FC = () => {
         {showResults && calendarData && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center space-x-2">
-                <Calendar className="w-6 h-6 text-green-600" />
+              <h2 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
+                <Calendar className="w-6 h-6 text-swar-primary" />
                 <span>Hindu Calendar Results</span>
               </h2>
               <button
@@ -583,8 +583,8 @@ const SwarCalendar: React.FC = () => {
               </button>
             </div>
             
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-gray-200 overflow-hidden">
-              <div className="bg-green-600 text-white px-6 py-4">
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-swar-border overflow-hidden">
+              <div className="bg-swar-primary text-white px-6 py-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Today's Hindu Calendar</h3>
                   <div className="text-sm">
@@ -596,47 +596,47 @@ const SwarCalendar: React.FC = () => {
               
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-swar-bg">
                     <tr>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Day</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Paksha</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Tithi</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Sunrise Time</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Today's Nadi</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Date</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Day</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Paksha</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Tithi</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Sunrise Time</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Today's Nadi</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white">
-                    <tr className="border-t border-gray-200">
-                      <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                    <tr className="border-t border-swar-border">
+                      <td className="px-6 py-4 text-sm text-swar-text font-medium">
                         {formatDate(calendarData.date)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-swar-text">
                         {calendarData.day}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <td className="px-6 py-4 text-sm text-swar-text">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-swar-primary-light text-swar-primary">
                           {calendarData.paksha}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-swar-text">
                         <div>
                           <span className="font-semibold text-purple-600">{calendarData.tithi}</span>
-                          <div className="text-xs text-gray-500">{calendarData.tithiName}</div>
+                          <div className="text-xs text-swar-text-secondary">{calendarData.tithiName}</div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-swar-text">
                         <div className="flex items-center">
                           <Sun className="w-4 h-4 text-orange-500 mr-1" />
                           <span className="font-medium">{calendarData.sunriseTime}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-swar-text">
                         <div className="flex items-center">
                           <span className="mr-2 text-lg">{calendarData.nadi.symbol}</span>
                           <div>
                             <span className="font-medium">{calendarData.nadi.name}</span>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-swar-text-secondary">
                               {calendarData.nadi.type === 'Sun' ? 'Sun Energy' : 'Moon Energy'}
                             </div>
                           </div>
@@ -647,8 +647,8 @@ const SwarCalendar: React.FC = () => {
                 </table>
               </div>
               
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                <div className="text-sm text-gray-600">
+              <div className="px-6 py-4 bg-swar-bg border-t border-swar-border">
+                <div className="text-sm text-swar-text-secondary">
                   <p><strong>Coordinates:</strong> Lat: {calendarData.coordinates.latitude.toFixed(6)}, Lng: {calendarData.coordinates.longitude.toFixed(6)}</p>
                   <p className="mt-1"><strong>Nadi Logic:</strong> In {calendarData.paksha}, Tithi {calendarData.tithi} corresponds to {calendarData.nadi.name}</p>
                 </div>
@@ -662,13 +662,13 @@ const SwarCalendar: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-gray-800 flex items-center space-x-2">
+                <h3 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
                   <CalendarDays className="w-6 h-6 text-blue-600" />
                   <span>Download Monthly Calendar</span>
                 </h3>
                 <button
                   onClick={() => setShowDownloadForm(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                  className="text-swar-text-secondary hover:text-swar-text-secondary text-2xl"
                 >
                   ×
                 </button>
@@ -676,27 +676,27 @@ const SwarCalendar: React.FC = () => {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-swar-text mb-1">
                     Start Date
                   </label>
                   <input
                     type="date"
                     value={downloadStartDate}
                     onChange={(e) => setDownloadStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-swar-text mb-1">
                     End Date (Max 1 Month)
                   </label>
                   <input
                     type="date"
                     value={downloadEndDate}
                     onChange={(e) => setDownloadEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
@@ -715,7 +715,7 @@ const SwarCalendar: React.FC = () => {
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setShowDownloadForm(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex-1 px-4 py-2 border border-swar-border text-swar-text rounded-lg hover:bg-swar-bg transition-colors"
                   >
                     Cancel
                   </button>
@@ -742,7 +742,7 @@ const SwarCalendar: React.FC = () => {
           </div>
         )}
         
-        <div className="text-center text-xs text-gray-500">
+        <div className="text-center text-xs text-swar-text-secondary">
           <p>Calculations based on authentic Hindu Panchang and astronomical methods</p>
           <p>Powered by Swar Yoga Science</p>
         </div>

@@ -37,17 +37,17 @@ export default function SwarYogaBasicOnlineDemo() {
         <div className="max-w-7xl mx-auto">
           {/* Page Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+            <h1 className="text-4xl md:text-5xl font-bold text-swar-text mb-4">
               Swar Yoga Basic - Online
             </h1>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-swar-text-secondary max-w-2xl mx-auto">
               Choose your preferred language and country to see available batches and pricing
             </p>
           </div>
 
           {/* Hindi Batches */}
           <div className="mb-16">
-            <h2 className="text-3xl font-bold text-gray-800 mb-8 pb-4 border-b-2 border-yoga-600">
+            <h2 className="text-3xl font-bold text-swar-text mb-8 pb-4 border-b-2 border-yoga-600">
               🇮🇳 Hindi (हिंदी)
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -81,7 +81,7 @@ export default function SwarYogaBasicOnlineDemo() {
 
           {/* English Batches */}
           <div className="mb-16">
-            <h2 className="text-3xl font-bold text-gray-800 mb-8 pb-4 border-b-2 border-blue-600">
+            <h2 className="text-3xl font-bold text-swar-text mb-8 pb-4 border-b-2 border-blue-600">
               🌍 English
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -132,7 +132,7 @@ export default function SwarYogaBasicOnlineDemo() {
 
           {/* Marathi Batches */}
           <div className="mb-16">
-            <h2 className="text-3xl font-bold text-gray-800 mb-8 pb-4 border-b-2 border-purple-600">
+            <h2 className="text-3xl font-bold text-swar-text mb-8 pb-4 border-b-2 border-purple-600">
               🇮🇳 Marathi (मराठी)
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -175,22 +175,22 @@ export default function SwarYogaBasicOnlineDemo() {
 
           {/* Info Section */}
           <div className="bg-white rounded-lg shadow-lg p-8 border-l-4 border-yoga-600">
-            <h3 className="text-2xl font-bold text-gray-800 mb-4">How to Use Batch Cards</h3>
-            <ul className="space-y-3 text-gray-700">
+            <h3 className="text-2xl font-bold text-swar-text mb-4">How to Use Batch Cards</h3>
+            <ul className="space-y-3 text-swar-text">
               <li className="flex items-start gap-3">
-                <span className="text-yoga-600 font-bold text-xl">1.</span>
+                <span className="text-swar-primary font-bold text-xl">1.</span>
                 <span>Select your preferred country (India, Nepal, or International)</span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="text-yoga-600 font-bold text-xl">2.</span>
+                <span className="text-swar-primary font-bold text-xl">2.</span>
                 <span>The price and currency will update automatically based on your selection</span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="text-yoga-600 font-bold text-xl">3.</span>
+                <span className="text-swar-primary font-bold text-xl">3.</span>
                 <span>Click "Add to Cart" to save the batch for checkout with the right price for your language and country</span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="text-yoga-600 font-bold text-xl">4.</span>
+                <span className="text-swar-primary font-bold text-xl">4.</span>
                 <span>Payment links are dynamically retrieved from your .env.payment configuration</span>
               </li>
             </ul>

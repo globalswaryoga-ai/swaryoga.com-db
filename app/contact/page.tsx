@@ -208,47 +208,47 @@ export default function Contact() {
           <div className="grid lg:grid-cols-3 gap-8 sm:gap-12">
             {/* Contact Information */}
             <div className="lg:col-span-1">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6 sm:mb-8">Contact Information</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-swar-text mb-6 sm:mb-8">Contact Information</h2>
               
               <div className="space-y-6">
                 <div className="flex items-start space-x-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Mail className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-swar-primary-light rounded-full flex items-center justify-center flex-shrink-0">
+                    <Mail className="h-5 w-5 sm:h-6 sm:w-6 text-swar-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-800 mb-1">Email</h3>
-                    <p className="text-gray-600">hello@swaryoga.com</p>
+                    <h3 className="font-semibold text-swar-text mb-1">Email</h3>
+                    <p className="text-swar-text-secondary">hello@swaryoga.com</p>
                   </div>
                 </div>
 
                 <div className="flex items-start space-x-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Phone className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-swar-primary-light rounded-full flex items-center justify-center flex-shrink-0">
+                    <Phone className="h-5 w-5 sm:h-6 sm:w-6 text-swar-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-800 mb-1">Phone</h3>
-                    <p className="text-gray-600">+91 93099 86820</p>
+                    <h3 className="font-semibold text-swar-text mb-1">Phone</h3>
+                    <p className="text-swar-text-secondary">+91 93099 86820</p>
                   </div>
                 </div>
 
                 <div className="flex items-start space-x-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <MapPin className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-swar-primary-light rounded-full flex items-center justify-center flex-shrink-0">
+                    <MapPin className="h-5 w-5 sm:h-6 sm:w-6 text-swar-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-800 mb-1">Location</h3>
-                    <p className="text-gray-600">India</p>
+                    <h3 className="font-semibold text-swar-text mb-1">Location</h3>
+                    <p className="text-swar-text-secondary">India</p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-8 p-4 sm:p-6 bg-green-50 rounded-xl">
-                <h3 className="font-semibold text-gray-800 mb-3">Response Time</h3>
-                <p className="text-gray-600 text-sm">
+              <div className="mt-8 p-4 sm:p-6 bg-swar-primary-light rounded-xl">
+                <h3 className="font-semibold text-swar-text mb-3">Response Time</h3>
+                <p className="text-swar-text-secondary text-sm">
                   We typically respond to all inquiries within 24 hours during business days.
                 </p>
-                <p className="text-gray-700 text-sm mt-3">
-                  💬 <strong>Check your responses in your <a href="/profile" className="text-green-600 hover:text-green-700 font-semibold underline">profile messages</a></strong>
+                <p className="text-swar-text text-sm mt-3">
+                  💬 <strong>Check your responses in your <a href="/profile" className="text-swar-primary hover:text-swar-primary font-semibold underline">profile messages</a></strong>
                 </p>
               </div>
             </div>
@@ -256,13 +256,13 @@ export default function Contact() {
             {/* Contact Form */}
             <div className="lg:col-span-2">
               <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">Send us a Message</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-swar-text mb-6">Send us a Message</h2>
 
                 {/* Status Messages */}
                 {submitStatus === 'success' && (
-                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    <span className="text-green-800">Message sent successfully! We&apos;ll get back to you soon.</span>
+                  <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-swar-primary" />
+                    <span className="text-swar-primary">Message sent successfully! We&apos;ll get back to you soon.</span>
                   </div>
                 )}
 
@@ -275,9 +275,9 @@ export default function Contact() {
 
                 {/* Welcome message if user is logged in */}
                 {formData.name && localStorage.getItem('token') && (
-                  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-green-800 flex items-center">
-                      <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                  <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg">
+                    <p className="text-swar-primary flex items-center">
+                      <CheckCircle className="h-4 w-4 mr-2 text-swar-primary" />
                       Welcome back, {formData.name}! Your details have been automatically filled.
                     </p>
                   </div>
@@ -286,7 +286,7 @@ export default function Contact() {
                 <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                   {/* Name */}
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label htmlFor="name" className="block text-sm font-medium text-swar-text mb-1 sm:mb-2">
                       Full Name *
                     </label>
                     <input
@@ -295,8 +295,8 @@ export default function Contact() {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                        errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                        errors.name ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                       placeholder="Enter your full name"
                       autoComplete="name"
@@ -306,7 +306,7 @@ export default function Contact() {
 
                   {/* Email */}
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label htmlFor="email" className="block text-sm font-medium text-swar-text mb-1 sm:mb-2">
                       Email Address *
                     </label>
                     <input
@@ -315,8 +315,8 @@ export default function Contact() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                        errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                        errors.email ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                       placeholder="Enter your email address"
                       autoComplete="email"
@@ -326,7 +326,7 @@ export default function Contact() {
 
                   {/* Phone Number */}
                   <div>
-                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label htmlFor="phone" className="block text-sm font-medium text-swar-text mb-1 sm:mb-2">
                       Phone Number *
                     </label>
                     <div className="flex space-x-2">
@@ -334,7 +334,7 @@ export default function Contact() {
                         name="countryCode"
                         value={formData.countryCode}
                         onChange={handleInputChange}
-                        className="w-24 px-2 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        className="w-24 px-2 py-2 sm:py-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent"
                         autoComplete="tel-country-code"
                       >
                         {countryCodes.map((country) => (
@@ -349,8 +349,8 @@ export default function Contact() {
                         name="phone"
                         value={formData.phone}
                         onChange={handleInputChange}
-                        className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                          errors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                        className={`flex-1 px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                          errors.phone ? 'border-red-400 bg-red-50' : 'border-swar-border'
                         }`}
                         placeholder="Enter your phone number"
                         autoComplete="tel"
@@ -361,7 +361,7 @@ export default function Contact() {
 
                   {/* Subject Dropdown */}
                   <div>
-                    <label htmlFor="subject" className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label htmlFor="subject" className="block text-sm font-medium text-swar-text mb-1 sm:mb-2">
                       Subject *
                     </label>
                     <select
@@ -369,8 +369,8 @@ export default function Contact() {
                       name="subject"
                       value={formData.subject}
                       onChange={handleInputChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                        errors.subject ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                        errors.subject ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                     >
                       {subjectOptions.map((option) => (
@@ -384,7 +384,7 @@ export default function Contact() {
 
                   {/* Message */}
                   <div>
-                    <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label htmlFor="message" className="block text-sm font-medium text-swar-text mb-1 sm:mb-2">
                       Message *
                     </label>
                     <textarea
@@ -393,8 +393,8 @@ export default function Contact() {
                       value={formData.message}
                       onChange={handleInputChange}
                       rows={4}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors resize-none ${
-                        errors.message ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors resize-none ${
+                        errors.message ? 'border-red-400 bg-red-50' : 'border-swar-border'
                       }`}
                       placeholder="Please describe your inquiry in detail..."
                     />

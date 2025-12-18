@@ -60,7 +60,7 @@ function getPriorityBadge(priority: unknown) {
 
 function getStatusBadge(status: unknown) {
   const s = typeof status === 'string' ? status : 'active';
-  if (s === 'completed') return { label: 'completed', className: 'bg-green-700 text-white' };
+  if (s === 'completed') return { label: 'completed', className: 'bg-swar-primary text-white' };
   if (s === 'on-hold') return { label: 'on-hold', className: 'bg-gray-700 text-white' };
   return { label: 'active', className: 'bg-blue-700 text-white' };
 }
@@ -268,7 +268,7 @@ export default function WordsPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading words...</p>
+          <p className="text-swar-text-secondary">Loading words...</p>
         </div>
       </div>
     );
@@ -278,8 +278,8 @@ export default function WordsPage() {
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Words of Inspiration</h1>
-          <p className="text-sm text-gray-600">Head → Title → Dates/Time → Priority → Repeat → Todos</p>
+          <h1 className="text-3xl font-bold text-swar-text">Words of Inspiration</h1>
+          <p className="text-sm text-swar-text-secondary">Head → Title → Dates/Time → Priority → Repeat → Todos</p>
         </div>
         <button
           onClick={openCreate}
@@ -294,21 +294,21 @@ export default function WordsPage() {
       <div className="mb-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder="Search word / category / description"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-orange-200"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Category</label>
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value as any)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
               {uniqueCategories.map(cat => (
@@ -318,11 +318,11 @@ export default function WordsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Status</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
               <option value="active">active</option>
@@ -332,11 +332,11 @@ export default function WordsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Month</label>
             <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
               {MONTHS.map(m => (
@@ -354,19 +354,19 @@ export default function WordsPage() {
                 setFilterStatus('all');
                 setFilterMonth('all');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-gray-600">Showing {filteredWords.length} of {words.length} words</p>
+        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredWords.length} of {words.length} words</p>
       </div>
 
       {filteredWords.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl shadow-sm">
-          <p className="text-gray-500 mb-4">No words found.</p>
+          <p className="text-swar-text-secondary mb-4">No words found.</p>
           <button
             onClick={openCreate}
             className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white px-6 py-3 rounded-lg transition font-semibold"
@@ -395,11 +395,11 @@ export default function WordsPage() {
 
               {/* Card Content */}
               <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">{word.title}</h3>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{word.description || 'No description'}</p>
+                <h3 className="text-xl font-bold text-swar-text mb-2 line-clamp-2">{word.title}</h3>
+                <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{word.description || 'No description'}</p>
 
                 {/* Metadata (Vision style with icons) */}
-                <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                <div className="space-y-2 text-xs text-swar-text mb-auto">
                   <div className="flex items-center gap-2">
                     🏷️ {(word.category as any) || 'No category'}
                   </div>
@@ -533,7 +533,7 @@ function WordModal({
 
   return (
     <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-      <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white flex items-center justify-between">
+      <div className="sticky top-0 bg-gradient-to-r from-swar-primary to-blue-700 p-6 text-white flex items-center justify-between">
         <h2 className="text-2xl font-bold text-white">{editingId ? 'Edit Word' : 'Create New Word'}</h2>
         <button
           onClick={onClose}
@@ -546,11 +546,11 @@ function WordModal({
 
       <div className="p-6 space-y-5">
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Head / Category *</label>
+          <label className="block text-sm font-semibold text-swar-text mb-2">Head / Category *</label>
           <select
             value={form.category}
             onChange={(e) => setForm(prev => ({ ...prev, category: e.target.value as any }))}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="">Select a head...</option>
             {VISION_CATEGORIES.map((cat) => (
@@ -562,76 +562,76 @@ function WordModal({
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Word Title *</label>
+          <label className="block text-sm font-semibold text-swar-text mb-2">Word Title *</label>
           <input
             type="text"
             value={form.title}
             onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Enter word title"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date *</label>
+            <label className="block text-sm font-semibold text-swar-text mb-2">Start Date *</label>
             <input
               type="date"
               value={form.startDate}
               onChange={(e) => setForm(prev => ({ ...prev, startDate: e.target.value }))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">End Date (Due) *</label>
+            <label className="block text-sm font-semibold text-swar-text mb-2">End Date (Due) *</label>
             <input
               type="date"
               value={form.endDate}
               onChange={(e) => setForm(prev => ({ ...prev, endDate: e.target.value }))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+            <label className="block text-sm font-semibold text-swar-text mb-2">Start Time</label>
             <input
               type="time"
               value={form.timeStart}
               onChange={(e) => setForm(prev => ({ ...prev, timeStart: e.target.value }))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+            <label className="block text-sm font-semibold text-swar-text mb-2">End Time</label>
             <input
               type="time"
               value={form.timeEnd}
               onChange={(e) => setForm(prev => ({ ...prev, timeEnd: e.target.value }))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+          <label className="block text-sm font-semibold text-swar-text mb-2">Description</label>
           <textarea
             value={form.description}
             onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
             rows={3}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Enter description"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+            <label className="block text-sm font-semibold text-swar-text mb-2">Priority</label>
             <select
               value={form.priority}
               onChange={(e) => setForm(prev => ({ ...prev, priority: e.target.value as any }))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="low">low</option>
               <option value="medium">medium</option>
@@ -639,11 +639,11 @@ function WordModal({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Repeat</label>
+            <label className="block text-sm font-semibold text-swar-text mb-2">Repeat</label>
             <select
               value={form.repeat}
               onChange={(e) => setForm(prev => ({ ...prev, repeat: e.target.value as any }))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="once">once</option>
               <option value="daily">daily</option>
@@ -656,11 +656,11 @@ function WordModal({
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+          <label className="block text-sm font-semibold text-swar-text mb-2">Status</label>
           <select
             value={form.status}
             onChange={(e) => setForm(prev => ({ ...prev, status: e.target.value as any }))}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-swar-border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="active">active</option>
             <option value="completed">completed</option>
@@ -670,21 +670,21 @@ function WordModal({
 
         {form.repeat === 'custom' && (
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Custom (days)</label>
+            <label className="block text-sm font-semibold text-swar-text mb-2">Custom (days)</label>
             <input
               type="number"
               min={1}
               max={365}
               value={form.customDays}
               onChange={(e) => setForm(prev => ({ ...prev, customDays: Number(e.target.value) || 1 }))}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         )}
 
         <div>
           <div className="flex items-center justify-between gap-3 mb-2">
-            <label className="block text-sm font-bold text-gray-800">Default Image (Editable)</label>
+            <label className="block text-sm font-bold text-swar-text">Default Image (Editable)</label>
             <button
               type="button"
               onClick={() => setShowImageEditor(v => !v)}
@@ -694,7 +694,7 @@ function WordModal({
             </button>
           </div>
 
-          <div className="rounded-lg overflow-hidden h-48 border-2 border-gray-200 bg-gray-50">
+          <div className="rounded-lg overflow-hidden h-48 border-2 border-swar-border bg-swar-bg">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={computedDefaultImageUrl}
@@ -802,16 +802,16 @@ function WordModal({
                         type="text"
                         value={todo.title}
                         onChange={(e) => updateTodo(todo.id, { title: e.target.value })}
-                        className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                        className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-swar-text-secondary line-through' : 'text-swar-text'}`}
                       />
 
                       <div className="mt-2 flex flex-col md:flex-row md:items-center gap-2">
-                        <label className="inline-flex items-center gap-2 text-sm text-gray-700 md:mr-1">
+                        <label className="inline-flex items-center gap-2 text-sm text-swar-text md:mr-1">
                           <input
                             type="checkbox"
                             checked={!!todo.completed}
                             onChange={() => toggleTodo(todo.id)}
-                            className="rounded border-gray-300"
+                            className="rounded border-swar-border"
                           />
                           <span className="text-xs">Done</span>
                         </label>
@@ -851,7 +851,7 @@ function WordModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+            className="px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
           >
             Cancel
           </button>

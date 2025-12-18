@@ -116,11 +116,11 @@ export default function MonthlyViewPage() {
         {/* Header with Month Navigation */}
         <div className="flex items-center justify-center bg-gradient-to-r from-green-50 to-emerald-50 rounded-3xl p-6 border border-green-200">
           <div className="text-center flex-1">
-            <p className="text-sm font-medium text-gray-600">Month View</p>
-            <h1 className="text-3xl font-bold text-gray-900 mt-1">{formatDate(currentDate)}</h1>
+            <p className="text-sm font-medium text-swar-text-secondary">Month View</p>
+            <h1 className="text-3xl font-bold text-swar-text mt-1">{formatDate(currentDate)}</h1>
             <button
               onClick={handleCurrentMonth}
-              className="mt-3 px-4 py-2 rounded-lg bg-green-500 text-white text-sm font-semibold hover:bg-green-600 transition"
+              className="mt-3 px-4 py-2 rounded-lg bg-swar-primary-light0 text-white text-sm font-semibold hover:bg-swar-primary transition"
             >
               Current Month
             </button>
@@ -129,10 +129,10 @@ export default function MonthlyViewPage() {
       </div>
 
       {/* Monthly Progress Bar */}
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
+      <div className="rounded-2xl border border-green-200 bg-swar-primary-light p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Monthly Progress</h3>
-          <span className="text-2xl font-bold text-green-600">{monthStats.percentage}%</span>
+          <h3 className="text-lg font-semibold text-swar-text">Monthly Progress</h3>
+          <span className="text-2xl font-bold text-swar-primary">{monthStats.percentage}%</span>
         </div>
         <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
           <div
@@ -140,37 +140,37 @@ export default function MonthlyViewPage() {
             style={{ width: `${monthStats.percentage}%` }}
           />
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-swar-text-secondary mb-4">
           {monthStats.completed} of {monthStats.todos} todos completed
         </p>
 
         {/* Monthly Stats */}
         <div className="grid grid-cols-4 gap-3 mt-4">
           <div className="rounded-lg bg-purple-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Visions</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Visions</p>
             <p className="text-2xl font-bold text-purple-600 mt-1">{monthStats.visions}</p>
           </div>
           <div className="rounded-lg bg-blue-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Goals</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Goals</p>
             <p className="text-2xl font-bold text-blue-600 mt-1">{monthStats.goals}</p>
           </div>
-          <div className="rounded-lg bg-green-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Todos</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{monthStats.todos}</p>
+          <div className="rounded-lg bg-swar-primary-light p-2 text-center">
+            <p className="text-xs font-medium text-swar-text-secondary">Todos</p>
+            <p className="text-2xl font-bold text-swar-primary mt-1">{monthStats.todos}</p>
           </div>
           <div className="rounded-lg bg-orange-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Reminders</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Reminders</p>
             <p className="text-2xl font-bold text-orange-600 mt-1">{monthStats.reminders}</p>
           </div>
         </div>
       </div>
 
       {/* Month Calendar Grid */}
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-swar-border overflow-hidden">
         {/* Day names header */}
-        <div className="grid grid-cols-7 gap-0 bg-gray-100">
+        <div className="grid grid-cols-7 gap-0 bg-swar-primary-light">
           {dayNames.map((day) => (
-            <div key={day} className="p-3 text-center font-semibold text-gray-700 border-b border-gray-200">
+            <div key={day} className="p-3 text-center font-semibold text-swar-text border-b border-swar-border">
               {day}
             </div>
           ))}
@@ -181,7 +181,7 @@ export default function MonthlyViewPage() {
           {monthDays.map((date, index) => {
             if (!date) {
               return (
-                <div key={`empty-${index}`} className="bg-gray-50 p-2 min-h-24 border border-gray-100" />
+                <div key={`empty-${index}`} className="bg-swar-bg p-2 min-h-24 border border-gray-100" />
               );
             }
 
@@ -203,7 +203,7 @@ export default function MonthlyViewPage() {
                 }`}
               >
                 <p className={`font-bold text-sm mb-1 ${
-                  isToday ? 'text-red-600' : 'text-gray-900'
+                  isToday ? 'text-red-600' : 'text-swar-text'
                 }`}>
                   {date.getDate()}
                 </p>
@@ -221,7 +221,7 @@ export default function MonthlyViewPage() {
                         </span>
                       )}
                       {dayItems.some((item) => item.type === 'todo') && (
-                        <span className="block bg-green-200 text-green-800 px-1 py-0.5 rounded truncate">
+                        <span className="block bg-swar-border text-swar-primary px-1 py-0.5 rounded truncate">
                           Todo
                         </span>
                       )}
@@ -241,7 +241,7 @@ export default function MonthlyViewPage() {
 
       {/* Selected Day Details */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900">
+        <h2 className="text-2xl font-bold text-swar-text">
           {selectedDate.toLocaleDateString('en-US', {
             weekday: 'long',
             month: 'long',
@@ -250,24 +250,24 @@ export default function MonthlyViewPage() {
         </h2>
 
         {selectedDateItems.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center">
-            <p className="text-gray-600 text-lg">No items for this day</p>
+          <div className="rounded-2xl border-2 border-dashed border-swar-border p-12 text-center">
+            <p className="text-swar-text-secondary text-lg">No items for this day</p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Visions */}
             {groupedItems.visions.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Target className="h-5 w-5 text-purple-600" />
                   Visions ({groupedItems.visions.length})
                 </h3>
                 <div className="grid gap-2">
                   {groupedItems.visions.map((item) => (
                     <div key={item.id} className="rounded-lg border border-purple-200 bg-purple-50 p-3">
-                      <p className="font-medium text-gray-900">{item.title}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}
@@ -278,16 +278,16 @@ export default function MonthlyViewPage() {
             {/* Goals */}
             {groupedItems.goals.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Flag className="h-5 w-5 text-blue-600" />
                   Goals ({groupedItems.goals.length})
                 </h3>
                 <div className="grid gap-2">
                   {groupedItems.goals.map((item) => (
                     <div key={item.id} className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                      <p className="font-medium text-gray-900">{item.title}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}
@@ -298,8 +298,8 @@ export default function MonthlyViewPage() {
             {/* Todos */}
             {groupedItems.todos.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <CheckSquare className="h-5 w-5 text-green-600" />
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
+                  <CheckSquare className="h-5 w-5 text-swar-primary" />
                   Todos ({groupedItems.todos.length})
                 </h3>
                 <div className="grid gap-2">
@@ -308,8 +308,8 @@ export default function MonthlyViewPage() {
                       key={item.id}
                       className={`rounded-lg border-2 p-3 transition ${
                         item.completed
-                          ? 'border-green-300 bg-green-50 opacity-60'
-                          : 'border-green-200 bg-green-50'
+                          ? 'border-green-300 bg-swar-primary-light opacity-60'
+                          : 'border-green-200 bg-swar-primary-light'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -325,13 +325,13 @@ export default function MonthlyViewPage() {
                               )
                             );
                           }}
-                          className="w-4 h-4 rounded text-green-600 cursor-pointer"
+                          className="w-4 h-4 rounded text-swar-primary cursor-pointer"
                         />
                         <p
                           className={`font-medium ${
                             item.completed
-                              ? 'line-through text-gray-500'
-                              : 'text-gray-900'
+                              ? 'line-through text-swar-text-secondary'
+                              : 'text-swar-text'
                           }`}
                         >
                           {item.title}
@@ -346,16 +346,16 @@ export default function MonthlyViewPage() {
             {/* Reminders */}
             {groupedItems.reminders.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Bell className="h-5 w-5 text-orange-600" />
                   Reminders ({groupedItems.reminders.length})
                 </h3>
                 <div className="grid gap-2">
                   {groupedItems.reminders.map((item) => (
                     <div key={item.id} className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                      <p className="font-medium text-gray-900">{item.title}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}

@@ -106,20 +106,20 @@ export default function LifePlannerRestoreBackup() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[min(480px,calc(100vw-2rem))] rounded-2xl border border-pink-200 bg-white p-4 shadow-xl">
+    <div className="fixed bottom-4 right-4 z-50 w-[min(480px,calc(100vw-2rem))] rounded-2xl border border-swar-border bg-white p-4 shadow-xl">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-gray-900">Restore your old Life Planner data?</p>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="text-sm font-semibold text-swar-text">Restore your old Life Planner data?</p>
+          <p className="mt-1 text-sm text-swar-text-secondary">
             We found older data saved on this browser (before Mongo sync). You can restore it to your account so it’s available on every device.
           </p>
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-swar-text-secondary">
             Found: {counts.total} items (Visions {counts.visions.length}, Action Plans {counts.actionPlans.length}, Goals {counts.goals.length}, Tasks {counts.tasks.length}, Todos {counts.todos.length})
           </p>
         </div>
         <button
           onClick={() => setIsOpen(false)}
-          className="rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-100"
+          className="rounded-lg px-2 py-1 text-swar-text-secondary hover:bg-swar-primary-light"
           aria-label="Close"
         >
           ✕
@@ -127,13 +127,13 @@ export default function LifePlannerRestoreBackup() {
       </div>
 
       {error ? <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-      {done ? <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">Restored. Reloading…</div> : null}
+      {done ? <div className="mt-3 rounded-lg border border-green-200 bg-swar-primary-light px-3 py-2 text-sm text-swar-primary">Restored. Reloading…</div> : null}
 
       <div className="mt-4 flex gap-2">
         <button
           onClick={onRestore}
           disabled={isMigrating}
-          className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 px-4 py-2 text-sm font-semibold text-white hover:from-red-600 hover:to-pink-600 disabled:opacity-60"
+          className="flex-1 rounded-xl bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-2 text-sm font-semibold text-white hover:from-red-600 hover:to-pink-600 disabled:opacity-60"
         >
           {isMigrating ? 'Restoring…' : 'Restore now'}
         </button>
@@ -143,7 +143,7 @@ export default function LifePlannerRestoreBackup() {
             localStorage.setItem('lifePlannerRestorePromptSeen', '1');
             setIsOpen(false);
           }}
-          className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          className="rounded-xl border border-swar-border px-4 py-2 text-sm font-semibold text-swar-text hover:bg-swar-bg"
         >
           Not now
         </button>

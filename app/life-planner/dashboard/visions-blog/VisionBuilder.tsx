@@ -349,7 +349,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
         </div>
 
         {/* Tabs - Scrollable on mobile */}
-        <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50 scrollbar-hide">
+        <div className="flex overflow-x-auto border-b border-swar-border bg-swar-bg scrollbar-hide">
           {tabs.map(tab => (
             <button
               key={tab.id}
@@ -357,7 +357,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
               className={`flex-shrink-0 px-2 sm:px-4 md:px-6 py-2 sm:py-3 text-xs sm:text-sm md:text-base font-bold transition-all whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-white border-b-4 border-purple-600 text-purple-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-swar-text-secondary hover:text-swar-text'
               }`}
             >
               {tab.label}
@@ -372,20 +372,20 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
             {activeTab === 'vision' && (
               <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">
+                  <label className="block text-base sm:text-lg font-bold text-swar-text mb-2 sm:mb-3">
                     Vision Title (BIG AND BOLD)
                   </label>
                   <input
                     type="text"
                     value={vision.title}
                     onChange={(e) => setVision({ ...vision, title: e.target.value })}
-                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-lg sm:text-2xl font-bold focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-lg sm:text-2xl font-bold focus:outline-none focus:border-purple-600"
                     placeholder="e.g., Master Advanced Yoga & Transform Life"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">
+                  <label className="block text-base sm:text-lg font-bold text-swar-text mb-2 sm:mb-3">
                     Vision Image URL
                   </label>
                   <div className="space-y-3 sm:space-y-4">
@@ -393,19 +393,19 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="url"
                       value={vision.imageUrl || ''}
                       onChange={(e) => setVision({ ...vision, imageUrl: e.target.value })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       placeholder="https://example.com/image.jpg"
                     />
-                    <div className="text-xs sm:text-sm text-gray-600 bg-blue-50 p-2 sm:p-3 rounded-lg border-l-4 border-blue-400">
+                    <div className="text-xs sm:text-sm text-swar-text-secondary bg-blue-50 p-2 sm:p-3 rounded-lg border-l-4 border-blue-400">
                       💡 Paste a URL and the preview will appear below. Or upload an image file.
                     </div>
                     <div>
-                      <label className="block text-xs sm:text-sm text-gray-500 mb-2 font-semibold">Upload Image File</label>
+                      <label className="block text-xs sm:text-sm text-swar-text-secondary mb-2 font-semibold">Upload Image File</label>
                       <input 
                         type="file" 
                         accept="image/*" 
                         onChange={handleFileChange} 
-                        className="text-xs sm:text-sm px-3 sm:px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg w-full cursor-pointer hover:border-purple-600 transition" 
+                        className="text-xs sm:text-sm px-3 sm:px-4 py-2 border-2 border-dashed border-swar-border rounded-lg w-full cursor-pointer hover:border-purple-600 transition" 
                       />
                     </div>
                   </div>
@@ -413,8 +413,8 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                   {/* Image Preview */}
                   {(previewUrl || vision.imageUrl) && (
                     <div className="mt-4 sm:mt-6 space-y-2 sm:space-y-3">
-                      <div className="text-xs sm:text-sm font-bold text-gray-700">📸 Preview</div>
-                      <div className="relative bg-gray-100 rounded-lg sm:rounded-2xl overflow-hidden border-2 sm:border-3 border-gray-200 shadow-lg">
+                      <div className="text-xs sm:text-sm font-bold text-swar-text">📸 Preview</div>
+                      <div className="relative bg-swar-primary-light rounded-lg sm:rounded-2xl overflow-hidden border-2 sm:border-3 border-swar-border shadow-lg">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={previewUrl || vision.imageUrl || ''}
@@ -458,7 +458,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                           </div>
                         </div>
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-swar-text-secondary">
                         ℹ️ Image URL: {vision.imageUrl ? vision.imageUrl.substring(0, 40) + '...' : 'File upload'}
                       </div>
                     </div>
@@ -468,42 +468,42 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                   {!previewUrl && !vision.imageUrl && (
                     <div className="mt-4 sm:mt-6 p-4 sm:p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg sm:rounded-2xl border-2 border-dashed border-purple-200 text-center">
                       <div className="text-3xl sm:text-5xl mb-2">🖼️</div>
-                      <div className="text-xs sm:text-sm font-bold text-gray-700">No Image Yet</div>
-                      <div className="text-xs text-gray-600 mt-1">Paste a URL or upload a file to see preview</div>
+                      <div className="text-xs sm:text-sm font-bold text-swar-text">No Image Yet</div>
+                      <div className="text-xs text-swar-text-secondary mt-1">Paste a URL or upload a file to see preview</div>
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">
+                  <label className="block text-base sm:text-lg font-bold text-swar-text mb-2 sm:mb-3">
                     Description
                   </label>
                   <textarea
                     value={vision.description}
                     onChange={(e) => setVision({ ...vision, description: e.target.value })}
                     rows={4}
-                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                     placeholder="Describe your big vision in detail..."
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                   <div>
-                    <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">Category</label>
+                    <label className="block text-base sm:text-lg font-bold text-swar-text mb-2 sm:mb-3">Category</label>
                     <input
                       type="text"
                       value={vision.category || ''}
                       onChange={(e) => setVision({ ...vision, category: e.target.value as any })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       placeholder="e.g., Health, Wealth, Personal"
                     />
                   </div>
                   <div>
-                    <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">Priority</label>
+                    <label className="block text-base sm:text-lg font-bold text-swar-text mb-2 sm:mb-3">Priority</label>
                     <select
                       value={vision.priority || 'medium'}
                       onChange={(e) => setVision({ ...vision, priority: e.target.value as any })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                     >
                       <option value="low">🟢 Low</option>
                       <option value="medium">🟡 Medium</option>
@@ -514,31 +514,31 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                   <div>
-                    <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">Start Date</label>
+                    <label className="block text-base sm:text-lg font-bold text-swar-text mb-2 sm:mb-3">Start Date</label>
                     <input
                       type="date"
                       value={vision.startDate}
                       onChange={(e) => setVision({ ...vision, startDate: e.target.value })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                     />
                   </div>
                   <div>
-                    <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">End Date</label>
+                    <label className="block text-base sm:text-lg font-bold text-swar-text mb-2 sm:mb-3">End Date</label>
                     <input
                       type="date"
                       value={vision.endDate}
                       onChange={(e) => setVision({ ...vision, endDate: e.target.value })}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3">Status</label>
+                  <label className="block text-base sm:text-lg font-bold text-swar-text mb-2 sm:mb-3">Status</label>
                   <select
                     value={vision.status || 'not-started'}
                     onChange={(e) => setVision({ ...vision, status: e.target.value as any })}
-                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                    className="w-full px-3 sm:px-6 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                   >
                     <option value="not-started">⏳ Not Started</option>
                     <option value="in-progress">⚡ In Progress</option>
@@ -576,14 +576,14 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={m.title}
                       onChange={(e) => updateMilestone(m.id, 'title', e.target.value)}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       placeholder="Milestone title"
                     />
                     <textarea
                       value={m.description || ''}
                       onChange={(e) => updateMilestone(m.id, 'description', e.target.value)}
                       rows={3}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       placeholder="Description"
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -591,18 +591,18 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         type="date"
                         value={m.startDate}
                         onChange={(e) => updateMilestone(m.id, 'startDate', e.target.value)}
-                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       />
                       <input
                         type="date"
                         value={m.endDate}
                         onChange={(e) => updateMilestone(m.id, 'endDate', e.target.value)}
-                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       />
                       <select
                         value={m.status}
                         onChange={(e) => updateMilestone(m.id, 'status', e.target.value)}
-                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
+                        className="px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-purple-600"
                       >
                         <option value="not-started">⏳ Not Started</option>
                         <option value="in-progress">⚡ In Progress</option>
@@ -626,7 +626,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                   Add Goal
                 </button>
                 {vision.goals.map((g, idx) => (
-                  <div key={g.id} className="bg-pink-50 border-2 sm:border-3 border-pink-200 rounded-lg sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
+                  <div key={g.id} className="bg-swar-primary-light border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-2xl p-3 sm:p-6 space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between mb-2 sm:mb-4">
                       <h3 className="text-lg sm:text-2xl font-bold text-pink-900">Goal {idx + 1}</h3>
                       <button
@@ -643,7 +643,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={g.title}
                       onChange={(e) => updateGoal(g.id, 'title', e.target.value)}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-pink-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-pink-600"
                       placeholder="Goal title (e.g., Complete Advanced Certification)"
                     />
 
@@ -652,37 +652,37 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       value={g.description}
                       onChange={(e) => updateGoal(g.id, 'description', e.target.value)}
                       rows={2}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-pink-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-pink-600"
                       placeholder="Describe your goal in detail..."
                     />
 
                     {/* Dates & Budget */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Start Date</label>
                         <input
                           type="date"
                           value={g.startDate}
                           onChange={(e) => updateGoal(g.id, 'startDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Target Date</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Target Date</label>
                         <input
                           type="date"
                           value={g.targetDate}
                           onChange={(e) => updateGoal(g.id, 'targetDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">💰 Budget</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">💰 Budget</label>
                         <input
                           type="number"
                           value={g.budget || ''}
                           onChange={(e) => updateGoal(g.id, 'budget', e.target.value ? parseFloat(e.target.value) : undefined)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
                           placeholder="Amount"
                         />
                       </div>
@@ -691,11 +691,11 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                     {/* Priority, Status, Progress */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Priority</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Priority</label>
                         <select
                           value={g.priority}
                           onChange={(e) => updateGoal(g.id, 'priority', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
                         >
                           <option value="low">🟢 Low</option>
                           <option value="medium">🟡 Medium</option>
@@ -703,11 +703,11 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Status</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Status</label>
                         <select
                           value={g.status}
                           onChange={(e) => updateGoal(g.id, 'status', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
                         >
                           <option value="not-started">⏳ Not Started</option>
                           <option value="in-progress">⚡ In Progress</option>
@@ -716,14 +716,14 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Progress %</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Progress %</label>
                         <input
                           type="number"
                           min="0"
                           max="100"
                           value={g.progress}
                           onChange={(e) => updateGoal(g.id, 'progress', parseInt(e.target.value) || 0)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-pink-600 text-xs sm:text-base"
                           placeholder="0-100"
                         />
                       </div>
@@ -760,53 +760,53 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={t.title}
                       onChange={(e) => updateTask(t.id, 'title', e.target.value)}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-blue-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-blue-600"
                       placeholder="Task title (e.g., Research providers)"
                     />
                     <textarea
                       value={t.description || ''}
                       onChange={(e) => updateTask(t.id, 'description', e.target.value)}
                       rows={2}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-blue-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-blue-600"
                       placeholder="Task description..."
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Start Date</label>
                         <input
                           type="date"
                           value={t.startDate}
                           onChange={(e) => updateTask(t.id, 'startDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Due Date</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Due Date</label>
                         <input
                           type="date"
                           value={t.dueDate}
                           onChange={(e) => updateTask(t.id, 'dueDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">💰 Budget</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">💰 Budget</label>
                         <input
                           type="number"
                           value={t.budget || ''}
                           onChange={(e) => updateTask(t.id, 'budget', e.target.value ? parseFloat(e.target.value) : undefined)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
                           placeholder="Amount"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Priority</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Priority</label>
                         <select
                           value={t.priority}
                           onChange={(e) => updateTask(t.id, 'priority', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
                         >
                           <option value="low">🟢 Low</option>
                           <option value="medium">🟡 Medium</option>
@@ -814,11 +814,11 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Status</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Status</label>
                         <select
                           value={t.status}
                           onChange={(e) => updateTask(t.id, 'status', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-600 text-xs sm:text-base"
                         >
                           <option value="not-started">⏳ Not Started</option>
                           <option value="in-progress">⚡ In Progress</option>
@@ -860,41 +860,41 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={to.title}
                       onChange={(e) => updateTodo(to.id, 'title', e.target.value)}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-orange-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-orange-600"
                       placeholder="Todo title (e.g., Call provider)"
                     />
                     <textarea
                       value={to.description || ''}
                       onChange={(e) => updateTodo(to.id, 'description', e.target.value)}
                       rows={2}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-orange-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-orange-600"
                       placeholder="Todo description..."
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Start Date</label>
                         <input
                           type="date"
                           value={to.startDate}
                           onChange={(e) => updateTodo(to.id, 'startDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Due Date</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Due Date</label>
                         <input
                           type="date"
                           value={to.dueDate}
                           onChange={(e) => updateTodo(to.id, 'dueDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Priority</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Priority</label>
                         <select
                           value={to.priority}
                           onChange={(e) => updateTodo(to.id, 'priority', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-orange-600 text-xs sm:text-base"
                         >
                           <option value="low">🟢 Low</option>
                           <option value="medium">🟡 Medium</option>
@@ -909,7 +909,7 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         onChange={(e) => updateTodo(to.id, 'completed', e.target.checked)}
                         className="w-4 sm:w-5 h-4 sm:h-5"
                       />
-                      <span className="font-bold text-gray-900 text-sm sm:text-base">Mark as completed</span>
+                      <span className="font-bold text-swar-text text-sm sm:text-base">Mark as completed</span>
                     </label>
                   </div>
                 ))}
@@ -943,23 +943,23 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={w.title}
                       onChange={(e) => updateWord(w.id, 'title', e.target.value)}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-yellow-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-yellow-600"
                       placeholder="Title/Mantra name"
                     />
                     <textarea
                       value={w.content}
                       onChange={(e) => updateWord(w.id, 'content', e.target.value)}
                       rows={4}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-yellow-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-yellow-600"
                       placeholder="Full content, mantra, affirmation or commitment..."
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Type</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Type</label>
                         <select
                           value={w.category}
                           onChange={(e) => updateWord(w.id, 'category', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-yellow-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-yellow-600 text-xs sm:text-base"
                         >
                           <option value="Mantra">🕉️ Mantra</option>
                           <option value="Affirmation">✨ Affirmation</option>
@@ -968,17 +968,17 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Color</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Color</label>
                         <input
                           type="color"
                           value={w.color || '#FCD34D'}
                           onChange={(e) => updateWord(w.id, 'color', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg cursor-pointer"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg cursor-pointer"
                         />
                       </div>
                       <div className="flex items-end">
                         <div
-                          className="w-full h-10 rounded-lg border-2 border-gray-300"
+                          className="w-full h-10 rounded-lg border-2 border-swar-border"
                           style={{ backgroundColor: w.color || '#FCD34D' }}
                           title="Color preview"
                         ></div>
@@ -1018,44 +1018,44 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                       type="text"
                       value={r.title}
                       onChange={(e) => updateReminder(r.id, 'title', e.target.value)}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-red-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg font-bold focus:outline-none focus:border-red-600"
                       placeholder="Reminder title (e.g., Morning meditation)"
                     />
                     <textarea
                       value={r.description || ''}
                       onChange={(e) => updateReminder(r.id, 'description', e.target.value)}
                       rows={2}
-                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-gray-300 rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-red-600"
+                      className="w-full px-3 sm:px-6 py-2 sm:py-3 border-2 border-swar-border rounded-lg sm:rounded-xl text-base sm:text-lg focus:outline-none focus:border-red-600"
                       placeholder="Reminder description..."
                     />
 
                     {/* Dates & Times */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Start Date</label>
                         <input
                           type="date"
                           value={r.startDate}
                           onChange={(e) => updateReminder(r.id, 'startDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Due Date</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Due Date</label>
                         <input
                           type="date"
                           value={r.dueDate}
                           onChange={(e) => updateReminder(r.id, 'dueDate', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Time</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Time</label>
                         <input
                           type="time"
                           value={r.dueTime || ''}
                           onChange={(e) => updateReminder(r.id, 'dueTime', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
                         />
                       </div>
                     </div>
@@ -1063,11 +1063,11 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                     {/* Category, Frequency, Priority */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Category</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Category</label>
                         <select
                           value={r.category}
                           onChange={(e) => updateReminder(r.id, 'category', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
                         >
                           <option value="life">🌍 Life</option>
                           <option value="health">💪 Health</option>
@@ -1082,11 +1082,11 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Frequency</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Frequency</label>
                         <select
                           value={r.frequency}
                           onChange={(e) => updateReminder(r.id, 'frequency', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
                         >
                           <option value="once">Once</option>
                           <option value="daily">Daily</option>
@@ -1096,11 +1096,11 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Priority</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">Priority</label>
                         <select
                           value={r.priority}
                           onChange={(e) => updateReminder(r.id, 'priority', e.target.value)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
                         >
                           <option value="low">🟢 Low</option>
                           <option value="medium">🟡 Medium</option>
@@ -1112,12 +1112,12 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
                     {/* Budget & Status */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
                       <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">💰 Budget (Optional)</label>
+                        <label className="text-xs font-bold text-swar-text block mb-1">💰 Budget (Optional)</label>
                         <input
                           type="number"
                           value={r.budget || ''}
                           onChange={(e) => updateReminder(r.id, 'budget', e.target.value ? parseFloat(e.target.value) : undefined)}
-                          className="w-full px-3 sm:px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
+                          className="w-full px-3 sm:px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-red-600 text-xs sm:text-base"
                           placeholder="Amount"
                         />
                       </div>
@@ -1141,10 +1141,10 @@ const VisionBuilder: React.FC<VisionBuilderProps> = ({ initialVision, onSave, on
         </div>
 
         {/* Footer Actions */}
-        <div className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4 md:p-6 lg:p-8 flex gap-2 sm:gap-4 justify-end flex-wrap sm:flex-nowrap">
+        <div className="border-t border-swar-border bg-swar-bg p-3 sm:p-4 md:p-6 lg:p-8 flex gap-2 sm:gap-4 justify-end flex-wrap sm:flex-nowrap">
           <button
             onClick={onCancel}
-            className="px-4 sm:px-8 py-2 sm:py-4 border-2 sm:border-3 border-gray-300 rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg hover:bg-gray-100 transition"
+            className="px-4 sm:px-8 py-2 sm:py-4 border-2 sm:border-3 border-swar-border rounded-lg sm:rounded-xl font-bold text-sm sm:text-lg hover:bg-swar-primary-light transition"
           >
             Cancel
           </button>

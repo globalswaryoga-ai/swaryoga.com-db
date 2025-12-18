@@ -39,7 +39,7 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
       <div className="space-y-3">
         {/* Goal Name */}
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">Goal Name *</label>
+          <label className="block text-xs font-semibold text-swar-text mb-1">Goal Name *</label>
           <input
             type="text"
             value={goal.title}
@@ -50,13 +50,13 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
               })
             }
             placeholder="Goal name"
-            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+            className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
 
         {/* Description */}
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">Description</label>
+          <label className="block text-xs font-semibold text-swar-text mb-1">Description</label>
           <textarea
             value={goal.description}
             onChange={e =>
@@ -67,14 +67,14 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
             }
             placeholder="Goal description"
             rows={2}
-            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+            className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
 
         {/* Date Range */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Start Date *</label>
+            <label className="block text-xs font-semibold text-swar-text mb-1">Start Date *</label>
             <input
               type="date"
               value={goal.startDate}
@@ -84,11 +84,11 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
                   startDate: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">End Date *</label>
+            <label className="block text-xs font-semibold text-swar-text mb-1">End Date *</label>
             <input
               type="date"
               value={goal.endDate}
@@ -98,7 +98,7 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
                   endDate: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
         {/* Working Time */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
+            <label className="block text-xs font-semibold text-swar-text mb-1">
               Working Time Start
             </label>
             <input
@@ -118,11 +118,11 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
                   workingTimeStart: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
+            <label className="block text-xs font-semibold text-swar-text mb-1">
               Working Time End
             </label>
             <input
@@ -134,14 +134,14 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
                   workingTimeEnd: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
 
         {/* Place */}
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">Place *</label>
+          <label className="block text-xs font-semibold text-swar-text mb-1">Place *</label>
           <input
             type="text"
             value={goal.place}
@@ -152,13 +152,13 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
               })
             }
             placeholder="Work location"
-            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+            className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
 
         {/* Expected Amount */}
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">
+          <label className="block text-xs font-semibold text-swar-text mb-1">
             Expected Amount (Rs.)
           </label>
           <input
@@ -171,13 +171,13 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
               })
             }
             placeholder="0"
-            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+            className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
 
         {/* Status */}
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+          <label className="block text-xs font-semibold text-swar-text mb-1">Status</label>
           <select
             value={normalizedStatus ?? 'not-started'}
             onChange={e =>
@@ -186,7 +186,7 @@ export default function GoalSection({ goal, index, onUpdate, onDelete }: GoalSec
                 status: e.target.value as ActionPlanGoal['status'],
               })
             }
-            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+            className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           >
             <option value="not-started">Not Started</option>
             <option value="in-progress">In Progress</option>

@@ -61,22 +61,22 @@ export default function CommunityCreatePostPage() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-20 bg-gray-50">
+      <main className="min-h-screen pt-20 bg-swar-bg">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-2xl font-extrabold text-gray-900">Create Post</h1>
-          <p className="mt-2 text-sm text-gray-600">Posts are visible only to members.</p>
+          <h1 className="text-2xl font-extrabold text-swar-text">Create Post</h1>
+          <p className="mt-2 text-sm text-swar-text-secondary">Posts are visible only to members.</p>
 
           {error && (
             <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
           )}
 
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
-            <label className="block text-sm font-bold text-gray-900">Message</label>
+          <div className="mt-6 rounded-lg border border-swar-border bg-white p-4">
+            <label className="block text-sm font-bold text-swar-text">Message</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={6}
-              className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-2 w-full rounded-lg border border-swar-border px-3 py-2 text-sm"
               placeholder="Write your message"
             />
 
@@ -85,7 +85,7 @@ export default function CommunityCreatePostPage() {
                 type="button"
                 disabled={submitting}
                 onClick={onSubmit}
-                className="rounded-lg bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700 disabled:opacity-60"
+                className="rounded-lg bg-swar-primary text-white px-4 py-2 text-sm font-bold hover:bg-swar-primary disabled:opacity-60"
               >
                 {submitting ? 'Posting...' : 'Post'}
               </button>
@@ -93,7 +93,7 @@ export default function CommunityCreatePostPage() {
                 type="button"
                 disabled={submitting}
                 onClick={() => router.push(`/community/${communityId}`)}
-                className="rounded-lg bg-gray-100 text-gray-900 px-4 py-2 text-sm font-bold hover:bg-gray-200 disabled:opacity-60"
+                className="rounded-lg bg-swar-primary-light text-swar-text px-4 py-2 text-sm font-bold hover:bg-swar-primary-light disabled:opacity-60"
               >
                 Cancel
               </button>

@@ -63,9 +63,9 @@ export default function OffersSection() {
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 mb-4">
             <Gift className="w-6 h-6 text-coral-rose-500" />
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Special Offers & Deals</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-swar-text">Special Offers & Deals</h2>
           </div>
-          <p className="text-gray-600 text-lg">Exclusive promotions just for you</p>
+          <p className="text-swar-text-secondary text-lg">Exclusive promotions just for you</p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -85,19 +85,19 @@ export default function OffersSection() {
 
               {/* Content */}
               <div className="p-6">
-                <h4 className="text-xl font-bold text-gray-900 mb-2">{offer.title}</h4>
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{offer.description}</p>
+                <h4 className="text-xl font-bold text-swar-text mb-2">{offer.title}</h4>
+                <p className="text-swar-text-secondary text-sm mb-4 line-clamp-2">{offer.description}</p>
 
                 {/* Offer Code */}
-                <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                  <p className="text-xs text-gray-600 uppercase tracking-wider mb-1">Use Code</p>
+                <div className="bg-swar-bg p-4 rounded-lg mb-4">
+                  <p className="text-xs text-swar-text-secondary uppercase tracking-wider mb-1">Use Code</p>
                   <div className="flex items-center justify-between">
                     <code className="text-lg font-bold text-primary-600">{offer.offerCode}</code>
                     <button
                       onClick={() => copyToClipboard(offer.offerCode)}
                       className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                         copiedCode === offer.offerCode
-                          ? 'bg-green-100 text-green-700'
+                          ? 'bg-swar-primary-light text-swar-primary'
                           : 'bg-primary-100 text-primary-600 hover:bg-primary-200'
                       }`}
                     >
@@ -107,7 +107,7 @@ export default function OffersSection() {
                 </div>
 
                 {/* Validity */}
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+                <div className="flex items-center gap-2 text-sm text-swar-text-secondary mb-4">
                   <Clock size={16} className="text-orange-500" />
                   <span>{getDaysRemaining(offer.validUntil)} days remaining</span>
                 </div>

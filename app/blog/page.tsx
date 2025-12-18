@@ -154,7 +154,7 @@ export default function BlogPage() {
         <section className="bg-gradient-to-r from-green-600 to-green-700 text-white py-16 px-4">
           <div className="container mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">{translations.pageTitle[language]}</h1>
-            <p className="text-lg text-green-100 max-w-2xl">{translations.pageSubtitle[language]}</p>
+            <p className="text-lg text-swar-primary-light max-w-2xl">{translations.pageSubtitle[language]}</p>
 
             {/* Language Selector */}
             <div className="flex gap-2 mt-6">
@@ -164,8 +164,8 @@ export default function BlogPage() {
                   onClick={() => setLanguage(lang)}
                   className={`px-4 py-2 rounded-lg font-medium transition ${
                     language === lang
-                      ? 'bg-white text-green-600'
-                      : 'bg-green-500 hover:bg-green-400 text-white'
+                      ? 'bg-white text-swar-primary'
+                      : 'bg-swar-primary-light0 hover:bg-swar-accent text-white'
                   }`}
                 >
                   {lang === 'en' ? 'English' : lang === 'hi' ? 'हिंदी' : 'मराठी'}
@@ -176,16 +176,16 @@ export default function BlogPage() {
         </section>
 
         {/* Search Section */}
-        <section className="bg-gray-50 py-8 px-4 sticky top-20 z-10">
+        <section className="bg-swar-bg py-8 px-4 sticky top-20 z-10">
           <div className="container mx-auto">
             <div className="relative max-w-2xl mx-auto">
-              <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+              <Search className="absolute left-3 top-3 text-swar-text-secondary" size={20} />
               <input
                 type="text"
                 placeholder={translations.search[language]}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600"
+                className="w-full pl-10 pr-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600"
               />
             </div>
           </div>
@@ -206,19 +206,19 @@ export default function BlogPage() {
                   </div>
                   <div className="p-8 flex flex-col justify-between">
                     <div className="mb-4 inline-block w-fit">
-                      <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
+                      <span className="bg-swar-primary-light text-swar-primary px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2">
                         <Tag size={16} />
                         {translations.featured[language]}
                       </span>
                     </div>
                     <div>
-                      <h2 className="text-3xl font-bold text-gray-800 mb-4">
+                      <h2 className="text-3xl font-bold text-swar-text mb-4">
                         {featuredPost.title[language]}
                       </h2>
-                      <p className="text-gray-600 text-lg leading-relaxed mb-6">
+                      <p className="text-swar-text-secondary text-lg leading-relaxed mb-6">
                         {featuredPost.excerpt[language]}
                       </p>
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-6">
+                      <div className="flex flex-wrap gap-4 text-sm text-swar-text-secondary mb-6">
                         <div className="flex items-center gap-1">
                           <User size={16} />
                           <span>{featuredPost.author}</span>
@@ -227,11 +227,11 @@ export default function BlogPage() {
                           <Calendar size={16} />
                           <span>{new Date(featuredPost.date).toLocaleDateString()}</span>
                         </div>
-                        <span className="text-green-600 font-medium">{featuredPost.readTime[language]}</span>
+                        <span className="text-swar-primary font-medium">{featuredPost.readTime[language]}</span>
                       </div>
                       <Link
                         href={`/blog/${featuredPost.slug}`}
-                        className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition font-medium"
+                        className="inline-flex items-center gap-2 bg-swar-primary hover:bg-swar-primary text-white px-6 py-3 rounded-lg transition font-medium"
                       >
                         {translations.readMore[language]}
                         <ArrowRight size={18} />
@@ -247,34 +247,34 @@ export default function BlogPage() {
         {/* Articles Grid */}
         <section className="py-12 px-4">
           <div className="container mx-auto">
-            <h3 className="text-3xl font-bold text-gray-800 mb-8">{translations.related[language]}</h3>
+            <h3 className="text-3xl font-bold text-swar-text mb-8">{translations.related[language]}</h3>
             <div className="grid md:grid-cols-2 gap-8">
               {otherPosts.map(post => (
                 <article key={post.id} className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition flex flex-col">
-                  <div className="relative h-48 overflow-hidden bg-gray-200">
+                  <div className="relative h-48 overflow-hidden bg-swar-primary-light">
                     <img
                       src={post.image}
                       alt={post.title[language]}
                       className="w-full h-full object-cover hover:scale-105 transition"
                     />
                     <div className="absolute top-4 right-4">
-                      <span className="bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium">
+                      <span className="bg-swar-primary text-white px-3 py-1 rounded-full text-sm font-medium">
                         {post.category}
                       </span>
                     </div>
                   </div>
 
                   <div className="p-6 flex-1 flex flex-col">
-                    <h2 className="text-xl font-bold text-gray-800 mb-3 line-clamp-2">
+                    <h2 className="text-xl font-bold text-swar-text mb-3 line-clamp-2">
                       {post.title[language]}
                     </h2>
 
-                    <p className="text-gray-600 mb-4 flex-1 text-sm leading-relaxed">
+                    <p className="text-swar-text-secondary mb-4 flex-1 text-sm leading-relaxed">
                       {post.excerpt[language]}
                     </p>
 
                     <div className="mt-auto">
-                      <div className="flex items-center text-sm text-gray-500 mb-4 flex-wrap gap-2">
+                      <div className="flex items-center text-sm text-swar-text-secondary mb-4 flex-wrap gap-2">
                         <div className="flex items-center gap-1">
                           <User size={16} />
                           <span>{post.author}</span>
@@ -288,7 +288,7 @@ export default function BlogPage() {
 
                       <Link
                         href={`/blog/${post.slug}`}
-                        className="inline-flex items-center text-green-600 hover:text-green-700 font-medium transition"
+                        className="inline-flex items-center text-swar-primary hover:text-swar-primary font-medium transition"
                       >
                         {translations.readMore[language]}
                         <ArrowRight size={16} className="ml-2" />
@@ -305,14 +305,14 @@ export default function BlogPage() {
         <section className="py-16 px-4 bg-gradient-to-r from-green-600 to-green-700 text-white">
           <div className="container mx-auto max-w-2xl text-center">
             <h3 className="text-3xl font-bold mb-4">{translations.newsletter[language]}</h3>
-            <p className="text-green-100 mb-8">{translations.newsDescription[language]}</p>
+            <p className="text-swar-primary-light mb-8">{translations.newsDescription[language]}</p>
             <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={translations.emailPlaceholder[language]}
-                className="flex-1 px-4 py-3 rounded-lg text-gray-800 focus:outline-none"
+                className="flex-1 px-4 py-3 rounded-lg text-swar-text focus:outline-none"
                 required
               />
               <button

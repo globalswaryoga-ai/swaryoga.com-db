@@ -22,7 +22,7 @@ const HomePage = () => {
   };
 
   const workshopTypes = [
-    { type: 'Online', color: 'from-blue-600 to-blue-700' },
+    { type: 'Online', color: 'from-swar-primary to-blue-700' },
     { type: 'Offline', color: 'from-purple-600 to-purple-700' },
     { type: 'Residential', color: 'from-green-600 to-green-700' },
     { type: 'Recorded', color: 'from-orange-600 to-orange-700' }
@@ -81,23 +81,23 @@ const HomePage = () => {
       </section>
 
       {/* About Section */}
-      <section className="py-16 sm:py-20 bg-gray-50 safe-area-left safe-area-right">
+      <section className="py-16 sm:py-20 bg-swar-bg safe-area-left safe-area-right">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-center">
             <div className="order-2 lg:order-1">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif text-[#2A5654] mb-4 sm:mb-6">Discover Swar Yoga</h2>
-              <p className="text-gray-700 mb-4 sm:mb-6 leading-relaxed text-sm sm:text-base">
+              <p className="text-swar-text mb-4 sm:mb-6 leading-relaxed text-sm sm:text-base">
                 At Swar Yoga, we believe in the transformative power of breath to bring balance and harmony to your life. 
                 Our approach combines traditional yoga practices with modern wellness techniques to create a holistic 
                 experience for practitioners of all levels.
               </p>
-              <p className="text-gray-700 mb-6 sm:mb-8 leading-relaxed text-sm sm:text-base">
+              <p className="text-swar-text mb-6 sm:mb-8 leading-relaxed text-sm sm:text-base">
                 Whether you're looking to deepen your practice, find stress relief, or embark on a journey of 
                 self-discovery, our experienced instructors are here to guide you every step of the way.
               </p>
               <Link 
                 href="/about" 
-                className="inline-flex items-center text-green-600 hover:text-green-700 font-medium transition-colors touch-target"
+                className="inline-flex items-center text-swar-primary hover:text-swar-primary font-medium transition-colors touch-target"
               >
                 <span>Learn more about our philosophy</span>
                 <ArrowRight size={18} className="ml-2" />
@@ -125,7 +125,7 @@ const HomePage = () => {
         <div className="container mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif text-[#2A5654] mb-4">Transform Your Practice</h2>
-            <p className="text-gray-600 max-w-3xl mx-auto mb-6 sm:mb-8 text-sm sm:text-base">
+            <p className="text-swar-text-secondary max-w-3xl mx-auto mb-6 sm:mb-8 text-sm sm:text-base">
               Join our comprehensive workshop programs and discover the ancient science of breath
             </p>
           </div>
@@ -171,20 +171,20 @@ const HomePage = () => {
               className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-10"
             >
               <div className="text-center">
-                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">25+</div>
-                <div className="text-gray-600 text-sm sm:text-base">Years Experience</div>
+                <div className="text-2xl sm:text-3xl font-bold text-swar-primary mb-2">25+</div>
+                <div className="text-swar-text-secondary text-sm sm:text-base">Years Experience</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">8000+</div>
-                <div className="text-gray-600 text-sm sm:text-base">Students Trained</div>
+                <div className="text-2xl sm:text-3xl font-bold text-swar-primary mb-2">8000+</div>
+                <div className="text-swar-text-secondary text-sm sm:text-base">Students Trained</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">15+</div>
-                <div className="text-gray-600 text-sm sm:text-base">Countries Reached</div>
+                <div className="text-2xl sm:text-3xl font-bold text-swar-primary mb-2">15+</div>
+                <div className="text-swar-text-secondary text-sm sm:text-base">Countries Reached</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-2">100%</div>
-                <div className="text-gray-600 text-sm sm:text-base">Satisfaction Rate</div>
+                <div className="text-2xl sm:text-3xl font-bold text-swar-primary mb-2">100%</div>
+                <div className="text-swar-text-secondary text-sm sm:text-base">Satisfaction Rate</div>
               </div>
             </div>
 
@@ -194,7 +194,7 @@ const HomePage = () => {
             >
               <Link
                 href="/workshop"
-                className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 text-base sm:text-lg font-medium hover:shadow-lg hover:translate-y-[-2px] group touch-target"
+                className="inline-flex items-center justify-center bg-swar-primary hover:bg-swar-primary text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 text-base sm:text-lg font-medium hover:shadow-lg hover:translate-y-[-2px] group touch-target"
               >
                 <Calendar size={20} className="mr-2 sm:mr-3 sm:h-6 sm:w-6" />
                 <span>Explore All 18 Workshops</span>
@@ -226,7 +226,7 @@ const HomePage = () => {
                 <div className="flex items-center gap-3">
                   <span className="text-3xl sm:text-4xl font-bold">₹21,000</span>
                 </div>
-                <p className="text-gray-400 text-xs sm:text-sm mt-2">Valid for 5 years with exclusive benefits</p>
+                <p className="text-swar-text-secondary text-xs sm:text-sm mt-2">Valid for 5 years with exclusive benefits</p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
@@ -239,7 +239,7 @@ const HomePage = () => {
                 </Link>
                 <button
                   onClick={() => setShowMembershipPopup(true)}
-                  className="inline-flex items-center justify-center bg-white text-[#2A5654] px-4 sm:px-6 py-3 rounded-lg hover:bg-gray-100 transition-colors touch-target"
+                  className="inline-flex items-center justify-center bg-white text-[#2A5654] px-4 sm:px-6 py-3 rounded-lg hover:bg-swar-primary-light transition-colors touch-target"
                 >
                   View Membership Plan
                 </button>
@@ -272,22 +272,22 @@ const HomePage = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-12 sm:py-16 bg-green-600 text-white safe-area-left safe-area-right">
+      <section className="py-12 sm:py-16 bg-swar-primary text-white safe-area-left safe-area-right">
         <div className="container mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif mb-4 sm:mb-6">Begin Your Yoga Journey Today</h2>
-          <p className="text-base sm:text-lg md:text-xl text-green-100 max-w-3xl mx-auto mb-6 sm:mb-8 leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl text-swar-primary-light max-w-3xl mx-auto mb-6 sm:mb-8 leading-relaxed">
             Join our community and discover the transformative power of yoga. Whether you're a beginner or an experienced practitioner, we have classes and workshops for every level.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/workshop"
-              className="bg-white hover:bg-gray-100 text-green-600 px-4 sm:px-6 py-3 rounded-lg transition-colors touch-target"
+              className="bg-white hover:bg-swar-primary-light text-swar-primary px-4 sm:px-6 py-3 rounded-lg transition-colors touch-target"
             >
               Browse Workshops
             </Link>
             <Link
               href="/contact"
-              className="border-2 border-white hover:bg-white hover:text-green-600 text-white px-4 sm:px-6 py-3 rounded-lg transition-colors touch-target"
+              className="border-2 border-white hover:bg-white hover:text-swar-primary text-white px-4 sm:px-6 py-3 rounded-lg transition-colors touch-target"
             >
               Contact Us
             </Link>
@@ -306,7 +306,7 @@ const HomePage = () => {
             >
               <button
                 onClick={() => setShowMembershipPopup(false)}
-                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors touch-target"
+                className="absolute top-4 right-4 text-swar-text-secondary hover:text-swar-text p-2 rounded-full hover:bg-swar-primary-light transition-colors touch-target"
               >
                 <X size={24} />
               </button>
@@ -314,7 +314,7 @@ const HomePage = () => {
               <div className="p-4 sm:p-6 md:p-8">
                 <div className="text-center mb-8">
                   <h3 className="text-2xl sm:text-3xl font-bold text-[#2A5654] mb-2">Resort Membership</h3>
-                  <p className="text-gray-600 text-sm sm:text-base">Limited time offer - Only {membershipDetails.maxParticipants} spots available</p>
+                  <p className="text-swar-text-secondary text-sm sm:text-base">Limited time offer - Only {membershipDetails.maxParticipants} spots available</p>
                 </div>
 
                 <div className="bg-gradient-to-br from-[#2A5654] to-[#1F4240] rounded-lg p-6 text-white mb-6">
@@ -338,7 +338,7 @@ const HomePage = () => {
                 <div className="space-y-6">
                   <div>
                     <h4 className="font-semibold text-lg mb-2">Membership Details</h4>
-                    <p className="text-gray-600 text-sm sm:text-base">
+                    <p className="text-swar-text-secondary text-sm sm:text-base">
                       One-time payment of ₹{membershipDetails.price.toLocaleString()} for {membershipDetails.validity}. Limited membership spots available!
                     </p>
                   </div>
@@ -346,14 +346,14 @@ const HomePage = () => {
                   <div className="flex flex-col sm:flex-row gap-4">
                     <Link
                       href="/resort"
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg text-center transition-colors touch-target font-medium"
+                      className="flex-1 bg-swar-primary hover:bg-swar-primary text-white py-3 rounded-lg text-center transition-colors touch-target font-medium"
                       onClick={() => setShowMembershipPopup(false)}
                     >
                       Learn More
                     </Link>
                     <a
                       href="tel:+919779006820"
-                      className="flex-1 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg transition-colors touch-target font-medium"
+                      className="flex-1 flex items-center justify-center bg-swar-primary-light hover:bg-swar-primary-light text-swar-text py-3 rounded-lg transition-colors touch-target font-medium"
                     >
                       <Phone size={18} className="mr-2" />
                       Call for Details

@@ -129,8 +129,8 @@ const DiamondPeoplePage = () => {
     <div className="max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Diamond People</h1>
-          <p className="text-gray-600">Manage your most important relationships and connections</p>
+          <h1 className="text-3xl font-bold text-swar-text mb-2">Diamond People</h1>
+          <p className="text-swar-text-secondary">Manage your most important relationships and connections</p>
         </div>
         <div className="flex space-x-3">
           <button
@@ -154,25 +154,25 @@ const DiamondPeoplePage = () => {
       <div className="grid md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="text-2xl font-bold text-emerald-600 mb-1">{people.length}</div>
-          <div className="text-gray-600 text-sm">Total People</div>
+          <div className="text-swar-text-secondary text-sm">Total People</div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="text-2xl font-bold text-blue-600 mb-1">
             {people.filter(p => p.relationship === 'professional').length}
           </div>
-          <div className="text-gray-600 text-sm">Professional</div>
+          <div className="text-swar-text-secondary text-sm">Professional</div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="text-2xl font-bold text-purple-600 mb-1">
             {people.filter(p => p.relationship === 'personal').length}
           </div>
-          <div className="text-gray-600 text-sm">Personal</div>
+          <div className="text-swar-text-secondary text-sm">Personal</div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="text-2xl font-bold text-orange-600 mb-1">
             {new Set(people.map(p => p.category)).size}
           </div>
-          <div className="text-gray-600 text-sm">Categories</div>
+          <div className="text-swar-text-secondary text-sm">Categories</div>
         </div>
       </div>
 
@@ -180,21 +180,21 @@ const DiamondPeoplePage = () => {
       <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search name / profession / email"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-emerald-200"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Category</label>
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
             >
               {categories.map(category => (
                 <option key={category} value={category}>
@@ -205,11 +205,11 @@ const DiamondPeoplePage = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Relationship</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Relationship</label>
             <select
               value={filterRelationship}
               onChange={(e) => setFilterRelationship(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
             >
               <option value="all">All</option>
               <option value="professional">Professional</option>
@@ -218,11 +218,11 @@ const DiamondPeoplePage = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Month</label>
             <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
             >
               <option value="all">All</option>
               {MONTHS.map((m) => (
@@ -240,14 +240,14 @@ const DiamondPeoplePage = () => {
                 setFilterRelationship('all');
                 setFilterMonth('all');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-gray-600">Showing {filteredPeople.length} of {people.length} people</p>
+        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredPeople.length} of {people.length} people</p>
       </div>
 
       {/* People Grid */}
@@ -274,11 +274,11 @@ const DiamondPeoplePage = () => {
             
             {/* Card content */}
             <div className="p-5 flex-1 flex flex-col">
-              <h3 className="text-xl font-bold text-gray-900 mb-1 line-clamp-2">{person.name}</h3>
-              <p className="text-sm text-gray-600 mb-4 line-clamp-2">{person.profession || 'No profession'}</p>
+              <h3 className="text-xl font-bold text-swar-text mb-1 line-clamp-2">{person.name}</h3>
+              <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{person.profession || 'No profession'}</p>
 
               {/* Metadata (Vision style with icons) */}
-              <div className="space-y-2 text-xs text-gray-700 mb-auto">
+              <div className="space-y-2 text-xs text-swar-text mb-auto">
                 {person.mobile && (
                   <div className="flex items-center gap-2">
                     📱 {person.mobile}
@@ -327,13 +327,13 @@ const DiamondPeoplePage = () => {
 
       {filteredPeople.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
+          <div className="text-swar-text-secondary mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No people found</h3>
-          <p className="text-gray-600 mb-4">Start by adding your first diamond person.</p>
+          <h3 className="text-lg font-medium text-swar-text mb-2">No people found</h3>
+          <p className="text-swar-text-secondary mb-4">Start by adding your first diamond person.</p>
           <button
             onClick={handleAddPerson}
             className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"

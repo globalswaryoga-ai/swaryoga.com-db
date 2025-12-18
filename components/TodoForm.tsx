@@ -96,15 +96,15 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Parent Task */}
       {tasks.length > 0 && (
-        <div className="rounded-lg bg-green-50 border-2 border-green-200 p-3">
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <div className="rounded-lg bg-swar-primary-light border-2 border-green-200 p-3">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             ✓ Link to Task (Optional)
           </label>
           <select
             name="taskId"
             value={formData.taskId}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary transition"
           >
             <option value="">-- No parent task --</option>
             {tasks.map(task => (
@@ -112,7 +112,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
             ))}
           </select>
           {formData.taskId && (
-            <p className="text-sm text-green-700 mt-2 font-medium">
+            <p className="text-sm text-swar-primary mt-2 font-medium">
               ✓ Todo linked to: <span className="font-bold">{tasks.find(t => t.id === formData.taskId)?.title}</span>
             </p>
           )}
@@ -121,7 +121,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
 
       {/* Todo Title */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Todo Title *
         </label>
         <input
@@ -129,8 +129,8 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
           name="title"
           value={formData.title}
           onChange={handleChange}
-          className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition ${
-            errors.title ? 'border-red-500' : 'border-gray-300'
+          className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary transition ${
+            errors.title ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder="e.g., Complete chapter 3, Fix bug in login"
           required
@@ -140,14 +140,14 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Description (Optional)
         </label>
         <textarea
           name="description"
           value={formData.description}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary transition"
           placeholder="Add notes or details about this todo"
           rows={3}
         />
@@ -155,15 +155,15 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
 
       {/* Category */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
-          <ListTodo size={18} className="text-green-600" />
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
+          <ListTodo size={18} className="text-swar-primary" />
           Category
         </label>
         <select
           name="category"
           value={formData.category}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary transition"
         >
           <option value="life">🌍 Life</option>
           <option value="health">� Health</option>
@@ -181,7 +181,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
       {/* Date & Time Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
             Date *
           </label>
@@ -190,8 +190,8 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
             name="date"
             value={formData.date}
             onChange={handleChange}
-            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition ${
-              errors.date ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary transition ${
+              errors.date ? 'border-red-500' : 'border-swar-border'
             }`}
             required
           />
@@ -199,7 +199,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Clock size={18} className="text-purple-600" />
             Time *
           </label>
@@ -208,8 +208,8 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
             name="time"
             value={formData.time}
             onChange={handleChange}
-            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition ${
-              errors.time ? 'border-red-500' : 'border-gray-300'
+            className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary transition ${
+              errors.time ? 'border-red-500' : 'border-swar-border'
             }`}
             required
           />
@@ -219,12 +219,12 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
 
       {/* Estimated Time */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center justify-between">
           <span className="flex items-center gap-2">
             <Clock size={18} className="text-orange-600" />
             Estimated Duration
           </span>
-          <span className="text-lg font-bold text-green-600">{formData.estimatedMinutes} min</span>
+          <span className="text-lg font-bold text-swar-primary">{formData.estimatedMinutes} min</span>
         </label>
         <input
           type="range"
@@ -236,7 +236,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
           step="5"
           className="w-full h-3 bg-gray-300 rounded-lg appearance-none cursor-pointer"
         />
-        <div className="mt-2 flex justify-between text-xs text-gray-500">
+        <div className="mt-2 flex justify-between text-xs text-swar-text-secondary">
           <span>5 min</span>
           <span>8 hours</span>
         </div>
@@ -244,7 +244,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
 
       {/* Image URL */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <Image size={18} className="text-orange-600" />
           Todo Image URL (Optional)
         </label>
@@ -253,11 +253,11 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
           name="imageUrl"
           value={formData.imageUrl}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary transition"
           placeholder="https://example.com/image.jpg"
         />
         {formData.imageUrl && (
-          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm">
+          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-swar-border shadow-sm">
             <img 
               src={formData.imageUrl} 
               alt="Todo preview" 
@@ -271,11 +271,11 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-end gap-3 pt-5 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-5 border-t border-swar-border">
         <button
           type="button"
           onClick={onCancel}
-          className="px-5 py-2.5 border-2 border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+          className="px-5 py-2.5 border-2 border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
         >
           Cancel
         </button>
@@ -284,7 +284,7 @@ const TodoForm: React.FC<TodoFormProps> = ({ onSubmit, onCancel, initialData, ta
           disabled={!isFormValid}
           className={`px-5 py-2.5 rounded-lg text-white font-medium transition-colors ${
             isFormValid
-              ? 'bg-green-600 hover:bg-green-700 cursor-pointer'
+              ? 'bg-swar-primary hover:bg-swar-primary cursor-pointer'
               : 'bg-gray-400 cursor-not-allowed'
           }`}
         >

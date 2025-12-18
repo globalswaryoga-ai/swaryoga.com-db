@@ -98,15 +98,15 @@ export default function AdminLogin() {
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <LogIn className="h-8 w-8 text-blue-600" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Admin Login</h1>
-            <p className="text-gray-600">Swar Yoga Admin Panel</p>
+            <h1 className="text-3xl font-bold text-swar-text mb-2">Admin Login</h1>
+            <p className="text-swar-text-secondary">Swar Yoga Admin Panel</p>
           </div>
 
           {/* Status Messages */}
           {submitStatus === 'success' && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span className="text-green-800 font-medium">Login successful! Redirecting...</span>
+            <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-center space-x-3">
+              <CheckCircle className="h-5 w-5 text-swar-primary" />
+              <span className="text-swar-primary font-medium">Login successful! Redirecting...</span>
             </div>
           )}
 
@@ -121,7 +121,7 @@ export default function AdminLogin() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Username */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="username" className="block text-sm font-medium text-swar-text mb-2">
                 Username
               </label>
               <input
@@ -131,7 +131,7 @@ export default function AdminLogin() {
                 value={formData.username}
                 onChange={handleInputChange}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                  errors.username ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                  errors.username ? 'border-red-400 bg-red-50' : 'border-swar-border'
                 }`}
                 placeholder="Enter username"
                 autoComplete="username"
@@ -141,7 +141,7 @@ export default function AdminLogin() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-swar-text mb-2">
                 Password
               </label>
               <div className="relative">
@@ -152,7 +152,7 @@ export default function AdminLogin() {
                   value={formData.password}
                   onChange={handleInputChange}
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                    errors.password ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                    errors.password ? 'border-red-400 bg-red-50' : 'border-swar-border'
                   }`}
                   placeholder="Enter password"
                   autoComplete="current-password"
@@ -160,7 +160,7 @@ export default function AdminLogin() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-text-secondary"
                 >
                   {showPassword ? '👁️' : '👁️‍🗨️'}
                 </button>
@@ -172,7 +172,7 @@ export default function AdminLogin() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              className="w-full bg-gradient-to-r from-swar-primary to-blue-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
             >
               {isSubmitting ? (
                 <>

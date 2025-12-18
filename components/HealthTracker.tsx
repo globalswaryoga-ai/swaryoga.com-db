@@ -47,7 +47,7 @@ export default function HealthTracker() {
   const getBMICategory = useCallback((bmiValue: number | string) => {
     const value = typeof bmiValue === 'string' ? parseFloat(bmiValue) : bmiValue;
     if (value < 18.5) return { category: 'Underweight', color: 'text-blue-600' };
-    if (value < 25) return { category: 'Normal', color: 'text-green-600' };
+    if (value < 25) return { category: 'Normal', color: 'text-swar-primary' };
     if (value < 30) return { category: 'Overweight', color: 'text-orange-600' };
     return { category: 'Obese', color: 'text-red-600' };
   }, []);
@@ -77,11 +77,11 @@ export default function HealthTracker() {
       {/* Health Tracker Button in Header */}
       <button
         onClick={() => setShowModal(true)}
-        className="relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition group"
+        className="relative flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-swar-primary-light transition group"
         title="Health Tracker"
       >
         <Heart className="h-5 w-5 text-red-500" fill="currentColor" />
-        <span className="text-sm font-medium text-gray-700">Health</span>
+        <span className="text-sm font-medium text-swar-text">Health</span>
       </button>
 
       {/* Health Tracker Modal */}
@@ -89,7 +89,7 @@ export default function HealthTracker() {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-red-500 to-pink-500 px-6 py-6 flex items-center justify-between text-white">
+            <div className="sticky top-0 bg-gradient-to-r from-swar-accent to-pink-500 px-6 py-6 flex items-center justify-between text-white">
               <div className="flex items-center gap-3">
                 <Activity className="h-6 w-6" />
                 <h2 className="text-2xl font-bold">Health Tracker</h2>
@@ -107,22 +107,22 @@ export default function HealthTracker() {
               {/* Health Stats Overview */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="rounded-lg bg-blue-50 p-4 text-center">
-                  <p className="text-xs text-gray-600 font-medium">Height</p>
+                  <p className="text-xs text-swar-text-secondary font-medium">Height</p>
                   <p className="text-2xl font-bold text-blue-600 mt-2">{healthData.height}</p>
-                  <p className="text-xs text-gray-500">cm</p>
+                  <p className="text-xs text-swar-text-secondary">cm</p>
                 </div>
-                <div className="rounded-lg bg-green-50 p-4 text-center">
-                  <p className="text-xs text-gray-600 font-medium">Weight</p>
-                  <p className="text-2xl font-bold text-green-600 mt-2">{healthData.weight}</p>
-                  <p className="text-xs text-gray-500">kg</p>
+                <div className="rounded-lg bg-swar-primary-light p-4 text-center">
+                  <p className="text-xs text-swar-text-secondary font-medium">Weight</p>
+                  <p className="text-2xl font-bold text-swar-primary mt-2">{healthData.weight}</p>
+                  <p className="text-xs text-swar-text-secondary">kg</p>
                 </div>
                 <div className="rounded-lg bg-purple-50 p-4 text-center">
-                  <p className="text-xs text-gray-600 font-medium">Age</p>
+                  <p className="text-xs text-swar-text-secondary font-medium">Age</p>
                   <p className="text-2xl font-bold text-purple-600 mt-2">{healthData.age}</p>
-                  <p className="text-xs text-gray-500">years</p>
+                  <p className="text-xs text-swar-text-secondary">years</p>
                 </div>
                 <div className={`rounded-lg bg-orange-50 p-4 text-center`}>
-                  <p className="text-xs text-gray-600 font-medium">BMI</p>
+                  <p className="text-xs text-swar-text-secondary font-medium">BMI</p>
                   <p className={`text-2xl font-bold mt-2 ${bmiInfo.color}`}>{bmi}</p>
                   <p className={`text-xs font-medium ${bmiInfo.color}`}>{bmiInfo.category}</p>
                 </div>
@@ -130,27 +130,27 @@ export default function HealthTracker() {
 
               {/* Key Metrics */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg border-2 border-pink-200 bg-pink-50 p-4">
-                  <p className="text-sm font-medium text-gray-700">BMR (Basal Metabolic Rate)</p>
+                <div className="rounded-lg border-2 border-swar-border bg-swar-primary-light p-4">
+                  <p className="text-sm font-medium text-swar-text">BMR (Basal Metabolic Rate)</p>
                   <p className="text-3xl font-bold text-red-600 mt-2">{bmr}</p>
-                  <p className="text-xs text-gray-600 mt-1">kcal/day</p>
+                  <p className="text-xs text-swar-text-secondary mt-1">kcal/day</p>
                 </div>
                 <div className="rounded-lg border-2 border-red-200 bg-red-50 p-4">
-                  <p className="text-sm font-medium text-gray-700">Blood Pressure</p>
+                  <p className="text-sm font-medium text-swar-text">Blood Pressure</p>
                   <p className="text-3xl font-bold text-red-600 mt-2">
                     {healthData.systolicBP}/{healthData.diastolicBP}
                   </p>
-                  <p className="text-xs text-gray-600 mt-1">mmHg</p>
+                  <p className="text-xs text-swar-text-secondary mt-1">mmHg</p>
                 </div>
               </div>
 
               {/* Form Inputs */}
-              <div className="space-y-4 pt-4 border-t border-gray-200">
-                <h3 className="font-semibold text-gray-900">Update Your Health Data</h3>
+              <div className="space-y-4 pt-4 border-t border-swar-border">
+                <h3 className="font-semibold text-swar-text">Update Your Health Data</h3>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-swar-text mb-2">
                       Height (cm)
                     </label>
                     <input
@@ -162,11 +162,11 @@ export default function HealthTracker() {
                           height: parseFloat(e.target.value) || 0,
                         })
                       }
-                      className="w-full rounded-lg border border-pink-200 px-4 py-2 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                      className="w-full rounded-lg border border-swar-border px-4 py-2 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-swar-text mb-2">
                       Weight (kg)
                     </label>
                     <input
@@ -178,11 +178,11 @@ export default function HealthTracker() {
                           weight: parseFloat(e.target.value) || 0,
                         })
                       }
-                      className="w-full rounded-lg border border-pink-200 px-4 py-2 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                      className="w-full rounded-lg border border-swar-border px-4 py-2 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-swar-text mb-2">
                       Age (years)
                     </label>
                     <input
@@ -194,14 +194,14 @@ export default function HealthTracker() {
                           age: parseInt(e.target.value) || 0,
                         })
                       }
-                      className="w-full rounded-lg border border-pink-200 px-4 py-2 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                      className="w-full rounded-lg border border-swar-border px-4 py-2 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                     />
                   </div>
                 </div>
 
                 {/* Blood Pressure */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-swar-text mb-2">
                     Blood Pressure
                   </label>
                   <div className="flex gap-3 items-center">
@@ -216,10 +216,10 @@ export default function HealthTracker() {
                           })
                         }
                         placeholder="Systolic"
-                        className="w-full rounded-lg border border-pink-200 px-4 py-2 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                        className="w-full rounded-lg border border-swar-border px-4 py-2 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                       />
                     </div>
-                    <span className="text-2xl font-bold text-gray-400">/</span>
+                    <span className="text-2xl font-bold text-swar-text-secondary">/</span>
                     <div className="flex-1">
                       <input
                         type="number"
@@ -231,16 +231,16 @@ export default function HealthTracker() {
                           })
                         }
                         placeholder="Diastolic"
-                        className="w-full rounded-lg border border-pink-200 px-4 py-2 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                        className="w-full rounded-lg border border-swar-border px-4 py-2 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">e.g., 120/80 mmHg</p>
+                  <p className="text-xs text-swar-text-secondary mt-1">e.g., 120/80 mmHg</p>
                 </div>
 
                 {/* Other Medical Notes */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-swar-text mb-2">
                     Other Medical Notes
                   </label>
                   <textarea
@@ -252,23 +252,23 @@ export default function HealthTracker() {
                       })
                     }
                     placeholder="Any allergies, medications, or other health notes..."
-                    className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
+                    className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
                     rows={3}
                   />
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <div className="flex gap-3 pt-4 border-t border-swar-border">
                 <button
                   onClick={handleSave}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+                  className="flex-1 rounded-lg bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
                 >
                   Save Health Data
                 </button>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 font-semibold hover:bg-gray-50 transition"
+                  className="flex-1 rounded-lg border border-swar-border px-4 py-3 text-swar-text font-semibold hover:bg-swar-bg transition"
                 >
                   Close
                 </button>

@@ -68,13 +68,13 @@ export default function VisionsBlogPage() {
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-swar-primary-light text-swar-primary';
       case 'in-progress':
         return 'bg-blue-100 text-blue-800';
       case 'on-hold':
         return 'bg-yellow-100 text-yellow-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-swar-primary-light text-swar-text';
     }
   };
 
@@ -85,9 +85,9 @@ export default function VisionsBlogPage() {
       case 'medium':
         return 'text-orange-600 bg-orange-50';
       case 'low':
-        return 'text-green-600 bg-green-50';
+        return 'text-swar-primary bg-swar-primary-light';
       default:
-        return 'text-gray-600 bg-gray-50';
+        return 'text-swar-text-secondary bg-swar-bg';
     }
   };
 
@@ -146,7 +146,7 @@ export default function VisionsBlogPage() {
               className={`px-6 py-3 rounded-full font-bold transition-all ${
                 filterStatus === status
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105'
-                  : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-purple-600'
+                  : 'bg-white text-swar-text border-2 border-swar-border hover:border-purple-600'
               }`}
             >
               {status === 'all' ? '📊 All Visions' : 
@@ -166,8 +166,8 @@ export default function VisionsBlogPage() {
         {filteredVisions.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-8xl mb-6">🌟</div>
-            <h2 className="text-4xl font-black text-gray-800 mb-4">No Visions Yet</h2>
-            <p className="text-xl text-gray-600 mb-8">
+            <h2 className="text-4xl font-black text-swar-text mb-4">No Visions Yet</h2>
+            <p className="text-xl text-swar-text-secondary mb-8">
               Start your journey by creating your first big vision project!
             </p>
             <button
@@ -224,12 +224,12 @@ export default function VisionsBlogPage() {
                   {/* Content Section */}
                   <div className="p-8 sm:p-10 md:p-12">
                     {/* Title - BIG AND BOLD */}
-                    <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-gray-900 mb-4 leading-tight">
+                    <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-swar-text mb-4 leading-tight">
                       {vision.title}
                     </h2>
 
                     {/* Description */}
-                    <p className="text-lg sm:text-xl text-gray-600 mb-8 line-clamp-3">
+                    <p className="text-lg sm:text-xl text-swar-text-secondary mb-8 line-clamp-3">
                       {vision.description}
                     </p>
 
@@ -243,7 +243,7 @@ export default function VisionsBlogPage() {
                             : '—'}
                         </div>
                       </div>
-                      <div className="bg-pink-50 rounded-xl p-4">
+                      <div className="bg-swar-primary-light rounded-xl p-4">
                         <div className="text-sm font-bold text-pink-600 mb-1">🎯 End</div>
                         <div className="text-lg font-black text-pink-900">
                           {vision.endDate
@@ -251,9 +251,9 @@ export default function VisionsBlogPage() {
                             : '—'}
                         </div>
                       </div>
-                      <div className="bg-green-50 rounded-xl p-4">
-                        <div className="text-sm font-bold text-green-600 mb-1">📊 Progress</div>
-                        <div className="text-lg font-black text-green-900">{progress}%</div>
+                      <div className="bg-swar-primary-light rounded-xl p-4">
+                        <div className="text-sm font-bold text-swar-primary mb-1">📊 Progress</div>
+                        <div className="text-lg font-black text-swar-text">{progress}%</div>
                       </div>
                       <div className="bg-purple-50 rounded-xl p-4">
                         <div className="text-sm font-bold text-purple-600 mb-1">🏆 Category</div>
@@ -264,10 +264,10 @@ export default function VisionsBlogPage() {
                     {/* Progress Bar - BOLD */}
                     <div className="mb-8">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="font-bold text-gray-900 text-lg">Overall Progress</span>
+                        <span className="font-bold text-swar-text text-lg">Overall Progress</span>
                         <span className="font-black text-2xl text-purple-600">{progress}%</span>
                       </div>
-                      <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-4 bg-swar-primary-light rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 transition-all duration-500"
                           style={{ width: `${progress}%` }}
@@ -281,31 +281,31 @@ export default function VisionsBlogPage() {
                         <div className="text-3xl sm:text-4xl font-black text-purple-600">
                           {vision.milestones?.length || 0}
                         </div>
-                        <div className="font-bold text-gray-700 mt-1">Milestones</div>
+                        <div className="font-bold text-swar-text mt-1">Milestones</div>
                       </div>
                       <div className="text-center">
                         <div className="text-3xl sm:text-4xl font-black text-pink-600">
                           {vision.goals?.length || 0}
                         </div>
-                        <div className="font-bold text-gray-700 mt-1">Goals</div>
+                        <div className="font-bold text-swar-text mt-1">Goals</div>
                       </div>
                       <div className="text-center">
                         <div className="text-3xl sm:text-4xl font-black text-blue-600">
                           {vision.tasks?.length || 0}
                         </div>
-                        <div className="font-bold text-gray-700 mt-1">Tasks</div>
+                        <div className="font-bold text-swar-text mt-1">Tasks</div>
                       </div>
                       <div className="text-center">
                         <div className="text-3xl sm:text-4xl font-black text-orange-600">
                           {vision.todos?.length || 0}
                         </div>
-                        <div className="font-bold text-gray-700 mt-1">Todos</div>
+                        <div className="font-bold text-swar-text mt-1">Todos</div>
                       </div>
                       <div className="text-center">
                         <div className="text-3xl sm:text-4xl font-black text-yellow-600">
                           {(vision.words?.length || 0) + (vision.reminders?.length || 0)}
                         </div>
-                        <div className="font-bold text-gray-700 mt-1">Words/Reminders</div>
+                        <div className="font-bold text-swar-text mt-1">Words/Reminders</div>
                       </div>
                     </div>
 

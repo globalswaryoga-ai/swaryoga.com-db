@@ -106,10 +106,10 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
   return (
     <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 max-w-lg mx-auto">
       <div className="mb-6 text-center">
-        <h3 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+        <h3 className="text-2xl md:text-3xl font-bold text-swar-text mb-2">
           Interested in {workshopName}?
         </h3>
-        <p className="text-gray-600">
+        <p className="text-swar-text-secondary">
           Dates will be announced soon. Fill this form to get notified when schedules are available.
         </p>
       </div>
@@ -118,18 +118,18 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
         <div
           className={`mb-6 p-4 rounded-lg flex items-start gap-3 ${
             message.type === 'success'
-              ? 'bg-green-50 border border-green-200'
+              ? 'bg-swar-primary-light border border-green-200'
               : 'bg-red-50 border border-red-200'
           }`}
         >
           {message.type === 'success' ? (
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <CheckCircle className="w-5 h-5 text-swar-primary flex-shrink-0 mt-0.5" />
           ) : (
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           )}
           <p
             className={`text-sm ${
-              message.type === 'success' ? 'text-green-700' : 'text-red-700'
+              message.type === 'success' ? 'text-swar-primary' : 'text-red-700'
             }`}
           >
             {message.text}
@@ -140,7 +140,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Name Field */}
         <div>
-          <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
+          <label htmlFor="name" className="block text-sm font-semibold text-swar-text mb-2">
             Full Name *
           </label>
           <input
@@ -150,18 +150,18 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
             value={formData.name}
             onChange={handleChange}
             placeholder="Enter your full name"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             disabled={loading}
           />
         </div>
 
         {/* Mobile Field */}
         <div>
-          <label htmlFor="mobile" className="block text-sm font-semibold text-gray-700 mb-2">
+          <label htmlFor="mobile" className="block text-sm font-semibold text-swar-text mb-2">
             Mobile Number *
           </label>
           <div className="relative">
-            <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+            <Phone className="absolute left-3 top-3 w-5 h-5 text-swar-text-secondary" />
             <input
               type="tel"
               id="mobile"
@@ -169,7 +169,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
               value={formData.mobile}
               onChange={handleChange}
               placeholder="Enter your 10-digit mobile number"
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               disabled={loading}
             />
           </div>
@@ -177,7 +177,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
 
         {/* Gender Field */}
         <div>
-          <label htmlFor="gender" className="block text-sm font-semibold text-gray-700 mb-2">
+          <label htmlFor="gender" className="block text-sm font-semibold text-swar-text mb-2">
             Gender *
           </label>
           <select
@@ -185,7 +185,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
             name="gender"
             value={formData.gender}
             onChange={handleChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             disabled={loading}
           >
             <option value="">Select Gender</option>
@@ -196,7 +196,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
 
         {/* City Field */}
         <div>
-          <label htmlFor="city" className="block text-sm font-semibold text-gray-700 mb-2">
+          <label htmlFor="city" className="block text-sm font-semibold text-swar-text mb-2">
             City *
           </label>
           <input
@@ -206,7 +206,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
             value={formData.city}
             onChange={handleChange}
             placeholder="Enter your city"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             disabled={loading}
           />
         </div>
@@ -225,7 +225,7 @@ export default function EnquiryForm({ workshopId, workshopName, onSuccess }: Enq
         </button>
       </form>
 
-      <p className="text-xs text-gray-500 text-center mt-4">
+      <p className="text-xs text-swar-text-secondary text-center mt-4">
         We will send you an email and SMS when the schedule is announced.
       </p>
     </div>

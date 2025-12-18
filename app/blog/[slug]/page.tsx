@@ -342,7 +342,7 @@ Start with just one technique that resonates with your current health concern. P
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-yoga-50 to-white">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yoga-600 mx-auto mb-4"></div>
-            <p className="text-yoga-700">Loading article...</p>
+            <p className="text-swar-accent">Loading article...</p>
           </div>
         </div>
         <Footer />
@@ -356,9 +356,9 @@ Start with just one technique that resonates with your current health concern. P
         <Navigation />
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-yoga-50 to-white">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-yoga-700 mb-4">Article Not Found</h1>
-            <p className="text-yoga-600 mb-6">Sorry, we couldn't find the article you're looking for.</p>
-            <Link href="/blog" className="inline-flex items-center gap-2 px-6 py-3 bg-yoga-600 text-white rounded-lg hover:bg-yoga-700 transition">
+            <h1 className="text-3xl font-bold text-swar-accent mb-4">Article Not Found</h1>
+            <p className="text-swar-primary mb-6">Sorry, we couldn't find the article you're looking for.</p>
+            <Link href="/blog" className="inline-flex items-center gap-2 px-6 py-3 bg-swar-primary text-white rounded-lg hover:bg-swar-primary-hover transition">
               <ArrowLeft size={20} />
               Back to Blog
             </Link>
@@ -377,7 +377,7 @@ Start with just one technique that resonates with your current health concern. P
         {/* Header */}
         <div className="w-full bg-white border-b border-yoga-100">
           <div className="max-w-4xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-            <Link href="/blog" className="inline-flex items-center gap-2 text-yoga-600 hover:text-yoga-700 mb-6 transition">
+            <Link href="/blog" className="inline-flex items-center gap-2 text-swar-primary hover:text-swar-accent mb-6 transition">
               <ArrowLeft size={20} />
               Back to Blog
             </Link>
@@ -387,7 +387,7 @@ Start with just one technique that resonates with your current health concern. P
             </h1>
 
             {/* Metadata */}
-            <div className="flex flex-wrap gap-4 text-sm text-yoga-600 mb-6">
+            <div className="flex flex-wrap gap-4 text-sm text-swar-primary mb-6">
               <div className="flex items-center gap-2">
                 <User size={16} />
                 <span>{post.author}</span>
@@ -402,7 +402,7 @@ Start with just one technique that resonates with your current health concern. P
               </div>
               <div className="flex items-center gap-2">
                 <Tag size={16} />
-                <span className="px-3 py-1 bg-yoga-100 text-yoga-700 rounded-full text-xs font-medium">
+                <span className="px-3 py-1 bg-yoga-100 text-swar-accent rounded-full text-xs font-medium">
                   {post.category}
                 </span>
               </div>
@@ -414,8 +414,8 @@ Start with just one technique that resonates with your current health concern. P
                 onClick={() => setLanguage('en')}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   language === 'en'
-                    ? 'bg-yoga-600 text-white'
-                    : 'bg-yoga-100 text-yoga-700 hover:bg-yoga-200'
+                    ? 'bg-swar-primary text-white'
+                    : 'bg-yoga-100 text-swar-accent hover:bg-yoga-200'
                 }`}
               >
                 English
@@ -424,8 +424,8 @@ Start with just one technique that resonates with your current health concern. P
                 onClick={() => setLanguage('hi')}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   language === 'hi'
-                    ? 'bg-yoga-600 text-white'
-                    : 'bg-yoga-100 text-yoga-700 hover:bg-yoga-200'
+                    ? 'bg-swar-primary text-white'
+                    : 'bg-yoga-100 text-swar-accent hover:bg-yoga-200'
                 }`}
               >
                 हिंदी
@@ -434,8 +434,8 @@ Start with just one technique that resonates with your current health concern. P
                 onClick={() => setLanguage('mr')}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   language === 'mr'
-                    ? 'bg-yoga-600 text-white'
-                    : 'bg-yoga-100 text-yoga-700 hover:bg-yoga-200'
+                    ? 'bg-swar-primary text-white'
+                    : 'bg-yoga-100 text-swar-accent hover:bg-yoga-200'
                 }`}
               >
                 मराठी
@@ -479,7 +479,7 @@ Start with just one technique that resonates with your current health concern. P
               </div>
               <div>
                 <h3 className="font-bold text-yoga-900 mb-1">{post.author}</h3>
-                <p className="text-yoga-600 text-sm">
+                <p className="text-swar-primary text-sm">
                   Renowned Swar Yoga expert and wellness educator with 20+ years of experience in holistic health practices.
                 </p>
               </div>
@@ -490,7 +490,7 @@ Start with just one technique that resonates with your current health concern. P
           <div className="mt-12 flex justify-center">
             <Link
               href="/blog"
-              className="inline-flex items-center gap-2 px-8 py-3 bg-yoga-600 text-white rounded-lg hover:bg-yoga-700 transition font-medium"
+              className="inline-flex items-center gap-2 px-8 py-3 bg-swar-primary text-white rounded-lg hover:bg-swar-primary-hover transition font-medium"
             >
               <ArrowLeft size={20} />
               Back to All Articles

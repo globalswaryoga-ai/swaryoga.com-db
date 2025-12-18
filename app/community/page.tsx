@@ -64,20 +64,20 @@ export default function CommunityListPage() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-20 bg-gray-50">
+      <main className="min-h-screen pt-20 bg-swar-bg">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Community</h1>
-          <p className="mt-2 text-sm text-gray-600">Private communities are invite only.</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-swar-text">Community</h1>
+          <p className="mt-2 text-sm text-swar-text-secondary">Private communities are invite only.</p>
 
-          {loading && <p className="mt-6 text-sm text-gray-600">Loading...</p>}
+          {loading && <p className="mt-6 text-sm text-swar-text-secondary">Loading...</p>}
 
           {!loading && error && (
             <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
           )}
 
           {!loading && !error && communities.length === 0 && (
-            <div className="mt-6 rounded-lg border border-gray-200 bg-white px-4 py-6">
-              <p className="text-sm text-gray-800">You are not added to any community yet</p>
+            <div className="mt-6 rounded-lg border border-swar-border bg-white px-4 py-6">
+              <p className="text-sm text-swar-text">You are not added to any community yet</p>
             </div>
           )}
 
@@ -88,10 +88,10 @@ export default function CommunityListPage() {
                   key={c.id}
                   type="button"
                   onClick={() => router.push(`/community/${c.id}`)}
-                  className="w-full text-left rounded-lg border border-gray-200 bg-white px-4 py-4 hover:bg-gray-50"
+                  className="w-full text-left rounded-lg border border-swar-border bg-white px-4 py-4 hover:bg-swar-bg"
                 >
-                  <div className="text-base font-bold text-gray-900">{c.name}</div>
-                  <div className="mt-1 text-xs text-gray-500">Open</div>
+                  <div className="text-base font-bold text-swar-text">{c.name}</div>
+                  <div className="mt-1 text-xs text-swar-text-secondary">Open</div>
                 </button>
               ))}
             </div>

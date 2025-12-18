@@ -444,23 +444,23 @@ export default function Accounting() {
     const iconProps = { size: 20, className: '' };
     switch (type) {
       case 'bank': return <Building {...iconProps} className="text-blue-500" />;
-      case 'cash': return <Wallet {...iconProps} className="text-green-500" />;
+      case 'cash': return <Wallet {...iconProps} className="text-swar-primary-light0" />;
       case 'investment': return <TrendingUp {...iconProps} className="text-purple-500" />;
       case 'loan': return <CreditCard {...iconProps} className="text-red-500" />;
-      default: return <DollarSign {...iconProps} className="text-gray-500" />;
+      default: return <DollarSign {...iconProps} className="text-swar-text-secondary" />;
     }
   };
 
   const getTransactionIcon = (type: Transaction['type']) => {
     const iconProps = { size: 16, className: '' };
-    if (type === 'income') return <TrendingUp {...iconProps} className="text-green-500" />;
+    if (type === 'income') return <TrendingUp {...iconProps} className="text-swar-primary-light0" />;
     if (type === 'expense') return <TrendingDown {...iconProps} className="text-red-500" />;
     return <DollarSign {...iconProps} className="text-blue-500" />;
   };
 
   if (loading) {
     return (
-      <div className="pt-24 pb-20 min-h-screen bg-gray-50">
+      <div className="pt-24 pb-20 min-h-screen bg-swar-bg">
         <div className="container mx-auto px-4 flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
@@ -471,16 +471,16 @@ export default function Accounting() {
   return (
     <>
       <Navigation />
-      <div className="pt-24 pb-20 min-h-screen bg-gray-50">
+      <div className="pt-24 pb-20 min-h-screen bg-swar-bg">
         <div className="container mx-auto px-4">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Business Accounting</h1>
-            <p className="text-gray-600">Manage your finances, track expenses, and monitor investments</p>
+            <h1 className="text-3xl font-bold text-swar-text mb-2">Business Accounting</h1>
+            <p className="text-swar-text-secondary">Manage your finances, track expenses, and monitor investments</p>
           </div>
 
           {/* Tab Navigation */}
           <div className="bg-white rounded-lg shadow-md mb-6 overflow-x-auto">
-            <div className="border-b border-gray-200">
+            <div className="border-b border-swar-border">
               <nav className="flex space-x-8 px-6 min-w-max">
                 {[
                   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
@@ -495,7 +495,7 @@ export default function Accounting() {
                     className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                       activeTab === tab.id
                         ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        : 'border-transparent text-swar-text-secondary hover:text-swar-text hover:border-swar-border'
                     }`}
                   >
                     <tab.icon size={20} className="mr-2" />
@@ -512,12 +512,12 @@ export default function Accounting() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
                 <div className="bg-white p-6 rounded-lg shadow-md">
                   <div className="flex items-center">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <TrendingUp className="text-green-600" size={24} />
+                    <div className="p-2 bg-swar-primary-light rounded-lg">
+                      <TrendingUp className="text-swar-primary" size={24} />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">Total Income</p>
-                      <p className="text-2xl font-bold text-gray-900">₹{stats.totalIncome.toLocaleString()}</p>
+                      <p className="text-sm font-medium text-swar-text-secondary">Total Income</p>
+                      <p className="text-2xl font-bold text-swar-text">₹{stats.totalIncome.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
@@ -528,8 +528,8 @@ export default function Accounting() {
                       <TrendingDown className="text-red-600" size={24} />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-                      <p className="text-2xl font-bold text-gray-900">₹{stats.totalExpenses.toLocaleString()}</p>
+                      <p className="text-sm font-medium text-swar-text-secondary">Total Expenses</p>
+                      <p className="text-2xl font-bold text-swar-text">₹{stats.totalExpenses.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
@@ -540,8 +540,8 @@ export default function Accounting() {
                       <Wallet className="text-blue-600" size={24} />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">Net Profit</p>
-                      <p className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <p className="text-sm font-medium text-swar-text-secondary">Net Profit</p>
+                      <p className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-swar-primary' : 'text-red-600'}`}>
                         ₹{stats.netProfit.toLocaleString()}
                       </p>
                     </div>
@@ -554,8 +554,8 @@ export default function Accounting() {
                       <Target className="text-purple-600" size={24} />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">Investments</p>
-                      <p className="text-2xl font-bold text-gray-900">₹{stats.totalInvestments.toLocaleString()}</p>
+                      <p className="text-sm font-medium text-swar-text-secondary">Investments</p>
+                      <p className="text-2xl font-bold text-swar-text">₹{stats.totalInvestments.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
@@ -566,8 +566,8 @@ export default function Accounting() {
                       <PieChart className="text-indigo-600" size={24} />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">Total Balance</p>
-                      <p className="text-2xl font-bold text-gray-900">₹{stats.totalBalance.toLocaleString()}</p>
+                      <p className="text-sm font-medium text-swar-text-secondary">Total Balance</p>
+                      <p className="text-2xl font-bold text-swar-text">₹{stats.totalBalance.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
@@ -575,22 +575,22 @@ export default function Accounting() {
 
               {/* Recent Transactions */}
               <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Transactions</h3>
+                <h3 className="text-lg font-semibold text-swar-text mb-4">Recent Transactions</h3>
                 <div className="space-y-3">
                   {transactions.slice(0, 5).map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                    <div key={transaction.id} className="flex items-center justify-between p-3 border border-swar-border rounded-lg">
                       <div className="flex items-center">
                         {getTransactionIcon(transaction.type)}
                         <div className="ml-3">
-                          <p className="font-medium text-gray-800">{transaction.description}</p>
-                          <p className="text-sm text-gray-500">{transaction.category} • {transaction.account_name}</p>
+                          <p className="font-medium text-swar-text">{transaction.description}</p>
+                          <p className="text-sm text-swar-text-secondary">{transaction.category} • {transaction.account_name}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`font-semibold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                        <p className={`font-semibold ${transaction.type === 'income' ? 'text-swar-primary' : 'text-red-600'}`}>
                           {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
                         </p>
-                        <p className="text-sm text-gray-500">{new Date(transaction.date).toLocaleDateString()}</p>
+                        <p className="text-sm text-swar-text-secondary">{new Date(transaction.date).toLocaleDateString()}</p>
                       </div>
                     </div>
                   ))}
@@ -603,8 +603,8 @@ export default function Accounting() {
           {activeTab === 'accounts' && (
             <div>
               <div className="bg-white rounded-lg shadow-md">
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-800">Accounts</h3>
+                <div className="p-6 border-b border-swar-border flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-swar-text">Accounts</h3>
                   <button onClick={() => { resetAccountForm(); setEditingAccount(null); setShowAccountModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
                     <Plus size={20} className="mr-2" /> Add Account
                   </button>
@@ -613,11 +613,11 @@ export default function Accounting() {
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {accounts.map((account) => (
-                      <div key={account.id} className="border border-gray-200 rounded-lg p-4">
+                      <div key={account.id} className="border border-swar-border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center">
                             {getAccountIcon(account.type)}
-                            <span className="ml-2 font-medium text-gray-800">{account.name}</span>
+                            <span className="ml-2 font-medium text-swar-text">{account.name}</span>
                           </div>
                           <div className="flex space-x-2">
                             <button onClick={() => handleEditAccount(account)} className="text-blue-600 hover:text-blue-800">
@@ -628,10 +628,10 @@ export default function Accounting() {
                             </button>
                           </div>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900 mb-2">₹{account.balance.toLocaleString()}</p>
-                        <p className="text-sm text-gray-500 capitalize">{account.type}</p>
-                        {account.accountNumber && <p className="text-sm text-gray-500">Account: {account.accountNumber}</p>}
-                        {account.bankName && <p className="text-sm text-gray-500">Bank: {account.bankName}</p>}
+                        <p className="text-2xl font-bold text-swar-text mb-2">₹{account.balance.toLocaleString()}</p>
+                        <p className="text-sm text-swar-text-secondary capitalize">{account.type}</p>
+                        {account.accountNumber && <p className="text-sm text-swar-text-secondary">Account: {account.accountNumber}</p>}
+                        {account.bankName && <p className="text-sm text-swar-text-secondary">Bank: {account.bankName}</p>}
                       </div>
                     ))}
                   </div>
@@ -644,8 +644,8 @@ export default function Accounting() {
           {activeTab === 'transactions' && (
             <div>
               <div className="bg-white rounded-lg shadow-md">
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-800">Transactions</h3>
+                <div className="p-6 border-b border-swar-border flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-swar-text">Transactions</h3>
                   <button onClick={() => { resetTransactionForm(); setEditingTransaction(null); setShowTransactionModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
                     <Plus size={20} className="mr-2" /> Add Transaction
                   </button>
@@ -653,14 +653,14 @@ export default function Accounting() {
 
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-swar-bg">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Description</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Category</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Amount</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -669,14 +669,14 @@ export default function Accounting() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">{getTransactionIcon(transaction.type)} <span className="ml-2 capitalize">{transaction.type}</span></div>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">{transaction.description}</td>
-                          <td className="px-6 py-4 text-sm text-gray-500">{transaction.category}</td>
+                          <td className="px-6 py-4 text-sm text-swar-text">{transaction.description}</td>
+                          <td className="px-6 py-4 text-sm text-swar-text-secondary">{transaction.category}</td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`font-semibold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                            <span className={`font-semibold ${transaction.type === 'income' ? 'text-swar-primary' : 'text-red-600'}`}>
                               {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">{new Date(transaction.date).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 text-sm text-swar-text-secondary">{new Date(transaction.date).toLocaleDateString()}</td>
                           <td className="px-6 py-4 whitespace-nowrap flex space-x-2">
                             <button onClick={() => handleEditTransaction(transaction)} className="text-blue-600 hover:text-blue-900">
                               <Edit size={16} />
@@ -698,8 +698,8 @@ export default function Accounting() {
           {activeTab === 'investments' && (
             <div>
               <div className="bg-white rounded-lg shadow-md">
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-800">Investments</h3>
+                <div className="p-6 border-b border-swar-border flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-swar-text">Investments</h3>
                   <button onClick={() => { resetInvestmentForm(); setEditingInvestment(null); setShowInvestmentModal(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
                     <Plus size={20} className="mr-2" /> Add Investment
                   </button>
@@ -708,9 +708,9 @@ export default function Accounting() {
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {investments.map((investment) => (
-                      <div key={investment.id} className="border border-gray-200 rounded-lg p-4">
+                      <div key={investment.id} className="border border-swar-border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium text-gray-800">{investment.name}</h4>
+                          <h4 className="font-medium text-swar-text">{investment.name}</h4>
                           <div className="flex space-x-2">
                             <button onClick={() => handleEditInvestment(investment)} className="text-blue-600 hover:text-blue-800">
                               <Edit size={16} />
@@ -720,8 +720,8 @@ export default function Accounting() {
                             </button>
                           </div>
                         </div>
-                        <p className="text-2xl font-bold text-gray-900 mb-2">₹{typeof investment.amount === 'number' && isFinite(investment.amount) ? investment.amount.toLocaleString() : '0.00'}</p>
-                        <div className="space-y-1 text-sm text-gray-500">
+                        <p className="text-2xl font-bold text-swar-text mb-2">₹{typeof investment.amount === 'number' && isFinite(investment.amount) ? investment.amount.toLocaleString() : '0.00'}</p>
+                        <div className="space-y-1 text-sm text-swar-text-secondary">
                           <p>Type: <span className="capitalize">{investment.type.replace('_', ' ')}</span></p>
                           <p>Interest: {typeof investment.interest_rate === 'number' && isFinite(investment.interest_rate) ? investment.interest_rate.toFixed(2) : '0.00'}%</p>
                           <p>Dividend: {typeof investment.dividend_rate === 'number' && isFinite(investment.dividend_rate) ? investment.dividend_rate.toFixed(2) : '0.00'}%</p>
@@ -739,16 +739,16 @@ export default function Accounting() {
           {activeTab === 'reports' && (
             <div>
               <div className="bg-white rounded-lg shadow-md p-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">Financial Reports</h2>
+                <h2 className="text-2xl font-bold text-swar-text mb-6">Financial Reports</h2>
 
                 <div className="mb-8">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Report Period</label>
+                      <label className="block text-sm font-medium text-swar-text mb-2">Report Period</label>
                       <select
                         value={reportPeriod}
                         onChange={(e) => setReportPeriod(e.target.value as ReportPeriodKey)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="monthly">Monthly</option>
                         <option value="3month">3 Months</option>
@@ -759,59 +759,59 @@ export default function Accounting() {
 
                     {reportPeriod === 'monthly' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Month</label>
+                        <label className="block text-sm font-medium text-swar-text mb-2">Select Month</label>
                         <input
                           type="month"
                           value={reportMonth}
                           onChange={(e) => setReportMonth(e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     )}
 
                     {reportPeriod === 'yearly' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Year</label>
+                        <label className="block text-sm font-medium text-swar-text mb-2">Select Year</label>
                         <input
                           type="number"
                           value={reportYear}
                           onChange={(e) => setReportYear(parseInt(e.target.value))}
                           min={2020}
                           max={new Date().getFullYear()}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     )}
                   </div>
 
-                  <p className="mt-3 text-sm text-gray-600">
+                  <p className="mt-3 text-sm text-swar-text-secondary">
                     Selected: <span className="font-semibold">{reportRange.label}</span> ({reportRange.startDate} to {reportRange.endDate})
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="border-2 border-gray-200 rounded-lg p-6 text-center hover:border-blue-500 hover:shadow-lg transition">
+                  <div className="border-2 border-swar-border rounded-lg p-6 text-center hover:border-blue-500 hover:shadow-lg transition">
                     <FileText className="mx-auto mb-4 text-blue-600" size={40} />
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Profit & Loss Statement</h3>
-                    <p className="text-gray-600 mb-4">Tally-style statement with Debit/Credit columns for the selected period</p>
+                    <h3 className="text-lg font-semibold text-swar-text mb-2">Profit & Loss Statement</h3>
+                    <p className="text-swar-text-secondary mb-4">Tally-style statement with Debit/Credit columns for the selected period</p>
                     <button onClick={() => generatePDF('pl')} disabled={generatingReport} className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center justify-center">
                       <Download size={18} className="mr-2" /> Generate Report
                     </button>
                   </div>
 
-                  <div className="border-2 border-gray-200 rounded-lg p-6 text-center hover:border-green-500 hover:shadow-lg transition">
-                    <FileText className="mx-auto mb-4 text-green-600" size={40} />
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Balance Sheet</h3>
-                    <p className="text-gray-600 mb-4">Tally-style Liabilities/Assets statement (uses current balances)</p>
-                    <button onClick={() => generatePDF('balancesheet')} disabled={generatingReport} className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center justify-center">
+                  <div className="border-2 border-swar-border rounded-lg p-6 text-center hover:border-green-500 hover:shadow-lg transition">
+                    <FileText className="mx-auto mb-4 text-swar-primary" size={40} />
+                    <h3 className="text-lg font-semibold text-swar-text mb-2">Balance Sheet</h3>
+                    <p className="text-swar-text-secondary mb-4">Tally-style Liabilities/Assets statement (uses current balances)</p>
+                    <button onClick={() => generatePDF('balancesheet')} disabled={generatingReport} className="w-full bg-swar-primary hover:bg-swar-primary disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center justify-center">
                       <Download size={18} className="mr-2" /> Generate Report
                     </button>
                   </div>
 
-                  <div className="border-2 border-gray-200 rounded-lg p-6 text-center hover:border-purple-500 hover:shadow-lg transition">
+                  <div className="border-2 border-swar-border rounded-lg p-6 text-center hover:border-purple-500 hover:shadow-lg transition">
                     <FileText className="mx-auto mb-4 text-purple-600" size={40} />
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Income & Expense Report</h3>
-                    <p className="text-gray-600 mb-4">Tally-style Income/Expense with Debit/Credit columns for the selected period</p>
+                    <h3 className="text-lg font-semibold text-swar-text mb-2">Income & Expense Report</h3>
+                    <p className="text-swar-text-secondary mb-4">Tally-style Income/Expense with Debit/Credit columns for the selected period</p>
                     <button onClick={() => generatePDF('income')} disabled={generatingReport} className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center justify-center">
                       <Download size={18} className="mr-2" /> Generate Report
                     </button>
@@ -819,22 +819,22 @@ export default function Accounting() {
                 </div>
 
                 <div className="mt-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="font-semibold text-gray-800 mb-2">Quick Summary — {reportRange.label}</h4>
+                  <h4 className="font-semibold text-swar-text mb-2">Quick Summary — {reportRange.label}</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <p className="text-gray-600">Total Income</p>
-                      <p className="text-lg font-bold text-green-600">₹{reportStats.totalIncome.toLocaleString()}</p>
+                      <p className="text-swar-text-secondary">Total Income</p>
+                      <p className="text-lg font-bold text-swar-primary">₹{reportStats.totalIncome.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600">Total Expenses</p>
+                      <p className="text-swar-text-secondary">Total Expenses</p>
                       <p className="text-lg font-bold text-red-600">₹{reportStats.totalExpenses.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600">Net Profit</p>
-                      <p className={`text-lg font-bold ${reportStats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>₹{reportStats.netProfit.toLocaleString()}</p>
+                      <p className="text-swar-text-secondary">Net Profit</p>
+                      <p className={`text-lg font-bold ${reportStats.netProfit >= 0 ? 'text-swar-primary' : 'text-red-600'}`}>₹{reportStats.netProfit.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600">Net Worth</p>
+                      <p className="text-swar-text-secondary">Net Worth</p>
                       <p className="text-lg font-bold text-blue-600">₹{reportStats.netWorth.toLocaleString()}</p>
                     </div>
                   </div>
@@ -848,15 +848,15 @@ export default function Accounting() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
                 <div className="p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">{editingAccount ? 'Edit Account' : 'Add New Account'}</h3>
+                  <h3 className="text-lg font-semibold text-swar-text mb-4">{editingAccount ? 'Edit Account' : 'Add New Account'}</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Account Name</label>
-                      <input type="text" value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter account name" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Account Name</label>
+                      <input type="text" value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter account name" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
-                      <select value={accountForm.type} onChange={(e) => setAccountForm({ ...accountForm, type: e.target.value as Account['type'] })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <label className="block text-sm font-medium text-swar-text mb-1">Account Type</label>
+                      <select value={accountForm.type} onChange={(e) => setAccountForm({ ...accountForm, type: e.target.value as Account['type'] })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="bank">Bank Account</option>
                         <option value="cash">Cash</option>
                         <option value="investment">Investment</option>
@@ -866,22 +866,22 @@ export default function Accounting() {
                     {accountForm.type === 'bank' && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
-                          <input type="text" value={accountForm.accountNumber} onChange={(e) => setAccountForm({ ...accountForm, accountNumber: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter account number" />
+                          <label className="block text-sm font-medium text-swar-text mb-1">Account Number</label>
+                          <input type="text" value={accountForm.accountNumber} onChange={(e) => setAccountForm({ ...accountForm, accountNumber: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter account number" />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
-                          <input type="text" value={accountForm.bankName} onChange={(e) => setAccountForm({ ...accountForm, bankName: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter bank name" />
+                          <label className="block text-sm font-medium text-swar-text mb-1">Bank Name</label>
+                          <input type="text" value={accountForm.bankName} onChange={(e) => setAccountForm({ ...accountForm, bankName: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter bank name" />
                         </div>
                       </>
                     )}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Initial Balance</label>
-                      <input type="number" value={accountForm.balance} onChange={(e) => setAccountForm({ ...accountForm, balance: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter initial balance" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Initial Balance</label>
+                      <input type="number" value={accountForm.balance} onChange={(e) => setAccountForm({ ...accountForm, balance: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter initial balance" />
                     </div>
                   </div>
                   <div className="flex justify-end space-x-3 mt-6">
-                    <button onClick={() => { setShowAccountModal(false); setEditingAccount(null); resetAccountForm(); }} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button onClick={() => { setShowAccountModal(false); setEditingAccount(null); resetAccountForm(); }} className="px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg">Cancel</button>
                     <button onClick={handleSaveAccount} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">{editingAccount ? 'Update' : 'Create'} Account</button>
                   </div>
                 </div>
@@ -894,30 +894,30 @@ export default function Accounting() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">{editingTransaction ? 'Edit Transaction' : 'Add New Transaction'}</h3>
+                  <h3 className="text-lg font-semibold text-swar-text mb-4">{editingTransaction ? 'Edit Transaction' : 'Add New Transaction'}</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                      <select value={transactionForm.type} onChange={(e) => setTransactionForm({ ...transactionForm, type: e.target.value as Transaction['type'] })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <label className="block text-sm font-medium text-swar-text mb-1">Type</label>
+                      <select value={transactionForm.type} onChange={(e) => setTransactionForm({ ...transactionForm, type: e.target.value as Transaction['type'] })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="income">Income</option>
                         <option value="expense">Expense</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                      <input type="number" value={transactionForm.amount} onChange={(e) => setTransactionForm({ ...transactionForm, amount: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter amount" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Amount</label>
+                      <input type="number" value={transactionForm.amount} onChange={(e) => setTransactionForm({ ...transactionForm, amount: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter amount" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                      <input type="text" value={transactionForm.description} onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter description" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Description</label>
+                      <input type="text" value={transactionForm.description} onChange={(e) => setTransactionForm({ ...transactionForm, description: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter description" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                      <input type="text" value={transactionForm.category} onChange={(e) => setTransactionForm({ ...transactionForm, category: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter category" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Category</label>
+                      <input type="text" value={transactionForm.category} onChange={(e) => setTransactionForm({ ...transactionForm, category: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter category" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
-                      <select value={transactionForm.account_id} onChange={(e) => setTransactionForm({ ...transactionForm, account_id: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <label className="block text-sm font-medium text-swar-text mb-1">Account</label>
+                      <select value={transactionForm.account_id} onChange={(e) => setTransactionForm({ ...transactionForm, account_id: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="">Select account</option>
                         {accounts.map((account) => (
                           <option key={account.id} value={account.id}>{account.name}</option>
@@ -925,12 +925,12 @@ export default function Accounting() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                      <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Date</label>
+                      <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
-                      <select value={transactionForm.mode} onChange={(e) => setTransactionForm({ ...transactionForm, mode: e.target.value as Transaction['mode'] })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <label className="block text-sm font-medium text-swar-text mb-1">Payment Mode</label>
+                      <select value={transactionForm.mode} onChange={(e) => setTransactionForm({ ...transactionForm, mode: e.target.value as Transaction['mode'] })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="cash">Cash</option>
                         <option value="bank">Bank Transfer</option>
                         <option value="card">Card</option>
@@ -939,7 +939,7 @@ export default function Accounting() {
                     </div>
                   </div>
                   <div className="flex justify-end space-x-3 mt-6">
-                    <button onClick={() => { setShowTransactionModal(false); setEditingTransaction(null); resetTransactionForm(); }} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button onClick={() => { setShowTransactionModal(false); setEditingTransaction(null); resetTransactionForm(); }} className="px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg">Cancel</button>
                     <button onClick={handleSaveTransaction} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">{editingTransaction ? 'Update' : 'Create'} Transaction</button>
                   </div>
                 </div>
@@ -952,36 +952,36 @@ export default function Accounting() {
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
                 <div className="p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">{editingInvestment ? 'Edit Investment' : 'Add New Investment'}</h3>
+                  <h3 className="text-lg font-semibold text-swar-text mb-4">{editingInvestment ? 'Edit Investment' : 'Add New Investment'}</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Investment Name</label>
-                      <input type="text" value={investmentForm.name} onChange={(e) => setInvestmentForm({ ...investmentForm, name: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter investment name" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Investment Name</label>
+                      <input type="text" value={investmentForm.name} onChange={(e) => setInvestmentForm({ ...investmentForm, name: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter investment name" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                      <select value={investmentForm.type} onChange={(e) => setInvestmentForm({ ...investmentForm, type: e.target.value as Investment['type'] })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <label className="block text-sm font-medium text-swar-text mb-1">Type</label>
+                      <select value={investmentForm.type} onChange={(e) => setInvestmentForm({ ...investmentForm, type: e.target.value as Investment['type'] })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="investment_in">Investment In</option>
                         <option value="investment_out">Investment Out</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                      <input type="number" value={investmentForm.amount} onChange={(e) => setInvestmentForm({ ...investmentForm, amount: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter amount" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Amount</label>
+                      <input type="number" value={investmentForm.amount} onChange={(e) => setInvestmentForm({ ...investmentForm, amount: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter amount" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Interest Rate (%)</label>
-                        <input type="number" value={investmentForm.interest_rate} onChange={(e) => setInvestmentForm({ ...investmentForm, interest_rate: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" step="0.01" />
+                        <label className="block text-sm font-medium text-swar-text mb-1">Interest Rate (%)</label>
+                        <input type="number" value={investmentForm.interest_rate} onChange={(e) => setInvestmentForm({ ...investmentForm, interest_rate: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" step="0.01" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Dividend Rate (%)</label>
-                        <input type="number" value={investmentForm.dividend_rate} onChange={(e) => setInvestmentForm({ ...investmentForm, dividend_rate: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" step="0.01" />
+                        <label className="block text-sm font-medium text-swar-text mb-1">Dividend Rate (%)</label>
+                        <input type="number" value={investmentForm.dividend_rate} onChange={(e) => setInvestmentForm({ ...investmentForm, dividend_rate: parseFloat(e.target.value) || 0 })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" step="0.01" />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Repayment Mode</label>
-                      <select value={investmentForm.repayment_mode} onChange={(e) => setInvestmentForm({ ...investmentForm, repayment_mode: e.target.value as Investment['repayment_mode'] })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <label className="block text-sm font-medium text-swar-text mb-1">Repayment Mode</label>
+                      <select value={investmentForm.repayment_mode} onChange={(e) => setInvestmentForm({ ...investmentForm, repayment_mode: e.target.value as Investment['repayment_mode'] })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="monthly">Monthly</option>
                         <option value="quarterly">Quarterly</option>
                         <option value="yearly">Yearly</option>
@@ -989,8 +989,8 @@ export default function Accounting() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
-                      <select value={investmentForm.account_id} onChange={(e) => setInvestmentForm({ ...investmentForm, account_id: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <label className="block text-sm font-medium text-swar-text mb-1">Account</label>
+                      <select value={investmentForm.account_id} onChange={(e) => setInvestmentForm({ ...investmentForm, account_id: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="">Select account</option>
                         {accounts.map((account) => (
                           <option key={account.id} value={account.id}>{account.name}</option>
@@ -998,24 +998,24 @@ export default function Accounting() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                      <select value={investmentForm.status} onChange={(e) => setInvestmentForm({ ...investmentForm, status: e.target.value as Investment['status'] })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <label className="block text-sm font-medium text-swar-text mb-1">Status</label>
+                      <select value={investmentForm.status} onChange={(e) => setInvestmentForm({ ...investmentForm, status: e.target.value as Investment['status'] })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500">
                         <option value="active">Active</option>
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Next Due Date</label>
-                      <input type="date" value={investmentForm.next_due_date} onChange={(e) => setInvestmentForm({ ...investmentForm, next_due_date: e.target.value })} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                      <label className="block text-sm font-medium text-swar-text mb-1">Next Due Date</label>
+                      <input type="date" value={investmentForm.next_due_date} onChange={(e) => setInvestmentForm({ ...investmentForm, next_due_date: e.target.value })} className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div className="flex items-center">
                       <input type="checkbox" id="reminder_enabled" checked={investmentForm.reminder_enabled} onChange={(e) => setInvestmentForm({ ...investmentForm, reminder_enabled: e.target.checked })} className="h-4 w-4 text-blue-600" />
-                      <label htmlFor="reminder_enabled" className="ml-2 block text-sm text-gray-900">Enable reminders</label>
+                      <label htmlFor="reminder_enabled" className="ml-2 block text-sm text-swar-text">Enable reminders</label>
                     </div>
                   </div>
                   <div className="flex justify-end space-x-3 mt-6">
-                    <button onClick={() => { setShowInvestmentModal(false); setEditingInvestment(null); resetInvestmentForm(); }} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button onClick={() => { setShowInvestmentModal(false); setEditingInvestment(null); resetInvestmentForm(); }} className="px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg">Cancel</button>
                     <button onClick={handleSaveInvestment} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">{editingInvestment ? 'Update' : 'Create'} Investment</button>
                   </div>
                 </div>

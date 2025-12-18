@@ -125,9 +125,9 @@ function PaymentConfirmationInner() {
           <div className="bg-white rounded-xl shadow-2xl p-8 sm:p-12">
             {/* Success Icon */}
             <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-green-100 mb-4">
+              <div className="inline-flex items-center justify-center h-20 w-20 rounded-full bg-swar-primary-light mb-4">
                 <svg
-                  className="h-10 w-10 text-green-600"
+                  className="h-10 w-10 text-swar-primary"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -140,10 +140,10 @@ function PaymentConfirmationInner() {
                   />
                 </svg>
               </div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
+              <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">
                 Welcome to Swar Yoga! 🎉
               </h1>
-              <p className="text-gray-600 text-lg">
+              <p className="text-swar-text-secondary text-lg">
                 Your account has been successfully created
               </p>
             </div>
@@ -152,19 +152,19 @@ function PaymentConfirmationInner() {
             <div className="bg-yoga-50 rounded-lg p-6 mb-8 border border-yoga-200">
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-600">Account Created For</p>
-                  <p className="text-lg font-semibold text-gray-900">{userInfo.name}</p>
+                  <p className="text-sm text-swar-text-secondary">Account Created For</p>
+                  <p className="text-lg font-semibold text-swar-text">{userInfo.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Email Address</p>
-                  <p className="text-lg font-semibold text-gray-900">{userInfo.email}</p>
+                  <p className="text-sm text-swar-text-secondary">Email Address</p>
+                  <p className="text-lg font-semibold text-swar-text">{userInfo.email}</p>
                 </div>
                 <div className="pt-3 border-t border-yoga-300">
-                  <p className="text-sm text-gray-600">Workshop Details</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-sm text-swar-text-secondary">Workshop Details</p>
+                  <p className="text-lg font-semibold text-swar-text">
                     {workshopDisplayName} - {modeDisplayName}
                   </p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-swar-text-secondary">
                     Language: {languageDisplayName} | Currency: {paymentInfo.currency}
                   </p>
                 </div>
@@ -172,9 +172,9 @@ function PaymentConfirmationInner() {
             </div>
 
             {/* Cart Section */}
-            <div className="border-t border-b border-gray-200 py-8 mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Next Step: Add Your Workshop to Cart</h2>
-              <p className="text-gray-600 mb-6">
+            <div className="border-t border-b border-swar-border py-8 mb-8">
+              <h2 className="text-2xl font-bold text-swar-text mb-4">Next Step: Add Your Workshop to Cart</h2>
+              <p className="text-swar-text-secondary mb-6">
                 Add your preferred workshop to the cart and finish checkout when you’re ready. You can manage quantities, choose your preferred currency, and complete secure payment from the cart page.
               </p>
 
@@ -186,8 +186,8 @@ function PaymentConfirmationInner() {
                   disabled={isAdding || addedToCart}
                   className={`w-full sm:w-auto px-6 py-3 rounded-lg font-semibold text-white transition-all ${
                     addedToCart
-                      ? 'bg-green-600'
-                      : 'bg-yoga-600 hover:bg-yoga-700'
+                      ? 'bg-swar-primary'
+                      : 'bg-swar-primary hover:bg-swar-primary-hover'
                   }`}
                 >
                   {addedToCart ? 'Added! Redirecting to Cart…' : isAdding ? 'Adding...' : '🛒 Add to Cart'}
@@ -195,13 +195,13 @@ function PaymentConfirmationInner() {
                 <button
                   type="button"
                   onClick={() => router.push('/cart')}
-                  className="w-full sm:w-auto px-6 py-3 rounded-lg font-semibold border border-yoga-600 text-yoga-700 hover:bg-yoga-50 transition"
+                  className="w-full sm:w-auto px-6 py-3 rounded-lg font-semibold border border-yoga-600 text-swar-accent hover:bg-yoga-50 transition"
                 >
                   Go to Cart
                 </button>
               </div>
 
-              <p className="text-sm text-gray-500 text-center mt-4">
+              <p className="text-sm text-swar-text-secondary text-center mt-4">
                 Use the cart to review your selections and proceed with secure checkout.
               </p>
             </div>
@@ -210,30 +210,30 @@ function PaymentConfirmationInner() {
             <div className="space-y-4">
               <button
                 onClick={handleContinueLater}
-                className="w-full bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-all"
+                className="w-full bg-swar-primary-light text-swar-text py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-all"
               >
                 Continue Later
               </button>
 
-              <p className="text-xs text-gray-500 text-center">
+              <p className="text-xs text-swar-text-secondary text-center">
                 You can access payment anytime from your account dashboard
               </p>
             </div>
 
             {/* FAQ Section */}
-            <div className="mt-8 pt-8 border-t border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Frequently Asked Questions</h3>
-              <div className="space-y-4 text-sm text-gray-600">
+            <div className="mt-8 pt-8 border-t border-swar-border">
+              <h3 className="text-lg font-semibold text-swar-text mb-4">Frequently Asked Questions</h3>
+              <div className="space-y-4 text-sm text-swar-text-secondary">
                 <div>
-                  <p className="font-semibold text-gray-900 mb-1">Is my payment secure?</p>
+                  <p className="font-semibold text-swar-text mb-1">Is my payment secure?</p>
                   <p>Yes, we use PayU, a trusted and secure payment gateway. Your payment information is encrypted and protected.</p>
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900 mb-1">What happens after payment?</p>
+                  <p className="font-semibold text-swar-text mb-1">What happens after payment?</p>
                   <p>You'll receive a confirmation email immediately. Your account will be fully activated with access to all workshops.</p>
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900 mb-1">Can I pay later?</p>
+                  <p className="font-semibold text-swar-text mb-1">Can I pay later?</p>
                   <p>Yes, you can skip this for now and come back anytime to complete the payment from your profile.</p>
                 </div>
               </div>

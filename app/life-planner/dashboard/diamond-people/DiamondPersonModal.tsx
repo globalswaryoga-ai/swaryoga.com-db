@@ -58,13 +58,13 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-800">
+        <div className="flex items-center justify-between p-6 border-b border-swar-border">
+          <h2 className="text-2xl font-bold text-swar-text">
             {person ? 'Edit Person' : 'Add New Person'}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light rounded-lg transition-colors"
           >
             <X className="h-6 w-6" />
           </button>
@@ -74,26 +74,26 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
           {/* Row 1: Name and Profession */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Name *</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="Full name"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Profession *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Profession *</label>
               <input
                 type="text"
                 name="profession"
                 value={formData.profession}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="e.g., Yoga Instructor"
               />
             </div>
@@ -102,26 +102,26 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
           {/* Row 2: Email and Phone */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Email *</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="email@example.com"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Mobile *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Mobile *</label>
               <input
                 type="tel"
                 name="mobile"
                 value={formData.mobile}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="+1 (555) 123-4567"
               />
             </div>
@@ -130,26 +130,26 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
           {/* Row 3: Country and State */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Country *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Country *</label>
               <input
                 type="text"
                 name="country"
                 value={formData.country}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="United States"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">State/Province *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">State/Province *</label>
               <input
                 type="text"
                 name="state"
                 value={formData.state}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="California"
               />
             </div>
@@ -157,14 +157,14 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
 
           {/* Address */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
+            <label className="block text-sm font-medium text-swar-text mb-2">Address *</label>
             <input
               type="text"
               name="address"
               value={formData.address}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="123 Street, City, ZIP"
             />
           </div>
@@ -172,12 +172,12 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
           {/* Row 4: Category and Relationship */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Category *</label>
               <select
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option>Spiritual Mentor</option>
                 <option>Health Professional</option>
@@ -187,12 +187,12 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Relationship *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Relationship *</label>
               <select
                 name="relationship"
                 value={formData.relationship}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="professional">Professional</option>
                 <option value="personal">Personal</option>
@@ -204,47 +204,47 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
 
           {/* Last Contact */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Last Contact</label>
+            <label className="block text-sm font-medium text-swar-text mb-2">Last Contact</label>
             <input
               type="date"
               name="lastContact"
               value={formData.lastContact}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
           </div>
 
           {/* Image URL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Image URL</label>
+            <label className="block text-sm font-medium text-swar-text mb-2">Image URL</label>
             <input
               type="text"
               name="imageUrl"
               value={formData.imageUrl}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="https://example.com/image.jpg"
             />
           </div>
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+            <label className="block text-sm font-medium text-swar-text mb-2">Notes</label>
             <textarea
               name="notes"
               value={formData.notes}
               onChange={handleChange}
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="Add any notes about this person..."
             />
           </div>
 
           {/* Form Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-swar-border">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
             >
               Cancel
             </button>

@@ -386,7 +386,7 @@ export default function UserProfile() {
         <Navigation />
         <div className="container mx-auto px-4 py-20 text-center">
           <div className="animate-spin inline-block w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full"></div>
-          <p className="mt-4 text-gray-600">Loading your profile...</p>
+          <p className="mt-4 text-swar-text-secondary">Loading your profile...</p>
         </div>
         <Footer />
       </>
@@ -398,7 +398,7 @@ export default function UserProfile() {
       <>
         <Navigation />
         <div className="container mx-auto px-4 py-20 text-center">
-          <p className="text-gray-600 mb-4">Please log in to view your profile</p>
+          <p className="text-swar-text-secondary mb-4">Please log in to view your profile</p>
           <Link href="/signin" className="inline-block bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700">
             Sign In
           </Link>
@@ -465,10 +465,10 @@ export default function UserProfile() {
                     />
                   </div>
 
-                  <h2 className="text-2xl font-bold text-gray-800">{user.name}</h2>
+                  <h2 className="text-2xl font-bold text-swar-text">{user.name}</h2>
                   <p className="text-primary-600 font-medium mt-1">ID: {user.profileId || user.id?.slice(-6) || 'N/A'}</p>
-                  <p className="text-sm text-gray-500 mt-1">{user.profession || 'Member'}</p>
-                  <p className="text-xs text-gray-500 mt-2 break-all">{user.email}</p>
+                  <p className="text-sm text-swar-text-secondary mt-1">{user.profession || 'Member'}</p>
+                  <p className="text-xs text-swar-text-secondary mt-2 break-all">{user.email}</p>
                   
                   {/* Tabs */}
                   <div className="mt-8 flex flex-col gap-3">
@@ -477,7 +477,7 @@ export default function UserProfile() {
                       className={`px-4 py-2 rounded-lg font-medium transition ${
                         activeTab === 'profile'
                           ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                       }`}
                     >
                       <User size={18} className="inline mr-2" />
@@ -488,7 +488,7 @@ export default function UserProfile() {
                       className={`px-4 py-2 rounded-lg font-medium transition relative ${
                         activeTab === 'orders'
                           ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                       }`}
                     >
                       <ShoppingCart size={18} className="inline mr-2" />
@@ -504,7 +504,7 @@ export default function UserProfile() {
                       className={`px-4 py-2 rounded-lg font-medium transition relative ${
                         activeTab === 'messages'
                           ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                       }`}
                     >
                       <MessageSquare size={18} className="inline mr-2" />
@@ -520,7 +520,7 @@ export default function UserProfile() {
                       className={`px-4 py-2 rounded-lg font-medium transition ${
                         activeTab === 'security'
                           ? 'bg-primary-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                       }`}
                     >
                       <Shield size={18} className="inline mr-2" />
@@ -536,93 +536,93 @@ export default function UserProfile() {
               {/* Profile Information Tab */}
               {activeTab === 'profile' && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
-                  <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                  <h3 className="text-2xl font-bold text-swar-text mb-6 flex items-center gap-2">
                     <User size={24} className="text-primary-600" />
                     Profile Information
                   </h3>
 
                   <div className="grid md:grid-cols-2 gap-6">
                     {/* Profile ID */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600">Profile ID</label>
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary">Profile ID</label>
                       <p className="text-lg font-mono font-bold text-primary-600 mt-2">{user.profileId || user.id?.slice(-6) || 'N/A'}</p>
-                      <p className="text-xs text-gray-500 mt-1">6-digit unique identifier</p>
+                      <p className="text-xs text-swar-text-secondary mt-1">6-digit unique identifier</p>
                     </div>
 
                     {/* User ID */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600">User ID</label>
-                      <p className="text-sm font-mono text-gray-800 mt-2 break-all">{user.id}</p>
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary">User ID</label>
+                      <p className="text-sm font-mono text-swar-text mt-2 break-all">{user.id}</p>
                     </div>
 
                     {/* Name */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary flex items-center gap-2">
                         <User size={16} /> Full Name
                       </label>
-                      <p className="text-lg text-gray-800 mt-2">{user.name}</p>
+                      <p className="text-lg text-swar-text mt-2">{user.name}</p>
                     </div>
 
                     {/* Email */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary flex items-center gap-2">
                         <Mail size={16} /> Email Address
                       </label>
-                      <p className="text-lg text-gray-800 mt-2">{user.email}</p>
+                      <p className="text-lg text-swar-text mt-2">{user.email}</p>
                     </div>
 
                     {/* Phone */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary flex items-center gap-2">
                         <Phone size={16} /> Phone Number
                       </label>
-                      <p className="text-lg text-gray-800 mt-2">
+                      <p className="text-lg text-swar-text mt-2">
                         {user.countryCode} {user.phone || 'Not provided'}
                       </p>
                     </div>
 
                     {/* Country */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary flex items-center gap-2">
                         <MapPin size={16} /> Country
                       </label>
-                      <p className="text-lg text-gray-800 mt-2">{user.country || 'Not provided'}</p>
+                      <p className="text-lg text-swar-text mt-2">{user.country || 'Not provided'}</p>
                     </div>
 
                     {/* State */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary flex items-center gap-2">
                         <MapPin size={16} /> State
                       </label>
-                      <p className="text-lg text-gray-800 mt-2">{user.state || 'Not provided'}</p>
+                      <p className="text-lg text-swar-text mt-2">{user.state || 'Not provided'}</p>
                     </div>
 
                     {/* Gender */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600">Gender</label>
-                      <p className="text-lg text-gray-800 mt-2">{user.gender || 'Not provided'}</p>
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary">Gender</label>
+                      <p className="text-lg text-swar-text mt-2">{user.gender || 'Not provided'}</p>
                     </div>
 
                     {/* Age */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <div className="bg-swar-bg p-4 rounded-lg">
+                      <label className="text-sm font-medium text-swar-text-secondary flex items-center gap-2">
                         <Calendar size={16} /> Age
                       </label>
-                      <p className="text-lg text-gray-800 mt-2">{user.age ? `${user.age} years` : 'Not provided'}</p>
+                      <p className="text-lg text-swar-text mt-2">{user.age ? `${user.age} years` : 'Not provided'}</p>
                     </div>
 
                     {/* Profession */}
-                    <div className="bg-gray-50 p-4 rounded-lg md:col-span-2">
-                      <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <div className="bg-swar-bg p-4 rounded-lg md:col-span-2">
+                      <label className="text-sm font-medium text-swar-text-secondary flex items-center gap-2">
                         <Briefcase size={16} /> Profession
                       </label>
-                      <p className="text-lg text-gray-800 mt-2">{user.profession || 'Not provided'}</p>
+                      <p className="text-lg text-swar-text mt-2">{user.profession || 'Not provided'}</p>
                     </div>
                   </div>
 
                   {/* Offers Section */}
                   <div className="mt-8 pt-8 border-t">
-                    <h4 className="text-xl font-bold text-gray-800 mb-4">Special Offers & Benefits</h4>
+                    <h4 className="text-xl font-bold text-swar-text mb-4">Special Offers & Benefits</h4>
                     <UserOffersDisplay />
                   </div>
                 </div>
@@ -631,7 +631,7 @@ export default function UserProfile() {
               {/* Orders & Payments Tab */}
               {activeTab === 'orders' && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
-                  <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                  <h3 className="text-2xl font-bold text-swar-text mb-6 flex items-center gap-2">
                     <ShoppingCart size={24} className="text-primary-600" />
                     Your Orders & Purchases ({orders.length})
                   </h3>
@@ -639,8 +639,8 @@ export default function UserProfile() {
                   {orders.length === 0 ? (
                     <div className="text-center py-12">
                       <ShoppingCart size={48} className="mx-auto text-gray-300 mb-4" />
-                      <p className="text-gray-600 text-lg">No orders yet</p>
-                      <p className="text-gray-500 text-sm mt-2">Start shopping to see your orders here</p>
+                      <p className="text-swar-text-secondary text-lg">No orders yet</p>
+                      <p className="text-swar-text-secondary text-sm mt-2">Start shopping to see your orders here</p>
                       <Link href="/checkout" className="inline-block mt-4 bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700">
                         Continue Shopping
                       </Link>
@@ -648,16 +648,16 @@ export default function UserProfile() {
                   ) : (
                     <div className="space-y-6">
                       {orders.map((order) => (
-                        <div key={order._id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition">
+                        <div key={order._id} className="border border-swar-border rounded-lg p-6 hover:shadow-md transition">
                           <div className="flex justify-between items-start mb-4">
                             <div>
-                              <h4 className="font-bold text-gray-800">Order #{order._id.slice(-8)}</h4>
-                              <p className="text-sm text-gray-500">
+                              <h4 className="font-bold text-swar-text">Order #{order._id.slice(-8)}</h4>
+                              <p className="text-sm text-swar-text-secondary">
                                 Placed on {new Date(order.createdAt).toLocaleDateString()}
                               </p>
                             </div>
                             <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              order.status === 'completed' ? 'bg-swar-primary-light text-swar-primary' :
                               order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                               'bg-blue-100 text-blue-800'
                             }`}>
@@ -667,14 +667,14 @@ export default function UserProfile() {
 
                           {/* Items */}
                           <div className="mb-4 pb-4 border-b">
-                            <h5 className="font-semibold text-gray-700 mb-3">Items Purchased:</h5>
+                            <h5 className="font-semibold text-swar-text mb-3">Items Purchased:</h5>
                             <div className="space-y-2">
                               {order.items.map((item, idx) => (
                                 <div key={idx} className="flex justify-between text-sm">
-                                  <span className="text-gray-700">
-                                    {item.name} <span className="text-gray-500">x{item.quantity}</span>
+                                  <span className="text-swar-text">
+                                    {item.name} <span className="text-swar-text-secondary">x{item.quantity}</span>
                                   </span>
-                                  <span className="font-medium text-gray-800">
+                                  <span className="font-medium text-swar-text">
                                     {getCurrencySymbol((order.currency as CurrencyCode) || 'INR')}
                                     {roundMoney(item.price * item.quantity).toFixed(2)}
                                   </span>
@@ -684,21 +684,21 @@ export default function UserProfile() {
                           </div>
 
                           {/* Payment Details */}
-                          <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                          <div className="bg-swar-bg p-4 rounded-lg mb-4">
                             <div className="flex items-center gap-2 mb-3">
                               <CreditCard size={18} className="text-primary-600" />
-                              <h5 className="font-semibold text-gray-800">Payment Details</h5>
+                              <h5 className="font-semibold text-swar-text">Payment Details</h5>
                             </div>
                             <div className="space-y-2">
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Amount Paid:</span>
-                                <span className="text-gray-800">
+                                <span className="text-swar-text-secondary">Amount Paid:</span>
+                                <span className="text-swar-text">
                                   {getCurrencySymbol((order.currency as CurrencyCode) || 'INR')}
                                   {roundMoney(order.total).toFixed(2)}
                                 </span>
                               </div>
                               <div className="border-t pt-2 flex justify-between font-bold">
-                                <span className="text-gray-800">Total:</span>
+                                <span className="text-swar-text">Total:</span>
                                 <span className="text-primary-600">
                                   {getCurrencySymbol((order.currency as CurrencyCode) || 'INR')}
                                   {roundMoney(order.total).toFixed(2)}
@@ -733,7 +733,7 @@ export default function UserProfile() {
               {/* Messages Tab */}
               {activeTab === 'messages' && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
-                  <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <h3 className="text-2xl font-bold text-swar-text mb-4 flex items-center gap-2">
                     <MessageSquare size={24} className="text-primary-600" />
                     Support Chat ({messages.length})
                   </h3>
@@ -745,8 +745,8 @@ export default function UserProfile() {
                     {sortedMessages.length === 0 ? (
                       <div className="text-center py-12">
                         <MessageSquare size={48} className="mx-auto text-gray-300 mb-4" />
-                        <p className="text-gray-600 text-lg">No conversations yet</p>
-                        <p className="text-gray-500 text-sm mt-2">Start a chat with our support team right here.</p>
+                        <p className="text-swar-text-secondary text-lg">No conversations yet</p>
+                        <p className="text-swar-text-secondary text-sm mt-2">Start a chat with our support team right here.</p>
                       </div>
                     ) : (
                       sortedMessages.map((msg) => (
@@ -757,11 +757,11 @@ export default function UserProfile() {
                           <div
                             className={`rounded-3xl p-4 max-w-[85%] shadow transition ${
                               msg.senderRole === 'admin'
-                                ? 'bg-gray-100 text-gray-900 border border-gray-200'
+                                ? 'bg-swar-primary-light text-swar-text border border-swar-border'
                                 : 'bg-primary-600 text-white'
                             }`}
                           >
-                            <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-gray-500 mb-2">
+                            <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-swar-text-secondary mb-2">
                               <span>{msg.senderRole === 'admin' ? 'Admin Support' : 'You'}</span>
                               <span>{new Date(msg.createdAt).toLocaleString()}</span>
                             </div>
@@ -779,22 +779,22 @@ export default function UserProfile() {
 
                   <form onSubmit={handleSendMessage} className="mt-6 space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                      <label className="block text-sm font-medium text-swar-text mb-1">Subject</label>
                       <input
                         type="text"
                         value={chatSubject}
                         onChange={(e) => setChatSubject(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
+                        className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
                         placeholder="Summarize your request (optional)"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                      <label className="block text-sm font-medium text-swar-text mb-1">Message</label>
                       <textarea
                         value={chatMessage}
                         onChange={(e) => setChatMessage(e.target.value)}
                         rows={5}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                         placeholder="Type your message to the admin here"
                         required
                       />
@@ -802,7 +802,7 @@ export default function UserProfile() {
                     {chatStatus && (
                       <p
                         className={`text-sm font-semibold ${
-                          chatStatus.type === 'success' ? 'text-green-700' : 'text-red-600'
+                          chatStatus.type === 'success' ? 'text-swar-primary' : 'text-red-600'
                         }`}
                       >
                         {chatStatus.text}
@@ -824,7 +824,7 @@ export default function UserProfile() {
               {/* Security Tab */}
               {activeTab === 'security' && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
-                  <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                  <h3 className="text-2xl font-bold text-swar-text mb-6 flex items-center gap-2">
                     <Shield size={24} className="text-primary-600" />
                     Security Settings
                   </h3>
@@ -839,35 +839,35 @@ export default function UserProfile() {
                   ) : (
                     <form onSubmit={handlePasswordChange} className="max-w-md space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                        <label className="block text-sm font-medium text-swar-text mb-2">Current Password</label>
                         <input
                           type="password"
                           value={passwordForm.currentPassword}
                           onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                           placeholder="Enter current password"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
+                          className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
                           required
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                        <label className="block text-sm font-medium text-swar-text mb-2">New Password</label>
                         <input
                           type="password"
                           value={passwordForm.newPassword}
                           onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                           placeholder="Enter new password (min 6 characters)"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
+                          className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
                           required
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+                        <label className="block text-sm font-medium text-swar-text mb-2">Confirm Password</label>
                         <input
                           type="password"
                           value={passwordForm.confirmPassword}
                           onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                           placeholder="Confirm new password"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
+                          className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
                           required
                         />
                       </div>
@@ -875,7 +875,7 @@ export default function UserProfile() {
                       {passwordMessage && (
                         <div className={`p-4 rounded-lg text-sm font-medium ${
                           passwordMessage.includes('successfully')
-                            ? 'bg-green-100 text-green-800'
+                            ? 'bg-swar-primary-light text-swar-primary'
                             : 'bg-red-100 text-red-800'
                         }`}>
                           {passwordMessage}
@@ -897,7 +897,7 @@ export default function UserProfile() {
                             setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
                             setPasswordMessage('');
                           }}
-                          className="bg-gray-300 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-400 font-medium"
+                          className="bg-gray-300 text-swar-text px-6 py-2 rounded-lg hover:bg-gray-400 font-medium"
                         >
                           Cancel
                         </button>

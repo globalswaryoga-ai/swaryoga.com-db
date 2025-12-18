@@ -64,7 +64,7 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
       {isOpen && (
         <div className="absolute top-full right-0 mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-orange-100 z-50 max-h-96 overflow-y-auto">
           {/* Header */}
-          <div className="bg-gradient-to-r from-orange-400 to-red-500 text-white p-4 sticky top-0 flex items-center justify-between rounded-t-2xl">
+          <div className="bg-gradient-to-r from-orange-400 to-swar-accent text-white p-4 sticky top-0 flex items-center justify-between rounded-t-2xl">
             <div className="flex items-center gap-2">
               <Bell className="h-5 w-5" />
               <h3 className="font-bold">Reminders</h3>
@@ -85,7 +85,7 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
           {/* Reminders List */}
           <div className="p-4 space-y-3">
             {localReminders.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-swar-text-secondary">
                 <p>No reminders yet</p>
               </div>
             ) : (
@@ -93,7 +93,7 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
                 {/* Pending Reminders */}
                 {pendingReminders.length > 0 && (
                   <div>
-                    <h4 className="text-xs font-bold text-gray-700 mb-2 uppercase">To Do</h4>
+                    <h4 className="text-xs font-bold text-swar-text mb-2 uppercase">To Do</h4>
                     <div className="space-y-2">
                       {pendingReminders.map((reminder) => (
                         <div
@@ -109,15 +109,15 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
                             className="h-5 w-5 rounded border-2 border-orange-400 text-orange-600 cursor-pointer mt-0.5 flex-shrink-0"
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 text-sm">
+                            <p className="font-medium text-swar-text text-sm">
                               {reminder.title}
                             </p>
                             {reminder.description && (
-                              <p className="text-xs text-gray-600 mt-1">
+                              <p className="text-xs text-swar-text-secondary mt-1">
                                 {reminder.description}
                               </p>
                             )}
-                            <div className="flex gap-2 mt-2 flex-wrap text-xs text-gray-600">
+                            <div className="flex gap-2 mt-2 flex-wrap text-xs text-swar-text-secondary">
                               {reminder.dueDate && (
                                 <span className="bg-white px-2 py-1 rounded border border-orange-200">
                                   📅 {new Date(reminder.dueDate).toLocaleDateString()}
@@ -139,14 +139,14 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
                 {/* Completed Reminders */}
                 {completedCount > 0 && (
                   <div>
-                    <h4 className="text-xs font-bold text-green-700 mb-2 uppercase">Completed</h4>
+                    <h4 className="text-xs font-bold text-swar-primary mb-2 uppercase">Completed</h4>
                     <div className="space-y-2">
                       {localReminders
                         .filter(r => r.completed)
                         .map((reminder) => (
                           <div
                             key={reminder.id}
-                            className="flex items-start gap-3 p-3 bg-green-50 border border-green-200 rounded-lg opacity-70"
+                            className="flex items-start gap-3 p-3 bg-swar-primary-light border border-green-200 rounded-lg opacity-70"
                           >
                             <input
                               type="checkbox"
@@ -154,14 +154,14 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
                               onChange={(e) =>
                                 handleToggleReminder(reminder.id, e.target.checked)
                               }
-                              className="h-5 w-5 rounded border-2 border-green-400 text-green-600 cursor-pointer mt-0.5 flex-shrink-0"
+                              className="h-5 w-5 rounded border-2 border-green-400 text-swar-primary cursor-pointer mt-0.5 flex-shrink-0"
                             />
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 text-sm line-through">
+                              <p className="font-medium text-swar-text text-sm line-through">
                                 {reminder.title}
                               </p>
                               {reminder.description && (
-                                <p className="text-xs text-gray-600 mt-1 line-through">
+                                <p className="text-xs text-swar-text-secondary mt-1 line-through">
                                   {reminder.description}
                                 </p>
                               )}
@@ -177,7 +177,7 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
 
           {/* Footer */}
           {localReminders.length > 0 && (
-            <div className="border-t border-orange-100 p-3 bg-gray-50 flex justify-center">
+            <div className="border-t border-orange-100 p-3 bg-swar-bg flex justify-center">
               <a
                 href="/life-planner/dashboard/reminders"
                 className="text-sm font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1"

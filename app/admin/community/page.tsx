@@ -187,12 +187,12 @@ export default function AdminCommunityPage() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-20 bg-gray-50">
+      <main className="min-h-screen pt-20 bg-swar-bg">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">Admin Community</h1>
-          <p className="mt-2 text-sm text-gray-600">Manual membership only</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-swar-text">Admin Community</h1>
+          <p className="mt-2 text-sm text-swar-text-secondary">Manual membership only</p>
 
-          {loading && <p className="mt-6 text-sm text-gray-600">Loading...</p>}
+          {loading && <p className="mt-6 text-sm text-swar-text-secondary">Loading...</p>}
 
           {!loading && error && (
             <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
@@ -200,34 +200,34 @@ export default function AdminCommunityPage() {
 
           {!loading && (
             <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <div className="text-sm font-bold text-gray-900">Communities</div>
+              <div className="rounded-lg border border-swar-border bg-white p-4">
+                <div className="text-sm font-bold text-swar-text">Communities</div>
                 <div className="mt-3 space-y-2">
                   {communities.map((c) => (
-                    <div key={c.id} className="rounded-lg border border-gray-200 px-3 py-3">
-                      <div className="text-sm font-bold text-gray-900">{c.name}</div>
-                      <div className="mt-1 text-xs text-gray-600">Members: {c.membersCount}</div>
+                    <div key={c.id} className="rounded-lg border border-swar-border px-3 py-3">
+                      <div className="text-sm font-bold text-swar-text">{c.name}</div>
+                      <div className="mt-1 text-xs text-swar-text-secondary">Members: {c.membersCount}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-white p-4">
-                <div className="text-sm font-bold text-gray-900">Add member</div>
+              <div className="rounded-lg border border-swar-border bg-white p-4">
+                <div className="text-sm font-bold text-swar-text">Add member</div>
 
                 <div className="mt-3">
-                  <label className="block text-xs font-bold text-gray-700">Search user by email or userId</label>
+                  <label className="block text-xs font-bold text-swar-text">Search user by email or userId</label>
                   <div className="mt-2 flex gap-2">
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      className="flex-1 rounded-lg border border-swar-border px-3 py-2 text-sm"
                       placeholder="email or userId"
                     />
                     <button
                       type="button"
                       onClick={onFindUser}
-                      className="rounded-lg bg-gray-100 text-gray-900 px-4 py-2 text-sm font-bold hover:bg-gray-200"
+                      className="rounded-lg bg-swar-primary-light text-swar-text px-4 py-2 text-sm font-bold hover:bg-swar-primary-light"
                     >
                       Search
                     </button>
@@ -235,21 +235,21 @@ export default function AdminCommunityPage() {
                 </div>
 
                 {foundUser && (
-                  <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
-                    <div className="text-sm font-bold text-gray-900">User</div>
-                    <div className="mt-1 text-xs text-gray-700">Name: {foundUser.name}</div>
-                    <div className="mt-1 text-xs text-gray-700">Email: {foundUser.email}</div>
-                    <div className="mt-1 text-xs text-gray-700">UserId: {foundUser.userId}</div>
-                    {foundUser.profileId && <div className="mt-1 text-xs text-gray-700">ProfileId: {foundUser.profileId}</div>}
+                  <div className="mt-4 rounded-lg border border-swar-border bg-swar-bg px-3 py-3">
+                    <div className="text-sm font-bold text-swar-text">User</div>
+                    <div className="mt-1 text-xs text-swar-text">Name: {foundUser.name}</div>
+                    <div className="mt-1 text-xs text-swar-text">Email: {foundUser.email}</div>
+                    <div className="mt-1 text-xs text-swar-text">UserId: {foundUser.userId}</div>
+                    {foundUser.profileId && <div className="mt-1 text-xs text-swar-text">ProfileId: {foundUser.profileId}</div>}
                   </div>
                 )}
 
                 <div className="mt-4">
-                  <label className="block text-xs font-bold text-gray-700">Select community</label>
+                  <label className="block text-xs font-bold text-swar-text">Select community</label>
                   <select
                     value={selectedCommunityId}
                     onChange={(e) => setSelectedCommunityId(e.target.value)}
-                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                    className="mt-2 w-full rounded-lg border border-swar-border bg-white px-3 py-2 text-sm"
                   >
                     <option value="">Select</option>
                     {communities.map((c) => (
@@ -260,7 +260,7 @@ export default function AdminCommunityPage() {
                   </select>
 
                   {selectedCommunity && (
-                    <div className="mt-2 text-xs text-gray-600">Current members: {selectedCommunity.membersCount}</div>
+                    <div className="mt-2 text-xs text-swar-text-secondary">Current members: {selectedCommunity.membersCount}</div>
                   )}
                 </div>
 
@@ -268,14 +268,14 @@ export default function AdminCommunityPage() {
                   <button
                     type="button"
                     onClick={onAddToCommunity}
-                    className="rounded-lg bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700"
+                    className="rounded-lg bg-swar-primary text-white px-4 py-2 text-sm font-bold hover:bg-swar-primary"
                   >
                     Add to community
                   </button>
                   <button
                     type="button"
                     onClick={onRemoveFromCommunity}
-                    className="rounded-lg bg-gray-100 text-gray-900 px-4 py-2 text-sm font-bold hover:bg-gray-200"
+                    className="rounded-lg bg-swar-primary-light text-swar-text px-4 py-2 text-sm font-bold hover:bg-swar-primary-light"
                   >
                     Remove
                   </button>

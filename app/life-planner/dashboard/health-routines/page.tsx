@@ -89,8 +89,8 @@ export default function HealthRoutinesPage() {
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Health Routines</h1>
-          <p className="text-gray-600">Build and track daily health habits</p>
+          <h1 className="text-3xl font-bold text-swar-text mb-2">Health Routines</h1>
+          <p className="text-swar-text-secondary">Build and track daily health habits</p>
         </div>
         <button
           onClick={handleAddRoutine}
@@ -105,15 +105,15 @@ export default function HealthRoutinesPage() {
       <div className="grid md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="text-2xl font-bold text-emerald-600 mb-1">{routines.length}</div>
-          <div className="text-gray-600 text-sm">Total Routines</div>
+          <div className="text-swar-text-secondary text-sm">Total Routines</div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="text-2xl font-bold text-red-600 mb-1">{Math.max(...routines.map(r => r.streak), 0)}</div>
-          <div className="text-gray-600 text-sm">Best Streak</div>
+          <div className="text-swar-text-secondary text-sm">Best Streak</div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="text-2xl font-bold text-purple-600 mb-1">{routines.reduce((sum, r) => sum + r.completedDates.length, 0)}</div>
-          <div className="text-gray-600 text-sm">Total Completions</div>
+          <div className="text-swar-text-secondary text-sm">Total Completions</div>
         </div>
       </div>
 
@@ -121,9 +121,9 @@ export default function HealthRoutinesPage() {
       <div className="space-y-3">
         {routines.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-xl">
-            <Heart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No routines yet</h3>
-            <p className="text-gray-600 mb-4">Create your first health routine.</p>
+            <Heart className="h-12 w-12 text-swar-text-secondary mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-swar-text mb-2">No routines yet</h3>
+            <p className="text-swar-text-secondary mb-4">Create your first health routine.</p>
             <button
               onClick={handleAddRoutine}
               className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
@@ -146,10 +146,10 @@ export default function HealthRoutinesPage() {
                   </button>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-800">
+                    <h3 className="font-semibold text-swar-text">
                       {categoryEmoji[routine.category as keyof typeof categoryEmoji] || '✨'} {routine.title}
                     </h3>
-                    {routine.description && <p className="text-gray-600 text-sm mt-1">{routine.description}</p>}
+                    {routine.description && <p className="text-swar-text-secondary text-sm mt-1">{routine.description}</p>}
                     <div className="flex flex-wrap gap-2 mt-2">
                       <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-medium">
                         🔥 {routine.streak} day streak
@@ -163,7 +163,7 @@ export default function HealthRoutinesPage() {
 
                   <button
                     onClick={() => handleDeleteRoutine(routine.id)}
-                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0"
+                    className="p-2 text-swar-text-secondary hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

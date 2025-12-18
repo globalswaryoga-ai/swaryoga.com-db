@@ -159,15 +159,15 @@ export default function Navigation() {
                   href={item.href}
                   className={`relative px-4 py-2 rounded-lg font-medium transition-all duration-200 group ${
                     isActive(item.href) 
-                      ? 'text-green-600 bg-green-50' 
-                      : 'text-gray-700 hover:text-green-600 hover:bg-green-50'
+                      ? 'text-swar-primary bg-swar-primary-light' 
+                      : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
                   }`}
                 >
                   {item.name}
                   {isActive(item.href) && (
-                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-green-600 rounded-full"></div>
+                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-swar-primary rounded-full"></div>
                   )}
-                  <div className="absolute inset-0 rounded-lg bg-green-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                  <div className="absolute inset-0 rounded-lg bg-swar-primary/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
                 </Link>
               ))}
             </nav>
@@ -177,15 +177,15 @@ export default function Navigation() {
               {/* Cart */}
               <Link
                 href="/cart"
-                className="relative p-2 text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200 group touch-manipulation"
+                className="relative p-2 text-swar-text hover:text-swar-primary hover:bg-swar-primary-light rounded-lg transition-all duration-200 group touch-manipulation"
               >
                 <ShoppingCart className="h-6 w-6" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-swar-accent to-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                     {cartCount}
                   </span>
                 )}
-                <div className="absolute inset-0 rounded-lg bg-green-600/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+                <div className="absolute inset-0 rounded-lg bg-swar-primary/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
               </Link>
 
               {/* User is logged in */}
@@ -193,10 +193,10 @@ export default function Navigation() {
                 <div className="hidden sm:flex items-center space-x-2">
                   <Link
                     href="/profile"
-                    className="flex items-center space-x-2 bg-green-50 px-3 py-2 rounded-lg hover:bg-green-100 transition-colors"
+                    className="flex items-center space-x-2 bg-swar-primary-light px-3 py-2 rounded-lg hover:bg-swar-primary-light transition-colors"
                   >
-                    <User className="h-5 w-5 text-green-600" />
-                    <span className="font-medium text-green-700">{userDisplayName}</span>
+                    <User className="h-5 w-5 text-swar-primary" />
+                    <span className="font-medium text-swar-primary">{userDisplayName}</span>
                   </Link>
                   <button
                     onClick={handleLogout}
@@ -231,7 +231,7 @@ export default function Navigation() {
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="lg:hidden p-2 text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200"
+                className="lg:hidden p-2 text-swar-text hover:text-swar-primary hover:bg-swar-primary-light rounded-lg transition-all duration-200"
               >
                 {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
@@ -240,7 +240,7 @@ export default function Navigation() {
 
           {/* Mobile Menu */}
           {isMenuOpen && (
-            <div className="lg:hidden mt-4 pb-4 border-t border-gray-200 animate-in slide-in-from-top duration-200">
+            <div className="lg:hidden mt-4 pb-4 border-t border-swar-border animate-in slide-in-from-top duration-200">
               <nav className="flex flex-col space-y-2 mt-4">
                 {navigation.map((item) => (
                   <Link
@@ -248,8 +248,8 @@ export default function Navigation() {
                     href={item.href}
                     className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 touch-manipulation ${
                       isActive(item.href) 
-                        ? 'text-green-600 bg-green-50 border-l-4 border-green-600' 
-                        : 'text-gray-700 hover:text-green-600 hover:bg-green-50'
+                        ? 'text-swar-primary bg-swar-primary-light border-l-4 border-green-600' 
+                        : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
                     }`}
                     onClick={closeMenu}
                   >
@@ -258,10 +258,10 @@ export default function Navigation() {
                 ))}
                 
                 {/* Mobile Actions */}
-                <div className="flex flex-col space-y-2 pt-4 border-t border-gray-200">
+                <div className="flex flex-col space-y-2 pt-4 border-t border-swar-border">
                   <Link
                     href="/cart"
-                    className="flex items-center space-x-2 px-4 py-3 text-gray-700 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200 touch-manipulation"
+                    className="flex items-center space-x-2 px-4 py-3 text-swar-text hover:text-swar-primary hover:bg-swar-primary-light rounded-lg transition-all duration-200 touch-manipulation"
                     onClick={closeMenu}
                   >
                     <ShoppingCart className="h-5 w-5" />
@@ -272,7 +272,7 @@ export default function Navigation() {
                     <>
                       <Link
                         href="/profile"
-                        className="flex items-center space-x-2 px-4 py-3 bg-green-50 text-green-700 rounded-lg touch-manipulation"
+                        className="flex items-center space-x-2 px-4 py-3 bg-swar-primary-light text-swar-primary rounded-lg touch-manipulation"
                         onClick={closeMenu}
                       >
                         <User className="h-5 w-5" />

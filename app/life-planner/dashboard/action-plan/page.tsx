@@ -8,15 +8,15 @@ import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import ActionPlanModal from '@/components/ActionPlanModal';
 
 const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
-  'not-started': { text: 'text-gray-700', bg: 'bg-gray-100' },
+  'not-started': { text: 'text-swar-text', bg: 'bg-swar-primary-light' },
   'in-progress': { text: 'text-blue-700', bg: 'bg-blue-100' },
-  'completed': { text: 'text-green-700', bg: 'bg-green-100' },
+  'completed': { text: 'text-swar-primary', bg: 'bg-swar-primary-light' },
   'on-hold': { text: 'text-yellow-700', bg: 'bg-yellow-100' },
 };
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   'Life': { bg: 'bg-purple-600', text: 'text-white' },
-  'Health': { bg: 'bg-green-600', text: 'text-white' },
+  'Health': { bg: 'bg-swar-primary', text: 'text-white' },
   'Wealth': { bg: 'bg-red-600', text: 'text-white' },
   'Success': { bg: 'bg-blue-600', text: 'text-white' },
   'Respect': { bg: 'bg-orange-600', text: 'text-white' },
@@ -158,12 +158,12 @@ export default function ActionPlanPage() {
     <div className="max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Action Plans</h1>
-          <p className="text-gray-600">Break down your visions into actionable milestones and goals</p>
+          <h1 className="text-3xl font-bold text-swar-text mb-2">Action Plans</h1>
+          <p className="text-swar-text-secondary">Break down your visions into actionable milestones and goals</p>
         </div>
         <button
           onClick={handleAddPlan}
-          className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
+          className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-lg hover:from-swar-primary hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
         >
           <Plus className="h-5 w-5" />
           <span>Create Action Plan</span>
@@ -172,14 +172,14 @@ export default function ActionPlanPage() {
 
       <div className="mb-12">
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-gray-800">Action Plan Cards</h2>
+          <h2 className="text-2xl font-bold text-swar-text">Action Plan Cards</h2>
         </div>
 
         {/* Filters */}
         <div className="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+              <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
               <input
                 value={searchText}
                 onChange={(e) => {
@@ -187,19 +187,19 @@ export default function ActionPlanPage() {
                   setSliderIndex(0);
                 }}
                 placeholder="Search plan / vision name"
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-cyan-200"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Vision Head</label>
+              <label className="block text-xs font-bold text-swar-text mb-1">Vision Head</label>
               <select
                 value={filterHead}
                 onChange={(e) => {
                   setFilterHead(e.target.value);
                   setSliderIndex(0);
                 }}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
               >
                 <option value="all">All</option>
                 {uniqueHeads.map((h) => (
@@ -209,14 +209,14 @@ export default function ActionPlanPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+              <label className="block text-xs font-bold text-swar-text mb-1">Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => {
                   setFilterStatus(e.target.value);
                   setSliderIndex(0);
                 }}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
               >
                 <option value="all">All</option>
                 <option value="not-started">not-started</option>
@@ -227,14 +227,14 @@ export default function ActionPlanPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+              <label className="block text-xs font-bold text-swar-text mb-1">Month</label>
               <select
                 value={filterMonth}
                 onChange={(e) => {
                   setFilterMonth(e.target.value);
                   setSliderIndex(0);
                 }}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
+                className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-cyan-200"
               >
                 <option value="all">All</option>
                 {MONTHS.map((m) => (
@@ -252,14 +252,14 @@ export default function ActionPlanPage() {
                   setFilterMonth('all');
                   setSliderIndex(0);
                 }}
-                className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+                className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
               >
                 Clear Filters
               </button>
             </div>
           </div>
 
-          <p className="mt-3 text-sm text-gray-600">Showing {filteredPlans.length} of {actionPlans.length} plans</p>
+          <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredPlans.length} of {actionPlans.length} plans</p>
         </div>
 
         <div className="relative">
@@ -279,7 +279,7 @@ export default function ActionPlanPage() {
                         />
                       )}
                       {!plan.imageUrl && (
-                        <div className="w-full h-full bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center">
+                        <div className="w-full h-full bg-gradient-to-br from-swar-primary to-cyan-500 flex items-center justify-center">
                           <span className="text-white text-3xl">📋</span>
                         </div>
                       )}
@@ -314,14 +314,14 @@ export default function ActionPlanPage() {
                     {/* Card Content */}
                     <div className="p-4 flex-grow flex flex-col overflow-y-auto">
                       {/* Title and Vision */}
-                      <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-2">{plan.title}</h3>
+                      <h3 className="text-lg font-bold text-swar-text mb-1 line-clamp-2">{plan.title}</h3>
                       <p className="text-xs text-blue-600 font-semibold mb-2">Vision: {getVisionTitle(plan.visionId)}</p>
 
                       {/* Row: Goals / Head / Status */}
                       <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-gray-800 text-xs font-bold">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-swar-primary-light text-swar-text text-xs font-bold">
                           <span>🎯 Goals</span>
-                          <span className="text-[11px] font-black bg-white rounded-full px-2 py-0.5 border border-gray-200">
+                          <span className="text-[11px] font-black bg-white rounded-full px-2 py-0.5 border border-swar-border">
                             {plan.goals?.length || 0}
                           </span>
                         </div>
@@ -343,10 +343,10 @@ export default function ActionPlanPage() {
                       </div>
 
                       {/* Description */}
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{plan.description}</p>
+                      <p className="text-sm text-swar-text-secondary mb-3 line-clamp-2">{plan.description}</p>
 
                       {/* Info */}
-                      <div className="space-y-1 text-xs text-gray-700 mb-3">
+                      <div className="space-y-1 text-xs text-swar-text mb-3">
                         {plan.startDate && plan.endDate && (
                           <div className="flex items-center gap-2">
                             📅 {new Date(plan.startDate).toLocaleDateString()} - {new Date(plan.endDate).toLocaleDateString()}
@@ -364,10 +364,10 @@ export default function ActionPlanPage() {
                       {/* Progress Bar */}
                       <div className="mb-3">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs font-semibold text-gray-700">Progress</span>
+                          <span className="text-xs font-semibold text-swar-text">Progress</span>
                           <span className="text-xs font-bold text-blue-600">{plan.progress || 0}%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="w-full bg-swar-primary-light rounded-full h-2">
                           <div
                             className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${plan.progress || 0}%` }}
@@ -388,27 +388,27 @@ export default function ActionPlanPage() {
                           <div className="h-px bg-gradient-to-r from-blue-200 via-gray-200 to-transparent mb-2" />
                           <div className="space-y-2 max-h-24 overflow-y-auto">
                             {plan.milestones.map((milestone) => (
-                              <div key={milestone.id} className="text-xs bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
-                                <p className="font-bold text-gray-900">
+                              <div key={milestone.id} className="text-xs bg-swar-bg border border-gray-100 rounded-lg px-3 py-2">
+                                <p className="font-bold text-swar-text">
                                   {milestone.title?.trim() ? milestone.title : 'Milestone'}
                                 </p>
                                 {(milestone.startDate || milestone.endDate) && (
-                                  <p className="text-[11px] text-gray-700 mt-0.5">
+                                  <p className="text-[11px] text-swar-text mt-0.5">
                                     📅 {milestone.startDate ? new Date(milestone.startDate).toLocaleDateString() : '—'}
                                     {'  '}–{'  '}
                                     {milestone.endDate ? new Date(milestone.endDate).toLocaleDateString() : '—'}
                                   </p>
                                 )}
                                 {(milestone.workingHoursStart || milestone.workingHoursEnd) && (
-                                  <p className="text-[11px] text-gray-700">
+                                  <p className="text-[11px] text-swar-text">
                                     ⏰ {milestone.workingHoursStart || '—'} - {milestone.workingHoursEnd || '—'}
                                   </p>
                                 )}
                                 {milestone.place && (
-                                  <p className="text-[11px] text-gray-700">📍 {milestone.place}</p>
+                                  <p className="text-[11px] text-swar-text">📍 {milestone.place}</p>
                                 )}
                                 {milestone.description?.trim() && (
-                                  <p className="text-gray-600 mt-1 line-clamp-2">{milestone.description}</p>
+                                  <p className="text-swar-text-secondary mt-1 line-clamp-2">{milestone.description}</p>
                                 )}
                               </div>
                             ))}
@@ -429,25 +429,25 @@ export default function ActionPlanPage() {
                           <div className="h-px bg-gradient-to-r from-emerald-200 via-gray-200 to-transparent mb-2" />
                           <div className="space-y-2 max-h-24 overflow-y-auto">
                             {plan.goals.map((goal) => (
-                              <div key={goal.id} className="text-xs bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
-                                <p className="font-bold text-gray-900">{goal.title || 'Goal'}</p>
+                              <div key={goal.id} className="text-xs bg-swar-bg border border-gray-100 rounded-lg px-3 py-2">
+                                <p className="font-bold text-swar-text">{goal.title || 'Goal'}</p>
                                 {(goal.startDate || goal.endDate) && (
-                                  <p className="text-[11px] text-gray-700 mt-0.5">
+                                  <p className="text-[11px] text-swar-text mt-0.5">
                                     📅 {goal.startDate ? new Date(goal.startDate).toLocaleDateString() : '—'}
                                     {'  '}–{'  '}
                                     {goal.endDate ? new Date(goal.endDate).toLocaleDateString() : '—'}
                                   </p>
                                 )}
                                 {(goal.workingTimeStart || goal.workingTimeEnd) && (
-                                  <p className="text-[11px] text-gray-700">
+                                  <p className="text-[11px] text-swar-text">
                                     ⏰ {goal.workingTimeStart || '—'} - {goal.workingTimeEnd || '—'}
                                   </p>
                                 )}
                                 {goal.place && (
-                                  <p className="text-[11px] text-gray-700">📍 {goal.place}</p>
+                                  <p className="text-[11px] text-swar-text">📍 {goal.place}</p>
                                 )}
                                 {goal.description?.trim() && (
-                                  <p className="text-gray-600 mt-1 line-clamp-2">{goal.description}</p>
+                                  <p className="text-swar-text-secondary mt-1 line-clamp-2">{goal.description}</p>
                                 )}
                               </div>
                             ))}
@@ -461,7 +461,7 @@ export default function ActionPlanPage() {
                     <div className="px-4 pb-4 flex gap-2">
                       <button
                         onClick={() => handleCompletePlan(plan.id)}
-                        className="flex-1 px-2 py-2 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition"
+                        className="flex-1 px-2 py-2 bg-swar-primary text-white text-xs font-bold rounded-lg hover:bg-swar-primary transition"
                         title="Mark as Done"
                       >
                         Done
@@ -485,12 +485,12 @@ export default function ActionPlanPage() {
             ) : (
               <div className="w-full flex items-center justify-center py-12">
                 <div className="text-center">
-                  <div className="text-gray-400 mb-4">
+                  <div className="text-swar-text-secondary mb-4">
                     <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                   </div>
-                  <p className="text-gray-600">No action plans found</p>
+                  <p className="text-swar-text-secondary">No action plans found</p>
                 </div>
               </div>
             )}
@@ -519,7 +519,7 @@ export default function ActionPlanPage() {
                     className={`w-10 h-10 rounded-lg font-semibold transition ${
                       Math.floor(sliderIndex / 3) === pageIndex
                         ? 'bg-blue-600 text-white shadow-lg'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        : 'bg-swar-primary-light text-swar-text hover:bg-gray-300'
                     }`}
                   >
                     {pageIndex + 1}

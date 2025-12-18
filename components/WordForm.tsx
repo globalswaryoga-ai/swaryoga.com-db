@@ -131,7 +131,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Category Selection */}
       <div className="rounded-lg bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 p-4">
-        <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
           <Quote size={18} className="text-purple-600" />
           Word Category
         </label>
@@ -149,7 +149,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
               <div className={`p-3 rounded-lg text-center font-medium text-sm transition ${
                 formData.category === cat 
                   ? 'bg-white ring-2 ring-purple-500 shadow-md' 
-                  : 'bg-white hover:bg-gray-50 border border-gray-200'
+                  : 'bg-white hover:bg-swar-bg border border-swar-border'
               }`}>
                 <span className="text-lg">{categoryEmojis[cat]}</span>
                 <p className="capitalize mt-1">{cat}</p>
@@ -157,14 +157,14 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
             </label>
           ))}
         </div>
-        <p className="text-xs text-gray-600 mt-3">
+        <p className="text-xs text-swar-text-secondary mt-3">
           {categoryDescriptions[formData.category]}
         </p>
       </div>
 
       {/* Word Title */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           {formData.category.charAt(0).toUpperCase() + formData.category.slice(1)} Title *
         </label>
         <input
@@ -173,7 +173,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
           value={formData.title}
           onChange={handleChange}
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition ${
-            errors.title ? 'border-red-500' : 'border-gray-300'
+            errors.title ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder={`e.g., "${formData.category === 'life' ? 'Purpose' : formData.category === 'health' ? 'Wellness' : 'Growth'}"`}
           required
@@ -183,7 +183,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
 
       {/* Content */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Content *
         </label>
         <textarea
@@ -191,21 +191,21 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
           value={formData.content}
           onChange={handleChange}
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition ${
-            errors.content ? 'border-red-500' : 'border-gray-300'
+            errors.content ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder="Enter the full text of your affirmation, mantra, quote, or prayer"
           rows={5}
           required
         />
         {errors.content && <p className="text-red-600 text-xs mt-1">{errors.content}</p>}
-        <div className="mt-2 text-xs text-gray-500 text-right">
+        <div className="mt-2 text-xs text-swar-text-secondary text-right">
           {formData.content.length} characters
         </div>
       </div>
 
       {/* Frequency */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <Clock size={18} className="text-blue-600" />
           Frequency
         </label>
@@ -213,7 +213,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
           name="frequency"
           value={formData.frequency}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
         >
           <option value="daily">📅 Daily</option>
           <option value="weekly">📆 Weekly</option>
@@ -225,7 +225,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
       {/* Custom Days */}
       {formData.frequency === 'custom' && (
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2">
             Repeat Every (days)
           </label>
           <input
@@ -235,7 +235,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
             onChange={handleChange}
             min="1"
             max="365"
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
           />
         </div>
       )}
@@ -243,7 +243,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
       {/* Link to Reminders */}
       {reminders.length > 0 && (
         <div className="rounded-lg bg-orange-50 border-2 border-orange-200 p-3">
-          <label className="block text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-3 flex items-center gap-2">
             🔔 Link to Reminders (Optional)
           </label>
           <div className="space-y-2 max-h-32 overflow-y-auto">
@@ -257,7 +257,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
                   onChange={handleChange}
                   className="w-4 h-4 rounded text-purple-600"
                 />
-                <span className="text-sm text-gray-700">{reminder.title}</span>
+                <span className="text-sm text-swar-text">{reminder.title}</span>
               </label>
             ))}
           </div>
@@ -271,7 +271,7 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
 
       {/* Image URL */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <Image size={18} className="text-orange-600" />
           Image URL (Optional)
         </label>
@@ -280,11 +280,11 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
           name="imageUrl"
           value={formData.imageUrl}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
           placeholder="https://example.com/image.jpg"
         />
         {formData.imageUrl && (
-          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm">
+          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-swar-border shadow-sm">
             <img 
               src={formData.imageUrl} 
               alt="Word preview" 
@@ -298,11 +298,11 @@ const WordForm: React.FC<WordFormProps> = ({ onSubmit, onCancel, initialData, re
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-end gap-3 pt-5 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-5 border-t border-swar-border">
         <button
           type="button"
           onClick={onCancel}
-          className="px-5 py-2.5 border-2 border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+          className="px-5 py-2.5 border-2 border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
         >
           Cancel
         </button>

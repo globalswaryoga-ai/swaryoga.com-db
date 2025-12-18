@@ -188,20 +188,20 @@ export default function CommunityPostPage() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-20 bg-gray-50">
+      <main className="min-h-screen pt-20 bg-swar-bg">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between gap-4">
-            <h1 className="text-2xl font-extrabold text-gray-900">Post</h1>
+            <h1 className="text-2xl font-extrabold text-swar-text">Post</h1>
             <button
               type="button"
               onClick={() => router.push('/community')}
-              className="rounded-lg bg-gray-100 text-gray-900 px-4 py-2 text-sm font-bold hover:bg-gray-200"
+              className="rounded-lg bg-swar-primary-light text-swar-text px-4 py-2 text-sm font-bold hover:bg-swar-primary-light"
             >
               Back
             </button>
           </div>
 
-          {loading && <p className="mt-6 text-sm text-gray-600">Loading...</p>}
+          {loading && <p className="mt-6 text-sm text-swar-text-secondary">Loading...</p>}
 
           {!loading && error && (
             <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
@@ -209,27 +209,27 @@ export default function CommunityPostPage() {
 
           {!loading && !error && post && (
             <div className="mt-6 space-y-4">
-              <div className="rounded-lg border border-gray-200 bg-white px-4 py-4">
-                <div className="text-sm text-gray-900 whitespace-pre-wrap">{post.content}</div>
+              <div className="rounded-lg border border-swar-border bg-white px-4 py-4">
+                <div className="text-sm text-swar-text whitespace-pre-wrap">{post.content}</div>
                 <div className="mt-3 flex items-center justify-between gap-4">
-                  <div className="text-xs text-gray-500">{post.createdAt ? new Date(post.createdAt).toLocaleString() : ''}</div>
+                  <div className="text-xs text-swar-text-secondary">{post.createdAt ? new Date(post.createdAt).toLocaleString() : ''}</div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={onToggleLike}
-                      className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-200"
+                      className="rounded-lg bg-swar-primary-light px-3 py-1.5 text-xs font-bold text-swar-text hover:bg-swar-primary-light"
                     >
                       {post.likedByMe ? 'Unlike' : 'Like'}
                     </button>
-                    <div className="text-xs text-gray-600">Likes: {post.likesCount}</div>
+                    <div className="text-xs text-swar-text-secondary">Likes: {post.likesCount}</div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-gray-200 bg-white px-4 py-4">
-                <div className="text-sm font-bold text-gray-900">Comments</div>
+              <div className="rounded-lg border border-swar-border bg-white px-4 py-4">
+                <div className="text-sm font-bold text-swar-text">Comments</div>
 
-                {post.comments.length === 0 && <p className="mt-3 text-sm text-gray-600">No comments yet</p>}
+                {post.comments.length === 0 && <p className="mt-3 text-sm text-swar-text-secondary">No comments yet</p>}
 
                 {post.comments.length > 0 && (
                   <div className="mt-3 space-y-3">
@@ -237,21 +237,21 @@ export default function CommunityPostPage() {
                       .slice()
                       .reverse()
                       .map((c, idx) => (
-                        <div key={`${c.createdAt}-${idx}`} className="rounded-lg bg-gray-50 px-3 py-2">
-                          <div className="text-sm text-gray-900 whitespace-pre-wrap">{c.text}</div>
-                          <div className="mt-1 text-xs text-gray-500">{c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}</div>
+                        <div key={`${c.createdAt}-${idx}`} className="rounded-lg bg-swar-bg px-3 py-2">
+                          <div className="text-sm text-swar-text whitespace-pre-wrap">{c.text}</div>
+                          <div className="mt-1 text-xs text-swar-text-secondary">{c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}</div>
                         </div>
                       ))}
                   </div>
                 )}
 
                 <div className="mt-4">
-                  <label className="block text-sm font-bold text-gray-900">Add comment</label>
+                  <label className="block text-sm font-bold text-swar-text">Add comment</label>
                   <textarea
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
                     rows={3}
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    className="mt-2 w-full rounded-lg border border-swar-border px-3 py-2 text-sm"
                     placeholder="Write a comment"
                   />
                   <div className="mt-3">
@@ -259,7 +259,7 @@ export default function CommunityPostPage() {
                       type="button"
                       disabled={submitting}
                       onClick={onAddComment}
-                      className="rounded-lg bg-green-600 text-white px-4 py-2 text-sm font-bold hover:bg-green-700 disabled:opacity-60"
+                      className="rounded-lg bg-swar-primary text-white px-4 py-2 text-sm font-bold hover:bg-swar-primary disabled:opacity-60"
                     >
                       {submitting ? 'Submitting...' : 'Submit'}
                     </button>

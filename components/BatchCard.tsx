@@ -72,13 +72,13 @@ export default function BatchCard({
   return (
     <>
       {toastMessage && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg text-sm font-semibold">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-swar-primary text-white px-5 py-3 rounded-lg shadow-lg text-sm font-semibold">
           {toastMessage}
         </div>
       )}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300">
       {/* Header with gradient and title */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+      <div className="bg-gradient-to-r from-swar-primary to-blue-700 px-6 py-4">
         <h3 className="text-white font-bold text-xl">Batch Starting</h3>
       </div>
 
@@ -86,12 +86,12 @@ export default function BatchCard({
         {/* Batches List */}
         <div className="space-y-4">
           {batches.map((batch) => (
-            <div key={batch.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
+            <div key={batch.id} className="border border-swar-border rounded-lg p-4 space-y-3">
               {/* Start Date */}
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Start Date</p>
-                  <p className="text-lg font-bold text-gray-900">{batch.startDate}</p>
+                  <p className="text-xs font-bold text-swar-text-secondary uppercase tracking-wide">Start Date</p>
+                  <p className="text-lg font-bold text-swar-text">{batch.startDate}</p>
                 </div>
                 <button className="px-3 py-1 bg-blue-100 text-blue-600 rounded font-semibold text-sm hover:bg-blue-200 transition">
                   Admission Info
@@ -100,14 +100,14 @@ export default function BatchCard({
 
               {/* Duration */}
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Duration</p>
-                <p className="text-gray-800">{batch.duration}</p>
+                <p className="text-xs font-bold text-swar-text-secondary uppercase tracking-wide">Duration</p>
+                <p className="text-swar-text">{batch.duration}</p>
               </div>
 
               {/* Time */}
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Time</p>
-                <div className="flex items-center gap-2 text-gray-800">
+                <p className="text-xs font-bold text-swar-text-secondary uppercase tracking-wide">Time</p>
+                <div className="flex items-center gap-2 text-swar-text">
                   <span>⏰</span>
                   <span>{batch.time}</span>
                 </div>
@@ -115,8 +115,8 @@ export default function BatchCard({
 
               {/* Location */}
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Location</p>
-                <div className="flex items-center gap-2 text-gray-800">
+                <p className="text-xs font-bold text-swar-text-secondary uppercase tracking-wide">Location</p>
+                <div className="flex items-center gap-2 text-swar-text">
                   <span>📍</span>
                   <span>{batch.location}</span>
                 </div>
@@ -124,7 +124,7 @@ export default function BatchCard({
 
               {/* Available Seats */}
               <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Available Seats</p>
+                <p className="text-xs font-bold text-swar-text-secondary uppercase tracking-wide">Available Seats</p>
                 <p className="text-lg font-bold text-blue-600">{batch.availableSeats} seats left</p>
               </div>
             </div>
@@ -132,11 +132,11 @@ export default function BatchCard({
         </div>
 
         {/* Divider */}
-        <div className="border-t border-gray-200"></div>
+        <div className="border-t border-swar-border"></div>
 
         {/* Country Selection */}
         <div>
-          <p className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-3">Select Country</p>
+          <p className="text-sm font-bold text-swar-text uppercase tracking-wide mb-3">Select Country</p>
           <div className="flex gap-3 flex-wrap">
             {(['India', 'Nepal', 'International'] as const).map((country) => (
               <button
@@ -145,7 +145,7 @@ export default function BatchCard({
                 className={`px-4 py-2 rounded font-bold text-sm transition-all ${
                   selectedCountry === country
                     ? 'bg-red-600 text-white shadow-lg'
-                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                    : 'bg-swar-primary-light text-swar-text hover:bg-gray-300'
                 }`}
               >
                 {country}
@@ -155,10 +155,10 @@ export default function BatchCard({
         </div>
 
         {/* Price and Buy Button */}
-        <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+        <div className="flex justify-between items-center pt-4 border-t border-swar-border">
           <div>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Price</p>
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-xs font-bold text-swar-text-secondary uppercase tracking-wide mb-1">Price</p>
+            <p className="text-3xl font-bold text-swar-text">
               {currency === 'INR' ? '₹' : '$'}{price}
             </p>
           </div>
@@ -185,11 +185,11 @@ export default function BatchCard({
         </div>
 
         {/* Workshop Info Footer */}
-        <div className="pt-4 border-t border-gray-200 text-center text-sm text-gray-600">
+        <div className="pt-4 border-t border-swar-border text-center text-sm text-swar-text-secondary">
           <p>
-            <span className="font-semibold text-gray-800">{languageDisplayName}</span> • 
-            <span className="font-semibold text-gray-800 ml-1">{modeDisplayName}</span> • 
-            <span className="text-gray-500 ml-1">({currency})</span>
+            <span className="font-semibold text-swar-text">{languageDisplayName}</span> • 
+            <span className="font-semibold text-swar-text ml-1">{modeDisplayName}</span> • 
+            <span className="text-swar-text-secondary ml-1">({currency})</span>
           </p>
         </div>
       </div>

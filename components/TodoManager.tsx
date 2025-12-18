@@ -104,9 +104,9 @@ export default function TodoManager({
       case 'medium':
         return 'bg-yellow-100 text-yellow-700 border-yellow-200';
       case 'low':
-        return 'bg-green-100 text-green-700 border-green-200';
+        return 'bg-swar-primary-light text-swar-primary border-green-200';
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return 'bg-swar-primary-light text-swar-text border-swar-border';
     }
   };
 
@@ -118,7 +118,7 @@ export default function TodoManager({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-gray-800">Todos</h2>
+        <h2 className="text-3xl font-bold text-swar-text">Todos</h2>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
@@ -133,21 +133,21 @@ export default function TodoManager({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-800">
+              <h3 className="text-xl font-bold text-swar-text">
                 {editingId ? 'Edit Todo' : 'Add New Todo'}
               </h3>
               <button
                 onClick={() => resetForm()}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-swar-primary-light rounded-lg transition-colors"
               >
-                <X className="w-6 h-6 text-gray-500" />
+                <X className="w-6 h-6 text-swar-text-secondary" />
               </button>
             </div>
 
             <div className="space-y-4">
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-swar-text mb-1">
                   Todo Title *
                 </label>
                 <input
@@ -157,13 +157,13 @@ export default function TodoManager({
                     setFormData({ ...formData, title: e.target.value })
                   }
                   placeholder="Enter todo title"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-swar-text mb-1">
                   Description
                 </label>
                 <textarea
@@ -173,13 +173,13 @@ export default function TodoManager({
                   }
                   placeholder="Enter todo description"
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
               {/* Task Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-swar-text mb-1">
                   Linked Task (Optional)
                 </label>
                 <select
@@ -187,7 +187,7 @@ export default function TodoManager({
                   onChange={(e) =>
                     setFormData({ ...formData, taskId: e.target.value || undefined })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="">No Task Selected</option>
                   {tasks.map((t) => (
@@ -201,7 +201,7 @@ export default function TodoManager({
               {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-swar-text mb-1">
                     Start Date *
                   </label>
                   <input
@@ -210,11 +210,11 @@ export default function TodoManager({
                     onChange={(e) =>
                       setFormData({ ...formData, startDate: e.target.value })
                     }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-swar-text mb-1">
                     Due Date *
                   </label>
                   <input
@@ -223,14 +223,14 @@ export default function TodoManager({
                     onChange={(e) =>
                       setFormData({ ...formData, dueDate: e.target.value })
                     }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
               </div>
 
               {/* Budget */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-swar-text mb-1">
                   Budget (Amount - Optional)
                 </label>
                 <input
@@ -245,13 +245,13 @@ export default function TodoManager({
                   placeholder="Enter budget amount"
                   min="0"
                   step="0.01"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
               {/* Priority */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-swar-text mb-1">
                   Priority
                 </label>
                 <select
@@ -262,7 +262,7 @@ export default function TodoManager({
                       priority: e.target.value as 'low' | 'medium' | 'high',
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -279,9 +279,9 @@ export default function TodoManager({
                   onChange={(e) =>
                     setFormData({ ...formData, completed: e.target.checked })
                   }
-                  className="w-4 h-4 rounded border-gray-300"
+                  className="w-4 h-4 rounded border-swar-border"
                 />
-                <label htmlFor="completed" className="text-sm font-medium text-gray-700">
+                <label htmlFor="completed" className="text-sm font-medium text-swar-text">
                   Mark as completed
                 </label>
               </div>
@@ -291,7 +291,7 @@ export default function TodoManager({
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => resetForm()}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg transition-colors"
               >
                 Cancel
               </button>
@@ -310,7 +310,7 @@ export default function TodoManager({
       {/* Todos List */}
       {filteredTodos.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No todos yet. Create your first todo!</p>
+          <p className="text-swar-text-secondary text-lg">No todos yet. Create your first todo!</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -319,8 +319,8 @@ export default function TodoManager({
               key={todo.id}
               className={`border rounded-lg p-4 transition-all ${
                 todo.completed
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-white border-gray-200 hover:shadow-md'
+                  ? 'bg-swar-primary-light border-green-200'
+                  : 'bg-white border-swar-border hover:shadow-md'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -337,9 +337,9 @@ export default function TodoManager({
                   className="flex-shrink-0"
                 >
                   {todo.completed ? (
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                    <CheckCircle2 className="w-6 h-6 text-swar-primary" />
                   ) : (
-                    <Circle className="w-6 h-6 text-gray-300 hover:text-gray-400" />
+                    <Circle className="w-6 h-6 text-gray-300 hover:text-swar-text-secondary" />
                   )}
                 </button>
 
@@ -348,8 +348,8 @@ export default function TodoManager({
                   <h4
                     className={`font-semibold ${
                       todo.completed
-                        ? 'text-gray-500 line-through'
-                        : 'text-gray-800'
+                        ? 'text-swar-text-secondary line-through'
+                        : 'text-swar-text'
                     }`}
                   >
                     {todo.title}
@@ -365,7 +365,7 @@ export default function TodoManager({
                   {todo.description && (
                     <p
                       className={`text-sm mt-1 ${
-                        todo.completed ? 'text-gray-500' : 'text-gray-600'
+                        todo.completed ? 'text-swar-text-secondary' : 'text-swar-text-secondary'
                       }`}
                     >
                       {todo.description}
@@ -373,7 +373,7 @@ export default function TodoManager({
                   )}
 
                   {/* Dates */}
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-swar-text-secondary mt-1">
                     📅 {todo.startDate} → {todo.dueDate}
                   </div>
 

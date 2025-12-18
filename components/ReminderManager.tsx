@@ -110,7 +110,7 @@ export default function ReminderManager({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-gray-800">Reminders</h2>
+        <h2 className="text-3xl font-bold text-swar-text">Reminders</h2>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
@@ -124,21 +124,21 @@ export default function ReminderManager({
       <div className="bg-white rounded-lg p-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               type="text"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder="Search title / description"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Status</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
               <option value="active">Active</option>
@@ -151,13 +151,13 @@ export default function ReminderManager({
                 setSearchText('');
                 setFilterStatus('all');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
-        <p className="text-sm text-gray-600">Showing {filteredReminders.length} of {reminders.length} reminders</p>
+        <p className="text-sm text-swar-text-secondary">Showing {filteredReminders.length} of {reminders.length} reminders</p>
       </div>
 
       {/* Form Modal */}
@@ -165,76 +165,76 @@ export default function ReminderManager({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-800">
+              <h3 className="text-xl font-bold text-swar-text">
                 {editingId ? 'Edit Reminder' : 'Add New Reminder'}
               </h3>
-              <button onClick={() => resetForm()} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <X className="w-6 h-6 text-gray-500" />
+              <button onClick={() => resetForm()} className="p-2 hover:bg-swar-primary-light rounded-lg transition-colors">
+                <X className="w-6 h-6 text-swar-text-secondary" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reminder Title *</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Reminder Title *</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Enter reminder title"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Enter reminder description"
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Image URL (Optional)</label>
+                <label className="block text-sm font-medium text-swar-text mb-1">Image URL (Optional)</label>
                 <input
                   type="url"
                   value={formData.imageUrl || ''}
                   onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Due Date</label>
                   <input
                     type="date"
                     value={formData.nextDueDate || ''}
                     onChange={(e) => setFormData({ ...formData, nextDueDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Time</label>
                   <input
                     type="time"
                     value={formData.time || ''}
                     onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Frequency</label>
                   <select
                     value={formData.frequency || 'once'}
                     onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="once">Once</option>
                     <option value="daily">Daily</option>
@@ -244,11 +244,11 @@ export default function ReminderManager({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Category</label>
                   <select
                     value={formData.category || ''}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">Select Category</option>
                     <option value="personal">Personal</option>
@@ -262,11 +262,11 @@ export default function ReminderManager({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                  <label className="block text-sm font-medium text-swar-text mb-1">Priority</label>
                   <select
                     value={formData.priority || 'medium'}
                     onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -274,7 +274,7 @@ export default function ReminderManager({
                   </select>
                 </div>
                 <div>
-                  <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mt-6">
+                  <label className="flex items-center space-x-2 text-sm font-medium text-swar-text mt-6">
                     <input
                       type="checkbox"
                       checked={formData.completed}
@@ -288,7 +288,7 @@ export default function ReminderManager({
             </div>
 
             <div className="flex gap-3 justify-end">
-              <button onClick={() => resetForm()} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+              <button onClick={() => resetForm()} className="px-4 py-2 border border-swar-border rounded-lg text-swar-text hover:bg-swar-bg">
                 Cancel
               </button>
               <button
@@ -306,7 +306,7 @@ export default function ReminderManager({
       {/* Reminders Grid (Vision Design Style) */}
       {filteredReminders.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No reminders yet. Create your first reminder!</p>
+          <p className="text-swar-text-secondary text-lg">No reminders yet. Create your first reminder!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-max justify-items-center">
@@ -321,7 +321,7 @@ export default function ReminderManager({
                 
                 {/* Top-right Badge */}
                 <div className="absolute top-3 right-3">
-                  <div className={`${reminder.completed ? 'bg-green-600' : 'bg-orange-600'} text-white px-3 py-1 rounded-full text-xs font-bold`}>
+                  <div className={`${reminder.completed ? 'bg-swar-primary' : 'bg-orange-600'} text-white px-3 py-1 rounded-full text-xs font-bold`}>
                     {reminder.completed ? 'COMPLETED' : 'ACTIVE'}
                   </div>
                 </div>
@@ -329,11 +329,11 @@ export default function ReminderManager({
 
               {/* Card Content */}
               <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">{reminder.title}</h3>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{reminder.description || 'No description'}</p>
+                <h3 className="text-xl font-bold text-swar-text mb-2 line-clamp-2">{reminder.title}</h3>
+                <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{reminder.description || 'No description'}</p>
 
                 {/* Metadata (Vision style with icons) */}
-                <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                <div className="space-y-2 text-xs text-swar-text mb-auto">
                   {reminder.nextDueDate && (
                     <div className="flex items-center gap-2">
                       📅 {new Date(reminder.nextDueDate).toLocaleDateString()}
@@ -359,7 +359,7 @@ export default function ReminderManager({
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     reminder.priority === 'high' ? 'bg-red-100 text-red-700' : 
                     reminder.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' : 
-                    'bg-green-100 text-green-700'
+                    'bg-swar-primary-light text-swar-primary'
                   }`}>
                     {(reminder.priority || 'medium').toUpperCase()}
                   </span>

@@ -144,13 +144,13 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
-          <h2 className="text-2xl font-bold text-gray-800">
+        <div className="flex items-center justify-between p-6 border-b border-swar-border sticky top-0 bg-white">
+          <h2 className="text-2xl font-bold text-swar-text">
             {vision ? 'Edit Vision' : 'Add New Vision'}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light rounded-lg transition-colors"
           >
             <X className="h-6 w-6" />
           </button>
@@ -159,27 +159,27 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Vision Title *</label>
+            <label className="block text-sm font-medium text-swar-text mb-2">Vision Title *</label>
             <input
               type="text"
               name="title"
               value={formData.title}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="e.g., Build a Meditation Practice"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <label className="block text-sm font-medium text-swar-text mb-2">Description</label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleChange}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="What is this vision about?"
             />
           </div>
@@ -199,7 +199,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
                   className={`py-3 px-3 rounded-lg font-medium text-sm transition-all border-2 ${
                     formData.category === category
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg scale-105'
-                      : 'bg-white text-gray-700 border-gray-300 hover:border-emerald-500 hover:bg-emerald-50'
+                      : 'bg-white text-swar-text border-swar-border hover:border-emerald-500 hover:bg-emerald-50'
                   }`}
                 >
                   {category}
@@ -208,9 +208,9 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
             </div>
 
             {/* Category Image Display & Editor */}
-            <div className="bg-white rounded-lg p-4 border border-gray-200">
+            <div className="bg-white rounded-lg p-4 border border-swar-border">
               <div className="flex items-center justify-between mb-3">
-                <label className="block text-sm font-bold text-gray-800">
+                <label className="block text-sm font-bold text-swar-text">
                   Category Image (Auto-populated, Editable)
                 </label>
                 <button
@@ -225,7 +225,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
 
               {/* Image Preview */}
               {formData.categoryImageUrl && (
-                <div className="mb-4 rounded-lg overflow-hidden h-48 border border-gray-300">
+                <div className="mb-4 rounded-lg overflow-hidden h-48 border border-swar-border">
                   <img
                     src={formData.categoryImageUrl}
                     alt={`${formData.category} category`}
@@ -260,7 +260,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
 
           {/* Custom Image URL (Different from Category) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-swar-text mb-2">
               Custom Vision Image (Optional - Different from Category)
             </label>
             <input
@@ -268,11 +268,11 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
               name="imageUrl"
               value={formData.imageUrl}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               placeholder="https://example.com/image.jpg"
             />
             {(previewUrl || formData.imageUrl) && (
-              <div className="mt-3 rounded-lg overflow-hidden h-40 border border-gray-300">
+              <div className="mt-3 rounded-lg overflow-hidden h-40 border border-swar-border">
                 <img
                   src={previewUrl || formData.imageUrl}
                   alt="Custom Vision"
@@ -284,21 +284,21 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
               </div>
             )}
             <div className="mt-2">
-              <label className="block text-xs text-gray-500 mb-1">Or upload an image</label>
+              <label className="block text-xs text-swar-text-secondary mb-1">Or upload an image</label>
               <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm" />
             </div>
-            <p className="text-xs text-gray-500 mt-2">💡 If you add a custom image, both images will be used in different contexts</p>
+            <p className="text-xs text-swar-text-secondary mt-2">💡 If you add a custom image, both images will be used in different contexts</p>
           </div>
 
           {/* Priority & Status */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Priority</label>
               <select
                 name="priority"
                 value={formData.priority}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -306,12 +306,12 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Status</label>
               <select
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="not-started">Not Started</option>
                 <option value="in-progress">In Progress</option>
@@ -324,73 +324,73 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
           {/* Dates */}
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Start Date *</label>
               <input
                 type="date"
                 name="startDate"
                 value={formData.startDate}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">End Date *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">End Date *</label>
               <input
                 type="date"
                 name="endDate"
                 value={formData.endDate}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               />
             </div>
           </div>
 
           {/* Milestones Section */}
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Milestones</h3>
+            <h3 className="text-lg font-semibold text-swar-text mb-4">Milestones</h3>
 
             {/* Add Milestone Form */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
+            <div className="bg-swar-bg rounded-lg p-4 mb-4 space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Milestone Title</label>
+                <label className="block text-sm font-medium text-swar-text mb-2">Milestone Title</label>
                 <input
                   type="text"
                   value={newMilestone.title}
                   onChange={(e) => setNewMilestone(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   placeholder="e.g., Complete 30-day meditation challenge"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <label className="block text-sm font-medium text-swar-text mb-2">Description</label>
                 <input
                   type="text"
                   value={newMilestone.description}
                   onChange={(e) => setNewMilestone(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   placeholder="Additional details (optional)"
                 />
               </div>
 
               <div className="grid md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                  <label className="block text-sm font-medium text-swar-text mb-2">Due Date</label>
                   <input
                     type="date"
                     value={newMilestone.dueDate}
                     onChange={(e) => setNewMilestone(prev => ({ ...prev, dueDate: e.target.value }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <label className="block text-sm font-medium text-swar-text mb-2">Status</label>
                   <select
                     value={newMilestone.status}
                     onChange={(e) => setNewMilestone(prev => ({ ...prev, status: e.target.value as 'not-started' | 'in-progress' | 'completed' }))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
                     <option value="not-started">Not Started</option>
                     <option value="in-progress">In Progress</option>
@@ -412,14 +412,14 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
             {/* Milestones List */}
             <div className="space-y-2">
               {formData.milestones.length === 0 ? (
-                <p className="text-gray-500 text-sm">No milestones added yet.</p>
+                <p className="text-swar-text-secondary text-sm">No milestones added yet.</p>
               ) : (
                 formData.milestones.map((milestone) => (
-                  <div key={milestone.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={milestone.id} className="flex items-center justify-between p-3 bg-swar-bg rounded-lg">
                     <div className="flex-1">
-                      <p className="font-medium text-gray-800">{milestone.title}</p>
-                      {milestone.description && <p className="text-sm text-gray-600">{milestone.description}</p>}
-                      <p className="text-xs text-gray-500">Due: {new Date(milestone.endDate).toLocaleDateString()} • {milestone.status}</p>
+                      <p className="font-medium text-swar-text">{milestone.title}</p>
+                      {milestone.description && <p className="text-sm text-swar-text-secondary">{milestone.description}</p>}
+                      <p className="text-xs text-swar-text-secondary">Due: {new Date(milestone.endDate).toLocaleDateString()} • {milestone.status}</p>
                     </div>
                     <button
                       type="button"
@@ -435,11 +435,11 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
           </div>
 
           {/* Form Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200 sticky bottom-0 bg-white">
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-swar-border sticky bottom-0 bg-white">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
             >
               Cancel
             </button>

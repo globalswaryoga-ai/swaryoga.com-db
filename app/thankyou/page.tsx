@@ -114,9 +114,9 @@ function ThankYouInner() {
         <div className="w-full max-w-2xl">
           <div className="text-center mb-12">
             <div className="mb-8">
-              <div className="inline-flex items-center justify-center w-24 h-24 bg-green-100 rounded-full">
+              <div className="inline-flex items-center justify-center w-24 h-24 bg-swar-primary-light rounded-full">
                 <svg
-                  className="w-12 h-12 text-green-600"
+                  className="w-12 h-12 text-swar-primary"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -131,34 +131,34 @@ function ThankYouInner() {
               </div>
             </div>
 
-            <h1 className="text-5xl font-bold mb-4 text-green-700">Thank You!</h1>
-            <p className="text-2xl text-gray-600 mb-4">
+            <h1 className="text-5xl font-bold mb-4 text-swar-primary">Thank You!</h1>
+            <p className="text-2xl text-swar-text-secondary mb-4">
               {orderId ? 'Your payment is confirmed' : 'Your workshop registration is confirmed'}
             </p>
           </div>
 
           {loading ? (
             <div className="text-center py-12">
-              <p className="text-gray-600">Loading registration details...</p>
+              <p className="text-swar-text-secondary">Loading registration details...</p>
             </div>
           ) : order ? (
-            <div className="bg-green-50 rounded-lg p-8 mb-8 border-2 border-green-200">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Payment Details</h2>
+            <div className="bg-swar-primary-light rounded-lg p-8 mb-8 border-2 border-green-200">
+              <h2 className="text-2xl font-bold text-swar-text mb-6">Payment Details</h2>
 
               <div className="space-y-4 mb-6">
                 <div className="flex items-start gap-4">
                   <div className="text-2xl">🧾</div>
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Order ID</p>
-                    <p className="text-lg text-gray-900 font-mono break-all">{order._id}</p>
+                    <p className="text-sm text-swar-text-secondary font-semibold">Order ID</p>
+                    <p className="text-lg text-swar-text font-mono break-all">{order._id}</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-4">
                   <div className="text-2xl">✅</div>
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Status</p>
-                    <p className="text-lg text-gray-900">{order.paymentStatus || order.status}</p>
+                    <p className="text-sm text-swar-text-secondary font-semibold">Status</p>
+                    <p className="text-lg text-swar-text">{order.paymentStatus || order.status}</p>
                   </div>
                 </div>
 
@@ -166,8 +166,8 @@ function ThankYouInner() {
                   <div className="flex items-start gap-4">
                     <div className="text-2xl">🔁</div>
                     <div>
-                      <p className="text-sm text-gray-600 font-semibold">Transaction ID</p>
-                      <p className="text-lg text-gray-900 font-mono break-all">{order.transactionId}</p>
+                      <p className="text-sm text-swar-text-secondary font-semibold">Transaction ID</p>
+                      <p className="text-lg text-swar-text font-mono break-all">{order.transactionId}</p>
                     </div>
                   </div>
                 ) : null}
@@ -175,24 +175,24 @@ function ThankYouInner() {
                 <div className="flex items-start gap-4">
                   <div className="text-2xl">💰</div>
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Total</p>
-                    <p className="text-lg font-bold text-green-600">₹ {Number(order.total || 0).toFixed(2)}</p>
+                    <p className="text-sm text-swar-text-secondary font-semibold">Total</p>
+                    <p className="text-lg font-bold text-swar-primary">₹ {Number(order.total || 0).toFixed(2)}</p>
                   </div>
                 </div>
               </div>
 
               <div className="border-t border-green-300 pt-6">
-                <p className="text-gray-700">
+                <p className="text-swar-text">
                   If you have any questions, please contact our team at{' '}
-                  <a href="mailto:support@swaryoga.com" className="text-green-600 font-bold hover:text-green-700">
+                  <a href="mailto:support@swaryoga.com" className="text-swar-primary font-bold hover:text-swar-primary">
                     support@swaryoga.com
                   </a>
                 </p>
               </div>
             </div>
           ) : registration ? (
-            <div className="bg-green-50 rounded-lg p-8 mb-8 border-2 border-green-200">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            <div className="bg-swar-primary-light rounded-lg p-8 mb-8 border-2 border-green-200">
+              <h2 className="text-2xl font-bold text-swar-text mb-6">
                 Registration Details
               </h2>
 
@@ -201,8 +201,8 @@ function ThankYouInner() {
                 <div className="flex items-start gap-4">
                   <div className="text-2xl">🎫</div>
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Registration ID</p>
-                    <p className="text-lg text-gray-900">{registrationId || registration._id}</p>
+                    <p className="text-sm text-swar-text-secondary font-semibold">Registration ID</p>
+                    <p className="text-lg text-swar-text">{registrationId || registration._id}</p>
                   </div>
                 </div>
 
@@ -210,8 +210,8 @@ function ThankYouInner() {
                 <div className="flex items-start gap-4">
                   <div className="text-2xl">🧘</div>
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Workshop</p>
-                    <p className="text-lg text-gray-900">{registration.workshopName}</p>
+                    <p className="text-sm text-swar-text-secondary font-semibold">Workshop</p>
+                    <p className="text-lg text-swar-text">{registration.workshopName}</p>
                   </div>
                 </div>
 
@@ -219,8 +219,8 @@ function ThankYouInner() {
                 <div className="flex items-start gap-4">
                   <div className="text-2xl">{getModeLabel(registration.mode).charAt(0)}</div>
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Mode</p>
-                    <p className="text-lg text-gray-900">
+                    <p className="text-sm text-swar-text-secondary font-semibold">Mode</p>
+                    <p className="text-lg text-swar-text">
                       {getModeLabel(registration.mode)}
                     </p>
                   </div>
@@ -228,10 +228,10 @@ function ThankYouInner() {
 
                 {/* Dates */}
                 <div className="flex items-start gap-4">
-                  <Calendar className="w-6 h-6 text-green-600 mt-1" />
+                  <Calendar className="w-6 h-6 text-swar-primary mt-1" />
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Duration</p>
-                    <p className="text-lg text-gray-900">
+                    <p className="text-sm text-swar-text-secondary font-semibold">Duration</p>
+                    <p className="text-lg text-swar-text">
                       {formatDate(registration.startDate)} to{' '}
                       {formatDate(registration.endDate)}
                     </p>
@@ -242,8 +242,8 @@ function ThankYouInner() {
                 <div className="flex items-start gap-4">
                   <div className="text-2xl">💰</div>
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Price</p>
-                    <p className="text-lg font-bold text-green-600">
+                    <p className="text-sm text-swar-text-secondary font-semibold">Price</p>
+                    <p className="text-lg font-bold text-swar-primary">
                       {registration.currency} {registration.price.toLocaleString()}
                     </p>
                   </div>
@@ -251,30 +251,30 @@ function ThankYouInner() {
 
                 {/* Email */}
                 <div className="flex items-start gap-4">
-                  <Mail className="w-6 h-6 text-green-600 mt-1" />
+                  <Mail className="w-6 h-6 text-swar-primary mt-1" />
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Email</p>
-                    <p className="text-lg text-gray-900">{registration.email}</p>
+                    <p className="text-sm text-swar-text-secondary font-semibold">Email</p>
+                    <p className="text-lg text-swar-text">{registration.email}</p>
                   </div>
                 </div>
 
                 {/* Phone */}
                 <div className="flex items-start gap-4">
-                  <Phone className="w-6 h-6 text-green-600 mt-1" />
+                  <Phone className="w-6 h-6 text-swar-primary mt-1" />
                   <div>
-                    <p className="text-sm text-gray-600 font-semibold">Phone</p>
-                    <p className="text-lg text-gray-900">{registration.phone}</p>
+                    <p className="text-sm text-swar-text-secondary font-semibold">Phone</p>
+                    <p className="text-lg text-swar-text">{registration.phone}</p>
                   </div>
                 </div>
               </div>
 
               <div className="border-t border-green-300 pt-6">
-                <p className="text-gray-700 mb-4">
+                <p className="text-swar-text mb-4">
                   A confirmation email has been sent to <span className="font-bold">{registration.email}</span>. Keep it safe for future reference.
                 </p>
-                <p className="text-gray-700">
+                <p className="text-swar-text">
                   If you have any questions, please contact our team at{' '}
-                  <a href="mailto:support@swaryoga.com" className="text-green-600 font-bold hover:text-green-700">
+                  <a href="mailto:support@swaryoga.com" className="text-swar-primary font-bold hover:text-swar-primary">
                     support@swaryoga.com
                   </a>
                 </p>
@@ -282,7 +282,7 @@ function ThankYouInner() {
             </div>
           ) : (
             <div className="bg-yellow-50 rounded-lg p-8 mb-8 border-2 border-yellow-200">
-              <p className="text-gray-700">
+              <p className="text-swar-text">
                 Unable to load registration details. Please check your email for confirmation.
               </p>
             </div>
@@ -299,7 +299,7 @@ function ThankYouInner() {
             <p>
               <Link
                 href="/profile"
-                className="text-green-600 hover:text-green-700 font-semibold"
+                className="text-swar-primary hover:text-swar-primary font-semibold"
               >
                 View All My Registrations
               </Link>

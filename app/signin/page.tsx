@@ -114,18 +114,18 @@ function SignInInner() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen bg-gray-50">
+      <main className="min-h-screen bg-swar-bg">
         <div className="container mx-auto max-w-md px-6 py-16">
           <div className="bg-white rounded-2xl shadow-lg p-8">
             {/* Header */}
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <LogIn className="h-8 w-8 text-green-600" />
+              <div className="w-16 h-16 bg-swar-primary-light rounded-full flex items-center justify-center mx-auto mb-4">
+                <LogIn className="h-8 w-8 text-swar-primary" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">Welcome Back</h1>
-              <p className="text-gray-600">Sign in to access your account and workshops</p>
+              <h1 className="text-2xl font-bold text-swar-text mb-2">Welcome Back</h1>
+              <p className="text-swar-text-secondary">Sign in to access your account and workshops</p>
               {redirectPath && redirectPath !== '/' && (
-                <div className="mt-2 text-sm text-green-600">
+                <div className="mt-2 text-sm text-swar-primary">
                   Sign in to continue to {redirectPath === 'account' ? 'your account' : 
                                          redirectPath === 'cart' ? 'your cart' : 
                                          redirectPath === 'checkout' ? 'checkout' : redirectPath}
@@ -135,9 +135,9 @@ function SignInInner() {
 
             {/* Status Messages */}
             {submitStatus === 'success' && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <span className="text-green-800">Sign in successful! Redirecting...</span>
+              <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-center space-x-3">
+                <CheckCircle className="h-5 w-5 text-swar-primary" />
+                <span className="text-swar-primary">Sign in successful! Redirecting...</span>
               </div>
             )}
 
@@ -152,17 +152,17 @@ function SignInInner() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Email */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                <label htmlFor="email" className="block text-sm font-medium text-swar-text mb-2">Email Address</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-swar-text-secondary" />
                   <input
                     type="email"
                     id="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                      errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                      errors.email ? 'border-red-400 bg-red-50' : 'border-swar-border'
                     }`}
                     placeholder="Enter your email address"
                     autoComplete="email"
@@ -173,17 +173,17 @@ function SignInInner() {
 
               {/* Password */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <label htmlFor="password" className="block text-sm font-medium text-swar-text mb-2">Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-swar-text-secondary" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     id="password"
                     name="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                      errors.password ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                    className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
+                      errors.password ? 'border-red-400 bg-red-50' : 'border-swar-border'
                     }`}
                     placeholder="Enter your password"
                     autoComplete="current-password"
@@ -191,7 +191,7 @@ function SignInInner() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-text-secondary"
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
@@ -204,11 +204,11 @@ function SignInInner() {
                 <label className="flex items-center">
                   <input
                     type="checkbox"
-                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    className="rounded border-swar-border text-swar-primary focus:ring-swar-primary"
                   />
-                  <span className="ml-2 text-sm text-gray-600">Remember me</span>
+                  <span className="ml-2 text-sm text-swar-text-secondary">Remember me</span>
                 </label>
-                <Link href="/forgot-password" className="text-sm text-green-600 hover:text-green-700">
+                <Link href="/forgot-password" className="text-sm text-swar-primary hover:text-swar-primary">
                   Forgot password?
                 </Link>
               </div>
@@ -235,11 +235,11 @@ function SignInInner() {
 
             {/* Sign Up Link */}
             <div className="mt-8 text-center">
-              <p className="text-gray-600">
+              <p className="text-swar-text-secondary">
                 Don't have an account?{' '}
                 <Link
                   href={`/signup${redirectPath && redirectPath !== '/' ? `?redirect=${redirectPath}` : ''}`}
-                  className="text-green-600 hover:text-green-700 font-medium"
+                  className="text-swar-primary hover:text-swar-primary font-medium"
                 >
                   Sign up here
                 </Link>
@@ -247,8 +247,8 @@ function SignInInner() {
             </div>
 
             {/* Access Info */}
-            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
-              <p className="text-sm text-green-800">
+            <div className="mt-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg text-center">
+              <p className="text-sm text-swar-primary">
                 Sign in to access your personal account and track your journey.
               </p>
             </div>

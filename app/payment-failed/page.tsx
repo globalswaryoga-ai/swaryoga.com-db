@@ -34,7 +34,7 @@ function PaymentFailedInner() {
       <Navigation />
       <main className="min-h-screen pt-20 pb-16 px-4">
         <div className="container mx-auto max-w-3xl">
-          <div className="bg-white rounded-2xl shadow-xl border border-red-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-xl border border-swar-border overflow-hidden">
             <div className="p-8 sm:p-10 bg-gradient-to-r from-swar-primary-light to-white border-b border-swar-border">
               <div className="flex items-start gap-4">
                 <div className="shrink-0 w-12 h-12 rounded-full bg-swar-primary-light flex items-center justify-center">
@@ -46,7 +46,7 @@ function PaymentFailedInner() {
                   </h1>
                   <p className="mt-2 text-swar-text text-lg">{error}</p>
                   {summary ? (
-                    <p className="mt-3 text-sm text-gray-600 break-words">{summary}</p>
+                    <p className="mt-3 text-sm text-swar-text-secondary break-words">{summary}</p>
                   ) : null}
                 </div>
               </div>

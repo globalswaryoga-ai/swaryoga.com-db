@@ -95,12 +95,12 @@ export default function RoutinesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Daily Routines</h1>
-          <p className="text-gray-600 mt-1">Build healthy habits with organized routines throughout the day</p>
+          <h1 className="text-3xl font-bold text-swar-text">Daily Routines</h1>
+          <p className="text-swar-text-secondary mt-1">Build healthy habits with organized routines throughout the day</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-500 to-pink-500 px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
         >
           <Plus className="h-5 w-5" />
           Add Routine
@@ -111,21 +111,21 @@ export default function RoutinesPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div className="md:col-span-3">
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder="Search routine text / time"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-pink-200"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Time Period</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Time Period</label>
             <select
               value={filterPeriod}
               onChange={(e) => setFilterPeriod(e.target.value as any)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
             >
               <option value="all">All</option>
               <option value="morning">Morning</option>
@@ -142,20 +142,20 @@ export default function RoutinesPage() {
                 setSearchText('');
                 setFilterPeriod('all');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-gray-600">Showing {filteredRoutines.length} of {routines.length} routines</p>
+        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredRoutines.length} of {routines.length} routines</p>
       </div>
 
       {/* Add Routine Form */}
       {showForm && (
-        <div className="rounded-3xl border border-pink-200 bg-white p-6 shadow-lg">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Create New Routine</h2>
+        <div className="rounded-3xl border border-swar-border bg-white p-6 shadow-lg">
+          <h2 className="text-xl font-semibold text-swar-text mb-4">Create New Routine</h2>
 
           {error && (
             <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
@@ -167,32 +167,32 @@ export default function RoutinesPage() {
           <div className="space-y-4">
             {/* Routine Text */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-swar-text mb-2">
                 Routine Activity *
               </label>
               <textarea
                 value={formData.text}
                 onChange={(e) => setFormData({ ...formData, text: e.target.value })}
                 placeholder="What routine activity? (e.g., Morning yoga, Breakfast, Meditation)"
-                className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
+                className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 resize-none"
                 rows={3}
               />
             </div>
 
             {/* Time */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
+              <label className="block text-sm font-medium text-swar-text mb-2">Time *</label>
               <input
                 type="time"
                 value={formData.time}
                 onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                className="w-full rounded-lg border border-pink-200 px-4 py-3 text-gray-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
               />
             </div>
 
             {/* Time Period */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Time Period</label>
+              <label className="block text-sm font-medium text-swar-text mb-3">Time Period</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {(['morning', 'afternoon', 'evening', 'night'] as const).map((period) => (
                   <label key={period} className="flex items-center gap-3 cursor-pointer">
@@ -209,7 +209,7 @@ export default function RoutinesPage() {
                       }
                       className="h-5 w-5 rounded-full border-2 border-pink-300 text-red-600 focus:ring-2 focus:ring-red-500 cursor-pointer"
                     />
-                    <span className="text-sm text-gray-700 font-medium">{timePeriodLabels[period]}</span>
+                    <span className="text-sm text-swar-text font-medium">{timePeriodLabels[period]}</span>
                   </label>
                 ))}
               </div>
@@ -219,7 +219,7 @@ export default function RoutinesPage() {
             <div className="flex gap-3 pt-4">
               <button
                 onClick={handleAddRoutine}
-                className="flex-1 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+                className="flex-1 rounded-lg bg-gradient-to-r from-swar-accent to-pink-500 px-4 py-3 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
               >
                 Create Routine
               </button>
@@ -233,7 +233,7 @@ export default function RoutinesPage() {
                     timePeriod: 'morning',
                   });
                 }}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 font-semibold hover:bg-gray-50 transition"
+                className="flex-1 rounded-lg border border-swar-border px-4 py-3 text-swar-text font-semibold hover:bg-swar-bg transition"
               >
                 Cancel
               </button>
@@ -251,18 +251,18 @@ export default function RoutinesPage() {
           </div>
 
           {items.length === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-pink-200 p-8 text-center mb-6">
-              <p className="text-gray-600">No routines for {period}</p>
+            <div className="rounded-2xl border-2 border-dashed border-swar-border p-8 text-center mb-6">
+              <p className="text-swar-text-secondary">No routines for {period}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
               {items.map((routine) => (
-                <div key={routine.id} className="bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 flex flex-col h-full border-pink-200">
+                <div key={routine.id} className="bg-white rounded-2xl shadow-lg overflow-hidden border-2 transition-all duration-300 flex flex-col h-full border-swar-border">
                   {/* Image header (match Vision: h-40) */}
                   <div className={`relative h-40 bg-gradient-to-r ${timePeriodColors[period]} overflow-hidden`}> 
                     {/* Top-right chip */}
                     <div className="absolute top-3 right-3 flex gap-2">
-                      <span className="bg-white text-gray-900 px-3 py-1 rounded-full text-xs font-bold shadow">
+                      <span className="bg-white text-swar-text px-3 py-1 rounded-full text-xs font-bold shadow">
                         {timePeriodLabels[period]}
                       </span>
                     </div>
@@ -272,7 +272,7 @@ export default function RoutinesPage() {
                   </div>
                   {/* Card content (match Vision: p-4, space-y-3) */}
                   <div className="flex-1 flex flex-col p-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
+                    <div className="grid grid-cols-2 gap-2 text-xs text-swar-text-secondary mb-2">
                       <div><span className="font-semibold">Time:</span> {routine.time}</div>
                       <div><span className="font-semibold">Period:</span> {timePeriodLabels[period]}</div>
                     </div>
@@ -294,18 +294,18 @@ export default function RoutinesPage() {
 
       {/* Empty State */}
       {routines.length === 0 && !showForm && (
-        <div className="rounded-3xl border-2 border-dashed border-pink-200 p-12 text-center">
-          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">No routines yet</p>
-          <p className="text-gray-500 text-sm mt-1">Create your first routine to build healthy habits</p>
+        <div className="rounded-3xl border-2 border-dashed border-swar-border p-12 text-center">
+          <Clock className="h-12 w-12 text-swar-text-secondary mx-auto mb-4" />
+          <p className="text-swar-text-secondary text-lg">No routines yet</p>
+          <p className="text-swar-text-secondary text-sm mt-1">Create your first routine to build healthy habits</p>
         </div>
       )}
 
       {routines.length > 0 && filteredRoutines.length === 0 && !showForm && (
-        <div className="rounded-3xl border-2 border-dashed border-pink-200 p-12 text-center">
-          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">No routines match your filters</p>
-          <p className="text-gray-500 text-sm mt-1">Try clearing filters or searching a different keyword</p>
+        <div className="rounded-3xl border-2 border-dashed border-swar-border p-12 text-center">
+          <Clock className="h-12 w-12 text-swar-text-secondary mx-auto mb-4" />
+          <p className="text-swar-text-secondary text-lg">No routines match your filters</p>
+          <p className="text-swar-text-secondary text-sm mt-1">Try clearing filters or searching a different keyword</p>
         </div>
       )}
     </div>

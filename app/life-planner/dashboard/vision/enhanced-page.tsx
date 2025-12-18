@@ -92,10 +92,10 @@ export default function EnhancedVisionDashboard() {
 
   const getStatusColor = (status?: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
+      case 'completed': return 'bg-swar-primary-light text-swar-primary';
       case 'in-progress': return 'bg-blue-100 text-blue-800';
       case 'on-hold': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+      default: return 'bg-swar-primary-light text-swar-text';
     }
   };
 
@@ -103,8 +103,8 @@ export default function EnhancedVisionDashboard() {
     switch (priority) {
       case 'high': return 'bg-red-100 text-red-800';
       case 'medium': return 'bg-orange-100 text-orange-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'low': return 'bg-swar-primary-light text-swar-primary';
+      default: return 'bg-swar-primary-light text-swar-text';
     }
   };
 
@@ -115,8 +115,8 @@ export default function EnhancedVisionDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">🌟 Vision Projects</h1>
-          <p className="text-gray-600">Create and manage your big projects with milestones, goals, tasks, and reminders</p>
+          <h1 className="text-4xl font-bold text-swar-text mb-2">🌟 Vision Projects</h1>
+          <p className="text-swar-text-secondary">Create and manage your big projects with milestones, goals, tasks, and reminders</p>
         </div>
         <button
           onClick={handleAddVision}
@@ -132,19 +132,19 @@ export default function EnhancedVisionDashboard() {
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 shadow-lg border border-purple-200">
             <div className="text-3xl font-bold text-purple-600 mb-1">{visions.length}</div>
-            <div className="text-gray-600 text-sm">Total Visions</div>
+            <div className="text-swar-text-secondary text-sm">Total Visions</div>
           </div>
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 shadow-lg border border-blue-200">
             <div className="text-3xl font-bold text-blue-600 mb-1">
               {visions.reduce((sum, v) => sum + (v.milestones?.length ?? 0), 0)}
             </div>
-            <div className="text-gray-600 text-sm">Total Milestones</div>
+            <div className="text-swar-text-secondary text-sm">Total Milestones</div>
           </div>
           <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 shadow-lg border border-green-200">
-            <div className="text-3xl font-bold text-green-600 mb-1">
+            <div className="text-3xl font-bold text-swar-primary mb-1">
               {visions.reduce((sum, v) => sum + (v.goals?.length ?? 0), 0)}
             </div>
-            <div className="text-gray-600 text-sm">Total Goals</div>
+            <div className="text-swar-text-secondary text-sm">Total Goals</div>
           </div>
           <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 shadow-lg border border-orange-200">
             <div className="text-3xl font-bold text-orange-600 mb-1">
@@ -152,7 +152,7 @@ export default function EnhancedVisionDashboard() {
                 visions.reduce((sum, v) => sum + calculateStats(v).progress, 0) / (visions.length || 1)
               )}%
             </div>
-            <div className="text-gray-600 text-sm">Avg Progress</div>
+            <div className="text-swar-text-secondary text-sm">Avg Progress</div>
           </div>
         </div>
       )}
@@ -198,7 +198,7 @@ export default function EnhancedVisionDashboard() {
               <div className="p-6">
                 {/* Title & Category */}
                 <div className="mb-4">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-purple-600 transition-colors">
+                  <h3 className="text-2xl font-bold text-swar-text mb-2 group-hover:text-purple-600 transition-colors">
                     {vision.title}
                   </h3>
                   {vision.category && (
@@ -209,12 +209,12 @@ export default function EnhancedVisionDashboard() {
                 </div>
 
                 {/* Description */}
-                <p className="text-gray-600 text-sm line-clamp-2 mb-4">
+                <p className="text-swar-text-secondary text-sm line-clamp-2 mb-4">
                   {vision.description}
                 </p>
 
                 {/* Dates */}
-                <div className="flex items-center text-gray-600 text-xs mb-4 gap-4">
+                <div className="flex items-center text-swar-text-secondary text-xs mb-4 gap-4">
                   <span className="flex items-center gap-1">
                     <Calendar size={14} />
                     {vision.startDate} to {vision.endDate}
@@ -222,25 +222,25 @@ export default function EnhancedVisionDashboard() {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-3 gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-3 gap-2 mb-4 p-3 bg-swar-bg rounded-lg">
                   <div className="text-center">
                     <div className="text-lg font-bold text-purple-600">{vision.milestones?.length ?? 0}</div>
-                    <div className="text-xs text-gray-600">Milestones</div>
+                    <div className="text-xs text-swar-text-secondary">Milestones</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-blue-600">{vision.goals?.length ?? 0}</div>
-                    <div className="text-xs text-gray-600">Goals</div>
+                    <div className="text-xs text-swar-text-secondary">Goals</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-bold text-green-600">{vision.todos?.length ?? 0}</div>
-                    <div className="text-xs text-gray-600">Todos</div>
+                    <div className="text-lg font-bold text-swar-primary">{vision.todos?.length ?? 0}</div>
+                    <div className="text-xs text-swar-text-secondary">Todos</div>
                   </div>
                 </div>
 
                 {/* Progress Bar */}
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-gray-700">Progress</span>
+                    <span className="text-xs font-semibold text-swar-text">Progress</span>
                     <span className="text-xs font-bold text-purple-600">{stats.progress}%</span>
                   </div>
                   <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
@@ -252,7 +252,7 @@ export default function EnhancedVisionDashboard() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-4 border-t border-gray-200">
+                <div className="flex gap-2 pt-4 border-t border-swar-border">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -286,8 +286,8 @@ export default function EnhancedVisionDashboard() {
       {visions.length === 0 && (
         <div className="text-center py-16">
           <div className="text-6xl mb-4">🌟</div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">No Vision Projects Yet</h3>
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+          <h3 className="text-2xl font-bold text-swar-text mb-2">No Vision Projects Yet</h3>
+          <p className="text-swar-text-secondary mb-6 max-w-md mx-auto">
             Create your first vision project to organize all your milestones, goals, tasks, todos, mantras and reminders in one place.
           </p>
           <button
@@ -339,7 +339,7 @@ export default function EnhancedVisionDashboard() {
             <div className="p-8">
               {/* Title & Badges */}
               <div className="mb-6">
-                <h1 className="text-4xl font-bold text-gray-900 mb-4">{selectedVision.title}</h1>
+                <h1 className="text-4xl font-bold text-swar-text mb-4">{selectedVision.title}</h1>
                 <div className="flex gap-2 flex-wrap">
                   <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(selectedVision.status)}`}>
                     {selectedVision.status || 'not-started'}
@@ -356,26 +356,26 @@ export default function EnhancedVisionDashboard() {
               </div>
 
               {/* Description */}
-              <div className="mb-8 pb-8 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900 mb-3">Overview</h2>
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedVision.description}</p>
+              <div className="mb-8 pb-8 border-b border-swar-border">
+                <h2 className="text-xl font-semibold text-swar-text mb-3">Overview</h2>
+                <p className="text-swar-text leading-relaxed whitespace-pre-wrap">{selectedVision.description}</p>
               </div>
 
               {/* Dates */}
-              <div className="grid md:grid-cols-2 gap-8 mb-8 pb-8 border-b border-gray-200">
+              <div className="grid md:grid-cols-2 gap-8 mb-8 pb-8 border-b border-swar-border">
                 <div>
-                  <div className="text-sm font-semibold text-gray-600 mb-1">📅 Start Date</div>
-                  <div className="text-lg text-gray-900 font-semibold">{selectedVision.startDate}</div>
+                  <div className="text-sm font-semibold text-swar-text-secondary mb-1">📅 Start Date</div>
+                  <div className="text-lg text-swar-text font-semibold">{selectedVision.startDate}</div>
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-gray-600 mb-1">🎯 End Date</div>
-                  <div className="text-lg text-gray-900 font-semibold">{selectedVision.endDate}</div>
+                  <div className="text-sm font-semibold text-swar-text-secondary mb-1">🎯 End Date</div>
+                  <div className="text-lg text-swar-text font-semibold">{selectedVision.endDate}</div>
                 </div>
               </div>
 
               {/* Progress */}
-              <div className="mb-8 pb-8 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Progress</h2>
+              <div className="mb-8 pb-8 border-b border-swar-border">
+                <h2 className="text-xl font-semibold text-swar-text mb-4">Progress</h2>
                 <div className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
@@ -391,14 +391,14 @@ export default function EnhancedVisionDashboard() {
 
               {/* Sections */}
               {(selectedVision.milestones?.length ?? 0) > 0 && (
-                <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🏁 Milestones ({selectedVision.milestones?.length ?? 0})</h2>
+                <div className="mb-8 pb-8 border-b border-swar-border">
+                  <h2 className="text-xl font-semibold text-swar-text mb-4">🏁 Milestones ({selectedVision.milestones?.length ?? 0})</h2>
                   <div className="space-y-2">
                     {(selectedVision.milestones ?? []).map(m => (
                       <div key={m.id} className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
-                        {m.status === 'completed' ? <CheckCircle2 size={20} className="text-green-600" /> : <div className="w-5 h-5 border-2 border-purple-400 rounded-full" />}
-                        <span className={m.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}>{m.title}</span>
-                        <span className="ml-auto text-xs text-gray-600">{m.endDate}</span>
+                        {m.status === 'completed' ? <CheckCircle2 size={20} className="text-swar-primary" /> : <div className="w-5 h-5 border-2 border-purple-400 rounded-full" />}
+                        <span className={m.status === 'completed' ? 'line-through text-swar-text-secondary' : 'text-swar-text'}>{m.title}</span>
+                        <span className="ml-auto text-xs text-swar-text-secondary">{m.endDate}</span>
                       </div>
                     ))}
                   </div>
@@ -406,13 +406,13 @@ export default function EnhancedVisionDashboard() {
               )}
 
               {(selectedVision.goals?.length ?? 0) > 0 && (
-                <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🎯 Goals ({selectedVision.goals?.length ?? 0})</h2>
+                <div className="mb-8 pb-8 border-b border-swar-border">
+                  <h2 className="text-xl font-semibold text-swar-text mb-4">🎯 Goals ({selectedVision.goals?.length ?? 0})</h2>
                   <div className="space-y-2">
                     {(selectedVision.goals ?? []).map(g => (
                       <div key={g.id} className="p-3 bg-blue-50 rounded-lg">
-                        <div className="font-medium text-gray-900">{g.title}</div>
-                        <div className="text-xs text-gray-600 mt-1">{g.targetDate}</div>
+                        <div className="font-medium text-swar-text">{g.title}</div>
+                        <div className="text-xs text-swar-text-secondary mt-1">{g.targetDate}</div>
                       </div>
                     ))}
                   </div>
@@ -420,31 +420,31 @@ export default function EnhancedVisionDashboard() {
               )}
 
               {(selectedVision.todos?.length ?? 0) > 0 && (
-                <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">📌 Todos ({selectedVision.todos?.length ?? 0})</h2>
+                <div className="mb-8 pb-8 border-b border-swar-border">
+                  <h2 className="text-xl font-semibold text-swar-text mb-4">📌 Todos ({selectedVision.todos?.length ?? 0})</h2>
                   <div className="space-y-2">
                     {(selectedVision.todos ?? []).slice(0, 5).map(t => (
                       <div key={t.id} className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
-                        {t.completed ? <CheckCircle2 size={20} className="text-green-600" /> : <div className="w-5 h-5 border-2 border-orange-400 rounded-full" />}
-                        <span className={t.completed ? 'line-through text-gray-500' : 'text-gray-900'}>{t.title}</span>
+                        {t.completed ? <CheckCircle2 size={20} className="text-swar-primary" /> : <div className="w-5 h-5 border-2 border-orange-400 rounded-full" />}
+                        <span className={t.completed ? 'line-through text-swar-text-secondary' : 'text-swar-text'}>{t.title}</span>
                       </div>
                     ))}
                     {(selectedVision.todos?.length ?? 0) > 5 && (
-                      <div className="text-sm text-gray-600 mt-2">+{(selectedVision.todos?.length ?? 0) - 5} more todos</div>
+                      <div className="text-sm text-swar-text-secondary mt-2">+{(selectedVision.todos?.length ?? 0) - 5} more todos</div>
                     )}
                   </div>
                 </div>
               )}
 
               {(selectedVision.words?.length ?? 0) > 0 && (
-                <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">✨ Mantras & Affirmations ({selectedVision.words?.length ?? 0})</h2>
+                <div className="mb-8 pb-8 border-b border-swar-border">
+                  <h2 className="text-xl font-semibold text-swar-text mb-4">✨ Mantras & Affirmations ({selectedVision.words?.length ?? 0})</h2>
                   <div className="space-y-3">
                     {(selectedVision.words ?? []).map(w => (
                       <div key={w.id} className="p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-                        <div className="font-medium text-gray-900">{w.title}</div>
-                        <div className="text-gray-700 italic mt-2">{w.description || ''}</div>
-                        <div className="text-xs text-gray-600 mt-2">📌 {w.category}</div>
+                        <div className="font-medium text-swar-text">{w.title}</div>
+                        <div className="text-swar-text italic mt-2">{w.description || ''}</div>
+                        <div className="text-xs text-swar-text-secondary mt-2">📌 {w.category}</div>
                       </div>
                     ))}
                   </div>
@@ -453,12 +453,12 @@ export default function EnhancedVisionDashboard() {
 
               {(selectedVision.reminders?.length ?? 0) > 0 && (
                 <div className="mb-8">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">🔔 Reminders ({selectedVision.reminders?.length ?? 0})</h2>
+                  <h2 className="text-xl font-semibold text-swar-text mb-4">🔔 Reminders ({selectedVision.reminders?.length ?? 0})</h2>
                   <div className="space-y-2">
                     {(selectedVision.reminders ?? []).map(r => (
                       <div key={r.id} className="p-3 bg-red-50 rounded-lg">
-                        <div className="font-medium text-gray-900">{r.title}</div>
-                        <div className="text-xs text-gray-600 mt-1">{r.dueDate} {r.dueTime ? `• ${r.dueTime}` : ''} • {r.frequency}</div>
+                        <div className="font-medium text-swar-text">{r.title}</div>
+                        <div className="text-xs text-swar-text-secondary mt-1">{r.dueDate} {r.dueTime ? `• ${r.dueTime}` : ''} • {r.frequency}</div>
                       </div>
                     ))}
                   </div>
@@ -466,7 +466,7 @@ export default function EnhancedVisionDashboard() {
               )}
 
               {/* Action Buttons */}
-              <div className="flex gap-3 pt-6 border-t border-gray-200">
+              <div className="flex gap-3 pt-6 border-t border-swar-border">
                 <button
                   onClick={() => {
                     setSelectedVision(null);
@@ -491,7 +491,7 @@ export default function EnhancedVisionDashboard() {
                 </button>
                 <button
                   onClick={() => setSelectedVision(null)}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-swar-primary-light text-swar-text rounded-lg hover:bg-gray-300 transition-colors font-semibold"
                 >
                   Close
                 </button>

@@ -203,8 +203,8 @@ export default function HealthPage() {
       
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Health Routines</h1>
-          <p className="text-sm text-gray-600">Add and manage your daily health routines</p>
+          <h1 className="text-3xl font-bold text-swar-text">Health Routines</h1>
+          <p className="text-sm text-swar-text-secondary">Add and manage your daily health routines</p>
         </div>
         <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-white font-semibold hover:from-emerald-600 hover:to-teal-600 transition">
           <Plus className="h-5 w-5" /> New Routine
@@ -215,21 +215,21 @@ export default function HealthPage() {
       <div className="mb-6 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-2">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-2">Search</label>
             <input 
               type="text" 
               placeholder="Search title / description..." 
               value={searchQuery} 
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-2">Category</label>
+            <label className="block text-xs font-bold text-swar-text mb-2">Category</label>
             <select 
               value={filterCategory} 
               onChange={e => setFilterCategory(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option>All</option>
               {categories.map(cat => (
@@ -238,11 +238,11 @@ export default function HealthPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-2">Frequency</label>
+            <label className="block text-xs font-bold text-swar-text mb-2">Frequency</label>
             <select 
               value={filterFrequency} 
               onChange={e => setFilterFrequency(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option>All</option>
               <option>daily</option>
@@ -251,11 +251,11 @@ export default function HealthPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-2">Month</label>
+            <label className="block text-xs font-bold text-swar-text mb-2">Month</label>
             <select 
               value={filterMonth} 
               onChange={e => setFilterMonth(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option>All</option>
               {MONTHS.map(m => <option key={m}>{m}</option>)}
@@ -263,7 +263,7 @@ export default function HealthPage() {
           </div>
           <button 
             onClick={clearFilters}
-            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition text-sm"
+            className="px-4 py-2 bg-swar-primary-light text-swar-text rounded-lg font-semibold hover:bg-gray-300 transition text-sm"
           >
             Clear Filters
           </button>
@@ -273,7 +273,7 @@ export default function HealthPage() {
       {/* Category Management */}
       <div className="mb-6 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-gray-800">Manage Categories</h3>
+          <h3 className="text-sm font-bold text-swar-text">Manage Categories</h3>
           <button 
             onClick={() => setShowCategoryInput(!showCategoryInput)}
             className="px-3 py-1 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 transition"
@@ -289,7 +289,7 @@ export default function HealthPage() {
               value={newCategoryName} 
               onChange={e => setNewCategoryName(e.target.value)}
               placeholder="New category name..."
-              className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm"
+              className="flex-1 px-3 py-2 rounded-lg border border-swar-border text-sm"
               onKeyPress={e => e.key === 'Enter' && addCategory()}
             />
             <button 
@@ -300,7 +300,7 @@ export default function HealthPage() {
             </button>
             <button 
               onClick={() => { setShowCategoryInput(false); setNewCategoryName(''); }}
-              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-400 transition"
+              className="px-4 py-2 bg-gray-300 text-swar-text text-sm font-bold rounded-lg hover:bg-gray-400 transition"
             >
               Cancel
             </button>
@@ -313,7 +313,7 @@ export default function HealthPage() {
               key={cat}
               className="flex items-center gap-1 bg-gradient-to-r from-emerald-100 to-teal-100 px-2 py-1 rounded-md border border-emerald-200"
             >
-              <span className="text-xs font-medium text-gray-800">✓ {cat}</span>
+              <span className="text-xs font-medium text-swar-text">✓ {cat}</span>
               <button 
                 onClick={() => removeCategory(cat)}
                 className="text-red-500 hover:text-red-700 font-bold text-base leading-none"
@@ -329,33 +329,33 @@ export default function HealthPage() {
         <div className="mb-6 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Title</label>
-              <input value={form.title} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200" />
+              <label className="block text-xs font-bold text-swar-text mb-1">Title</label>
+              <input value={form.title} onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-swar-border" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
-              <select value={form.category} onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white">
+              <label className="block text-xs font-bold text-swar-text mb-1">Category</label>
+              <select value={form.category} onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white">
                 {categories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Frequency</label>
-              <select value={form.frequency} onChange={e => setForm(prev => ({ ...prev, frequency: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white">
+              <label className="block text-xs font-bold text-swar-text mb-1">Frequency</label>
+              <select value={form.frequency} onChange={e => setForm(prev => ({ ...prev, frequency: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white">
                 <option value="daily">daily</option>
                 <option value="weekly">weekly</option>
                 <option value="monthly">monthly</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Time</label>
-              <input type="time" value={form.time} onChange={e => setForm(prev => ({ ...prev, time: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200" />
+              <label className="block text-xs font-bold text-swar-text mb-1">Time</label>
+              <input type="time" value={form.time} onChange={e => setForm(prev => ({ ...prev, time: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-swar-border" />
             </div>
           </div>
           <div className="mt-3">
-            <label className="block text-xs font-bold text-gray-700 mb-1">Description</label>
-            <textarea value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200" rows={2} />
+            <label className="block text-xs font-bold text-swar-text mb-1">Description</label>
+            <textarea value={form.description} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-swar-border" rows={2} />
           </div>
 
           <div className="mt-4 flex justify-end gap-3">
@@ -368,11 +368,11 @@ export default function HealthPage() {
       {/* Routines Grid */}
       {loading ? (
         <div className="text-center py-8">
-          <p className="text-gray-600">Loading routines...</p>
+          <p className="text-swar-text-secondary">Loading routines...</p>
         </div>
       ) : filteredRoutines.length === 0 ? (
-        <div className="text-center py-8 bg-gray-50 rounded-lg">
-          <p className="text-gray-600">{routines.length === 0 ? 'No routines yet. Create your first one!' : 'No routines match your filters.'}</p>
+        <div className="text-center py-8 bg-swar-bg rounded-lg">
+          <p className="text-swar-text-secondary">{routines.length === 0 ? 'No routines yet. Create your first one!' : 'No routines match your filters.'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[10px] auto-rows-max justify-items-center">
@@ -385,9 +385,9 @@ export default function HealthPage() {
               </div>
 
               <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{r.title}</h3>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{r.description}</p>
-                <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                <h3 className="text-lg font-bold text-swar-text mb-2 line-clamp-2">{r.title}</h3>
+                <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{r.description}</p>
+                <div className="space-y-2 text-xs text-swar-text mb-auto">
                   {r.category && <div className="flex items-center gap-2">📂 {r.category}</div>}
                   <div className="flex items-center gap-2">🔁 {(r.frequency || 'daily').toUpperCase()}</div>
                   {r.streak > 0 && <div className="flex items-center gap-2">🔥 {r.streak} day streak</div>}

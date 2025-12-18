@@ -15,7 +15,7 @@ export default function Card({ children, className }: Props) {
   return <div className={`section-card-smooth ${className ?? ''}`.trim()}>{children}</div>;
 }
 
-export function CardMedia({ children, className, imageUrl, fallbackColor = 'from-blue-400 to-blue-600' }: CardMediaProps) {
+export function CardMedia({ children, className, imageUrl, fallbackColor = 'from-swar-primary to-swar-primary' }: CardMediaProps) {
   const hasImage = imageUrl && imageUrl.trim();
   
   return (

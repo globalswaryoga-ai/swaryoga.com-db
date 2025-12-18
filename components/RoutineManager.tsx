@@ -90,8 +90,8 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Daily Routines</h2>
-          <p className="text-gray-600 text-sm mt-1">Manage your daily routine schedule</p>
+          <h2 className="text-2xl font-bold text-swar-text">Daily Routines</h2>
+          <p className="text-swar-text-secondary text-sm mt-1">Manage your daily routine schedule</p>
         </div>
         <button
           onClick={() => {
@@ -109,7 +109,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
       {showForm && (
         <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-gray-900">
+            <h3 className="text-xl font-bold text-swar-text">
               {editingId ? 'Edit Routine' : 'Create New Routine'}
             </h3>
             <button
@@ -119,14 +119,14 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
               }}
               className="p-2 hover:bg-emerald-200 rounded-lg transition"
             >
-              <X className="h-5 w-5 text-gray-600" />
+              <X className="h-5 w-5 text-swar-text-secondary" />
             </button>
           </div>
 
           <div className="space-y-4">
             {/* Routine Name */}
             <div>
-              <label className="block text-sm font-bold text-gray-900 mb-2">
+              <label className="block text-sm font-bold text-swar-text mb-2">
                 Routine Name *
               </label>
               <input
@@ -140,7 +140,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
 
             {/* Time Selection */}
             <div>
-              <label className="block text-sm font-bold text-gray-900 mb-2">
+              <label className="block text-sm font-bold text-swar-text mb-2">
                 Time (Default: 11:00 AM)
               </label>
               <div className="flex items-center gap-3">
@@ -151,7 +151,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
                   onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                   className="px-4 py-3 border-2 border-emerald-300 rounded-xl focus:outline-none focus:border-emerald-600 text-lg flex-1"
                 />
-                <span className="text-sm font-medium text-gray-600 whitespace-nowrap">
+                <span className="text-sm font-medium text-swar-text-secondary whitespace-nowrap">
                   {formData.time}
                 </span>
               </div>
@@ -159,7 +159,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
 
             {/* Repeat Selection */}
             <div>
-              <label className="block text-sm font-bold text-gray-900 mb-3">
+              <label className="block text-sm font-bold text-swar-text mb-3">
                 Repeat *
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -169,7 +169,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
                     className={`relative flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition ${
                       formData.repeat === option
                         ? 'border-emerald-600 bg-emerald-100'
-                        : 'border-gray-200 bg-white hover:border-emerald-300'
+                        : 'border-swar-border bg-white hover:border-emerald-300'
                     }`}
                   >
                     <input
@@ -180,7 +180,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
                       onChange={(e) => setFormData({ ...formData, repeat: e.target.value as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom' })}
                       className="w-4 h-4 text-emerald-600 cursor-pointer"
                     />
-                    <span className="text-sm font-medium text-gray-900 capitalize">
+                    <span className="text-sm font-medium text-swar-text capitalize">
                       {option}
                     </span>
                   </label>
@@ -191,7 +191,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
             {/* Custom Days Input */}
             {(formData.repeat === 'custom') && (
               <div>
-                <label className="block text-sm font-bold text-gray-900 mb-2">
+                <label className="block text-sm font-bold text-swar-text mb-2">
                   Repeat Every (days)
                 </label>
                 <input
@@ -218,7 +218,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
                   setShowForm(false);
                   resetForm();
                 }}
-                className="flex-1 border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-xl font-bold hover:bg-gray-50 transition"
+                className="flex-1 border-2 border-swar-border text-swar-text px-6 py-3 rounded-xl font-bold hover:bg-swar-bg transition"
               >
                 Cancel
               </button>
@@ -229,10 +229,10 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
 
       {/* Routines List */}
       {routines.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
-          <Clock className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600 font-medium">No routines yet</p>
-          <p className="text-gray-500 text-sm mt-1">Create your first routine to get started</p>
+        <div className="text-center py-12 bg-swar-bg rounded-2xl border-2 border-dashed border-swar-border">
+          <Clock className="h-12 w-12 text-swar-text-secondary mx-auto mb-3" />
+          <p className="text-swar-text-secondary font-medium">No routines yet</p>
+          <p className="text-swar-text-secondary text-sm mt-1">Create your first routine to get started</p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -245,7 +245,7 @@ export default function RoutineManager({ onRoutineAdd, onRoutineDelete, onRoutin
                 {/* Routine Info */}
                 <div className="flex-1 min-w-0">
                   {/* Title */}
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">
+                  <h3 className="text-xl font-bold text-swar-text mb-3">
                     {routine.title}
                   </h3>
 

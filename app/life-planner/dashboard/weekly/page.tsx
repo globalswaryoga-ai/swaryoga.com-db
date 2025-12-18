@@ -130,8 +130,8 @@ export default function WeeklyViewPage() {
         {/* Header with Week Navigation */}
         <div className="flex items-center justify-center bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-6 border border-blue-200">
           <div className="text-center flex-1">
-            <p className="text-sm font-medium text-gray-600">Week View</p>
-            <h1 className="text-3xl font-bold text-gray-900 mt-1">
+            <p className="text-sm font-medium text-swar-text-secondary">Week View</p>
+            <h1 className="text-3xl font-bold text-swar-text mt-1">
               {formatDateShort(weekDays[0])} - {formatDateShort(weekDays[6])}
             </h1>
             <button
@@ -144,10 +144,10 @@ export default function WeeklyViewPage() {
         </div>
 
       {/* Weekly Progress Bar */}
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
+      <div className="rounded-2xl border border-green-200 bg-swar-primary-light p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Weekly Progress</h3>
-          <span className="text-2xl font-bold text-green-600">{weekStats.percentage}%</span>
+          <h3 className="text-lg font-semibold text-swar-text">Weekly Progress</h3>
+          <span className="text-2xl font-bold text-swar-primary">{weekStats.percentage}%</span>
         </div>
         <div className="w-full bg-gray-300 rounded-full h-3 mb-3">
           <div
@@ -155,26 +155,26 @@ export default function WeeklyViewPage() {
             style={{ width: `${weekStats.percentage}%` }}
           />
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-swar-text-secondary mb-4">
           {weekStats.completed} of {weekStats.todos} todos completed
         </p>
 
         {/* Weekly Stats */}
         <div className="grid grid-cols-4 gap-3 mt-4">
           <div className="rounded-lg bg-purple-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Visions</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Visions</p>
             <p className="text-2xl font-bold text-purple-600 mt-1">{weekStats.visions}</p>
           </div>
           <div className="rounded-lg bg-blue-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Goals</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Goals</p>
             <p className="text-2xl font-bold text-blue-600 mt-1">{weekStats.goals}</p>
           </div>
-          <div className="rounded-lg bg-green-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Todos</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">{weekStats.todos}</p>
+          <div className="rounded-lg bg-swar-primary-light p-2 text-center">
+            <p className="text-xs font-medium text-swar-text-secondary">Todos</p>
+            <p className="text-2xl font-bold text-swar-primary mt-1">{weekStats.todos}</p>
           </div>
           <div className="rounded-lg bg-orange-50 p-2 text-center">
-            <p className="text-xs font-medium text-gray-600">Reminders</p>
+            <p className="text-xs font-medium text-swar-text-secondary">Reminders</p>
             <p className="text-2xl font-bold text-orange-600 mt-1">{weekStats.reminders}</p>
           </div>
         </div>
@@ -198,12 +198,12 @@ export default function WeeklyViewPage() {
                   ? 'ring-2 ring-offset-2 ring-blue-500 bg-blue-100 border-2 border-blue-400'
                   : isToday
                   ? 'border-2 border-red-400 bg-red-50'
-                  : 'border-2 border-gray-200 bg-white hover:border-gray-300'
+                  : 'border-2 border-swar-border bg-white hover:border-swar-border'
               }`}
             >
-              <p className="font-semibold text-gray-900">{formatDayName(date)}</p>
+              <p className="font-semibold text-swar-text">{formatDayName(date)}</p>
               <p className={`text-lg font-bold mt-1 ${
-                isToday ? 'text-red-600' : 'text-gray-700'
+                isToday ? 'text-red-600' : 'text-swar-text'
               }`}>
                 {date.getDate()}
               </p>
@@ -221,7 +221,7 @@ export default function WeeklyViewPage() {
                       </span>
                     )}
                     {dayItems.some((item) => item.type === 'todo') && (
-                      <span className="block bg-green-200 text-green-800 px-2 py-1 rounded">
+                      <span className="block bg-swar-border text-swar-primary px-2 py-1 rounded">
                         Todo
                       </span>
                     )}
@@ -240,7 +240,7 @@ export default function WeeklyViewPage() {
 
       {/* Selected Day Details */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900">
+        <h2 className="text-2xl font-bold text-swar-text">
           {selectedDate.toLocaleDateString('en-US', {
             weekday: 'long',
             month: 'long',
@@ -249,15 +249,15 @@ export default function WeeklyViewPage() {
         </h2>
 
         {selectedDateItems.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center">
-            <p className="text-gray-600 text-lg">No items for this day</p>
+          <div className="rounded-2xl border-2 border-dashed border-swar-border p-12 text-center">
+            <p className="text-swar-text-secondary text-lg">No items for this day</p>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Visions */}
             {groupedItems.visions.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Target className="h-5 w-5 text-purple-600" />
                   Visions ({groupedItems.visions.length})
                 </h3>
@@ -267,9 +267,9 @@ export default function WeeklyViewPage() {
                       key={item.id}
                       className="rounded-lg border border-purple-200 bg-purple-50 p-3"
                     >
-                      <p className="font-medium text-gray-900">{item.title}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}
@@ -280,7 +280,7 @@ export default function WeeklyViewPage() {
             {/* Goals */}
             {groupedItems.goals.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Flag className="h-5 w-5 text-blue-600" />
                   Goals ({groupedItems.goals.length})
                 </h3>
@@ -290,9 +290,9 @@ export default function WeeklyViewPage() {
                       key={item.id}
                       className="rounded-lg border border-blue-200 bg-blue-50 p-3"
                     >
-                      <p className="font-medium text-gray-900">{item.title}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}
@@ -303,8 +303,8 @@ export default function WeeklyViewPage() {
             {/* Todos */}
             {groupedItems.todos.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <CheckSquare className="h-5 w-5 text-green-600" />
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
+                  <CheckSquare className="h-5 w-5 text-swar-primary" />
                   Todos ({groupedItems.todos.length})
                 </h3>
                 <div className="grid gap-2">
@@ -313,8 +313,8 @@ export default function WeeklyViewPage() {
                       key={item.id}
                       className={`rounded-lg border-2 p-3 transition ${
                         item.completed
-                          ? 'border-green-300 bg-green-50 opacity-60'
-                          : 'border-green-200 bg-green-50'
+                          ? 'border-green-300 bg-swar-primary-light opacity-60'
+                          : 'border-green-200 bg-swar-primary-light'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -330,13 +330,13 @@ export default function WeeklyViewPage() {
                               )
                             );
                           }}
-                          className="w-4 h-4 rounded text-green-600 cursor-pointer"
+                          className="w-4 h-4 rounded text-swar-primary cursor-pointer"
                         />
                         <p
                           className={`font-medium ${
                             item.completed
-                              ? 'line-through text-gray-500'
-                              : 'text-gray-900'
+                              ? 'line-through text-swar-text-secondary'
+                              : 'text-swar-text'
                           }`}
                         >
                           {item.title}
@@ -351,7 +351,7 @@ export default function WeeklyViewPage() {
             {/* Reminders */}
             {groupedItems.reminders.length > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-swar-text mb-2 flex items-center gap-2">
                   <Bell className="h-5 w-5 text-orange-600" />
                   Reminders ({groupedItems.reminders.length})
                 </h3>
@@ -361,9 +361,9 @@ export default function WeeklyViewPage() {
                       key={item.id}
                       className="rounded-lg border border-orange-200 bg-orange-50 p-3"
                     >
-                      <p className="font-medium text-gray-900">{item.title}</p>
+                      <p className="font-medium text-swar-text">{item.title}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-600 mt-1">{item.description}</p>
+                        <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>
                       )}
                     </div>
                   ))}

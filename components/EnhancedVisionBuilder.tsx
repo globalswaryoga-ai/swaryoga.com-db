@@ -297,17 +297,17 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl">
-          <h2 className="text-2xl font-bold text-gray-900">
+        <div className="flex items-center justify-between p-6 border-b border-swar-border sticky top-0 bg-white rounded-t-2xl">
+          <h2 className="text-2xl font-bold text-swar-text">
             {vision?.id ? '✏️ Edit Vision Project' : '🌟 Create Vision Project'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-swar-primary-light rounded-lg transition-colors">
             <X className="h-6 w-6" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 sticky top-16 bg-white overflow-x-auto">
+        <div className="flex border-b border-swar-border sticky top-16 bg-white overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.id}
@@ -315,7 +315,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
               className={`flex-shrink-0 px-6 py-3 font-medium transition-colors ${
                 activeTab === tab.id
                   ? 'text-purple-600 border-b-2 border-purple-600'
-                  : 'text-gray-600 hover:text-gray-800'
+                  : 'text-swar-text-secondary hover:text-swar-text'
               }`}
             >
               {tab.name}
@@ -330,23 +330,23 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
               {/* Title & Image */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">🎯 Vision Title *</label>
+                  <label className="block text-sm font-semibold text-swar-text mb-2">🎯 Vision Title *</label>
                   <input
                     type="text"
                     required
                     value={formData.title}
                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="e.g., Master Yoga & Wellness Program"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">🖼️ Image URL</label>
+                  <label className="block text-sm font-semibold text-swar-text mb-2">🖼️ Image URL</label>
                   <input
                     type="url"
                     value={formData.imageUrl}
                     onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="https://example.com/image.jpg"
                   />
                 </div>
@@ -354,12 +354,12 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">📝 Description</label>
+                <label className="block text-sm font-semibold text-swar-text mb-2">📝 Description</label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   rows={5}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                   placeholder="Describe your vision project in detail..."
                 />
               </div>
@@ -367,30 +367,30 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
               {/* Dates & Details */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">📅 Start Date</label>
+                  <label className="block text-sm font-semibold text-swar-text mb-2">📅 Start Date</label>
                   <input
                     type="date"
                     value={formData.startDate}
                     onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">📅 End Date</label>
+                  <label className="block text-sm font-semibold text-swar-text mb-2">📅 End Date</label>
                   <input
                     type="date"
                     value={formData.endDate}
                     onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">🏷️ Category</label>
+                  <label className="block text-sm font-semibold text-swar-text mb-2">🏷️ Category</label>
                   <input
                     type="text"
                     value={formData.category}
                     onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value as any }))}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     placeholder="e.g., Health, Wealth, Growth"
                   />
                 </div>
@@ -399,11 +399,11 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
               {/* Priority & Status */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">🔴 Priority</label>
+                  <label className="block text-sm font-semibold text-swar-text mb-2">🔴 Priority</label>
                   <select
                     value={formData.priority}
                     onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as any }))}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -411,11 +411,11 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">✅ Status</label>
+                  <label className="block text-sm font-semibold text-swar-text mb-2">✅ Status</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="not-started">Not Started</option>
                     <option value="in-progress">In Progress</option>
@@ -424,7 +424,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">📊 Progress: {calculateProgress()}%</label>
+                  <label className="block text-sm font-semibold text-swar-text mb-2">📊 Progress: {calculateProgress()}%</label>
                   <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden">
                     <div 
                       className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all"
@@ -450,20 +450,20 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                         placeholder="Milestone title (e.g., Complete Phase 1)"
                         value={newMilestone.title}
                         onChange={(e) => setNewMilestone(prev => ({ ...prev, title: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                       />
                       <input
                         type="text"
                         placeholder="Description (optional)"
                         value={newMilestone.description}
                         onChange={(e) => setNewMilestone(prev => ({ ...prev, description: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                       />
                       <input
                         type="date"
                         value={newMilestone.endDate}
                         onChange={(e) => setNewMilestone(prev => ({ ...prev, endDate: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                       />
                       <button
                         type="button"
@@ -481,9 +481,9 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                               type="text"
                               value={milestone.title}
                               onChange={(e) => updateMilestone(milestone.id, 'title', e.target.value)}
-                              className="font-medium text-gray-900 w-full"
+                              className="font-medium text-swar-text w-full"
                             />
-                            <div className="text-sm text-gray-600 mt-1">End: {milestone.endDate}</div>
+                            <div className="text-sm text-swar-text-secondary mt-1">End: {milestone.endDate}</div>
                           </div>
                           <button
                             type="button"
@@ -510,14 +510,14 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                         placeholder="Goal title"
                         value={newGoal.title}
                         onChange={(e) => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                       />
                       <input
                         type="text"
                         placeholder="Description"
                         value={newGoal.description}
                         onChange={(e) => setNewGoal(prev => ({ ...prev, description: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                       />
                       <div className="grid grid-cols-2 gap-3">
                         <input
@@ -525,13 +525,13 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                           placeholder="Category"
                           value={newGoal.category}
                           onChange={(e) => setNewGoal(prev => ({ ...prev, category: e.target.value }))}
-                          className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         />
                         <input
                           type="date"
                           value={newGoal.targetDate}
                           onChange={(e) => setNewGoal(prev => ({ ...prev, targetDate: e.target.value }))}
-                          className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          className="px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                         />
                       </div>
                       <button
@@ -550,9 +550,9 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                               type="text"
                               value={goal.title}
                               onChange={(e) => updateGoal(goal.id, 'title', e.target.value)}
-                              className="font-medium text-gray-900 w-full text-sm"
+                              className="font-medium text-swar-text w-full text-sm"
                             />
-                            <div className="text-xs text-gray-600 mt-1">Due: {goal.targetDate}</div>
+                            <div className="text-xs text-swar-text-secondary mt-1">Due: {goal.targetDate}</div>
                           </div>
                           <button
                             type="button"
@@ -573,25 +573,25 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                 <SectionHeader title="✓ Tasks" section="tasks" count={(formData.tasks ?? []).length} />
                 {expandedSections.tasks && (
                   <div className="space-y-4 pl-4 border-l-4 border-green-300">
-                    <div className="bg-green-50 p-4 rounded-lg space-y-3">
+                    <div className="bg-swar-primary-light p-4 rounded-lg space-y-3">
                       <input
                         type="text"
                         placeholder="Task title"
                         value={newTask.title}
                         onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent text-sm"
                       />
                       <div className="grid grid-cols-2 gap-3">
                         <input
                           type="date"
                           value={newTask.dueDate}
                           onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value }))}
-                          className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          className="px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent text-sm"
                         />
                         <select
                           value={newTask.repeat}
                           onChange={(e) => setNewTask(prev => ({ ...prev, repeat: e.target.value as any }))}
-                          className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                          className="px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent text-sm"
                         >
                           <option value="once">Once</option>
                           <option value="daily">Daily</option>
@@ -602,7 +602,7 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       <button
                         type="button"
                         onClick={addTask}
-                        className="w-full flex items-center justify-center gap-2 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition text-sm font-medium"
+                        className="w-full flex items-center justify-center gap-2 bg-swar-primary text-white py-2 rounded-lg hover:bg-swar-primary transition text-sm font-medium"
                       >
                         <Plus size={16} /> Add Task
                       </button>
@@ -615,9 +615,9 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                               type="text"
                               value={task.title}
                               onChange={(e) => updateTask(task.id, 'title', e.target.value)}
-                              className="font-medium text-gray-900 w-full text-sm"
+                              className="font-medium text-swar-text w-full text-sm"
                             />
-                            <div className="text-xs text-gray-600 mt-1">{task.repeat} • Due: {task.dueDate}</div>
+                            <div className="text-xs text-swar-text-secondary mt-1">{task.repeat} • Due: {task.dueDate}</div>
                           </div>
                           <button
                             type="button"
@@ -644,13 +644,13 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                         placeholder="Todo item"
                         value={newTodo.title}
                         onChange={(e) => setNewTodo(prev => ({ ...prev, title: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                       />
                       <input
                         type="date"
                         value={newTodo.dueDate}
                         onChange={(e) => setNewTodo(prev => ({ ...prev, dueDate: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
                       />
                       <button
                         type="button"
@@ -668,9 +668,9 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                               type="text"
                               value={todo.title}
                               onChange={(e) => updateTodo(todo.id, 'title', e.target.value)}
-                              className="font-medium text-gray-900 w-full text-sm"
+                              className="font-medium text-swar-text w-full text-sm"
                             />
-                            <div className="text-xs text-gray-600 mt-1">Due: {todo.dueDate}</div>
+                            <div className="text-xs text-swar-text-secondary mt-1">Due: {todo.dueDate}</div>
                           </div>
                           <button
                             type="button"
@@ -702,19 +702,19 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                         placeholder="Title (e.g., Daily Mantra)"
                         value={newWord.title}
                         onChange={(e) => setNewWord(prev => ({ ...prev, title: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
                       />
                       <textarea
                         placeholder="Your wisdom, mantra, or affirmation..."
                         value={newWord.content}
                         onChange={(e) => setNewWord(prev => ({ ...prev, content: e.target.value }))}
                         rows={3}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm resize-none"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm resize-none"
                       />
                       <select
                         value={newWord.category}
                         onChange={(e) => setNewWord(prev => ({ ...prev, category: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
                       >
                         <option value="Mantra">Mantra</option>
                         <option value="Affirmation">Affirmation</option>
@@ -733,9 +733,9 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       {(formData.words ?? []).map((word) => (
                         <div key={word.id} className="flex items-start justify-between p-4 bg-white border-2 border-yellow-200 rounded-lg">
                           <div className="flex-1">
-                            <div className="font-semibold text-gray-900 text-sm">{word.title}</div>
-                            <div className="text-gray-700 italic mt-2">{word.content}</div>
-                            <div className="text-xs text-gray-500 mt-2">📌 {word.category}</div>
+                            <div className="font-semibold text-swar-text text-sm">{word.title}</div>
+                            <div className="text-swar-text italic mt-2">{word.content}</div>
+                            <div className="text-xs text-swar-text-secondary mt-2">📌 {word.category}</div>
                           </div>
                           <button
                             type="button"
@@ -762,33 +762,33 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                         placeholder="Reminder title"
                         value={newReminder.title}
                         onChange={(e) => setNewReminder(prev => ({ ...prev, title: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
                       />
                       <input
                         type="text"
                         placeholder="Description (optional)"
                         value={newReminder.description}
                         onChange={(e) => setNewReminder(prev => ({ ...prev, description: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
                       />
                       <div className="grid grid-cols-2 gap-3">
                         <input
                           type="date"
                           value={newReminder.dueDate}
                           onChange={(e) => setNewReminder(prev => ({ ...prev, dueDate: e.target.value }))}
-                          className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                          className="px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
                         />
                         <input
                           type="time"
                           value={newReminder.dueTime}
                           onChange={(e) => setNewReminder(prev => ({ ...prev, dueTime: e.target.value }))}
-                          className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                          className="px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
                         />
                       </div>
                       <select
                         value={newReminder.frequency}
                         onChange={(e) => setNewReminder(prev => ({ ...prev, frequency: e.target.value as any }))}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                        className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
                       >
                         <option value="once">Once</option>
                         <option value="daily">Daily</option>
@@ -808,8 +808,8 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
                       {(formData.reminders ?? []).map((reminder) => (
                         <div key={reminder.id} className="flex items-center justify-between p-3 bg-white border-2 border-red-200 rounded-lg">
                           <div className="flex-1">
-                            <div className="font-medium text-gray-900 text-sm">{reminder.title}</div>
-                            <div className="text-xs text-gray-600 mt-1">{reminder.dueDate} {reminder.dueTime ? `• ${reminder.dueTime}` : ''} • {reminder.frequency}</div>
+                            <div className="font-medium text-swar-text text-sm">{reminder.title}</div>
+                            <div className="text-xs text-swar-text-secondary mt-1">{reminder.dueDate} {reminder.dueTime ? `• ${reminder.dueTime}` : ''} • {reminder.frequency}</div>
                           </div>
                           <button
                             type="button"
@@ -828,11 +828,11 @@ const EnhancedVisionBuilder: React.FC<EnhancedVisionBuilderProps> = ({ vision, o
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 sticky bottom-0 bg-white">
+          <div className="flex justify-end gap-3 pt-6 border-t border-swar-border sticky bottom-0 bg-white">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-semibold"
+              className="px-6 py-3 border-2 border-swar-border text-swar-text rounded-lg hover:bg-swar-bg transition font-semibold"
             >
               Cancel
             </button>

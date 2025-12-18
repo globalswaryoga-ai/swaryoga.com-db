@@ -32,35 +32,35 @@ export default function ReminderModal({ reminders, onDismiss }: ReminderModalPro
             <div className={`p-3 rounded-full ${
               priority === 'high' ? 'bg-red-100' :
               priority === 'medium' ? 'bg-orange-100' :
-              'bg-green-100'
+              'bg-swar-primary-light'
             }`}>
               <Bell className={`h-6 w-6 ${
                 priority === 'high' ? 'text-red-600' :
                 priority === 'medium' ? 'text-orange-600' :
-                'text-green-600'
+                'text-swar-primary'
               }`} />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Reminder</h3>
-              <p className="text-xs text-gray-500">
+              <h3 className="text-lg font-bold text-swar-text">Reminder</h3>
+              <p className="text-xs text-swar-text-secondary">
                 {dueDateLabel}
               </p>
             </div>
           </div>
           <button
             onClick={() => onDismiss(reminder.id)}
-            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1 hover:bg-swar-primary-light rounded-full transition-colors"
             aria-label="Close reminder"
           >
-            <X className="h-6 w-6 text-gray-400 hover:text-gray-600" />
+            <X className="h-6 w-6 text-swar-text-secondary hover:text-swar-text-secondary" />
           </button>
         </div>
 
         {/* Reminder Content */}
         <div className="mb-6">
-          <h4 className="text-xl font-semibold text-gray-900 mb-2">{reminder.title}</h4>
+          <h4 className="text-xl font-semibold text-swar-text mb-2">{reminder.title}</h4>
           {reminder.description && (
-            <p className="text-gray-600 leading-relaxed">{reminder.description}</p>
+            <p className="text-swar-text-secondary leading-relaxed">{reminder.description}</p>
           )}
         </div>
 
@@ -69,7 +69,7 @@ export default function ReminderModal({ reminders, onDismiss }: ReminderModalPro
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
             priority === 'high' ? 'bg-red-100 text-red-700' :
             priority === 'medium' ? 'bg-orange-100 text-orange-700' :
-            'bg-green-100 text-green-700'
+            'bg-swar-primary-light text-swar-primary'
           }`}>
             {priority.charAt(0).toUpperCase() + priority.slice(1)} Priority
           </span>
@@ -81,7 +81,7 @@ export default function ReminderModal({ reminders, onDismiss }: ReminderModalPro
         {/* Close Button */}
         <button
           onClick={() => onDismiss(reminder.id)}
-          className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold py-3 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all"
+          className="w-full bg-gradient-to-r from-swar-accent to-pink-500 text-white font-semibold py-3 rounded-xl hover:from-red-600 hover:to-pink-600 transition-all"
         >
           Got it ✓
         </button>

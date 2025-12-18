@@ -11,7 +11,7 @@ export default function WhatsAppWidget() {
       href={whatsappUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed right-6 bottom-6 z-40 flex items-center justify-center w-14 h-14 bg-green-500 hover:bg-green-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 group"
+      className="fixed right-6 bottom-6 z-40 flex items-center justify-center w-14 h-14 bg-swar-primary-light0 hover:bg-swar-primary rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 group"
       aria-label="Contact us on WhatsApp"
       title="Chat with us on WhatsApp"
     >
@@ -24,7 +24,7 @@ export default function WhatsAppWidget() {
       </span>
       
       {/* Pulse animation for attention */}
-      <span className="absolute inset-0 bg-green-500 rounded-full animate-pulse opacity-75"></span>
+      <span className="absolute inset-0 bg-swar-primary-light0 rounded-full animate-pulse opacity-75"></span>
     </a>
   );
 }

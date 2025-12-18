@@ -265,15 +265,15 @@ function RegisterNowDashboardPageInner() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-20 bg-gray-50">
+      <main className="min-h-screen pt-20 bg-swar-bg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
             {/* Sidebar */}
             <aside className="rounded-xl border border-orange-100 bg-orange-50 p-4 sm:p-5 shadow-sm h-fit">
-              <h2 className="text-lg font-extrabold text-gray-900 mb-4">Register Now</h2>
+              <h2 className="text-lg font-extrabold text-swar-text mb-4">Register Now</h2>
 
               <div className="mb-5">
-                <p className="text-xs font-bold uppercase tracking-wide text-gray-600 mb-2">Language</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">Language</p>
                 <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-2">
                   {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
                     <button
@@ -286,7 +286,7 @@ function RegisterNowDashboardPageInner() {
                         }}
                       className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
                         selectedLanguage === lang
-                          ? 'bg-green-600 text-white'
+                          ? 'bg-swar-primary text-white'
                           : 'bg-white text-black hover:bg-orange-100'
                       }`}
                     >
@@ -297,7 +297,7 @@ function RegisterNowDashboardPageInner() {
               </div>
 
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-gray-600 mb-2">Our Workshops</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">Our Workshops</p>
                 <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-1">
                   {CATEGORY_ORDER.map((cat) => {
                     const heading = getCategoryHeading(cat);
@@ -308,7 +308,7 @@ function RegisterNowDashboardPageInner() {
                         type="button"
                         onClick={() => setSelectedCategory(cat)}
                         className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
-                          active ? 'bg-white text-orange-700 border border-orange-200' : 'text-gray-800 hover:bg-orange-100'
+                          active ? 'bg-white text-orange-700 border border-orange-200' : 'text-swar-text hover:bg-orange-100'
                         }`}
                       >
                         {heading}
@@ -320,11 +320,11 @@ function RegisterNowDashboardPageInner() {
             </aside>
 
             {/* Main */}
-            <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <section className="rounded-xl border border-swar-border bg-white shadow-sm overflow-hidden">
               {/* Header with mode buttons */}
-              <div className="border-b border-gray-200 bg-white px-4 sm:px-6 py-4">
+              <div className="border-b border-swar-border bg-white px-4 sm:px-6 py-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900">Select Mode</h1>
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-swar-text">Select Mode</h1>
                   <div className="flex flex-wrap gap-2">
                     {MODE_LABELS.map((m) => {
                       const active = selectedMode === m.key;
@@ -336,7 +336,7 @@ function RegisterNowDashboardPageInner() {
                           className={`rounded-lg px-4 py-2 text-sm font-bold transition-all ${
                             active
                               ? 'bg-primary-600 text-white shadow-sm'
-                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                              : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                           }`}
                         >
                           {m.label}
@@ -351,8 +351,8 @@ function RegisterNowDashboardPageInner() {
                 {/* Workshop dashboard rows */}
                 <div className="flex items-center justify-between gap-4 mb-4">
                   <div>
-                    <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">{getCategoryHeading(selectedCategory)}</h2>
-                    <p className="text-sm text-gray-600">Default: Online + Hindi. Mode: {selectedModeLabel}. Language: {selectedLanguage}.</p>
+                    <h2 className="text-lg sm:text-xl font-extrabold text-swar-text">{getCategoryHeading(selectedCategory)}</h2>
+                    <p className="text-sm text-swar-text-secondary">Default: Online + Hindi. Mode: {selectedModeLabel}. Language: {selectedLanguage}.</p>
                   </div>
                 </div>
 
@@ -380,20 +380,20 @@ function RegisterNowDashboardPageInner() {
                       <div
                         key={w.slug}
                         className={`rounded-xl border p-4 shadow-sm ${
-                          active ? 'border-primary-200 bg-primary-50' : 'border-gray-200 bg-white'
+                          active ? 'border-primary-200 bg-primary-50' : 'border-swar-border bg-white'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-base font-extrabold text-gray-900 leading-tight">{w.name}</div>
-                            <div className="mt-1 text-sm text-gray-700">Duration: {w.duration}</div>
-                            <div className="mt-1 text-sm font-semibold text-gray-900">Fees: {feeText}</div>
+                            <div className="text-base font-extrabold text-swar-text leading-tight">{w.name}</div>
+                            <div className="mt-1 text-sm text-swar-text">Duration: {w.duration}</div>
+                            <div className="mt-1 text-sm font-semibold text-swar-text">Fees: {feeText}</div>
                           </div>
                           <button
                             type="button"
                             onClick={() => setSelectedWorkshopSlug(w.slug)}
                             className={`shrink-0 rounded-lg px-4 py-2 text-sm font-extrabold transition-colors ${
-                              active ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                              active ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                             }`}
                           >
                             {active ? 'Selected' : 'Select'}
@@ -404,21 +404,21 @@ function RegisterNowDashboardPageInner() {
                   })}
 
                   {rows.length === 0 && (
-                    <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-center text-gray-600">
+                    <div className="rounded-xl border border-swar-border bg-white px-4 py-6 text-center text-swar-text-secondary">
                       No workshops found.
                     </div>
                   )}
                 </div>
 
                 {/* Desktop: table */}
-                <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200">
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-swar-border">
                   <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-swar-bg">
                       <tr>
-                        <th className="px-4 py-3 text-left font-bold text-gray-700">Workshop</th>
-                        <th className="px-4 py-3 text-left font-bold text-gray-700">Duration</th>
-                        <th className="px-4 py-3 text-left font-bold text-gray-700">Fees</th>
-                        <th className="px-4 py-3 text-left font-bold text-gray-700">Action</th>
+                        <th className="px-4 py-3 text-left font-bold text-swar-text">Workshop</th>
+                        <th className="px-4 py-3 text-left font-bold text-swar-text">Duration</th>
+                        <th className="px-4 py-3 text-left font-bold text-swar-text">Fees</th>
+                        <th className="px-4 py-3 text-left font-bold text-swar-text">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -438,15 +438,15 @@ function RegisterNowDashboardPageInner() {
                         const feeText = schedule ? `₹${Number(schedule.price).toLocaleString('en-IN')} ${String(schedule.currency).toUpperCase()}` : 'TBD';
                         return (
                           <tr key={w.slug} className={active ? 'bg-primary-50' : 'bg-white'}>
-                            <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{w.name}</td>
-                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{w.duration}</td>
-                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{feeText}</td>
+                            <td className="px-4 py-3 font-semibold text-swar-text whitespace-nowrap">{w.name}</td>
+                            <td className="px-4 py-3 text-swar-text whitespace-nowrap">{w.duration}</td>
+                            <td className="px-4 py-3 text-swar-text whitespace-nowrap">{feeText}</td>
                             <td className="px-4 py-3">
                               <button
                                 type="button"
                                 onClick={() => setSelectedWorkshopSlug(w.slug)}
                                 className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                                  active ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                  active ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                                 }`}
                               >
                                 {active ? 'Selected' : 'Select'}
@@ -457,7 +457,7 @@ function RegisterNowDashboardPageInner() {
                       })}
                       {rows.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-4 py-6 text-center text-gray-600">
+                          <td colSpan={4} className="px-4 py-6 text-center text-swar-text-secondary">
                             No workshops found.
                           </td>
                         </tr>
@@ -467,13 +467,13 @@ function RegisterNowDashboardPageInner() {
                 </div>
 
                 {/* Dates + Pay Now */}
-                <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-6">
+                <div className="mt-6 rounded-xl border border-swar-border bg-swar-bg p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                      <h3 className="text-base sm:text-lg font-extrabold text-gray-900">
+                      <h3 className="text-base sm:text-lg font-extrabold text-swar-text">
                         {selectedWorkshop ? selectedWorkshop.name : 'Select a workshop to see dates'}
                       </h3>
-                      <p className="text-sm text-gray-600">Next 6 months dates</p>
+                      <p className="text-sm text-swar-text-secondary">Next 6 months dates</p>
                     </div>
                     <button
                       type="button"
@@ -481,8 +481,8 @@ function RegisterNowDashboardPageInner() {
                       onClick={onPayNow}
                       className={`rounded-lg px-5 py-3 text-sm font-extrabold transition-all ${
                         payDisabled
-                          ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                          : 'bg-green-600 text-white hover:bg-green-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]'
+                          ? 'bg-gray-300 text-swar-text-secondary cursor-not-allowed'
+                          : 'bg-swar-primary text-white hover:bg-swar-primary hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]'
                       }`}
                     >
                       Pay Now
@@ -491,13 +491,13 @@ function RegisterNowDashboardPageInner() {
 
                   {selectedWorkshopSlug && schedulesFor.length > 1 && (
                     <div className="mt-4">
-                      <label className="block text-xs font-bold uppercase tracking-wide text-gray-600 mb-2">
+                      <label className="block text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">
                         Choose batch / time
                       </label>
                       <select
                         value={selectedScheduleId}
                         onChange={(e) => setSelectedScheduleId(e.target.value)}
-                        className="w-full max-w-xl rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold"
+                        className="w-full max-w-xl rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold"
                       >
                         {schedulesFor.map((s) => {
                           const start = s.startDate ? formatDate(String(s.startDate)) : 'Anytime';
@@ -522,8 +522,8 @@ function RegisterNowDashboardPageInner() {
                         key={b.label}
                         className={`rounded-lg px-3 py-3 border text-sm font-semibold ${
                           b.available
-                            ? 'bg-green-50 border-green-200 text-green-900'
-                            : 'bg-white border-gray-200 text-gray-500'
+                            ? 'bg-swar-primary-light border-green-200 text-swar-text'
+                            : 'bg-white border-swar-border text-swar-text-secondary'
                         }`}
                       >
                         <div className="text-[11px] font-bold uppercase tracking-wide">{b.label}</div>
@@ -533,7 +533,7 @@ function RegisterNowDashboardPageInner() {
                   </div>
 
                   {!selectedWorkshopSlug && (
-                    <p className="mt-4 text-xs text-gray-500">Choose a workshop from the table above to unlock Pay Now.</p>
+                    <p className="mt-4 text-xs text-swar-text-secondary">Choose a workshop from the table above to unlock Pay Now.</p>
                   )}
 
                   {selectedWorkshopSlug && !selectedSchedule && (
@@ -543,7 +543,7 @@ function RegisterNowDashboardPageInner() {
                   )}
 
                   {(schedulesLoading || schedulesError) && (
-                    <p className={`mt-4 text-xs ${schedulesError ? 'text-red-600' : 'text-gray-500'}`}>
+                    <p className={`mt-4 text-xs ${schedulesError ? 'text-red-600' : 'text-swar-text-secondary'}`}>
                       {schedulesLoading ? 'Loading schedules…' : schedulesError}
                     </p>
                   )}
@@ -556,13 +556,13 @@ function RegisterNowDashboardPageInner() {
         {/* Mode popup overlay (opens when user clicks language) */}
         {modePopupOpen && (
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4" role="dialog" aria-modal="true">
-            <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-extrabold text-gray-900">Select Mode</h3>
+            <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl border border-swar-border overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-swar-border">
+                <h3 className="text-lg font-extrabold text-swar-text">Select Mode</h3>
                 <button
                   type="button"
                   onClick={() => setModePopupOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-bold bg-gray-100 hover:bg-gray-200"
+                  className="rounded-lg px-3 py-2 text-sm font-bold bg-swar-primary-light hover:bg-swar-primary-light"
                   aria-label="Close mode popup"
                 >
                   ✕
@@ -579,8 +579,8 @@ function RegisterNowDashboardPageInner() {
                     }}
                     className={`w-full rounded-lg px-4 py-3 text-left font-extrabold transition-colors ${
                       selectedMode === m.key
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-50 text-gray-900 hover:bg-gray-100'
+                        ? 'bg-swar-primary text-white'
+                        : 'bg-swar-bg text-swar-text hover:bg-swar-primary-light'
                     }`}
                   >
                     {m.label}
@@ -588,7 +588,7 @@ function RegisterNowDashboardPageInner() {
                 ))}
               </div>
               <div className="px-5 pb-5">
-                <p className="text-xs text-gray-500">Language selected: {selectedLanguage}. Choose the mode to continue.</p>
+                <p className="text-xs text-swar-text-secondary">Language selected: {selectedLanguage}. Choose the mode to continue.</p>
               </div>
             </div>
           </div>

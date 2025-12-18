@@ -462,21 +462,21 @@ export default function AdminWorkshopSchedulesPage() {
     };
 
     return (
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex h-screen bg-swar-primary-light">
         <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <header className="bg-white shadow">
             <div className="px-6 py-4 flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">Workshop Dates</h1>
-                <p className="text-sm text-gray-600">Same view as main site. Publish/Edit/Save schedules (no delete).</p>
+                <h1 className="text-2xl font-bold text-swar-text">Workshop Dates</h1>
+                <p className="text-sm text-swar-text-secondary">Same view as main site. Publish/Edit/Save schedules (no delete).</p>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="md:hidden rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold"
+                  className="md:hidden rounded-lg bg-swar-primary-light px-3 py-2 text-sm font-bold"
                 >
                   Menu
                 </button>
@@ -501,10 +501,10 @@ export default function AdminWorkshopSchedulesPage() {
             <div className="max-w-7xl mx-auto">
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
                 <aside className="rounded-xl border border-orange-100 bg-orange-50 p-4 sm:p-5 shadow-sm h-fit">
-                  <h2 className="text-lg font-extrabold text-gray-900 mb-4">Workshop Dates</h2>
+                  <h2 className="text-lg font-extrabold text-swar-text mb-4">Workshop Dates</h2>
 
                   <div className="mb-5">
-                    <p className="text-xs font-bold uppercase tracking-wide text-gray-600 mb-2">Language</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">Language</p>
                     <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-2">
                       {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
                         <button
@@ -516,7 +516,7 @@ export default function AdminWorkshopSchedulesPage() {
                           }}
                           className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
                             selectedLanguage === lang
-                              ? 'bg-green-600 text-white'
+                              ? 'bg-swar-primary text-white'
                               : 'bg-white text-black hover:bg-orange-100'
                           }`}
                         >
@@ -524,11 +524,11 @@ export default function AdminWorkshopSchedulesPage() {
                         </button>
                       ))}
                     </div>
-                    <p className="mt-2 text-xs text-gray-600">Filtering workshop list by selected language.</p>
+                    <p className="mt-2 text-xs text-swar-text-secondary">Filtering workshop list by selected language.</p>
                   </div>
 
                   <div className="mb-5">
-                    <p className="text-xs font-bold uppercase tracking-wide text-gray-600 mb-2">Our Workshops</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">Our Workshops</p>
                     <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-1">
                       {CATEGORY_ORDER.map((cat) => {
                         const heading = getCategoryHeading(cat);
@@ -541,7 +541,7 @@ export default function AdminWorkshopSchedulesPage() {
                             className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
                               active
                                 ? 'bg-white text-orange-700 border border-orange-200'
-                                : 'text-gray-800 hover:bg-orange-100'
+                                : 'text-swar-text hover:bg-orange-100'
                             }`}
                           >
                             {heading}
@@ -552,10 +552,10 @@ export default function AdminWorkshopSchedulesPage() {
                   </div>
                 </aside>
 
-                <section className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                  <div className="border-b border-gray-200 bg-white px-4 sm:px-6 py-4">
+                <section className="rounded-xl border border-swar-border bg-white shadow-sm overflow-hidden">
+                  <div className="border-b border-swar-border bg-white px-4 sm:px-6 py-4">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900">Select Mode</h1>
+                      <h1 className="text-xl sm:text-2xl font-extrabold text-swar-text">Select Mode</h1>
                       <div className="flex flex-wrap gap-2">
                         {MODE_LABELS.map((m) => {
                           const active = selectedMode === m.key;
@@ -567,7 +567,7 @@ export default function AdminWorkshopSchedulesPage() {
                               className={`rounded-lg px-4 py-2 text-sm font-bold transition-all ${
                                 active
                                   ? 'bg-primary-600 text-white shadow-sm'
-                                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                  : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                               }`}
                             >
                               {m.label}
@@ -581,10 +581,10 @@ export default function AdminWorkshopSchedulesPage() {
                   <div className="p-4 sm:p-6">
                     <div className="flex items-center justify-between gap-4 mb-4">
                       <div>
-                        <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">{getCategoryHeading(selectedCategory)}</h2>
-                        <p className="text-sm text-gray-600">Pick a workshop to edit/publish dates.</p>
+                        <h2 className="text-lg sm:text-xl font-extrabold text-swar-text">{getCategoryHeading(selectedCategory)}</h2>
+                        <p className="text-sm text-swar-text-secondary">Pick a workshop to edit/publish dates.</p>
                       </div>
-                      <div className="text-sm text-gray-600">Total schedules: {allSchedules.length}</div>
+                      <div className="text-sm text-swar-text-secondary">Total schedules: {allSchedules.length}</div>
                     </div>
 
                     {/* Mobile/tablet workshops list */}
@@ -601,20 +601,20 @@ export default function AdminWorkshopSchedulesPage() {
                           <div
                             key={w.slug}
                             className={`rounded-xl border p-4 shadow-sm ${
-                              active ? 'border-primary-200 bg-primary-50' : 'border-gray-200 bg-white'
+                              active ? 'border-primary-200 bg-primary-50' : 'border-swar-border bg-white'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-base font-extrabold text-gray-900 leading-tight">{w.name}</div>
-                                <div className="mt-1 text-sm text-gray-700">Duration: {w.duration}</div>
-                                <div className="mt-1 text-sm font-semibold text-gray-900">Fees: {feeText}</div>
+                                <div className="text-base font-extrabold text-swar-text leading-tight">{w.name}</div>
+                                <div className="mt-1 text-sm text-swar-text">Duration: {w.duration}</div>
+                                <div className="mt-1 text-sm font-semibold text-swar-text">Fees: {feeText}</div>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => setSelectedWorkshopSlug(w.slug)}
                                 className={`shrink-0 rounded-lg px-4 py-2 text-sm font-extrabold transition-colors ${
-                                  active ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                  active ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                                 }`}
                               >
                                 {active ? 'Selected' : 'Select'}
@@ -626,14 +626,14 @@ export default function AdminWorkshopSchedulesPage() {
                     </div>
 
                     {/* Desktop workshops list */}
-                    <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200">
+                    <div className="hidden md:block overflow-x-auto rounded-xl border border-swar-border">
                       <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-swar-bg">
                           <tr>
-                            <th className="px-4 py-3 text-left font-bold text-gray-700">Workshop</th>
-                            <th className="px-4 py-3 text-left font-bold text-gray-700">Duration</th>
-                            <th className="px-4 py-3 text-left font-bold text-gray-700">Fees (Published)</th>
-                            <th className="px-4 py-3 text-left font-bold text-gray-700">Action</th>
+                            <th className="px-4 py-3 text-left font-bold text-swar-text">Workshop</th>
+                            <th className="px-4 py-3 text-left font-bold text-swar-text">Duration</th>
+                            <th className="px-4 py-3 text-left font-bold text-swar-text">Fees (Published)</th>
+                            <th className="px-4 py-3 text-left font-bold text-swar-text">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -645,9 +645,9 @@ export default function AdminWorkshopSchedulesPage() {
                               : 'TBD';
                             return (
                               <tr key={w.slug} className={active ? 'bg-primary-50' : 'bg-white'}>
-                                <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{w.name}</td>
-                                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{w.duration}</td>
-                                <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{feeText}</td>
+                                <td className="px-4 py-3 font-semibold text-swar-text whitespace-nowrap">{w.name}</td>
+                                <td className="px-4 py-3 text-swar-text whitespace-nowrap">{w.duration}</td>
+                                <td className="px-4 py-3 text-swar-text whitespace-nowrap">{feeText}</td>
                                 <td className="px-4 py-3">
                                   <button
                                     type="button"
@@ -655,7 +655,7 @@ export default function AdminWorkshopSchedulesPage() {
                                     className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
                                       active
                                         ? 'bg-primary-600 text-white'
-                                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                        : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                                     }`}
                                   >
                                     {active ? 'Selected' : 'Select'}
@@ -668,15 +668,15 @@ export default function AdminWorkshopSchedulesPage() {
                       </table>
                     </div>
 
-                    <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:p-6">
+                    <div className="mt-6 rounded-xl border border-swar-border bg-swar-bg p-4 sm:p-6">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
-                          <h3 className="text-base sm:text-lg font-extrabold text-gray-900">
+                          <h3 className="text-base sm:text-lg font-extrabold text-swar-text">
                             {selectedWorkshop ? selectedWorkshop.name : 'Select a workshop to see dates'}
                           </h3>
-                          <p className="text-sm text-gray-600">Next 6 months dates (Published only)</p>
+                          <p className="text-sm text-swar-text-secondary">Next 6 months dates (Published only)</p>
                         </div>
-                        <div className="text-sm text-gray-600">{loading ? 'Loading…' : ''}</div>
+                        <div className="text-sm text-swar-text-secondary">{loading ? 'Loading…' : ''}</div>
                       </div>
 
                       <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -685,8 +685,8 @@ export default function AdminWorkshopSchedulesPage() {
                             key={b.label}
                             className={`rounded-lg px-3 py-3 border text-sm font-semibold ${
                               b.available
-                                ? 'bg-green-50 border-green-200 text-green-900'
-                                : 'bg-white border-gray-200 text-gray-500'
+                                ? 'bg-swar-primary-light border-green-200 text-swar-text'
+                                : 'bg-white border-swar-border text-swar-text-secondary'
                             }`}
                           >
                             <div className="text-xs font-bold uppercase tracking-wide opacity-80">{b.label}</div>
@@ -694,7 +694,7 @@ export default function AdminWorkshopSchedulesPage() {
                           </div>
                         ))}
                         {selectedWorkshopSlug && sixMonthBlocks.length === 0 && (
-                          <div className="col-span-full text-sm text-gray-600">No dates yet.</div>
+                          <div className="col-span-full text-sm text-swar-text-secondary">No dates yet.</div>
                         )}
                       </div>
                     </div>
@@ -704,11 +704,11 @@ export default function AdminWorkshopSchedulesPage() {
                       <div className="mt-6">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                           <div>
-                            <h3 className="text-lg font-extrabold text-gray-900">Schedules</h3>
-                            <p className="text-sm text-gray-600">Publish to show on main site. Edit → Save updates MongoDB.</p>
+                            <h3 className="text-lg font-extrabold text-swar-text">Schedules</h3>
+                            <p className="text-sm text-swar-text-secondary">Publish to show on main site. Edit → Save updates MongoDB.</p>
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="text-sm text-gray-600">
+                            <div className="text-sm text-swar-text-secondary">
                               Published: {publishedSchedules.length} • Draft: {draftSchedules.length}
                             </div>
                             <button
@@ -717,8 +717,8 @@ export default function AdminWorkshopSchedulesPage() {
                               onClick={creating ? cancelCreate : startCreate}
                               className={`rounded-lg px-4 py-2 text-sm font-extrabold disabled:opacity-60 ${
                                 creating
-                                  ? 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                                  : 'bg-green-600 text-white hover:bg-green-700'
+                                  ? 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
+                                  : 'bg-swar-primary text-white hover:bg-swar-primary'
                               }`}
                             >
                               {creating ? 'Cancel Add' : 'Add Date'}
@@ -726,19 +726,19 @@ export default function AdminWorkshopSchedulesPage() {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                        <div className="rounded-xl border border-swar-border bg-white overflow-hidden">
                           <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
-                              <thead className="bg-gray-50">
+                              <thead className="bg-swar-bg">
                                 <tr>
-                                  <th className="px-4 py-3 text-left font-bold text-gray-700">Start</th>
-                                  <th className="px-4 py-3 text-left font-bold text-gray-700">End</th>
-                                  <th className="px-4 py-3 text-left font-bold text-gray-700">Batch</th>
-                                  <th className="px-4 py-3 text-left font-bold text-gray-700">Time</th>
-                                  <th className="px-4 py-3 text-left font-bold text-gray-700">Fees</th>
-                                  <th className="px-4 py-3 text-left font-bold text-gray-700">Seats</th>
-                                  <th className="px-4 py-3 text-left font-bold text-gray-700">Status</th>
-                                  <th className="px-4 py-3 text-left font-bold text-gray-700">Actions</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Start</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">End</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Batch</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Time</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Fees</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Seats</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Status</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Actions</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200">
@@ -749,7 +749,7 @@ export default function AdminWorkshopSchedulesPage() {
                                         type="date"
                                         value={createForm.startDate}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, startDate: e.target.value }))}
-                                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                        className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                       />
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
@@ -757,7 +757,7 @@ export default function AdminWorkshopSchedulesPage() {
                                         type="date"
                                         value={createForm.endDate}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, endDate: e.target.value }))}
-                                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                        className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                       />
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
@@ -765,7 +765,7 @@ export default function AdminWorkshopSchedulesPage() {
                                         type="text"
                                         value={createForm.batch}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, batch: e.target.value }))}
-                                        className="w-28 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                        className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                         placeholder="morning"
                                       />
                                     </td>
@@ -774,7 +774,7 @@ export default function AdminWorkshopSchedulesPage() {
                                         type="text"
                                         value={createForm.time}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, time: e.target.value }))}
-                                        className="w-44 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                        className="w-44 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                         placeholder="6:00 AM - 8:00 AM"
                                       />
                                     </td>
@@ -785,13 +785,13 @@ export default function AdminWorkshopSchedulesPage() {
                                             type="number"
                                             value={createForm.price}
                                             onChange={(e) => setCreateForm((p) => ({ ...p, price: e.target.value }))}
-                                            className="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                            className="w-24 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                           />
                                           <select
                                             value={createForm.currency}
                                             onChange={(e) => setCreateForm((p) => ({ ...p, currency: e.target.value }))}
                                             disabled={createForm.allCurrencies}
-                                            className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold disabled:opacity-60"
+                                            className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold disabled:opacity-60"
                                           >
                                             <option value="INR">INR</option>
                                             <option value="USD">USD</option>
@@ -799,7 +799,7 @@ export default function AdminWorkshopSchedulesPage() {
                                           </select>
                                         </div>
 
-                                        <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                                        <label className="flex items-center gap-2 text-xs font-semibold text-swar-text">
                                           <input
                                             type="checkbox"
                                             checked={createForm.allCurrencies}
@@ -809,7 +809,7 @@ export default function AdminWorkshopSchedulesPage() {
                                                 allCurrencies: e.target.checked,
                                               }))
                                             }
-                                            className="h-4 w-4 rounded border-gray-300"
+                                            className="h-4 w-4 rounded border-swar-border"
                                           />
                                           All currencies (INR, USD, NPR)
                                         </label>
@@ -820,11 +820,11 @@ export default function AdminWorkshopSchedulesPage() {
                                         type="number"
                                         value={createForm.seatsTotal}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, seatsTotal: e.target.value }))}
-                                        className="w-20 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                        className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                       />
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      <span className="inline-flex rounded-full px-2 py-1 text-xs font-bold bg-gray-100 text-gray-800">
+                                      <span className="inline-flex rounded-full px-2 py-1 text-xs font-bold bg-swar-primary-light text-swar-text">
                                         Draft
                                       </span>
                                     </td>
@@ -834,7 +834,7 @@ export default function AdminWorkshopSchedulesPage() {
                                           type="button"
                                           disabled={savingId === '__create__'}
                                           onClick={createSchedule}
-                                          className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-60"
+                                          className="rounded-lg bg-swar-primary px-3 py-2 text-xs font-bold text-white hover:bg-swar-primary disabled:opacity-60"
                                         >
                                           {savingId === '__create__' ? 'Saving…' : 'Save'}
                                         </button>
@@ -842,7 +842,7 @@ export default function AdminWorkshopSchedulesPage() {
                                           type="button"
                                           disabled={savingId === '__create__'}
                                           onClick={cancelCreate}
-                                          className="rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-200 disabled:opacity-60"
+                                          className="rounded-lg bg-swar-primary-light px-3 py-2 text-xs font-bold text-swar-text hover:bg-swar-primary-light disabled:opacity-60"
                                         >
                                           Cancel
                                         </button>
@@ -853,7 +853,7 @@ export default function AdminWorkshopSchedulesPage() {
 
                                 {schedulesForWorkshopAndMode.length === 0 && !creating ? (
                                   <tr>
-                                    <td colSpan={8} className="px-4 py-8 text-center text-gray-600">
+                                    <td colSpan={8} className="px-4 py-8 text-center text-swar-text-secondary">
                                       No schedules found for this workshop + mode.
                                     </td>
                                   </tr>
@@ -868,14 +868,14 @@ export default function AdminWorkshopSchedulesPage() {
                                     const busy = savingId === s.id || savingId === '__create__';
 
                                     return (
-                                      <tr key={s.id} className={published ? 'bg-green-50/40' : 'bg-white'}>
+                                      <tr key={s.id} className={published ? 'bg-swar-primary-light/40' : 'bg-white'}>
                                         <td className="px-4 py-3 whitespace-nowrap">
                                           {editing ? (
                                             <input
                                               type="date"
                                               value={editForm.startDate}
                                               onChange={(e) => setEditForm((p) => ({ ...p, startDate: e.target.value }))}
-                                              className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                              className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                             />
                                           ) : s.startDate ? (
                                             formatDate(String(s.startDate))
@@ -889,7 +889,7 @@ export default function AdminWorkshopSchedulesPage() {
                                               type="date"
                                               value={editForm.endDate}
                                               onChange={(e) => setEditForm((p) => ({ ...p, endDate: e.target.value }))}
-                                              className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                              className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                             />
                                           ) : s.endDate ? (
                                             formatDate(String(s.endDate))
@@ -903,7 +903,7 @@ export default function AdminWorkshopSchedulesPage() {
                                               type="text"
                                               value={editForm.batch}
                                               onChange={(e) => setEditForm((p) => ({ ...p, batch: e.target.value }))}
-                                              className="w-28 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                              className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                               placeholder="morning"
                                             />
                                           ) : (
@@ -916,7 +916,7 @@ export default function AdminWorkshopSchedulesPage() {
                                               type="text"
                                               value={editForm.time}
                                               onChange={(e) => setEditForm((p) => ({ ...p, time: e.target.value }))}
-                                              className="w-44 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                              className="w-44 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                               placeholder="6:00 AM - 8:00 AM"
                                             />
                                           ) : (
@@ -930,12 +930,12 @@ export default function AdminWorkshopSchedulesPage() {
                                                 type="number"
                                                 value={editForm.price}
                                                 onChange={(e) => setEditForm((p) => ({ ...p, price: e.target.value }))}
-                                                className="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                                className="w-24 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                               />
                                               <select
                                                 value={editForm.currency}
                                                 onChange={(e) => setEditForm((p) => ({ ...p, currency: e.target.value }))}
-                                                className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                                className="rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                               >
                                                 <option value="INR">INR</option>
                                                 <option value="USD">USD</option>
@@ -952,7 +952,7 @@ export default function AdminWorkshopSchedulesPage() {
                                               type="number"
                                               value={editForm.seatsTotal}
                                               onChange={(e) => setEditForm((p) => ({ ...p, seatsTotal: e.target.value }))}
-                                              className="w-20 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm font-semibold"
+                                              className="w-20 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                             />
                                           ) : (
                                             Number(s.seatsTotal || 0) || '—'
@@ -962,8 +962,8 @@ export default function AdminWorkshopSchedulesPage() {
                                           <span
                                             className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${
                                               published
-                                                ? 'bg-green-100 text-green-800'
-                                                : 'bg-gray-100 text-gray-800'
+                                                ? 'bg-swar-primary-light text-swar-primary'
+                                                : 'bg-swar-primary-light text-swar-text'
                                             }`}
                                           >
                                             {published ? 'Published' : 'Draft'}
@@ -980,7 +980,7 @@ export default function AdminWorkshopSchedulesPage() {
                                               className={`rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-60 ${
                                                 published
                                                   ? 'bg-yellow-100 text-yellow-900 hover:bg-yellow-200'
-                                                  : 'bg-green-600 text-white hover:bg-green-700'
+                                                  : 'bg-swar-primary text-white hover:bg-swar-primary'
                                               }`}
                                             >
                                               {published ? 'Unpublish' : 'Publish'}
@@ -1001,7 +1001,7 @@ export default function AdminWorkshopSchedulesPage() {
                                                   type="button"
                                                   disabled={busy}
                                                   onClick={() => saveSchedule(s.id)}
-                                                  className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-60"
+                                                  className="rounded-lg bg-swar-primary px-3 py-2 text-xs font-bold text-white hover:bg-swar-primary disabled:opacity-60"
                                                 >
                                                   {busy ? 'Saving…' : 'Save'}
                                                 </button>
@@ -1009,7 +1009,7 @@ export default function AdminWorkshopSchedulesPage() {
                                                   type="button"
                                                   disabled={busy}
                                                   onClick={cancelEdit}
-                                                  className="rounded-lg bg-gray-100 px-3 py-2 text-xs font-bold text-gray-900 hover:bg-gray-200 disabled:opacity-60"
+                                                  className="rounded-lg bg-swar-primary-light px-3 py-2 text-xs font-bold text-swar-text hover:bg-swar-primary-light disabled:opacity-60"
                                                 >
                                                   Cancel
                                                 </button>
@@ -1037,13 +1037,13 @@ export default function AdminWorkshopSchedulesPage() {
         {/* Mode popup overlay (opens when user clicks language) */}
         {modePopupOpen && (
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4" role="dialog" aria-modal="true">
-            <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-extrabold text-gray-900">Select Mode</h3>
+            <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl border border-swar-border overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-swar-border">
+                <h3 className="text-lg font-extrabold text-swar-text">Select Mode</h3>
                 <button
                   type="button"
                   onClick={() => setModePopupOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-bold bg-gray-100 hover:bg-gray-200"
+                  className="rounded-lg px-3 py-2 text-sm font-bold bg-swar-primary-light hover:bg-swar-primary-light"
                   aria-label="Close mode popup"
                 >
                   ✕
@@ -1060,8 +1060,8 @@ export default function AdminWorkshopSchedulesPage() {
                     }}
                     className={`w-full rounded-lg px-4 py-3 text-left font-extrabold transition-colors ${
                       selectedMode === m.key
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-50 text-gray-900 hover:bg-gray-100'
+                        ? 'bg-swar-primary text-white'
+                        : 'bg-swar-bg text-swar-text hover:bg-swar-primary-light'
                     }`}
                   >
                     {m.label}
@@ -1069,7 +1069,7 @@ export default function AdminWorkshopSchedulesPage() {
                 ))}
               </div>
               <div className="px-5 pb-5">
-                <p className="text-xs text-gray-500">Language selected: {selectedLanguage}. Choose the mode to continue.</p>
+                <p className="text-xs text-swar-text-secondary">Language selected: {selectedLanguage}. Choose the mode to continue.</p>
               </div>
             </div>
           </div>

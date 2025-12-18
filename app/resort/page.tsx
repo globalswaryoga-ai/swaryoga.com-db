@@ -215,10 +215,10 @@ export default function ResortPage() {
             <div className="flex items-center justify-center gap-3">
               <span className="text-2xl">🎉</span>
               <div className="text-center">
-                <p className="text-gray-800 font-semibold text-lg">
+                <p className="text-swar-text font-semibold text-lg">
                   Resort Opening <span className="text-purple-700 font-bold">22 December 2026</span>
                 </p>
-                <p className="text-gray-700 text-sm mt-1">Limited Early Bird Memberships Available</p>
+                <p className="text-swar-text text-sm mt-1">Limited Early Bird Memberships Available</p>
               </div>
               <span className="text-2xl">✨</span>
             </div>
@@ -233,37 +233,37 @@ export default function ResortPage() {
                 <h2 className="text-4xl md:text-5xl font-bold text-[#2A5654] mb-6">
                   A Sanctuary for Mind, Body & Soul
                 </h2>
-                <p className="text-lg text-gray-600 mb-6 leading-relaxed">
+                <p className="text-lg text-swar-text-secondary mb-6 leading-relaxed">
                   Nestled in the pristine hills of Maharashtra, our yoga resort offers a perfect blend of 
                   traditional wisdom and modern comfort. Escape the chaos of city life and immerse yourself 
                   in nature's tranquility while deepening your yoga practice.
                 </p>
-                <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+                <p className="text-lg text-swar-text-secondary mb-8 leading-relaxed">
                   Our resort features eco-friendly accommodations, organic dining, and world-class yoga 
                   facilities designed to support your journey toward wellness and self-discovery.
                 </p>
                 
                 <div className="grid grid-cols-2 gap-8 mb-8">
                   <div className="text-center">
-                    <div className="text-4xl font-bold text-green-600 mb-2">25+</div>
-                    <div className="text-gray-600 font-medium">Acres of Natural Beauty</div>
+                    <div className="text-4xl font-bold text-swar-primary mb-2">25+</div>
+                    <div className="text-swar-text-secondary font-medium">Acres of Natural Beauty</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-4xl font-bold text-green-600 mb-2">50+</div>
-                    <div className="text-gray-600 font-medium">Comfortable Rooms</div>
+                    <div className="text-4xl font-bold text-swar-primary mb-2">50+</div>
+                    <div className="text-swar-text-secondary font-medium">Comfortable Rooms</div>
                   </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     onClick={handleMembershipCall}
-                    className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg transition-all duration-300 font-semibold hover:shadow-lg"
+                    className="bg-swar-primary hover:bg-swar-primary text-white px-8 py-4 rounded-lg transition-all duration-300 font-semibold hover:shadow-lg"
                   >
                     Explore Membership
                   </button>
                   <a
                     href="#booking"
-                    className="border-2 border-green-600 text-green-600 hover:bg-green-600 hover:text-white px-8 py-4 rounded-lg transition-all duration-300 text-center font-semibold"
+                    className="border-2 border-green-600 text-swar-primary hover:bg-swar-primary hover:text-white px-8 py-4 rounded-lg transition-all duration-300 text-center font-semibold"
                   >
                     Book Your Stay
                   </a>
@@ -297,11 +297,11 @@ export default function ResortPage() {
             {/* Resort Features Grid */}
             <div className="grid md:grid-cols-3 gap-8">
               <div className="text-center p-6 bg-gradient-to-br from-green-50 to-blue-50 rounded-xl">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <TreePine className="text-green-600" size={32} />
+                <div className="w-16 h-16 bg-swar-primary-light rounded-full flex items-center justify-center mx-auto mb-4">
+                  <TreePine className="text-swar-primary" size={32} />
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">Natural Setting</h3>
-                <p className="text-gray-600">
+                <h3 className="text-xl font-bold text-swar-text mb-3">Natural Setting</h3>
+                <p className="text-swar-text-secondary">
                   Surrounded by lush forests and pristine nature, offering the perfect environment for healing and rejuvenation.
                 </p>
               </div>
@@ -310,8 +310,8 @@ export default function ResortPage() {
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Waves className="text-blue-600" size={32} />
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">Wellness Facilities</h3>
-                <p className="text-gray-600">
+                <h3 className="text-xl font-bold text-swar-text mb-3">Wellness Facilities</h3>
+                <p className="text-swar-text-secondary">
                   State-of-the-art spa, meditation halls, and therapeutic pools designed for complete wellness.
                 </p>
               </div>
@@ -320,8 +320,8 @@ export default function ResortPage() {
                 <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Star className="text-purple-600" size={32} />
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-3">Premium Experience</h3>
-                <p className="text-gray-600">
+                <h3 className="text-xl font-bold text-swar-text mb-3">Premium Experience</h3>
+                <p className="text-swar-text-secondary">
                   Luxury accommodations with personalized service, ensuring every moment of your stay is exceptional.
                 </p>
               </div>
@@ -330,11 +330,11 @@ export default function ResortPage() {
         </section>
 
         {/* Amenities */}
-        <section className="py-20 bg-gray-50">
+        <section className="py-20 bg-swar-bg">
           <div className="container mx-auto px-4 md:px-6">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-[#2A5654] mb-4">Resort Amenities</h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
+              <p className="text-swar-text-secondary max-w-2xl mx-auto">
                 Everything you need for a transformative wellness experience
               </p>
             </div>
@@ -344,11 +344,11 @@ export default function ResortPage() {
                 const IconComponent = amenity.icon;
                 return (
                   <div key={index} className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                      <IconComponent className="text-green-600" size={24} />
+                    <div className="w-12 h-12 bg-swar-primary-light rounded-lg flex items-center justify-center mb-4">
+                      <IconComponent className="text-swar-primary" size={24} />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">{amenity.name}</h3>
-                    <p className="text-gray-600 text-sm">{amenity.description}</p>
+                    <h3 className="text-lg font-semibold text-swar-text mb-2">{amenity.name}</h3>
+                    <p className="text-swar-text-secondary text-sm">{amenity.description}</p>
                   </div>
                 );
               })}
@@ -361,7 +361,7 @@ export default function ResortPage() {
           <div className="container mx-auto px-4 md:px-6">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-[#2A5654] mb-4">Accommodation Options</h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
+              <p className="text-swar-text-secondary max-w-2xl mx-auto">
                 Choose from our thoughtfully designed rooms and unique accommodation experiences
               </p>
             </div>
@@ -387,23 +387,23 @@ export default function ResortPage() {
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
                         <div className="text-right">
-                          <div className="text-2xl font-bold text-green-600">₹{room.price}</div>
-                          <div className="text-sm text-gray-500">per night</div>
+                          <div className="text-2xl font-bold text-swar-primary">₹{room.price}</div>
+                          <div className="text-sm text-swar-text-secondary">per night</div>
                         </div>
                       </div>
                     </div>
-                    <p className="text-gray-600 mb-4 leading-relaxed">{room.description}</p>
+                    <p className="text-swar-text-secondary mb-4 leading-relaxed">{room.description}</p>
                     <div className="space-y-2 mb-6">
                       {room.features.map((feature, idx) => (
-                        <div key={idx} className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="text-green-500 mr-2 flex-shrink-0" size={16} />
+                        <div key={idx} className="flex items-center text-sm text-swar-text-secondary">
+                          <CheckCircle className="text-swar-primary-light0 mr-2 flex-shrink-0" size={16} />
                           <span>{feature}</span>
                         </div>
                       ))}
                     </div>
                     <button 
                       onClick={() => handleRoomBooking(room.name)}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition-all duration-300 font-semibold hover:shadow-lg"
+                      className="w-full bg-swar-primary hover:bg-swar-primary text-white py-3 rounded-lg transition-all duration-300 font-semibold hover:shadow-lg"
                     >
                       Select Room
                     </button>
@@ -466,7 +466,7 @@ export default function ResortPage() {
         </section>
 
         {/* Booking Form Section */}
-        <section id="booking" className="py-20 bg-gray-50">
+        <section id="booking" className="py-20 bg-swar-bg">
           <div className="container mx-auto px-4 md:px-6">
             <div className="grid lg:grid-cols-2 gap-12">
               <div>
@@ -474,10 +474,10 @@ export default function ResortPage() {
                 
                 <div className="space-y-6">
                   <div className="flex items-start space-x-4">
-                    <MapPin className="text-green-600 mt-1" size={24} />
+                    <MapPin className="text-swar-primary mt-1" size={24} />
                     <div>
-                      <h3 className="font-semibold text-gray-800 mb-2">Resort Address</h3>
-                      <p className="text-gray-600">
+                      <h3 className="font-semibold text-swar-text mb-2">Resort Address</h3>
+                      <p className="text-swar-text-secondary">
                         Swar Yoga International Resort<br />
                         At Dehari, Dist. Thane<br />
                         Maharashtra, India
@@ -486,30 +486,30 @@ export default function ResortPage() {
                   </div>
 
                   <div className="flex items-start space-x-4">
-                    <Phone className="text-green-600 mt-1" size={24} />
+                    <Phone className="text-swar-primary mt-1" size={24} />
                     <div>
-                      <h3 className="font-semibold text-gray-800 mb-2">Phone</h3>
-                      <a href="tel:+919779006820" className="text-green-600 hover:text-green-700">
+                      <h3 className="font-semibold text-swar-text mb-2">Phone</h3>
+                      <a href="tel:+919779006820" className="text-swar-primary hover:text-swar-primary">
                         +91 9779006820
                       </a>
                     </div>
                   </div>
 
                   <div className="flex items-start space-x-4">
-                    <Mail className="text-green-600 mt-1" size={24} />
+                    <Mail className="text-swar-primary mt-1" size={24} />
                     <div>
-                      <h3 className="font-semibold text-gray-800 mb-2">Email</h3>
-                      <a href="mailto:resort@swaryoga.org" className="text-green-600 hover:text-green-700">
+                      <h3 className="font-semibold text-swar-text mb-2">Email</h3>
+                      <a href="mailto:resort@swaryoga.org" className="text-swar-primary hover:text-swar-primary">
                         resort@swaryoga.org
                       </a>
                     </div>
                   </div>
 
                   <div className="flex items-start space-x-4">
-                    <Calendar className="text-green-600 mt-1" size={24} />
+                    <Calendar className="text-swar-primary mt-1" size={24} />
                     <div>
-                      <h3 className="font-semibold text-gray-800 mb-2">Operating Hours</h3>
-                      <p className="text-gray-600">
+                      <h3 className="font-semibold text-swar-text mb-2">Operating Hours</h3>
+                      <p className="text-swar-text-secondary">
                         Open 24/7 for resort guests<br />
                         Check-in: 2:00 PM<br />
                         Check-out: 11:00 AM
@@ -520,7 +520,7 @@ export default function ResortPage() {
               </div>
 
               <div className="bg-white rounded-lg shadow-lg p-8">
-                <h3 className="text-xl font-semibold text-gray-800 mb-6">Book Your Stay</h3>
+                <h3 className="text-xl font-semibold text-swar-text mb-6">Book Your Stay</h3>
                 
                 {!isAuthenticated && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
@@ -535,7 +535,7 @@ export default function ResortPage() {
                     className={`p-4 rounded-lg mb-6 ${
                       message.type === 'error'
                         ? 'bg-red-50 text-red-700 border border-red-200'
-                        : 'bg-green-50 text-green-700 border border-green-200'
+                        : 'bg-swar-primary-light text-swar-primary border border-green-200'
                     }`}
                   >
                     {message.text}
@@ -545,36 +545,36 @@ export default function ResortPage() {
                 <form onSubmit={handleBookingSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Check-in *</label>
+                      <label className="block text-sm font-medium text-swar-text mb-2">Check-in *</label>
                       <input
                         type="date"
                         name="checkin"
                         value={bookingForm.checkin}
                         onChange={handleBookingFormChange}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full p-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Check-out *</label>
+                      <label className="block text-sm font-medium text-swar-text mb-2">Check-out *</label>
                       <input
                         type="date"
                         name="checkout"
                         value={bookingForm.checkout}
                         onChange={handleBookingFormChange}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full p-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                         required
                       />
                     </div>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Room Type *</label>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Room Type *</label>
                     <select 
                       name="roomType"
                       value={bookingForm.roomType}
                       onChange={handleBookingFormChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full p-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                       required
                     >
                       <option value="">Select room type</option>
@@ -588,12 +588,12 @@ export default function ResortPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Adults</label>
+                      <label className="block text-sm font-medium text-swar-text mb-2">Adults</label>
                       <select 
                         name="adults"
                         value={bookingForm.adults}
                         onChange={handleBookingFormChange}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full p-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                       >
                         <option value="1">1</option>
                         <option value="2">2</option>
@@ -602,12 +602,12 @@ export default function ResortPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Children</label>
+                      <label className="block text-sm font-medium text-swar-text mb-2">Children</label>
                       <select 
                         name="children"
                         value={bookingForm.children}
                         onChange={handleBookingFormChange}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full p-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                       >
                         <option value="0">0</option>
                         <option value="1">1</option>
@@ -617,21 +617,21 @@ export default function ResortPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Special Requests</label>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Special Requests</label>
                     <textarea
                       name="specialRequests"
                       value={bookingForm.specialRequests}
                       onChange={handleBookingFormChange}
                       rows={3}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full p-3 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                       placeholder="Any special requirements or requests..."
                     />
                   </div>
 
                   {bookingForm.checkin && bookingForm.checkout && bookingForm.roomType && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <h4 className="font-semibold text-green-800 mb-2">Booking Summary</h4>
-                      <p className="text-green-700 text-sm">
+                    <div className="bg-swar-primary-light border border-green-200 rounded-lg p-4">
+                      <h4 className="font-semibold text-swar-primary mb-2">Booking Summary</h4>
+                      <p className="text-swar-primary text-sm">
                         Total Amount: ₹{calculateTotalAmount().toLocaleString()}
                       </p>
                     </div>
@@ -640,13 +640,13 @@ export default function ResortPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting || !isAuthenticated}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="w-full bg-swar-primary hover:bg-swar-primary text-white py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     {isSubmitting ? 'Submitting to Database...' : 'Submit Booking Request'}
                   </button>
 
                   <div className="text-center">
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-swar-text-secondary">
                       🔒 Your booking is securely saved to our database
                     </p>
                   </div>

@@ -123,11 +123,11 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
 
   const categoryColors: Record<string, { bg: string; text: string }> = {
     life: { bg: 'bg-purple-50', text: 'text-purple-700' },
-    health: { bg: 'bg-green-50', text: 'text-green-700' },
+    health: { bg: 'bg-swar-primary-light', text: 'text-swar-primary' },
     wealth: { bg: 'bg-blue-50', text: 'text-blue-700' },
     success: { bg: 'bg-orange-50', text: 'text-orange-700' },
     respect: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
-    pleasure: { bg: 'bg-pink-50', text: 'text-pink-700' },
+    pleasure: { bg: 'bg-swar-primary-light', text: 'text-pink-700' },
     prosperity: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
     luxuries: { bg: 'bg-amber-50', text: 'text-amber-700' },
     'good-habits': { bg: 'bg-yellow-50', text: 'text-yellow-700' },
@@ -153,7 +153,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Vision Title */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Vision Title *
         </label>
         <input
@@ -162,7 +162,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
           value={formData.title}
           onChange={handleChange}
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition ${
-            errors.title ? 'border-red-500' : 'border-gray-300'
+            errors.title ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder="e.g., Build a Meditation Practice, Learn Sanskrit"
           required
@@ -172,7 +172,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Description *
         </label>
         <textarea
@@ -180,7 +180,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
           value={formData.description}
           onChange={handleChange}
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition ${
-            errors.description ? 'border-red-500' : 'border-gray-300'
+            errors.description ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder="Describe your vision, why it's important, and how it aligns with your life goals"
           rows={4}
@@ -191,7 +191,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
 
       {/* Category Selection */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <Target size={18} className="text-purple-600" />
           Vision Category
         </label>
@@ -199,7 +199,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
           name="category"
           value={formData.category}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
         >
           <option value="life">� Life Vision</option>
           <option value="health">💪 Health Vision</option>
@@ -220,7 +220,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
       {/* Target Date & Amount Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
             Target Date
           </label>
@@ -229,12 +229,12 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
             name="targetDate"
             value={formData.targetDate}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
           />
         </div>
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
-            <DollarSign size={18} className="text-green-600" />
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
+            <DollarSign size={18} className="text-swar-primary" />
             Amount (₹)
           </label>
           <input
@@ -242,7 +242,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
             name="amount"
             value={formData.amount}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
             placeholder="0.00"
             step="0.01"
           />
@@ -251,7 +251,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
 
       {/* Vision Image */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <Image size={18} className="text-orange-600" />
           Vision Image URL (Optional)
         </label>
@@ -260,18 +260,18 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
           name="imageUrl"
           value={formData.imageUrl}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
           placeholder="https://example.com/image.jpg"
         />
 
         {/* File upload for local images (provides preview via createObjectURL) */}
         <div className="mt-2">
-          <label className="block text-xs text-gray-500 mb-1">Or upload an image</label>
+          <label className="block text-xs text-swar-text-secondary mb-1">Or upload an image</label>
           <input type="file" accept="image/*" onChange={handleFileChange} className="text-sm" />
         </div>
 
         {(previewUrl || formData.imageUrl) && (
-          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm">
+          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-swar-border shadow-sm">
             <img
               src={previewUrl || formData.imageUrl}
               alt="Vision preview"
@@ -286,11 +286,11 @@ const VisionForm: React.FC<VisionFormProps> = ({ onSubmit, onCancel, initialData
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-end gap-3 pt-5 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-5 border-t border-swar-border">
         <button
           type="button"
           onClick={onCancel}
-          className="px-5 py-2.5 border-2 border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+          className="px-5 py-2.5 border-2 border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
         >
           Cancel
         </button>

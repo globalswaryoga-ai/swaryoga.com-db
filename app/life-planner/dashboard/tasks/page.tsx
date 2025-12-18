@@ -12,7 +12,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 // Category Color Mapping
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   'Life': { bg: 'bg-purple-600', text: 'text-white' },
-  'Health': { bg: 'bg-green-600', text: 'text-white' },
+  'Health': { bg: 'bg-swar-primary', text: 'text-white' },
   'Wealth': { bg: 'bg-red-600', text: 'text-white' },
   'Success': { bg: 'bg-blue-600', text: 'text-white' },
   'Respect': { bg: 'bg-orange-600', text: 'text-white' },
@@ -151,8 +151,8 @@ export default function TasksPage() {
     <div className="max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">My Tasks</h1>
-          <p className="text-gray-600">Manage your daily tasks and action items</p>
+          <h1 className="text-3xl font-bold text-swar-text mb-2">My Tasks</h1>
+          <p className="text-swar-text-secondary">Manage your daily tasks and action items</p>
         </div>
         <button
           onClick={handleAddTask}
@@ -167,21 +167,21 @@ export default function TasksPage() {
       <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder="Search title / description / place"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-orange-200"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Vision Head</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Vision Head</label>
             <select
               value={filterVisionHead}
               onChange={(e) => setFilterVisionHead(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
               {uniqueVisionHeads.map((vh) => (
@@ -191,11 +191,11 @@ export default function TasksPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Status</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
               <option value="not-started">not-started</option>
@@ -211,11 +211,11 @@ export default function TasksPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Month</label>
             <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
               {MONTHS.map((m) => (
@@ -232,26 +232,26 @@ export default function TasksPage() {
                 setFilterStatus('all');
                 setFilterMonth('all');
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-gray-600">Showing {filteredTasks.length} of {tasks.length} tasks</p>
+        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredTasks.length} of {tasks.length} tasks</p>
       </div>
 
       {/* Tasks Grid */}
       {filteredTasks.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
+          <div className="text-swar-text-secondary mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks found</h3>
-          <p className="text-gray-600 mb-4">Try adjusting your filters or create a new task.</p>
+          <h3 className="text-lg font-medium text-swar-text mb-2">No tasks found</h3>
+          <p className="text-swar-text-secondary mb-4">Try adjusting your filters or create a new task.</p>
           <button
             onClick={handleAddTask}
             className="inline-flex items-center space-x-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
@@ -282,10 +282,10 @@ export default function TasksPage() {
 
               {/* Card Content */}
               <div className="p-5 flex-1 flex flex-col">
-                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{task.title}</h3>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{task.description}</p>
+                <h3 className="text-lg font-bold text-swar-text mb-2 line-clamp-2">{task.title}</h3>
+                <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{task.description}</p>
 
-                <div className="space-y-2 text-xs text-gray-700 mb-auto">
+                <div className="space-y-2 text-xs text-swar-text mb-auto">
                   {task.place && <div className="flex items-center gap-2">📍 {task.place}</div>}
                   {task.dueDate && (
                     <div className="flex items-center gap-2">

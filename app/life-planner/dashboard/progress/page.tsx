@@ -65,8 +65,8 @@ export default function ProgressReportPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Progress Report</h1>
-        <p className="text-gray-600">Your personal growth metrics and achievements</p>
+        <h1 className="text-3xl font-bold text-swar-text mb-2">Progress Report</h1>
+        <p className="text-swar-text-secondary">Your personal growth metrics and achievements</p>
       </div>
 
       {/* Period Stats */}
@@ -98,15 +98,15 @@ export default function ProgressReportPage() {
             <div className="p-2 bg-blue-100 rounded-lg">
               <BarChart3 className="h-5 w-5 text-blue-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-800">Tasks</h3>
+            <h3 className="text-lg font-semibold text-swar-text">Tasks</h3>
           </div>
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Completion Rate</span>
-                <span className="text-sm font-bold text-gray-800">{stats.tasksTotal > 0 ? Math.round((stats.tasksCompleted / stats.tasksTotal) * 100) : 0}%</span>
+                <span className="text-sm text-swar-text-secondary">Completion Rate</span>
+                <span className="text-sm font-bold text-swar-text">{stats.tasksTotal > 0 ? Math.round((stats.tasksCompleted / stats.tasksTotal) * 100) : 0}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-swar-primary-light rounded-full h-2">
                 <div
                   className="bg-blue-600 h-2 rounded-full transition-all"
                   style={{ width: `${stats.tasksTotal > 0 ? (stats.tasksCompleted / stats.tasksTotal) * 100 : 0}%` }}
@@ -116,11 +116,11 @@ export default function ProgressReportPage() {
             <div className="grid grid-cols-2 gap-4 text-center">
               <div className="bg-blue-50 rounded-lg p-3">
                 <p className="text-2xl font-bold text-blue-600">{stats.tasksCompleted}</p>
-                <p className="text-xs text-gray-600">Completed</p>
+                <p className="text-xs text-swar-text-secondary">Completed</p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-2xl font-bold text-gray-600">{stats.tasksTotal}</p>
-                <p className="text-xs text-gray-600">Total</p>
+              <div className="bg-swar-bg rounded-lg p-3">
+                <p className="text-2xl font-bold text-swar-text-secondary">{stats.tasksTotal}</p>
+                <p className="text-xs text-swar-text-secondary">Total</p>
               </div>
             </div>
           </div>
@@ -129,32 +129,32 @@ export default function ProgressReportPage() {
         {/* Todos */}
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="flex items-center space-x-3 mb-4">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <BarChart3 className="h-5 w-5 text-green-600" />
+            <div className="p-2 bg-swar-primary-light rounded-lg">
+              <BarChart3 className="h-5 w-5 text-swar-primary" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-800">Todos</h3>
+            <h3 className="text-lg font-semibold text-swar-text">Todos</h3>
           </div>
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Completion Rate</span>
-                <span className="text-sm font-bold text-gray-800">{stats.todosTotal > 0 ? Math.round((stats.todosCompleted / stats.todosTotal) * 100) : 0}%</span>
+                <span className="text-sm text-swar-text-secondary">Completion Rate</span>
+                <span className="text-sm font-bold text-swar-text">{stats.todosTotal > 0 ? Math.round((stats.todosCompleted / stats.todosTotal) * 100) : 0}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-swar-primary-light rounded-full h-2">
                 <div
-                  className="bg-green-600 h-2 rounded-full transition-all"
+                  className="bg-swar-primary h-2 rounded-full transition-all"
                   style={{ width: `${stats.todosTotal > 0 ? (stats.todosCompleted / stats.todosTotal) * 100 : 0}%` }}
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 text-center">
-              <div className="bg-green-50 rounded-lg p-3">
-                <p className="text-2xl font-bold text-green-600">{stats.todosCompleted}</p>
-                <p className="text-xs text-gray-600">Completed</p>
+              <div className="bg-swar-primary-light rounded-lg p-3">
+                <p className="text-2xl font-bold text-swar-primary">{stats.todosCompleted}</p>
+                <p className="text-xs text-swar-text-secondary">Completed</p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-2xl font-bold text-gray-600">{stats.todosTotal}</p>
-                <p className="text-xs text-gray-600">Total</p>
+              <div className="bg-swar-bg rounded-lg p-3">
+                <p className="text-2xl font-bold text-swar-text-secondary">{stats.todosTotal}</p>
+                <p className="text-xs text-swar-text-secondary">Total</p>
               </div>
             </div>
           </div>
@@ -165,20 +165,20 @@ export default function ProgressReportPage() {
       <div className="grid md:grid-cols-3 gap-6">
         <div className="bg-white rounded-xl p-6 shadow-lg text-center">
           <p className="text-2xl mb-2">🎯</p>
-          <p className="text-lg font-bold text-gray-800">{stats.visionsCount}</p>
-          <p className="text-sm text-gray-600">Visions</p>
+          <p className="text-lg font-bold text-swar-text">{stats.visionsCount}</p>
+          <p className="text-sm text-swar-text-secondary">Visions</p>
         </div>
 
         <div className="bg-white rounded-xl p-6 shadow-lg text-center">
           <p className="text-2xl mb-2">💎</p>
-          <p className="text-lg font-bold text-gray-800">{stats.diamondPeopleCount}</p>
-          <p className="text-sm text-gray-600">Diamond People</p>
+          <p className="text-lg font-bold text-swar-text">{stats.diamondPeopleCount}</p>
+          <p className="text-sm text-swar-text-secondary">Diamond People</p>
         </div>
 
         <div className="bg-white rounded-xl p-6 shadow-lg text-center">
           <p className="text-2xl mb-2">🔥</p>
-          <p className="text-lg font-bold text-gray-800">{stats.healthRoutineStreak}</p>
-          <p className="text-sm text-gray-600">Day Streak</p>
+          <p className="text-lg font-bold text-swar-text">{stats.healthRoutineStreak}</p>
+          <p className="text-sm text-swar-text-secondary">Day Streak</p>
         </div>
       </div>
     </div>

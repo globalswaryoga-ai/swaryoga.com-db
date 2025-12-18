@@ -111,16 +111,16 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
 
   const getCategoryColor = (category: string) => {
     const colorMap: { [key: string]: string } = {
-      Health: 'bg-green-100 text-green-800',
+      Health: 'bg-swar-primary-light text-swar-primary',
       Education: 'bg-blue-100 text-blue-800',
       Lifestyle: 'bg-orange-100 text-orange-800',
       Spiritual: 'bg-purple-100 text-purple-800',
       Workshop: 'bg-red-100 text-red-800',
       Resource: 'bg-indigo-100 text-indigo-800',
       News: 'bg-yellow-100 text-yellow-800',
-      Events: 'bg-pink-100 text-pink-800',
+      Events: 'bg-swar-primary-light text-pink-800',
     };
-    return colorMap[category] || 'bg-gray-100 text-gray-800';
+    return colorMap[category] || 'bg-swar-primary-light text-swar-text';
   };
 
   const getLanguageText = (lang: 'en' | 'hi' | 'mr') => {
@@ -160,15 +160,15 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
       <div className="container mx-auto px-4 md:px-6 py-12">
         {/* Language Selector */}
         <div className="mb-8 flex justify-center">
-          <div className="inline-flex bg-gray-100 rounded-lg p-1">
+          <div className="inline-flex bg-swar-primary-light rounded-lg p-1">
             {(['en', 'hi', 'mr'] as const).map((lang) => (
               <button
                 key={lang}
                 onClick={() => setLanguage(lang)}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   language === lang
-                    ? 'bg-green-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-200'
+                    ? 'bg-swar-primary text-white'
+                    : 'text-swar-text hover:bg-swar-primary-light'
                 }`}
               >
                 {getLanguageText(lang)}
@@ -187,8 +187,8 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
                   onClick={() => setSelectedCategory(category)}
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     selectedCategory === category
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-swar-primary text-white'
+                      : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
                   }`}
                 >
                   {category}
@@ -224,19 +224,19 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
               </div>
 
               <div className="p-6 flex-1 flex flex-col">
-                <h2 className="text-xl font-bold text-gray-800 mb-3 line-clamp-2">
+                <h2 className="text-xl font-bold text-swar-text mb-3 line-clamp-2">
                   {item.title[language]}
                 </h2>
 
                 {item.excerpt && (
-                  <p className="text-gray-600 mb-4 flex-1 line-clamp-3">
+                  <p className="text-swar-text-secondary mb-4 flex-1 line-clamp-3">
                     {item.excerpt[language]}
                   </p>
                 )}
 
                 <div className="mt-auto">
                   {(item.author || item.date || item.readTime) && (
-                    <div className="flex items-center text-sm text-gray-500 mb-4 flex-wrap gap-2">
+                    <div className="flex items-center text-sm text-swar-text-secondary mb-4 flex-wrap gap-2">
                       {item.author && <span>{item.author}</span>}
                       {item.date && <span>•</span>}
                       {item.date && <span>{formatDate(item.date)}</span>}
@@ -247,7 +247,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
 
                   <Link
                     href={`/${breadcrumb.en.toLowerCase()}/${item.slug}`}
-                    className="inline-flex items-center text-green-600 hover:text-green-700 font-medium transition-colors"
+                    className="inline-flex items-center text-swar-primary hover:text-swar-primary font-medium transition-colors"
                   >
                     {translations.readFullArticle?.[language] || 'Read More'}
                     <span className="ml-2">→</span>
@@ -263,10 +263,10 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
           <div
             className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-8 text-center mb-12 animate-fade-in"
           >
-            <h3 className="text-2xl font-bold text-gray-800 mb-4">
+            <h3 className="text-2xl font-bold text-swar-text mb-4">
               {translations.welcomeTitle?.[language] || 'Welcome'}
             </h3>
-            <p className="text-gray-600 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-swar-text-secondary max-w-3xl mx-auto leading-relaxed">
               {aboutSectionContent[language]}
             </p>
           </div>
@@ -277,22 +277,22 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
           <div
             className="text-center py-12 bg-white rounded-lg shadow-md mb-12 animate-fade-in"
           >
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">
+            <h3 className="text-xl font-semibold text-swar-text mb-4">
               {translations.comingSoonTitle?.[language] || 'More Coming Soon'}
             </h3>
-            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+            <p className="text-swar-text-secondary mb-6 max-w-2xl mx-auto">
               {translations.comingSoonText?.[language] || 'Stay tuned for more updates.'}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href="/workshop"
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors"
+                className="bg-swar-primary hover:bg-swar-primary text-white px-6 py-3 rounded-lg transition-colors"
               >
                 {translations.exploreWorkshops?.[language] || 'Explore'}
               </Link>
               <Link
                 href="/contact"
-                className="border border-green-600 text-green-600 hover:bg-green-600 hover:text-white px-6 py-3 rounded-lg transition-colors"
+                className="border border-green-600 text-swar-primary hover:bg-swar-primary hover:text-white px-6 py-3 rounded-lg transition-colors"
               >
                 {translations.subscribeUpdates?.[language] || 'Subscribe'}
               </Link>
@@ -303,7 +303,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
         {/* Newsletter Section */}
         {showNewsletter && (
           <div
-            className="bg-green-600 rounded-lg p-8 text-center text-white mb-12 animate-fade-in"
+            className="bg-swar-primary rounded-lg p-8 text-center text-white mb-12 animate-fade-in"
           >
             <h3 className="text-2xl font-bold mb-4">
               {translations.newsletterTitle?.[language] || 'Stay Updated'}
@@ -315,7 +315,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
               <input
                 type="email"
                 placeholder={translations.emailPlaceholder?.[language] || 'Enter your email'}
-                className="flex-1 px-4 py-2 rounded-l-lg text-gray-800 focus:outline-none"
+                className="flex-1 px-4 py-2 rounded-l-lg text-swar-text focus:outline-none"
               />
               <button className="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-r-lg transition-colors font-medium">
                 {translations.subscribe?.[language] || 'Subscribe'}

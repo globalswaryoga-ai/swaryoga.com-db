@@ -49,16 +49,16 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ className = '' }) => {
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       {/* Status Indicator */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 border border-gray-300">
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-swar-primary-light border border-swar-border">
         {/* Color dot */}
         <div
           className={`w-3 h-3 rounded-full transition-all ${
-            isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+            isConnected ? 'bg-swar-primary-light0 animate-pulse' : 'bg-red-500'
           }`}
         />
 
         {/* Status text */}
-        <span className={`text-sm font-medium ${isConnected ? 'text-green-700' : 'text-red-700'}`}>
+        <span className={`text-sm font-medium ${isConnected ? 'text-swar-primary' : 'text-red-700'}`}>
           {isConnected ? 'Connected' : 'Disconnected'}
         </span>
 
@@ -67,7 +67,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ className = '' }) => {
           onClick={handleRefresh}
           disabled={isLoading}
           title="Refresh server connection"
-          className="ml-2 p-1 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="ml-2 p-1 text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCw
             size={16}

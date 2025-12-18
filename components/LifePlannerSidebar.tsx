@@ -26,7 +26,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
     { href: '/life-planner/dashboard/monthly', label: 'Monthly', icon: Calendar, color: 'text-indigo-400' },
     { href: '/life-planner/dashboard/yearly', label: 'Yearly', icon: CalendarClock, color: 'text-amber-400' },
     { href: '/life-planner/dashboard/calendar', label: 'Calendar', icon: Calendar, color: 'text-pink-400' },
-    { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: BarChart3, color: 'text-green-600' },
+    { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: BarChart3, color: 'text-swar-primary' },
   ];
 
   const isActive = (href: string) => pathname === href;

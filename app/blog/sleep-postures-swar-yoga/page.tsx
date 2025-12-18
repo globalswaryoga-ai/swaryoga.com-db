@@ -35,7 +35,7 @@ export default function SleepPosturesPage() {
     >
       {/* Introduction */}
       <div className="mb-12">
-        <p className="text-lg leading-relaxed text-gray-700 mb-6">
+        <p className="text-lg leading-relaxed text-swar-text mb-6">
           In the realm of health, sleep posture plays a crucial role, and Swar Yoga offers a deeply
           insightful perspective on this. Traditional medical advice often recommends patients with
           back pain, sciatica, or neck issues to avoid using pillows and bolsters. However, Swar Yoga
@@ -46,7 +46,7 @@ export default function SleepPosturesPage() {
 
       {/* Left Side Sleeping Benefits */}
       <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">The Power of Left-Side Sleep Position</h2>
+        <h2 className="text-2xl font-bold text-swar-text mb-4">The Power of Left-Side Sleep Position</h2>
         <div className="relative group mb-8">
           <img
             src="https://images.pexels.com/photos/3822621/pexels-photo-3822621.jpeg"
@@ -54,15 +54,15 @@ export default function SleepPosturesPage() {
             className="w-full h-[400px] object-cover rounded-lg shadow-lg"
           />
         </div>
-        <p className="text-lg leading-relaxed text-gray-700 mb-6">
+        <p className="text-lg leading-relaxed text-swar-text mb-6">
           Swar Yoga emphasizes the importance of sleeping on the left side at night. This is not
           enforced rigidly but happens naturally when the mind is calm, allowing the body to remain
           in a relaxed posture all night. The left-side posture naturally applies pressure on the
           left side of the body, where an essential energy channel, or Nadi, becomes active.
         </p>
-        <div className="bg-green-50 p-6 rounded-lg mb-8">
-          <h3 className="text-xl font-semibold text-green-800 mb-3">Key Benefits of Left-Side Sleeping:</h3>
-          <ul className="list-disc list-inside text-gray-700 space-y-2">
+        <div className="bg-swar-primary-light p-6 rounded-lg mb-8">
+          <h3 className="text-xl font-semibold text-swar-primary mb-3">Key Benefits of Left-Side Sleeping:</h3>
+          <ul className="list-disc list-inside text-swar-text space-y-2">
             <li>Activates the Pingala Nadi (Sun Nadi)</li>
             <li>Enhances energy and alertness</li>
             <li>Improves digestion efficiency</li>
@@ -73,8 +73,8 @@ export default function SleepPosturesPage() {
 
       {/* Body Temperature and Sleep */}
       <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Body Temperature Regulation During Sleep</h2>
-        <p className="text-lg leading-relaxed text-gray-700 mb-6">
+        <h2 className="text-2xl font-bold text-swar-text mb-4">Body Temperature Regulation During Sleep</h2>
+        <p className="text-lg leading-relaxed text-swar-text mb-6">
           Maintaining body warmth during sleep is vital. The activation of the Pingala or Sun Nadi
           ensures the body's warmth is preserved, which is crucial for digestion, immune defense, and
           body temperature regulation.
@@ -83,39 +83,39 @@ export default function SleepPosturesPage() {
 
       {/* Breathing Patterns */}
       <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Understanding Sleep Breathing Patterns</h2>
+        <h2 className="text-2xl font-bold text-swar-text mb-4">Understanding Sleep Breathing Patterns</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-md border border-green-100">
-            <h4 className="font-semibold text-gray-800 mb-2">Rest State</h4>
-            <p className="text-gray-600 text-lg">12-15 breaths per minute</p>
+            <h4 className="font-semibold text-swar-text mb-2">Rest State</h4>
+            <p className="text-swar-text-secondary text-lg">12-15 breaths per minute</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md border border-green-100">
-            <h4 className="font-semibold text-gray-800 mb-2">During Activity</h4>
-            <p className="text-gray-600 text-lg">18 breaths per minute</p>
+            <h4 className="font-semibold text-swar-text mb-2">During Activity</h4>
+            <p className="text-swar-text-secondary text-lg">18 breaths per minute</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md border border-green-100">
-            <h4 className="font-semibold text-gray-800 mb-2">During Sleep</h4>
-            <p className="text-gray-600 text-lg">18-25 breaths per minute</p>
+            <h4 className="font-semibold text-swar-text mb-2">During Sleep</h4>
+            <p className="text-swar-text-secondary text-lg">18-25 breaths per minute</p>
           </div>
         </div>
       </div>
 
       {/* Practical Tips */}
       <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Practical Sleep Tips from Swar Yoga</h2>
+        <h2 className="text-2xl font-bold text-swar-text mb-4">Practical Sleep Tips from Swar Yoga</h2>
         <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-600">
           <ul className="space-y-4">
             <li className="flex items-start">
-              <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-              <p className="text-gray-700">Sleep on the left side to activate the warm Pingala Nadi</p>
+              <span className="w-2 h-2 bg-swar-primary-light0 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+              <p className="text-swar-text">Sleep on the left side to activate the warm Pingala Nadi</p>
             </li>
             <li className="flex items-start">
-              <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-              <p className="text-gray-700">Use a pillow and bolster for proper alignment and support</p>
+              <span className="w-2 h-2 bg-swar-primary-light0 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+              <p className="text-swar-text">Use a pillow and bolster for proper alignment and support</p>
             </li>
             <li className="flex items-start">
-              <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-              <p className="text-gray-700">
+              <span className="w-2 h-2 bg-swar-primary-light0 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+              <p className="text-swar-text">
                 Avoid drinking water or milk after 9 PM to prevent fluid buildup in the lungs
               </p>
             </li>
@@ -124,16 +124,16 @@ export default function SleepPosturesPage() {
       </div>
 
       {/* Conclusion */}
-      <div className="bg-gray-50 p-8 rounded-lg mb-12 border-l-4 border-green-600">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Conclusion</h2>
-        <p className="text-lg leading-relaxed text-gray-700 mb-4">
+      <div className="bg-swar-bg p-8 rounded-lg mb-12 border-l-4 border-green-600">
+        <h2 className="text-2xl font-bold text-swar-text mb-4">Conclusion</h2>
+        <p className="text-lg leading-relaxed text-swar-text mb-4">
           The practices described in Swar Yoga provide a holistic and effective approach to
           maintaining physical balance through proper sleep and breathing techniques. While these
           practices have proven beneficial in my 20 years of teaching, it is always advisable to
           consult a healthcare professional before making significant changes to your health
           routines.
         </p>
-        <p className="text-lg leading-relaxed text-gray-700">
+        <p className="text-lg leading-relaxed text-swar-text">
           This blog is based on long-standing principles of Swar Yoga and personal experiences, and
           it should ideally be integrated with professional medical guidance for best results.
         </p>

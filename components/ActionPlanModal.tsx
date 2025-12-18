@@ -231,7 +231,7 @@ export default function ActionPlanModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-screen overflow-y-auto">
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white flex justify-between items-center">
+        <div className="sticky top-0 bg-gradient-to-r from-swar-primary to-blue-700 p-6 text-white flex justify-between items-center">
           <h2 className="text-2xl font-bold text-white">
             {editingPlan ? 'Edit Action Plan' : 'Create Action Plan'}
           </h2>
@@ -246,7 +246,7 @@ export default function ActionPlanModal({
         <div className="p-6 space-y-6">
           {/* Vision Head Selection - First Level */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Select Vision Plan Head *
             </label>
             <select
@@ -255,7 +255,7 @@ export default function ActionPlanModal({
                 setSelectedVisionHead(e.target.value);
                 setSelectedVisionId(''); // Reset vision when head changes
               }}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
             >
               <option value="">Choose a vision head...</option>
               {VISION_CATEGORIES.map(head => (
@@ -268,14 +268,14 @@ export default function ActionPlanModal({
 
           {/* Vision Selection - Second Level */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Select Vision Plan *
             </label>
             {selectedVisionHead ? (
               <select
                 value={selectedVisionId}
                 onChange={e => setSelectedVisionId(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
               >
                 <option value="">Choose a vision...</option>
                 {visionsUnderHead.map(vision => (
@@ -285,7 +285,7 @@ export default function ActionPlanModal({
                 ))}
               </select>
             ) : (
-              <p className="text-sm text-gray-500 italic">Please select a vision head first</p>
+              <p className="text-sm text-swar-text-secondary italic">Please select a vision head first</p>
             )}
           </div>
 
@@ -295,14 +295,14 @@ export default function ActionPlanModal({
               <img
                 src={selectedVision.imageUrl || selectedVision.categoryImageUrl || '/placeholder.png'}
                 alt={selectedVision.title}
-                className="w-full h-64 object-cover rounded-lg border-2 border-gray-300"
+                className="w-full h-64 object-cover rounded-lg border-2 border-swar-border"
               />
             </div>
           )}
 
           {/* Action Plan Title */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Action Plan Title *
             </label>
             <input
@@ -310,42 +310,42 @@ export default function ActionPlanModal({
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="e.g., Q1 Fitness Challenge"
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+            <label className="block text-sm font-semibold text-swar-text mb-2">Description</label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Describe your action plan..."
               rows={3}
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
             />
           </div>
 
           {/* Date Range */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-swar-text mb-2">
                 Start Date *
               </label>
               <input
                 type="date"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">End Date *</label>
+              <label className="block text-sm font-semibold text-swar-text mb-2">End Date *</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
@@ -353,32 +353,32 @@ export default function ActionPlanModal({
           {/* Working Hours */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-swar-text mb-2">
                 Working Hours Start
               </label>
               <input
                 type="time"
                 value={workingHoursStart}
                 onChange={e => setWorkingHoursStart(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-swar-text mb-2">
                 Working Hours End
               </label>
               <input
                 type="time"
                 value={workingHoursEnd}
                 onChange={e => setWorkingHoursEnd(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
 
           {/* Place */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Working Place *
             </label>
             <input
@@ -386,13 +386,13 @@ export default function ActionPlanModal({
               value={place}
               onChange={e => setPlace(e.target.value)}
               placeholder="e.g., Home Gym, Office, Studio"
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
             />
           </div>
 
           {/* Expected Amount */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-swar-text mb-2">
               Expected Amount (Rs.)
             </label>
             <input
@@ -400,17 +400,17 @@ export default function ActionPlanModal({
               value={expectedAmount}
               onChange={e => setExpectedAmount(Number(e.target.value))}
               placeholder="0"
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-2 border-2 border-swar-border rounded-lg focus:outline-none focus:border-blue-500"
             />
           </div>
 
           {/* Milestones Section */}
           <div className="border-t-2 pt-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-800">Milestones</h3>
+              <h3 className="text-lg font-bold text-swar-text">Milestones</h3>
               <button
                 onClick={handleAddMilestone}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                className="px-4 py-2 bg-swar-primary-light0 text-white rounded-lg hover:bg-swar-primary transition-colors"
               >
                 + Add Milestone
               </button>
@@ -432,10 +432,10 @@ export default function ActionPlanModal({
           {/* Goals Section */}
           <div className="border-t-2 pt-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-800">Goals</h3>
+              <h3 className="text-lg font-bold text-swar-text">Goals</h3>
               <button
                 onClick={handleAddGoal}
-                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                className="px-4 py-2 bg-swar-primary-light0 text-white rounded-lg hover:bg-swar-primary transition-colors"
               >
                 + Add Goal
               </button>
@@ -458,8 +458,8 @@ export default function ActionPlanModal({
           <div className="border-t-2 pt-6">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-lg font-bold text-gray-800">Todos</h3>
-                <p className="text-xs text-gray-600">Small checkbox items under this action plan.</p>
+                <h3 className="text-lg font-bold text-swar-text">Todos</h3>
+                <p className="text-xs text-swar-text-secondary">Small checkbox items under this action plan.</p>
               </div>
               <button
                 type="button"
@@ -526,17 +526,17 @@ export default function ActionPlanModal({
                           type="text"
                           value={todo.title}
                           onChange={(e) => updateTodo(todo.id, { title: e.target.value })}
-                          className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                          className={`w-full bg-transparent outline-none text-sm px-1 ${todo.completed ? 'text-swar-text-secondary line-through' : 'text-swar-text'}`}
                         />
 
                         {/* Line 2: date + time + checkbox + remove */}
                         <div className="mt-2 flex flex-col md:flex-row md:items-center gap-2">
-                          <label className="inline-flex items-center gap-2 text-sm text-gray-700 md:mr-1">
+                          <label className="inline-flex items-center gap-2 text-sm text-swar-text md:mr-1">
                             <input
                               type="checkbox"
                               checked={!!todo.completed}
                               onChange={() => toggleTodo(todo.id)}
-                              className="rounded border-gray-300"
+                              className="rounded border-swar-border"
                             />
                             <span className="text-xs">Done</span>
                           </label>
@@ -585,7 +585,7 @@ export default function ActionPlanModal({
                 resetForm();
                 onClose();
               }}
-              className="flex-1 px-6 py-3 bg-gray-300 text-gray-800 font-bold rounded-lg hover:bg-gray-400 transition-colors"
+              className="flex-1 px-6 py-3 bg-gray-300 text-swar-text font-bold rounded-lg hover:bg-gray-400 transition-colors"
             >
               Cancel
             </button>
@@ -609,9 +609,9 @@ function MilestoneCard({
   onDelete: (id: string) => void;
 }) {
   return (
-    <div className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200">
+    <div className="bg-swar-bg p-4 rounded-lg border-2 border-swar-border">
       <div className="flex justify-between items-center mb-3">
-        <h4 className="font-semibold text-gray-800">Milestone {index + 1}</h4>
+        <h4 className="font-semibold text-swar-text">Milestone {index + 1}</h4>
         <button
           onClick={() => onDelete(milestone.id)}
           className="text-red-500 hover:text-red-700 font-bold"
@@ -622,7 +622,7 @@ function MilestoneCard({
 
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Title</label>
+          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Title</label>
           <input
             type="text"
             value={milestone.title || ''}
@@ -633,13 +633,13 @@ function MilestoneCard({
               })
             }
             placeholder="Milestone title (optional)"
-            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+            className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+            <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Start Date</label>
             <input
               type="date"
               value={milestone.startDate}
@@ -649,11 +649,11 @@ function MilestoneCard({
                   startDate: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+            <label className="block text-xs font-semibold text-swar-text-secondary mb-1">End Date</label>
             <input
               type="date"
               value={milestone.endDate}
@@ -663,14 +663,14 @@ function MilestoneCard({
                   endDate: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
+            <label className="block text-xs font-semibold text-swar-text-secondary mb-1">
               Working Hours Start
             </label>
             <input
@@ -682,11 +682,11 @@ function MilestoneCard({
                   workingHoursStart: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
+            <label className="block text-xs font-semibold text-swar-text-secondary mb-1">
               Working Hours End
             </label>
             <input
@@ -698,13 +698,13 @@ function MilestoneCard({
                   workingHoursEnd: e.target.value,
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Place</label>
+          <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Place</label>
           <input
             type="text"
             value={milestone.place}
@@ -715,7 +715,7 @@ function MilestoneCard({
               })
             }
             placeholder="Working location"
-            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:border-blue-500"
+            className="w-full px-3 py-2 border border-swar-border rounded text-sm focus:outline-none focus:border-blue-500"
           />
         </div>
       </div>

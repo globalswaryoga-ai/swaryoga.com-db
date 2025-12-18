@@ -22,8 +22,8 @@ export default function PlannerCalendarPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Calendar</h2>
-            <p className="text-gray-600">Select a date to see that day’s tasks/todos/reminders.</p>
+            <h2 className="text-2xl font-bold text-swar-text">Calendar</h2>
+            <p className="text-swar-text-secondary">Select a date to see that day’s tasks/todos/reminders.</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -31,7 +31,7 @@ export default function PlannerCalendarPage() {
               type="date"
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
-              className="rounded-lg border border-gray-300 px-4 py-2"
+              className="rounded-lg border border-swar-border px-4 py-2"
             />
           </div>
         </div>
@@ -39,19 +39,19 @@ export default function PlannerCalendarPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <section className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-800">Selected date</h3>
-          <p className="text-gray-600 mt-2">{label}</p>
-          <p className="text-xs text-gray-400 mt-1">(Data integration coming next)</p>
+          <h3 className="text-lg font-semibold text-swar-text">Selected date</h3>
+          <p className="text-swar-text-secondary mt-2">{label}</p>
+          <p className="text-xs text-swar-text-secondary mt-1">(Data integration coming next)</p>
         </section>
 
         <section className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-800">Tasks</h3>
-          <p className="text-gray-600 mt-2">No tasks wired yet.</p>
+          <h3 className="text-lg font-semibold text-swar-text">Tasks</h3>
+          <p className="text-swar-text-secondary mt-2">No tasks wired yet.</p>
         </section>
 
         <section className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-800">Todos & reminders</h3>
-          <p className="text-gray-600 mt-2">No todos/reminders wired yet.</p>
+          <h3 className="text-lg font-semibold text-swar-text">Todos & reminders</h3>
+          <p className="text-swar-text-secondary mt-2">No todos/reminders wired yet.</p>
         </section>
       </div>
     </div>

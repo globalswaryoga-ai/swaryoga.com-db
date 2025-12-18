@@ -84,24 +84,24 @@ export default function LifePlannerPage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 bg-gray-50">
+      <section className="py-16 sm:py-20 px-4 sm:px-6 bg-swar-bg">
         <div className="container mx-auto max-w-4xl">
           <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">Life Planner Features</h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="text-4xl font-bold text-[#2A5654] mb-4">📊</div>
               <h3 className="font-semibold text-lg mb-2">Hierarchical Planning</h3>
-              <p className="text-gray-600">Vision → Milestones → Goals → Tasks → Todos</p>
+              <p className="text-swar-text-secondary">Vision → Milestones → Goals → Tasks → Todos</p>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-[#FF9F43] mb-4">🎯</div>
               <h3 className="font-semibold text-lg mb-2">Track Progress</h3>
-              <p className="text-gray-600">Monitor your journey and celebrate wins</p>
+              <p className="text-swar-text-secondary">Monitor your journey and celebrate wins</p>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-[#4ADE80] mb-4">💾</div>
               <h3 className="font-semibold text-lg mb-2">Secure Storage</h3>
-              <p className="text-gray-600">Your data is safely stored in the cloud</p>
+              <p className="text-swar-text-secondary">Your data is safely stored in the cloud</p>
             </div>
           </div>
         </div>
@@ -123,24 +123,24 @@ export default function LifePlannerPage() {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 px-4 sm:px-6 py-3 rounded-lg text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FF9F43]"
+              className="flex-1 px-4 sm:px-6 py-3 rounded-lg text-swar-text placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FF9F43]"
               required
             />
             <button
               type="submit"
-              className="bg-[#4ADE80] hover:bg-green-500 text-white px-6 sm:px-8 py-3 rounded-lg font-semibold flex items-center gap-2 transition"
+              className="bg-[#4ADE80] hover:bg-swar-primary-light0 text-white px-6 sm:px-8 py-3 rounded-lg font-semibold flex items-center gap-2 transition"
             >
               <ArrowRight size={20} />
               <span className="hidden sm:inline">Subscribe</span>
             </button>
           </form>
           
-          <p className="text-gray-400 text-sm sm:text-base text-center">
+          <p className="text-swar-text-secondary text-sm sm:text-base text-center">
             Subscribe to receive updates, planning tips, and wellness insights.
           </p>
           
           {subscribed && (
-            <div className="mt-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-300 text-center text-sm">
+            <div className="mt-4 p-3 bg-swar-primary-light0/20 border border-green-500/50 rounded-lg text-green-300 text-center text-sm">
               ✓ Thank you for subscribing!
             </div>
           )}

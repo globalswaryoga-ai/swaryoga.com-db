@@ -139,8 +139,8 @@ export default function VisionPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-gray-900">🎯 Visions</h1>
-          <p className="text-gray-600 mt-2">Define your long-term aspirations and track progress</p>
+          <h1 className="text-4xl font-bold text-swar-text">🎯 Visions</h1>
+          <p className="text-swar-text-secondary mt-2">Define your long-term aspirations and track progress</p>
         </div>
         <button
           onClick={() => {
@@ -158,13 +158,13 @@ export default function VisionPage() {
       {showVisionForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-screen overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
-              <h2 className="text-2xl font-bold text-gray-900">
+            <div className="flex items-center justify-between p-6 border-b border-swar-border sticky top-0 bg-white">
+              <h2 className="text-2xl font-bold text-swar-text">
                 {editingVision ? 'Edit Vision' : 'Create New Vision'}
               </h2>
               <button
                 onClick={() => setShowVisionForm(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                className="p-2 hover:bg-swar-primary-light rounded-lg transition"
               >
                 <X size={24} />
               </button>
@@ -184,13 +184,13 @@ export default function VisionPage() {
       {showGoalForm && selectedVision && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-screen overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white">
-              <h2 className="text-2xl font-bold text-gray-900">
+            <div className="flex items-center justify-between p-6 border-b border-swar-border sticky top-0 bg-white">
+              <h2 className="text-2xl font-bold text-swar-text">
                 Add Goal to "{selectedVision.title}"
               </h2>
               <button
                 onClick={() => setShowGoalForm(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                className="p-2 hover:bg-swar-primary-light rounded-lg transition"
               >
                 <X size={24} />
               </button>
@@ -232,11 +232,11 @@ export default function VisionPage() {
                   className={`rounded-2xl overflow-hidden border-2 transition-all cursor-pointer group ${
                     selectedVision?.id === vision.id
                       ? 'border-purple-500 ring-2 ring-purple-300 shadow-xl'
-                      : 'border-gray-200 hover:border-purple-300 hover:shadow-lg'
+                      : 'border-swar-border hover:border-purple-300 hover:shadow-lg'
                   }`}
                 >
                   {/* Image Section */}
-                  <div className="relative h-40 bg-gray-100 overflow-hidden">
+                  <div className="relative h-40 bg-swar-primary-light overflow-hidden">
                     {vision.imageUrl ? (
                       <img
                         src={vision.imageUrl}
@@ -260,17 +260,17 @@ export default function VisionPage() {
                   {/* Content Section */}
                   <div className="p-4 space-y-3">
                     <div>
-                      <h3 className="font-bold text-gray-900 text-left line-clamp-2">
+                      <h3 className="font-bold text-swar-text text-left line-clamp-2">
                         {vision.title}
                       </h3>
-                      <p className="text-xs text-gray-500 mt-1">{categoryEmojis[vision.category]} {vision.category}</p>
+                      <p className="text-xs text-swar-text-secondary mt-1">{categoryEmojis[vision.category]} {vision.category}</p>
                     </div>
 
                     {/* Stats Row */}
-                    <div className="flex items-center justify-between text-xs bg-gray-50 rounded-lg p-2">
+                    <div className="flex items-center justify-between text-xs bg-swar-bg rounded-lg p-2">
                       <span className="text-blue-600 font-semibold">{stats.totalGoals} Goals</span>
                       <span className="text-cyan-600 font-semibold">{stats.totalTasks} Tasks</span>
-                      <span className="text-green-600 font-semibold">{stats.totalTodos} Todos</span>
+                      <span className="text-swar-primary font-semibold">{stats.totalTodos} Todos</span>
                     </div>
 
                     {/* Progress Bar */}
@@ -281,7 +281,7 @@ export default function VisionPage() {
                           style={{ width: `${stats.percentage}%` }}
                         />
                       </div>
-                      <p className="text-xs text-gray-600 text-center">
+                      <p className="text-xs text-swar-text-secondary text-center">
                         {stats.completedWork} of {stats.totalWork} items done
                       </p>
                     </div>
@@ -323,8 +323,8 @@ export default function VisionPage() {
             <div className="sticky top-6 rounded-2xl border-2 border-purple-200 bg-purple-50 p-6 space-y-6">
               {/* Vision Header */}
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">{selectedVision.title}</h2>
-                <p className="text-sm text-gray-600 mt-2">{selectedVision.description}</p>
+                <h2 className="text-2xl font-bold text-swar-text">{selectedVision.title}</h2>
+                <p className="text-sm text-swar-text-secondary mt-2">{selectedVision.description}</p>
               </div>
 
               {/* Vision Details */}
@@ -332,13 +332,13 @@ export default function VisionPage() {
                 {selectedVision.targetDate && (
                   <div className="flex items-center gap-2">
                     <Calendar size={16} className="text-blue-600" />
-                    <span className="text-gray-700">Target: {new Date(selectedVision.targetDate).toLocaleDateString()}</span>
+                    <span className="text-swar-text">Target: {new Date(selectedVision.targetDate).toLocaleDateString()}</span>
                   </div>
                 )}
                 {selectedVision.amount && (
                   <div className="flex items-center gap-2">
-                    <DollarSign size={16} className="text-green-600" />
-                    <span className="text-gray-700">₹ {parseInt(selectedVision.amount).toLocaleString()}</span>
+                    <DollarSign size={16} className="text-swar-primary" />
+                    <span className="text-swar-text">₹ {parseInt(selectedVision.amount).toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -348,7 +348,7 @@ export default function VisionPage() {
 
               {/* Related Work */}
               <div className="space-y-4">
-                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                <h3 className="font-bold text-swar-text flex items-center gap-2">
                   📋 All Work on This Vision
                 </h3>
 
@@ -359,17 +359,17 @@ export default function VisionPage() {
                   </h4>
                   <div className="space-y-2">
                     {getRelatedWork(selectedVision.id).goals.length === 0 ? (
-                      <p className="text-xs text-gray-500">No goals yet</p>
+                      <p className="text-xs text-swar-text-secondary">No goals yet</p>
                     ) : (
                       getRelatedWork(selectedVision.id).goals.map(goal => (
                         <div key={goal.id} className="bg-white rounded-lg p-2 text-xs">
-                          <p className="font-medium text-gray-900">{goal.title}</p>
-                          <p className="text-gray-600">{goal.startDate} → {goal.endDate}</p>
+                          <p className="font-medium text-swar-text">{goal.title}</p>
+                          <p className="text-swar-text-secondary">{goal.startDate} → {goal.endDate}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                               goal.priority === 'high' ? 'bg-red-100 text-red-700' :
                               goal.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-green-100 text-green-700'
+                              'bg-swar-primary-light text-swar-primary'
                             }`}>
                               {goal.priority}
                             </span>
@@ -409,7 +409,7 @@ export default function VisionPage() {
                           readOnly
                           className="mt-0.5 w-4 h-4 rounded text-cyan-600 cursor-pointer"
                         />
-                        <p className={`font-medium flex-1 ${task.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                        <p className={`font-medium flex-1 ${task.completed ? 'line-through text-swar-text-secondary' : 'text-swar-text'}`}>
                           {task.title}
                         </p>
                       </div>
@@ -419,7 +419,7 @@ export default function VisionPage() {
 
                 {/* Todos */}
                 <div>
-                  <h4 className="text-xs font-semibold text-green-700 mb-2 flex items-center gap-1">
+                  <h4 className="text-xs font-semibold text-swar-primary mb-2 flex items-center gap-1">
                     <CheckSquare size={14} /> Todos ({getRelatedWork(selectedVision.id).todos.length})
                   </h4>
                   <div className="space-y-2">
@@ -434,9 +434,9 @@ export default function VisionPage() {
                           type="checkbox"
                           checked={todo.completed}
                           readOnly
-                          className="mt-0.5 w-4 h-4 rounded text-green-600 cursor-pointer"
+                          className="mt-0.5 w-4 h-4 rounded text-swar-primary cursor-pointer"
                         />
-                        <p className={`font-medium flex-1 ${todo.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                        <p className={`font-medium flex-1 ${todo.completed ? 'line-through text-swar-text-secondary' : 'text-swar-text'}`}>
                           {todo.title}
                         </p>
                       </div>
@@ -452,7 +452,7 @@ export default function VisionPage() {
                   <div className="space-y-2">
                     {getRelatedWork(selectedVision.id).reminders.map(reminder => (
                       <div key={reminder.id} className="bg-white rounded-lg p-2 text-xs">
-                        <p className="font-medium text-gray-900">🔔 {reminder.title}</p>
+                        <p className="font-medium text-swar-text">🔔 {reminder.title}</p>
                       </div>
                     ))}
                   </div>
@@ -460,9 +460,9 @@ export default function VisionPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border-2 border-dashed border-gray-300 p-8 text-center sticky top-6">
-              <Target size={48} className="mx-auto text-gray-400 mb-3" />
-              <p className="text-gray-600 font-medium">Select a vision to view details</p>
+            <div className="rounded-2xl border-2 border-dashed border-swar-border p-8 text-center sticky top-6">
+              <Target size={48} className="mx-auto text-swar-text-secondary mb-3" />
+              <p className="text-swar-text-secondary font-medium">Select a vision to view details</p>
             </div>
           )}
         </div>

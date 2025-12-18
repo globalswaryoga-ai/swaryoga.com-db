@@ -77,14 +77,14 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
 
   const getCategoryColor = (cat?: string) => {
     const colorMap: { [key: string]: string } = {
-      Health: 'bg-green-100 text-green-800',
+      Health: 'bg-swar-primary-light text-swar-primary',
       Education: 'bg-blue-100 text-blue-800',
       Lifestyle: 'bg-orange-100 text-orange-800',
       Spiritual: 'bg-purple-100 text-purple-800',
       Research: 'bg-red-100 text-red-800',
       Wellness: 'bg-indigo-100 text-indigo-800',
     };
-    return colorMap[cat || ''] || 'bg-gray-100 text-gray-800';
+    return colorMap[cat || ''] || 'bg-swar-primary-light text-swar-text';
   };
 
   const getLanguageText = (lang: 'en' | 'hi' | 'mr') => {
@@ -155,7 +155,7 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
       </div>
 
       {/* Language Selector */}
-      <div className="bg-gray-50 border-b py-4">
+      <div className="bg-swar-bg border-b py-4">
         <div className="container mx-auto px-4 md:px-6 flex justify-center">
           <div className="inline-flex bg-white rounded-lg p-1 shadow-sm">
             {(['en', 'hi', 'mr'] as const).map((lang) => (
@@ -164,8 +164,8 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
                 onClick={() => setLanguage(lang)}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   language === lang
-                    ? 'bg-green-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-swar-primary text-white'
+                    : 'text-swar-text hover:bg-swar-primary-light'
                 }`}
               >
                 {getLanguageText(lang)}
@@ -183,7 +183,7 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
             <div className="mb-8">
               <Link
                 href={breadcrumbs[0]?.path || '/blog'}
-                className="inline-flex items-center text-green-600 hover:text-green-700 transition-colors font-medium"
+                className="inline-flex items-center text-swar-primary hover:text-swar-primary transition-colors font-medium"
               >
                 <ArrowLeft size={20} className="mr-2" />
                 {defaultTranslations.backLink[language]}
@@ -192,23 +192,23 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
 
             {/* Blog Meta Info */}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4 pb-8 border-b">
-              <div className="flex flex-wrap items-center gap-6 text-gray-600 text-sm md:text-base">
+              <div className="flex flex-wrap items-center gap-6 text-swar-text-secondary text-sm md:text-base">
                 <div className="flex items-center">
-                  <Calendar size={18} className="mr-2 text-green-600" />
+                  <Calendar size={18} className="mr-2 text-swar-primary" />
                   <span>{formatDate(date)}</span>
                 </div>
                 <div className="flex items-center">
-                  <User size={18} className="mr-2 text-green-600" />
+                  <User size={18} className="mr-2 text-swar-primary" />
                   <span>{author}</span>
                 </div>
                 <div className="flex items-center">
-                  <Clock size={18} className="mr-2 text-green-600" />
+                  <Clock size={18} className="mr-2 text-swar-primary" />
                   <span>{readTime[language]}</span>
                 </div>
               </div>
               <button
                 onClick={handleShare}
-                className="flex items-center text-green-600 hover:text-green-700 transition-colors font-medium"
+                className="flex items-center text-swar-primary hover:text-swar-primary transition-colors font-medium"
               >
                 <Share2 size={18} className="mr-2" />
                 {defaultTranslations.share[language]}
@@ -222,14 +222,14 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
 
             {/* Author Bio */}
             {authorBio && (
-              <div className="flex items-start p-6 bg-green-50 rounded-lg border border-green-100">
-                <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center shadow-lg mr-4 flex-shrink-0">
+              <div className="flex items-start p-6 bg-swar-primary-light rounded-lg border border-green-100">
+                <div className="w-16 h-16 bg-swar-primary rounded-full flex items-center justify-center shadow-lg mr-4 flex-shrink-0">
                   <span className="text-2xl font-bold text-white">{authorInitials}</span>
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-gray-800 text-lg">{author}</h3>
-                  <p className="text-green-700 font-medium mb-2">{authorTitle}</p>
-                  <p className="text-gray-700 text-sm leading-relaxed">
+                  <h3 className="font-bold text-swar-text text-lg">{author}</h3>
+                  <p className="text-swar-primary font-medium mb-2">{authorTitle}</p>
+                  <p className="text-swar-text text-sm leading-relaxed">
                     {authorBio[language]}
                   </p>
                 </div>
@@ -240,18 +240,18 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
       </article>
 
       {/* Related Posts Section (Optional) */}
-      <div className="bg-gray-50 py-12 md:py-16">
+      <div className="bg-swar-bg py-12 md:py-16">
         <div className="container mx-auto px-4 md:px-6">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">Explore More</h2>
-            <p className="text-gray-600 mb-8">
+            <h2 className="text-2xl md:text-3xl font-bold text-swar-text mb-4">Explore More</h2>
+            <p className="text-swar-text-secondary mb-8">
               {language === 'en' && 'Check out our other articles for more wellness insights.'}
               {language === 'hi' && 'अधिक स्वास्थ्य अंतर्दृष्टि के लिए हमारे अन्य लेख देखें।'}
               {language === 'mr' && 'अधिक आरोग्य अंतर्दृष्टीसाठी आमचे इतर लेख पहा.'}
             </p>
             <Link
               href="/blog"
-              className="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg transition-colors font-medium"
+              className="inline-block bg-swar-primary hover:bg-swar-primary text-white px-8 py-3 rounded-lg transition-colors font-medium"
             >
               {language === 'en' && 'Back to Blog'}
               {language === 'hi' && 'ब्लॉग पर वापस जाएं'}

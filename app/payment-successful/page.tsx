@@ -93,60 +93,60 @@ function PaymentSuccessfulInner() {
             <div className="p-8 sm:p-10">
               {!orderId ? (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
-                  <p className="text-gray-800 font-semibold">Missing order id</p>
-                  <p className="text-gray-700 mt-1">
+                  <p className="text-swar-text font-semibold">Missing order id</p>
+                  <p className="text-swar-text mt-1">
                     We received a success callback, but no <span className="font-mono">orderId</span> was provided.
                     If your money was deducted, please contact support.
                   </p>
                 </div>
               ) : loading ? (
-                <p className="text-gray-600">Loading your order details…</p>
+                <p className="text-swar-text-secondary">Loading your order details…</p>
               ) : order ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="rounded-xl border border-gray-200 p-4">
-                      <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Order ID</p>
-                      <p className="mt-1 font-mono text-sm break-all text-gray-900">{order._id}</p>
+                    <div className="rounded-xl border border-swar-border p-4">
+                      <p className="text-xs text-swar-text-secondary font-semibold uppercase tracking-wide">Order ID</p>
+                      <p className="mt-1 font-mono text-sm break-all text-swar-text">{order._id}</p>
                     </div>
-                    <div className="rounded-xl border border-gray-200 p-4">
-                      <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Payment Status</p>
-                      <p className="mt-1 text-gray-900 font-semibold">{order.paymentStatus || order.status}</p>
+                    <div className="rounded-xl border border-swar-border p-4">
+                      <p className="text-xs text-swar-text-secondary font-semibold uppercase tracking-wide">Payment Status</p>
+                      <p className="mt-1 text-swar-text font-semibold">{order.paymentStatus || order.status}</p>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-gray-200 p-4">
-                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Items</p>
+                  <div className="rounded-xl border border-swar-border p-4">
+                    <p className="text-xs text-swar-text-secondary font-semibold uppercase tracking-wide">Items</p>
                     <div className="mt-3 space-y-2">
                       {order.items.map((item, idx) => (
                         <div key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-gray-900 font-medium truncate">{item.name}</p>
-                            <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
+                            <p className="text-swar-text font-medium truncate">{item.name}</p>
+                            <p className="text-xs text-swar-text-secondary">Qty: {item.quantity}</p>
                           </div>
-                          <div className="text-gray-900 font-semibold">₹{Number(item.price * item.quantity).toFixed(2)}</div>
+                          <div className="text-swar-text font-semibold">₹{Number(item.price * item.quantity).toFixed(2)}</div>
                         </div>
                       ))}
                     </div>
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between">
-                      <p className="text-gray-700 font-semibold">Total</p>
-                      <p className="text-gray-900 font-bold text-lg">₹{Number(order.total || 0).toFixed(2)}</p>
+                    <div className="mt-4 pt-4 border-t border-swar-border flex items-center justify-between">
+                      <p className="text-swar-text font-semibold">Total</p>
+                      <p className="text-swar-text font-bold text-lg">₹{Number(order.total || 0).toFixed(2)}</p>
                     </div>
                   </div>
 
                   {order.transactionId ? (
-                    <div className="rounded-xl border border-gray-200 p-4">
-                      <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Transaction ID</p>
-                      <p className="mt-1 font-mono text-sm break-all text-gray-900">{order.transactionId}</p>
+                    <div className="rounded-xl border border-swar-border p-4">
+                      <p className="text-xs text-swar-text-secondary font-semibold uppercase tracking-wide">Transaction ID</p>
+                      <p className="mt-1 font-mono text-sm break-all text-swar-text">{order.transactionId}</p>
                     </div>
                   ) : null}
                 </div>
               ) : (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
-                  <p className="text-gray-800 font-semibold">Order details not available</p>
-                  <p className="text-gray-700 mt-1">
+                  <p className="text-swar-text font-semibold">Order details not available</p>
+                  <p className="text-swar-text mt-1">
                     Your payment succeeded, but we couldn’t load the order details right now. You can still continue.
                   </p>
-                  <p className="mt-3 text-sm text-gray-700">
+                  <p className="mt-3 text-sm text-swar-text">
                     Order ID: <span className="font-mono break-all">{orderId}</span>
                   </p>
                 </div>

@@ -49,7 +49,7 @@ export default function RootLayout({
           `
         }} />
       </head>
-      <body className="antialiased bg-white text-gray-900 overflow-x-hidden">
+      <body className="antialiased bg-white text-swar-text overflow-x-hidden">
         <AppInitializer />
         {children}
         <WhatsAppWidget />

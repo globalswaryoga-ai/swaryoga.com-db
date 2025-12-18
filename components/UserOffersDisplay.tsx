@@ -61,8 +61,8 @@ export default function UserOffersDisplay() {
     return (
       <div className="bg-white rounded-lg shadow p-8 text-center">
         <Gift size={48} className="mx-auto text-gray-300 mb-4" />
-        <p className="text-gray-600 text-lg">No active offers at the moment</p>
-        <p className="text-gray-500 text-sm mt-2">Check back soon for exclusive deals</p>
+        <p className="text-swar-text-secondary text-lg">No active offers at the moment</p>
+        <p className="text-swar-text-secondary text-sm mt-2">Check back soon for exclusive deals</p>
       </div>
     );
   }
@@ -81,34 +81,34 @@ export default function UserOffersDisplay() {
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h4 className="text-xl font-bold text-gray-900">{offer.title}</h4>
+                  <h4 className="text-xl font-bold text-swar-text">{offer.title}</h4>
                   {isExpiringSoon && (
                     <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-semibold animate-pulse">
                       Expires Soon!
                     </span>
                   )}
                 </div>
-                <p className="text-gray-600 text-sm">{offer.description}</p>
+                <p className="text-swar-text-secondary text-sm">{offer.description}</p>
               </div>
 
               <div className="text-right ml-4">
                 <div className="text-4xl font-bold text-coral-rose-500">{offer.discountPercentage}%</div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider">Off</p>
+                <p className="text-xs text-swar-text-secondary uppercase tracking-wider">Off</p>
               </div>
             </div>
 
             {/* Offer Code and Copy */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <div className="bg-swar-bg rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wider mb-1">Promo Code</p>
+                  <p className="text-xs text-swar-text-secondary uppercase tracking-wider mb-1">Promo Code</p>
                   <code className="text-lg font-mono font-bold text-primary-600">{offer.offerCode}</code>
                 </div>
                 <button
                   onClick={() => copyToClipboard(offer.offerCode)}
                   className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
                     copiedCode === offer.offerCode
-                      ? 'bg-green-100 text-green-700'
+                      ? 'bg-swar-primary-light text-swar-primary'
                       : 'bg-primary-100 text-primary-600 hover:bg-primary-200 active:scale-95'
                   }`}
                 >
@@ -126,7 +126,7 @@ export default function UserOffersDisplay() {
 
             {/* Validity Info */}
             <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-gray-600">
+              <div className="flex items-center gap-2 text-swar-text-secondary">
                 <Clock size={16} className="text-orange-500" />
                 <span>
                   {daysRemaining === 0 ? (

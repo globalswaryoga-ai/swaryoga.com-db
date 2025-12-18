@@ -103,14 +103,14 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
       {/* Parent Vision */}
       {visions.length > 0 && (
         <div className="rounded-lg bg-purple-50 border-2 border-purple-200 p-3">
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             🎯 Link to Vision (Optional)
           </label>
           <select
             name="visionId"
             value={formData.visionId}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
           >
             <option value="">-- No parent vision --</option>
             {visions.map(vision => (
@@ -127,7 +127,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
 
       {/* Goal Title */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Goal Title *
         </label>
         <input
@@ -136,7 +136,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
           value={formData.title}
           onChange={handleChange}
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
-            errors.title ? 'border-red-500' : 'border-gray-300'
+            errors.title ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder="e.g., Run a Marathon, Master TypeScript"
           required
@@ -146,7 +146,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2">
           Description *
         </label>
         <textarea
@@ -154,7 +154,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
           value={formData.description}
           onChange={handleChange}
           className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
-            errors.description ? 'border-red-500' : 'border-gray-300'
+            errors.description ? 'border-red-500' : 'border-swar-border'
           }`}
           placeholder="Describe your goal, steps needed, and expected outcomes"
           rows={4}
@@ -166,7 +166,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
       {/* Category & Priority Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Flag size={18} className="text-blue-600" />
             Category
           </label>
@@ -174,7 +174,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
             name="category"
             value={formData.category}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           >
             <option value="life">🌍 Life</option>
             <option value="health">💪 Health</option>
@@ -190,14 +190,14 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2">
             Status
           </label>
           <select
             name="status"
             value={formData.status}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           >
             <option value="not-started">📋 Not Started</option>
             <option value="in-progress">⏳ In Progress</option>
@@ -211,14 +211,14 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
       {/* Priority Grid */}
       <div className="grid grid-cols-1 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2">
             Priority
           </label>
           <select
             name="priority"
             value={formData.priority}
             onChange={handleChange}
-            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           >
             <option value="high">🔴 High</option>
             <option value="medium">🟡 Medium</option>
@@ -230,7 +230,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
       {/* Start & End Dates */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
             Start Date *
           </label>
@@ -240,7 +240,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
             value={formData.startDate}
             onChange={handleChange}
             className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
-              errors.startDate ? 'border-red-500' : 'border-gray-300'
+              errors.startDate ? 'border-red-500' : 'border-swar-border'
             }`}
             required
           />
@@ -248,7 +248,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
             <Calendar size={18} className="text-blue-600" />
             End Date *
           </label>
@@ -258,7 +258,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
             value={formData.endDate}
             onChange={handleChange}
             className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
-              errors.endDate ? 'border-red-500' : 'border-gray-300'
+              errors.endDate ? 'border-red-500' : 'border-swar-border'
             }`}
             required
           />
@@ -269,8 +269,8 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
 
       {/* Amount */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
-          <DollarSign size={18} className="text-green-600" />
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
+          <DollarSign size={18} className="text-swar-primary" />
           Budget/Amount (₹)
         </label>
         <input
@@ -278,7 +278,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
           name="amount"
           value={formData.amount}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           placeholder="0.00"
           step="0.01"
         />
@@ -286,7 +286,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
 
       {/* Image URL */}
       <div>
-        <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+        <label className="block text-sm font-semibold text-swar-text mb-2 flex items-center gap-2">
           <Image size={18} className="text-orange-600" />
           Goal Image URL (Optional)
         </label>
@@ -295,11 +295,11 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
           name="imageUrl"
           value={formData.imageUrl}
           onChange={handleChange}
-          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
           placeholder="https://example.com/image.jpg"
         />
         {formData.imageUrl && (
-          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-gray-200 shadow-sm">
+          <div className="mt-3 relative h-40 rounded-xl overflow-hidden border-2 border-swar-border shadow-sm">
             <img 
               src={formData.imageUrl} 
               alt="Goal preview" 
@@ -313,11 +313,11 @@ const GoalForm: React.FC<GoalFormProps> = ({ onSubmit, onCancel, initialData, vi
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-end gap-3 pt-5 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-5 border-t border-swar-border">
         <button
           type="button"
           onClick={onCancel}
-          className="px-5 py-2.5 border-2 border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+          className="px-5 py-2.5 border-2 border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
         >
           Cancel
         </button>

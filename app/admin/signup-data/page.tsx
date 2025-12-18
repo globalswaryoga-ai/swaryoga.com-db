@@ -92,7 +92,7 @@ export default function SignupData() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-swar-primary-light">
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -102,12 +102,12 @@ export default function SignupData() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="md:hidden p-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+                className="md:hidden p-2 rounded-lg bg-swar-primary-light hover:bg-swar-primary-light"
               >
                 {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
-              <h1 className="text-2xl font-bold text-gray-800 flex items-center space-x-2">
-                <Users className="h-8 w-8 text-green-600" />
+              <h1 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
+                <Users className="h-8 w-8 text-swar-primary" />
                 <span>Signup Data</span>
               </h1>
             </div>
@@ -115,7 +115,7 @@ export default function SignupData() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={handleExport}
-                className="p-2 rounded-lg bg-green-100 text-green-600 hover:bg-green-200 transition-colors flex items-center space-x-2"
+                className="p-2 rounded-lg bg-swar-primary-light text-swar-primary hover:bg-swar-border transition-colors flex items-center space-x-2"
               >
                 <Download className="h-5 w-5" />
                 <span className="hidden sm:inline text-sm font-medium">Export CSV</span>
@@ -141,39 +141,39 @@ export default function SignupData() {
               {error}
             </div>
           ) : signupData.length === 0 ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg">No signup data available yet</p>
+            <div className="bg-swar-bg border border-swar-border rounded-lg p-8 text-center">
+              <Users className="h-12 w-12 text-swar-text-secondary mx-auto mb-4" />
+              <p className="text-swar-text-secondary text-lg">No signup data available yet</p>
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-swar-bg border-b border-swar-border">
                     <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Phone</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Country</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">State</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Gender</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Age</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Profession</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Name</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Email</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Phone</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Country</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">State</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Gender</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Age</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Profession</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-swar-text">Date</th>
                     </tr>
                   </thead>
                   <tbody>
                     {signupData.map((user, index) => (
-                      <tr key={user._id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-6 py-4 text-sm text-gray-800">{user.name}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{user.phone}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{user.country}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{user.state}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{user.gender}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{user.age}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{user.profession}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(user.createdAt).toLocaleDateString()}</td>
+                      <tr key={user._id} className={index % 2 === 0 ? 'bg-white' : 'bg-swar-bg'}>
+                        <td className="px-6 py-4 text-sm text-swar-text">{user.name}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.email}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.phone}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.country}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.state}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.gender}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.age}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{user.profession}</td>
+                        <td className="px-6 py-4 text-sm text-swar-text-secondary">{new Date(user.createdAt).toLocaleDateString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -181,9 +181,9 @@ export default function SignupData() {
               </div>
 
               {/* Stats Footer */}
-              <div className="bg-gray-50 border-t border-gray-200 px-6 py-4">
-                <p className="text-sm text-gray-600">
-                  Total signups: <span className="font-semibold text-gray-800">{signupData.length}</span>
+              <div className="bg-swar-bg border-t border-swar-border px-6 py-4">
+                <p className="text-sm text-swar-text-secondary">
+                  Total signups: <span className="font-semibold text-swar-text">{signupData.length}</span>
                 </p>
               </div>
             </div>

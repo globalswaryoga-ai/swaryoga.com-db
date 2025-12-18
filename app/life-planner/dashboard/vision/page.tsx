@@ -11,7 +11,7 @@ import ActionPlanModal from '@/components/ActionPlanModal';
 // Category Color Mapping - 10 colors for 10 vision heads
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   'Life': { bg: 'bg-purple-600', text: 'text-white' },
-  'Health': { bg: 'bg-green-600', text: 'text-white' },
+  'Health': { bg: 'bg-swar-primary', text: 'text-white' },
   'Wealth': { bg: 'bg-red-600', text: 'text-white' },
   'Success': { bg: 'bg-blue-600', text: 'text-white' },
   'Respect': { bg: 'bg-orange-600', text: 'text-white' },
@@ -196,12 +196,12 @@ export default function VisionPage() {
     <div className="max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">My Vision Plans</h1>
-          <p className="text-gray-600">Your long-term projects with milestones and timelines</p>
+          <h1 className="text-3xl font-bold text-swar-text mb-2">My Vision Plans</h1>
+          <p className="text-swar-text-secondary">Your long-term projects with milestones and timelines</p>
         </div>
         <button
           onClick={handleAddVision}
-          className="flex items-center space-x-2 bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl"
+          className="flex items-center space-x-2 bg-gradient-to-r from-swar-accent to-pink-500 text-white px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl"
         >
           <Plus className="h-5 w-5" />
           <span>Add Vision Plan</span>
@@ -212,7 +212,7 @@ export default function VisionPage() {
       <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Search</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
               value={searchText}
               onChange={(e) => {
@@ -220,19 +220,19 @@ export default function VisionPage() {
                 setSliderIndex(0);
               }}
               placeholder="Search title / description / place"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-pink-200"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Vision Head</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Vision Head</label>
             <select
               value={filterCategory}
               onChange={(e) => {
                 setFilterCategory(e.target.value);
                 setSliderIndex(0);
               }}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
             >
               <option value="all">All</option>
               {uniqueCategories.map((c) => (
@@ -242,14 +242,14 @@ export default function VisionPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Status</label>
             <select
               value={filterStatus}
               onChange={(e) => {
                 setFilterStatus(e.target.value);
                 setSliderIndex(0);
               }}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
             >
               <option value="all">All</option>
               {/* common values first */}
@@ -267,14 +267,14 @@ export default function VisionPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">Month</label>
+            <label className="block text-xs font-bold text-swar-text mb-1">Month</label>
             <select
               value={filterMonth}
               onChange={(e) => {
                 setFilterMonth(e.target.value);
                 setSliderIndex(0);
               }}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-pink-200"
             >
               <option value="all">All</option>
               {MONTHS.map((m) => (
@@ -292,20 +292,20 @@ export default function VisionPage() {
                 setFilterMonth('all');
                 setSliderIndex(0);
               }}
-              className="w-full px-3 py-2 rounded-lg bg-gray-100 text-gray-800 font-bold hover:bg-gray-200 transition"
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
             >
               Clear Filters
             </button>
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-gray-600">Showing {filteredVisions.length} of {visions.length} vision plans</p>
+        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredVisions.length} of {visions.length} vision plans</p>
       </div>
 
       <div className="mb-12">
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-gray-800">Vision Plan Preview Slider</h2>
-          <p className="text-sm text-gray-600">Showing {Math.min(3, filteredVisions.length)} of {filteredVisions.length} vision plans</p>
+          <h2 className="text-2xl font-bold text-swar-text">Vision Plan Preview Slider</h2>
+          <p className="text-sm text-swar-text-secondary">Showing {Math.min(3, filteredVisions.length)} of {filteredVisions.length} vision plans</p>
         </div>
 
         <div className="relative">
@@ -337,10 +337,10 @@ export default function VisionPage() {
                   </div>
 
                   <div className="p-5">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{vision.title}</h3>
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{vision.description}</p>
+                    <h3 className="text-lg font-bold text-swar-text mb-2 line-clamp-2">{vision.title}</h3>
+                    <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{vision.description}</p>
 
-                    <div className="space-y-2 text-xs text-gray-700">
+                    <div className="space-y-2 text-xs text-swar-text">
                       {vision.place && <div className="flex items-center gap-2">📍 {vision.place}</div>}
                       {vision.endDate && (
                         <div className="flex items-center gap-2">
@@ -389,9 +389,9 @@ export default function VisionPage() {
                   </div>
 
                   <div className="p-5">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{card.title}</h3>
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{card.description}</p>
-                    <div className="space-y-1 text-xs text-gray-600">
+                    <h3 className="text-lg font-bold text-swar-text mb-2 line-clamp-2">{card.title}</h3>
+                    <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{card.description}</p>
+                    <div className="space-y-1 text-xs text-swar-text-secondary">
                       {card.metadata.map((item, i) => (
                         <div key={i}>{item}</div>
                       ))}
@@ -424,7 +424,7 @@ export default function VisionPage() {
                   className={`w-10 h-10 rounded-lg font-semibold transition ${
                     Math.floor(sliderIndex / 3) === pageIndex
                       ? 'bg-emerald-600 text-white shadow-lg'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-swar-primary-light text-swar-text hover:bg-gray-300'
                   }`}
                 >
                   {pageIndex + 1}
@@ -447,13 +447,13 @@ export default function VisionPage() {
 
       {filteredVisions.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
+          <div className="text-swar-text-secondary mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No vision plans found</h3>
-          <p className="text-gray-600 mb-4">Try adjusting your filters or create a new vision plan.</p>
+          <h3 className="text-lg font-medium text-swar-text mb-2">No vision plans found</h3>
+          <p className="text-swar-text-secondary mb-4">Try adjusting your filters or create a new vision plan.</p>
           <button
             onClick={handleAddVision}
             className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
@@ -466,13 +466,13 @@ export default function VisionPage() {
 
       {visions.length === 0 && filteredVisions.length === 0 && (
         <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
+          <div className="text-swar-text-secondary mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No vision plans yet</h3>
-          <p className="text-gray-600 mb-4">Start by creating your first vision plan.</p>
+          <h3 className="text-lg font-medium text-swar-text mb-2">No vision plans yet</h3>
+          <p className="text-swar-text-secondary mb-4">Start by creating your first vision plan.</p>
           <button
             onClick={handleAddVision}
             className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"

@@ -258,14 +258,14 @@ export default function AdminOffers() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-swar-primary-light">
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="bg-white shadow">
           <div className="px-6 py-4 flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-800">Manage Offers</h1>
+            <h1 className="text-2xl font-bold text-swar-text">Manage Offers</h1>
             <button
               onClick={() => {
                 setShowForm(!showForm);
@@ -293,7 +293,7 @@ export default function AdminOffers() {
         {message && (
           <div
             className={`mx-6 mt-4 p-4 rounded-lg flex items-center justify-between ${
-              messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              messageType === 'success' ? 'bg-swar-primary-light text-swar-primary' : 'bg-red-100 text-red-700'
             }`}
           >
             <span>{message}</span>
@@ -308,31 +308,31 @@ export default function AdminOffers() {
           {/* Form */}
           {showForm && (
             <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h2>
+              <h2 className="text-2xl font-bold text-swar-text mb-6">{editingOffer ? 'Edit Offer' : 'Create New Offer'}</h2>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Offer Title *</label>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Offer Title *</label>
                     <input
                       type="text"
                       name="title"
                       value={formData.title}
                       onChange={handleInputChange}
                       placeholder="e.g., Winter Yoga Sale"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Offer Code *</label>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Offer Code *</label>
                     <input
                       type="text"
                       name="offerCode"
                       value={formData.offerCode}
                       onChange={handleInputChange}
                       placeholder="e.g., WINTER20"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                       required
                       disabled={!!editingOffer}
                     />
@@ -340,13 +340,13 @@ export default function AdminOffers() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+                  <label className="block text-sm font-medium text-swar-text mb-2">Description *</label>
                   <textarea
                     name="description"
                     value={formData.description}
                     onChange={handleInputChange}
                     placeholder="Describe the offer details..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                     rows={3}
                     required
                   />
@@ -354,7 +354,7 @@ export default function AdminOffers() {
 
                 <div className="grid md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Discount % *</label>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Discount % *</label>
                     <input
                       type="number"
                       name="discountPercentage"
@@ -362,31 +362,31 @@ export default function AdminOffers() {
                       onChange={handleInputChange}
                       min="0"
                       max="100"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Valid From *</label>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Valid From *</label>
                     <input
                       type="datetime-local"
                       name="validFrom"
                       value={formData.validFrom}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Valid Until *</label>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Valid Until *</label>
                     <input
                       type="datetime-local"
                       name="validUntil"
                       value={formData.validUntil}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                       required
                     />
                   </div>
@@ -394,12 +394,12 @@ export default function AdminOffers() {
 
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Target Users</label>
+                    <label className="block text-sm font-medium text-swar-text mb-2">Target Users</label>
                     <select
                       name="targetUsers"
                       value={formData.targetUsers}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                     >
                       <option value="all">All Users</option>
                       <option value="selected">Selected Users</option>
@@ -408,14 +408,14 @@ export default function AdminOffers() {
 
                   {formData.targetUsers === 'selected' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">User Emails (comma-separated)</label>
+                      <label className="block text-sm font-medium text-swar-text mb-2">User Emails (comma-separated)</label>
                       <input
                         type="text"
                         name="selectedUserEmails"
                         value={formData.selectedUserEmails}
                         onChange={handleInputChange}
                         placeholder="user1@email.com, user2@email.com"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-primary-600 focus:border-transparent"
                       />
                     </div>
                   )}
@@ -435,7 +435,7 @@ export default function AdminOffers() {
                       setShowForm(false);
                       setEditingOffer(null);
                     }}
-                    className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400"
+                    className="bg-gray-300 text-swar-text px-6 py-2 rounded-lg hover:bg-gray-400"
                   >
                     Cancel
                   </button>
@@ -449,8 +449,8 @@ export default function AdminOffers() {
             <div className="text-center py-12">Loading offers...</div>
           ) : offers.length === 0 ? (
             <div className="bg-white rounded-lg shadow p-12 text-center">
-              <p className="text-gray-600 text-lg">No offers yet</p>
-              <p className="text-gray-500 text-sm mt-2">Create your first offer to get started</p>
+              <p className="text-swar-text-secondary text-lg">No offers yet</p>
+              <p className="text-swar-text-secondary text-sm mt-2">Create your first offer to get started</p>
             </div>
           ) : (
             <div className="grid gap-6">
@@ -459,42 +459,42 @@ export default function AdminOffers() {
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-bold text-gray-800">{offer.title}</h3>
+                        <h3 className="text-xl font-bold text-swar-text">{offer.title}</h3>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-semibold ${
                             offer.isActive
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-swar-primary-light text-swar-primary'
+                              : 'bg-swar-primary-light text-swar-text'
                           }`}
                         >
                           {offer.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </div>
-                      <p className="text-gray-600 mb-3">{offer.description}</p>
+                      <p className="text-swar-text-secondary mb-3">{offer.description}</p>
                     </div>
 
                     <div className="text-right">
                       <div className="text-3xl font-bold text-primary-600 mb-2">{offer.discountPercentage}%</div>
-                      <p className="text-xs text-gray-500">Discount</p>
+                      <p className="text-xs text-swar-text-secondary">Discount</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 pb-6 border-b border-gray-200">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 pb-6 border-b border-swar-border">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Offer Code</p>
-                      <p className="font-mono font-bold text-gray-800">{offer.offerCode}</p>
+                      <p className="text-xs text-swar-text-secondary uppercase">Offer Code</p>
+                      <p className="font-mono font-bold text-swar-text">{offer.offerCode}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Valid From</p>
-                      <p className="text-sm text-gray-800">{new Date(offer.validFrom).toLocaleDateString()}</p>
+                      <p className="text-xs text-swar-text-secondary uppercase">Valid From</p>
+                      <p className="text-sm text-swar-text">{new Date(offer.validFrom).toLocaleDateString()}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Valid Until</p>
-                      <p className="text-sm text-gray-800">{new Date(offer.validUntil).toLocaleDateString()}</p>
+                      <p className="text-xs text-swar-text-secondary uppercase">Valid Until</p>
+                      <p className="text-sm text-swar-text">{new Date(offer.validUntil).toLocaleDateString()}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase">Target</p>
-                      <p className="text-sm text-gray-800 capitalize">{offer.targetUsers === 'all' ? 'All Users' : 'Selected'}</p>
+                      <p className="text-xs text-swar-text-secondary uppercase">Target</p>
+                      <p className="text-sm text-swar-text capitalize">{offer.targetUsers === 'all' ? 'All Users' : 'Selected'}</p>
                     </div>
                   </div>
 
@@ -504,7 +504,7 @@ export default function AdminOffers() {
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
                         offer.isActive
                           ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : 'bg-swar-primary-light text-swar-primary hover:bg-swar-border'
                       }`}
                     >
                       {offer.isActive ? 'Deactivate' : 'Activate'}

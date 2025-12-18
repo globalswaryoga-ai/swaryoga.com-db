@@ -203,13 +203,13 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-800">
+        <div className="flex items-center justify-between p-6 border-b border-swar-border">
+          <h2 className="text-2xl font-bold text-swar-text">
             {vision ? 'Edit Vision' : 'Add New Vision'}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light rounded-lg transition-colors"
           >
             <X className="h-6 w-6" />
           </button>
@@ -218,45 +218,45 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">My Vision *</label>
+              <label className="block text-sm font-semibold text-swar-text mb-2">My Vision *</label>
               <input
                 type="text"
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-2xl text-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-swar-border rounded-2xl text-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="Describe your dream outcome"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">My Vision Head (Category) *</label>
+              <label className="block text-sm font-semibold text-swar-text mb-2">My Vision Head (Category) *</label>
               <select
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-swar-border rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 {VISION_CATEGORIES.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">Choose from 10 vision heads to focus your energy.</p>
+              <p className="text-xs text-swar-text-secondary mt-1">Choose from 10 vision heads to focus your energy.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Image URL</label>
+              <label className="block text-sm font-semibold text-swar-text mb-2">Image URL</label>
               <input
                 type="url"
                 name="imageUrl"
                 value={formData.imageUrl}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-swar-border rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="https://images.unsplash.com/..."
               />
-              <p className="text-xs text-gray-500 mt-1">Landscape images work best; a default has already been chosen.</p>
-              <div className="mt-4 rounded-2xl overflow-hidden h-44 border border-dashed border-gray-200">
+              <p className="text-xs text-swar-text-secondary mt-1">Landscape images work best; a default has already been chosen.</p>
+              <div className="mt-4 rounded-2xl overflow-hidden h-44 border border-dashed border-swar-border">
                 <img
                   src={previewUrl}
                   alt="Vision preview"
@@ -266,7 +266,7 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
                   }}
                 />
               </div>
-              <div className="mt-3 text-xs text-gray-500">
+              <div className="mt-3 text-xs text-swar-text-secondary">
                 <label className="font-medium">Upload a file</label>
                 <input type="file" accept="image/*" onChange={handleFileChange} className="block mt-1 text-xs" />
               </div>
@@ -274,44 +274,44 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2">My Vision - Due Date *</label>
+                <label className="block text-sm font-semibold text-swar-text mb-2">My Vision - Due Date *</label>
                 <input
                   type="date"
                   name="endDate"
                   value={formData.endDate}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-swar-border rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2">Vision - Time (default 11:00 AM)</label>
+                <label className="block text-sm font-semibold text-swar-text mb-2">Vision - Time (default 11:00 AM)</label>
                 <input
                   type="time"
                   name="time"
                   value={formData.time}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-swar-border rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2">My Vision Place</label>
+                <label className="block text-sm font-semibold text-swar-text mb-2">My Vision Place</label>
                 <input
                   type="text"
                   name="place"
                   value={formData.place}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-swar-border rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   placeholder="e.g., Rishikesh Ashram"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-2">Vision Budget - Rs.</label>
+                <label className="block text-sm font-semibold text-swar-text mb-2">Vision Budget - Rs.</label>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-500">Rs.</span>
+                  <span className="text-sm text-swar-text-secondary">Rs.</span>
                   <input
                     type="number"
                     name="budget"
@@ -320,20 +320,20 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
                     value={formData.budget}
                     onChange={handleChange}
                     placeholder="0"
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="flex-1 px-4 py-3 border border-swar-border rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-800 mb-2">Description</label>
+              <label className="block text-sm font-semibold text-swar-text mb-2">Description</label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
                 rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-swar-border rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="Describe how this vision will change your life"
               />
             </div>
@@ -451,7 +451,7 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
                             type="text"
                             value={t.title || ''}
                             onChange={(e) => updateTodo(t.id, { title: e.target.value })}
-                            className={`w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${t.completed ? 'line-through text-gray-500' : ''}`}
+                            className={`w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${t.completed ? 'line-through text-swar-text-secondary' : ''}`}
                             placeholder="Todo title"
                           />
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -476,9 +476,9 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
                                 type="checkbox"
                                 checked={!!t.completed}
                                 onChange={(e) => updateTodo(t.id, { completed: e.target.checked })}
-                                className="rounded border-gray-300"
+                                className="rounded border-swar-border"
                               />
-                              <span className="text-sm text-gray-700">Done</span>
+                              <span className="text-sm text-swar-text">Done</span>
                             </label>
                           </div>
                         </div>
@@ -497,11 +497,11 @@ const VisionModal: React.FC<VisionModalProps> = ({ vision, onSave, onClose }) =>
             </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-swar-border">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 transition"
+              className="px-6 py-2 border border-swar-border rounded-full text-swar-text font-medium hover:bg-swar-bg transition"
             >
               Cancel
             </button>

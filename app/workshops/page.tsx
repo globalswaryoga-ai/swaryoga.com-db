@@ -19,7 +19,7 @@ const WORKSHOP_CATEGORIES = [
     name: 'Health',
     icon: Heart,
     description: 'Workshops focused on physical health, wellness, and fitness',
-    color: 'from-red-500 to-pink-500'
+    color: 'from-swar-accent to-pink-500'
   },
   {
     id: 'wealth',
@@ -47,7 +47,7 @@ const WORKSHOP_CATEGORIES = [
     name: 'Trainings',
     icon: BookOpen,
     description: 'Professional training and certification programs',
-    color: 'from-orange-500 to-red-500'
+    color: 'from-orange-500 to-swar-accent'
   }
 ];
 
@@ -476,13 +476,13 @@ function WorkshopsPageInner() {
         </section>
 
         {/* Workshops Grid */}
-        <section className="py-8 sm:py-16 md:py-24 bg-gray-50">
+        <section className="py-8 sm:py-16 md:py-24 bg-swar-bg">
           <div className="container mx-auto px-4 sm:px-6 max-w-6xl">
             <div className="text-center mb-8 sm:mb-12 md:mb-16">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-2 sm:mb-4">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-swar-text mb-2 sm:mb-4">
                 Explore Our Workshops
               </h2>
-              <p className="text-sm sm:text-base md:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed px-2">
+              <p className="text-sm sm:text-base md:text-lg text-swar-text-secondary max-w-2xl mx-auto leading-relaxed px-2">
                 Each workshop is carefully designed by yoga masters to provide authentic learning and personal transformation.
               </p>
             </div>
@@ -491,8 +491,8 @@ function WorkshopsPageInner() {
             <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8 mb-8 sm:mb-12 space-y-4">
               <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-700">Filter Workshops</h3>
-                  <p className="text-xs sm:text-sm text-gray-500">Find the perfect workshop for your journey</p>
+                  <h3 className="text-base sm:text-lg font-semibold text-swar-text">Filter Workshops</h3>
+                  <p className="text-xs sm:text-sm text-swar-text-secondary">Find the perfect workshop for your journey</p>
                 </div>
 
                 {/* Search (upper right) */}
@@ -505,9 +505,9 @@ function WorkshopsPageInner() {
                         setCurrentPage(1);
                       }}
                       placeholder="Search workshops..."
-                      className="w-full border border-gray-300 rounded-lg pl-10 pr-10 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+                      className="w-full border border-swar-border rounded-lg pl-10 pr-10 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
                     />
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-swar-text-secondary" />
                     {searchQuery && (
                       <button
                         type="button"
@@ -515,10 +515,10 @@ function WorkshopsPageInner() {
                           setSearchQuery('');
                           setCurrentPage(1);
                         }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md hover:bg-gray-100"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md hover:bg-swar-primary-light"
                         aria-label="Clear search"
                       >
-                        <X className="w-4 h-4 text-gray-600" />
+                        <X className="w-4 h-4 text-swar-text-secondary" />
                       </button>
                     )}
                   </div>
@@ -538,10 +538,10 @@ function WorkshopsPageInner() {
 
               <div className="flex flex-wrap gap-4 items-start">
               {/* Category Dropdown */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
+              <div className="border border-swar-border rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
                 <button
                   onClick={() => setAccordionOpen({ category: !accordionOpen.category, workshop: false, mode: false, language: false, currency: false })}
-                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-swar-bg hover:bg-swar-primary-light flex items-center justify-between font-semibold text-swar-text text-sm sm:text-base transition-colors"
                 >
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Category</span>
@@ -554,7 +554,7 @@ function WorkshopsPageInner() {
                   <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.category ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.category && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-swar-border bg-white" onClick={(e) => e.stopPropagation()}>
                     {WORKSHOP_CATEGORIES.map((cat) => (
                       <button
                         key={cat.id}
@@ -567,7 +567,7 @@ function WorkshopsPageInner() {
                           // Auto-open Workshops dropdown so user immediately sees the workshops list
                           setAccordionOpen({ category: false, workshop: true, mode: false, language: false, currency: false });
                         }}
-                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedCategory === cat.id ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedCategory === cat.id ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                       >
                         {cat.name}
                       </button>
@@ -577,7 +577,7 @@ function WorkshopsPageInner() {
               </div>
 
               {/* Workshop Accordion */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden flex-[1.5] min-w-[150px] self-start h-fit">
+              <div className="border border-swar-border rounded-lg overflow-hidden flex-[1.5] min-w-[150px] self-start h-fit">
                 <button
                   onClick={() => {
                     const willOpenCategory = !accordionOpen.category;
@@ -591,7 +591,7 @@ function WorkshopsPageInner() {
                       currency: false,
                     });
                   }}
-                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-swar-bg hover:bg-swar-primary-light flex items-center justify-between font-semibold text-swar-text text-sm sm:text-base transition-colors"
                 >
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Workshops</span>
@@ -604,7 +604,7 @@ function WorkshopsPageInner() {
                   <ChevronDown className={`w-5 h-5 transition-transform ${(accordionOpen.category || accordionOpen.workshop) ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.workshop && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-swar-border bg-white" onClick={(e) => e.stopPropagation()}>
                     {/* If a category is selected, show only that category's workshops */}
                     {selectedCategory ? (
                       workshopDropdownOptions.map((option) => (
@@ -617,7 +617,7 @@ function WorkshopsPageInner() {
                             // Chain: after workshop selection, open Mode
                             setAccordionOpen({ category: false, workshop: false, mode: true, language: false, currency: false });
                           }}
-                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                         >
                           {option.name}
                         </button>
@@ -626,7 +626,7 @@ function WorkshopsPageInner() {
                       <div className="space-y-4">
                         {workshopDropdownGroupedOptions.map((group) => (
                           <div key={group.category} className="space-y-2">
-                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
+                            <div className="text-xs font-bold text-swar-text-secondary uppercase tracking-wider px-1">
                               {group.heading}
                             </div>
                             <div className="space-y-2">
@@ -640,7 +640,7 @@ function WorkshopsPageInner() {
                                     // Chain: after workshop selection, open Mode
                                     setAccordionOpen({ category: false, workshop: false, mode: true, language: false, currency: false });
                                   }}
-                                  className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                  className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedWorkshop === option.slug ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                                 >
                                   {option.name}
                                 </button>
@@ -655,10 +655,10 @@ function WorkshopsPageInner() {
               </div>
 
               {/* Mode Accordion */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
+              <div className="border border-swar-border rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
                 <button
                   onClick={() => setAccordionOpen({ category: false, workshop: false, mode: !accordionOpen.mode, language: false, currency: false })}
-                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-swar-bg hover:bg-swar-primary-light flex items-center justify-between font-semibold text-swar-text text-sm sm:text-base transition-colors"
                 >
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Mode</span>
@@ -671,7 +671,7 @@ function WorkshopsPageInner() {
                   <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.mode ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.mode && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-swar-border bg-white" onClick={(e) => e.stopPropagation()}>
                     {['Online', 'Offline', 'Residential', 'Recorded'].map((mode) => (
                       <button
                         key={mode}
@@ -682,7 +682,7 @@ function WorkshopsPageInner() {
                           // Chain: after mode selection, open Language
                           setAccordionOpen({ category: false, workshop: false, mode: false, language: true, currency: false });
                         }}
-                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedMode === mode ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedMode === mode ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                       >
                         {mode}
                       </button>
@@ -692,10 +692,10 @@ function WorkshopsPageInner() {
               </div>
 
               {/* Language Accordion */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
+              <div className="border border-swar-border rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
                 <button
                   onClick={() => setAccordionOpen({ category: false, workshop: false, mode: false, language: !accordionOpen.language, currency: false })}
-                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-swar-bg hover:bg-swar-primary-light flex items-center justify-between font-semibold text-swar-text text-sm sm:text-base transition-colors"
                 >
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Language</span>
@@ -708,7 +708,7 @@ function WorkshopsPageInner() {
                   <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.language ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.language && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-swar-border bg-white" onClick={(e) => e.stopPropagation()}>
                     {['Hindi', 'English', 'Marathi'].map((lang) => (
                       <button
                         key={lang}
@@ -719,7 +719,7 @@ function WorkshopsPageInner() {
                           // Chain: after language selection, open Currency
                           setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: true });
                         }}
-                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedLanguage === lang ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedLanguage === lang ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                       >
                         {lang}
                       </button>
@@ -729,10 +729,10 @@ function WorkshopsPageInner() {
               </div>
 
               {/* Currency Accordion */}
-              <div className="border border-gray-300 rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
+              <div className="border border-swar-border rounded-lg overflow-hidden flex-1 min-w-[150px] self-start h-fit">
                 <button
                   onClick={() => setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: !accordionOpen.currency })}
-                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 flex items-center justify-between font-semibold text-gray-700 text-sm sm:text-base transition-colors"
+                  className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-swar-bg hover:bg-swar-primary-light flex items-center justify-between font-semibold text-swar-text text-sm sm:text-base transition-colors"
                 >
                   <span className="flex-1 min-w-0 text-left">
                     <span className="block truncate">Currency</span>
@@ -745,7 +745,7 @@ function WorkshopsPageInner() {
                   <ChevronDown className={`w-5 h-5 transition-transform ${accordionOpen.currency ? 'rotate-180' : ''}`} />
                 </button>
                 {accordionOpen.currency && (
-                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-gray-200 bg-white" onClick={(e) => e.stopPropagation()}>
+                  <div className="px-4 sm:px-6 py-4 space-y-2 border-t border-swar-border bg-white" onClick={(e) => e.stopPropagation()}>
                     {AVAILABLE_CURRENCIES.map((curr) => {
                       const currencySymbol = { INR: '₹', USD: '$', NPR: 'Rs' }[curr];
                       return (
@@ -757,7 +757,7 @@ function WorkshopsPageInner() {
                             setCurrentPage(1);
                             setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: false });
                           }}
-                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedPayment === curr ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                          className={`w-full px-3 py-2 rounded-lg font-semibold text-sm transition-all text-left ${selectedPayment === curr ? 'bg-primary-600 text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'}`}
                         >
                           {currencySymbol} {curr}
                         </button>
@@ -807,7 +807,7 @@ function WorkshopsPageInner() {
                   }}
                 >
                   {/* Workshop Image */}
-                  <div className="relative h-48 sm:h-56 md:h-64 overflow-hidden bg-gray-200 flex-shrink-0">
+                  <div className="relative h-48 sm:h-56 md:h-64 overflow-hidden bg-swar-primary-light flex-shrink-0">
                     <Image
                       src={workshop.image}
                       alt={workshop.name}
@@ -822,7 +822,7 @@ function WorkshopsPageInner() {
                       <span
                         className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-white text-xs sm:text-sm font-semibold ${
                           workshop.level === 'Beginner'
-                            ? 'bg-green-500'
+                            ? 'bg-swar-primary-light0'
                             : workshop.level === 'Intermediate'
                             ? 'bg-blue-500'
                             : workshop.level === 'Advanced'
@@ -837,10 +837,10 @@ function WorkshopsPageInner() {
 
                   {/* Workshop Content */}
                   <div className="p-4 sm:p-5 md:p-6 flex flex-col flex-grow">
-                    <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 mb-1 sm:mb-2 line-clamp-2">
+                    <h3 className="text-base sm:text-lg md:text-xl font-bold text-swar-text mb-1 sm:mb-2 line-clamp-2">
                       {workshop.name}
                     </h3>
-                    <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2">
+                    <p className="text-swar-text-secondary text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2">
                       {workshop.description}
                     </p>
 
@@ -864,46 +864,46 @@ function WorkshopsPageInner() {
                       const soldOut = typeof seatsRemaining === 'number' ? seatsRemaining <= 0 : false;
 
                       return (
-                        <div className="mb-4 sm:mb-6 border-t border-gray-200 pt-3 sm:pt-4 space-y-3">
+                        <div className="mb-4 sm:mb-6 border-t border-swar-border pt-3 sm:pt-4 space-y-3">
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <p className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Fees</p>
-                              <p className="text-sm sm:text-base font-bold text-gray-900">
+                              <p className="text-[10px] sm:text-xs font-bold text-swar-text-secondary uppercase tracking-wide">Fees</p>
+                              <p className="text-sm sm:text-base font-bold text-swar-text">
                                 {schedule ? (
                                   <>
                                     {getCurrencySymbol(schedule.currency)}{Number(schedule.price).toLocaleString()}
-                                    <span className="ml-1 text-xs font-semibold text-gray-500">{String(schedule.currency).toUpperCase()}</span>
+                                    <span className="ml-1 text-xs font-semibold text-swar-text-secondary">{String(schedule.currency).toUpperCase()}</span>
                                   </>
                                 ) : (
-                                  <span className="text-gray-500 font-semibold">TBD</span>
+                                  <span className="text-swar-text-secondary font-semibold">TBD</span>
                                 )}
                               </p>
                             </div>
 
                             <div>
-                              <p className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wide">Start Date</p>
-                              <p className="text-sm sm:text-base font-bold text-gray-900">
-                                {schedule ? formatDate(schedule.startDate) : <span className="text-gray-500 font-semibold">TBD</span>}
+                              <p className="text-[10px] sm:text-xs font-bold text-swar-text-secondary uppercase tracking-wide">Start Date</p>
+                              <p className="text-sm sm:text-base font-bold text-swar-text">
+                                {schedule ? formatDate(schedule.startDate) : <span className="text-swar-text-secondary font-semibold">TBD</span>}
                               </p>
                             </div>
                           </div>
 
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <p className="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">
+                              <p className="text-base sm:text-lg font-extrabold text-swar-text leading-tight">
                                 {workshop.duration}
                               </p>
                             </div>
 
                             <div>
-                              <p className="text-sm sm:text-base font-bold text-gray-900">
+                              <p className="text-sm sm:text-base font-bold text-swar-text">
                                 {typeof seatsRemaining === 'number' ? (
                                   <>
                                     {seatsRemaining}
-                                    <span className="ml-1 text-xs font-semibold text-gray-500">left</span>
+                                    <span className="ml-1 text-xs font-semibold text-swar-text-secondary">left</span>
                                   </>
                                 ) : (
-                                  <span className="text-gray-500 font-semibold">TBD</span>
+                                  <span className="text-swar-text-secondary font-semibold">TBD</span>
                                 )}
                               </p>
                             </div>
@@ -916,7 +916,7 @@ function WorkshopsPageInner() {
                                   Admission Closed
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-700">
+                                <span className="inline-flex items-center rounded-full bg-swar-primary-light px-2.5 py-1 text-xs font-bold text-swar-primary">
                                   Admission Open
                                 </span>
                               )}
@@ -930,14 +930,14 @@ function WorkshopsPageInner() {
                               )}
 
                               {soldOut && (
-                                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-700">
+                                <span className="inline-flex items-center rounded-full bg-swar-primary-light px-2.5 py-1 text-xs font-bold text-swar-text">
                                   Sold out
                                 </span>
                               )}
                             </div>
 
                             {schedule?.mode && (
-                              <span className="text-xs font-semibold text-gray-500">
+                              <span className="text-xs font-semibold text-swar-text-secondary">
                                 {schedule.mode.toUpperCase()}
                               </span>
                             )}
@@ -955,7 +955,7 @@ function WorkshopsPageInner() {
                       <Link
                         href={`/workshops/${workshop.slug}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-none bg-white border-2 border-primary-600 hover:bg-gray-50 active:scale-95 text-primary-600 px-3 sm:px-4 py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm"
+                        className="flex-none bg-white border-2 border-primary-600 hover:bg-swar-bg active:scale-95 text-primary-600 px-3 sm:px-4 py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm"
                       >
                         Learn More
                         <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
@@ -996,7 +996,7 @@ function WorkshopsPageInner() {
                       className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold transition-all duration-300 touch-target text-xs sm:text-sm active:scale-95 ${
                         currentPage === page
                           ? 'bg-primary-600 text-white shadow-lg'
-                          : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-primary-600'
+                          : 'bg-white border-2 border-swar-border text-swar-text hover:border-primary-600'
                       }`}
                     >
                       {page}
@@ -1015,19 +1015,19 @@ function WorkshopsPageInner() {
             )}
 
             {/* Additional Info */}
-            <div className="mt-8 sm:mt-12 md:mt-16 pt-8 sm:pt-12 border-t border-gray-200">
+            <div className="mt-8 sm:mt-12 md:mt-16 pt-8 sm:pt-12 border-t border-swar-border">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
                 <div className="text-center">
                   <div className="text-3xl sm:text-4xl font-bold text-primary-600 mb-1 sm:mb-2">{totalWorkshops}</div>
-                  <p className="text-gray-600 font-semibold text-sm sm:text-base">Total Workshops</p>
+                  <p className="text-swar-text-secondary font-semibold text-sm sm:text-base">Total Workshops</p>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl sm:text-4xl font-bold text-primary-600 mb-1 sm:mb-2">Expert</div>
-                  <p className="text-gray-600 font-semibold text-sm sm:text-base">Certified Instructors</p>
+                  <p className="text-swar-text-secondary font-semibold text-sm sm:text-base">Certified Instructors</p>
                 </div>
                 <div className="text-center">
                   <div className="text-3xl sm:text-4xl font-bold text-primary-600 mb-1 sm:mb-2">100%</div>
-                  <p className="text-gray-600 font-semibold text-sm sm:text-base">Transformation</p>
+                  <p className="text-swar-text-secondary font-semibold text-sm sm:text-base">Transformation</p>
                 </div>
               </div>
             </div>

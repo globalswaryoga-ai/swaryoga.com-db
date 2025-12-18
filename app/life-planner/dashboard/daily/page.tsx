@@ -105,10 +105,10 @@ export default function DailyViewPage() {
       {/* Main Content */}
       <div className="flex-1 space-y-6">
         {/* Header with Date Navigation */}
-        <div className="flex items-center justify-center bg-gradient-to-r from-pink-50 to-purple-50 rounded-3xl p-6 border border-pink-200">
+        <div className="flex items-center justify-center bg-gradient-to-r from-pink-50 to-purple-50 rounded-3xl p-6 border border-swar-border">
           <div className="text-center flex-1">
-            <p className="text-sm font-medium text-gray-600">Selected Date</p>
-            <h1 className="text-3xl font-bold text-gray-900 mt-1">{formatDate(selectedDate)}</h1>
+            <p className="text-sm font-medium text-swar-text-secondary">Selected Date</p>
+            <h1 className="text-3xl font-bold text-swar-text mt-1">{formatDate(selectedDate)}</h1>
             {!isToday && (
               <button
                 onClick={handleToday}
@@ -123,28 +123,28 @@ export default function DailyViewPage() {
       {/* Daily Progress Graph */}
       <div className="grid grid-cols-4 gap-3">
         <div className="rounded-2xl border border-purple-200 bg-purple-50 p-4 text-center">
-          <p className="text-xs font-medium text-gray-600">Visions</p>
+          <p className="text-xs font-medium text-swar-text-secondary">Visions</p>
           <p className="text-3xl font-bold text-purple-600 mt-2">{groupedItems.visions.length}</p>
         </div>
         <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-center">
-          <p className="text-xs font-medium text-gray-600">Goals</p>
+          <p className="text-xs font-medium text-swar-text-secondary">Goals</p>
           <p className="text-3xl font-bold text-blue-600 mt-2">{groupedItems.goals.length}</p>
         </div>
-        <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-center">
-          <p className="text-xs font-medium text-gray-600">Todos</p>
-          <p className="text-3xl font-bold text-green-600 mt-2">{groupedItems.todos.length}</p>
+        <div className="rounded-2xl border border-green-200 bg-swar-primary-light p-4 text-center">
+          <p className="text-xs font-medium text-swar-text-secondary">Todos</p>
+          <p className="text-3xl font-bold text-swar-primary mt-2">{groupedItems.todos.length}</p>
         </div>
         <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-center">
-          <p className="text-xs font-medium text-gray-600">Reminders</p>
+          <p className="text-xs font-medium text-swar-text-secondary">Reminders</p>
           <p className="text-3xl font-bold text-orange-600 mt-2">{groupedItems.reminders.length}</p>
         </div>
       </div>
 
       {/* Todo Completion Progress */}
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-6">
+      <div className="rounded-2xl border border-green-200 bg-swar-primary-light p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Daily Completion</h3>
-          <span className="text-2xl font-bold text-green-600">{completionStats.percentage}%</span>
+          <h3 className="text-lg font-semibold text-swar-text">Daily Completion</h3>
+          <span className="text-2xl font-bold text-swar-primary">{completionStats.percentage}%</span>
         </div>
         <div className="w-full bg-gray-300 rounded-full h-3">
           <div
@@ -152,7 +152,7 @@ export default function DailyViewPage() {
             style={{ width: `${completionStats.percentage}%` }}
           />
         </div>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-swar-text-secondary mt-2">
           {completionStats.completed} of {completionStats.total} todos completed
         </p>
       </div>
@@ -162,15 +162,15 @@ export default function DailyViewPage() {
         {/* Visions */}
         {groupedItems.visions.length > 0 && (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-swar-text mb-4 flex items-center gap-2">
               <Target className="h-6 w-6 text-purple-600" />
               Today's Visions
             </h2>
             <div className="grid gap-3">
               {groupedItems.visions.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-purple-200 bg-purple-50 p-4">
-                  <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                  {item.description && <p className="text-sm text-gray-600 mt-1">{item.description}</p>}
+                  <h3 className="font-semibold text-swar-text">{item.title}</h3>
+                  {item.description && <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>}
                 </div>
               ))}
             </div>
@@ -180,15 +180,15 @@ export default function DailyViewPage() {
         {/* Goals */}
         {groupedItems.goals.length > 0 && (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-swar-text mb-4 flex items-center gap-2">
               <Flag className="h-6 w-6 text-blue-600" />
               Today's Goals
             </h2>
             <div className="grid gap-3">
               {groupedItems.goals.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                  <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                  {item.description && <p className="text-sm text-gray-600 mt-1">{item.description}</p>}
+                  <h3 className="font-semibold text-swar-text">{item.title}</h3>
+                  {item.description && <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>}
                 </div>
               ))}
             </div>
@@ -198,8 +198,8 @@ export default function DailyViewPage() {
         {/* Todos */}
         {groupedItems.todos.length > 0 && (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <CheckSquare className="h-6 w-6 text-green-600" />
+            <h2 className="text-xl font-bold text-swar-text mb-4 flex items-center gap-2">
+              <CheckSquare className="h-6 w-6 text-swar-primary" />
               Today's Todos
             </h2>
             <div className="grid gap-3">
@@ -208,8 +208,8 @@ export default function DailyViewPage() {
                   key={item.id}
                   className={`rounded-2xl border-2 p-4 transition ${
                     item.completed
-                      ? 'border-green-300 bg-green-50 opacity-60'
-                      : 'border-green-200 bg-green-50 hover:border-green-400'
+                      ? 'border-green-300 bg-swar-primary-light opacity-60'
+                      : 'border-green-200 bg-swar-primary-light hover:border-green-400'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -223,9 +223,9 @@ export default function DailyViewPage() {
                           )
                         );
                       }}
-                      className="w-5 h-5 rounded text-green-600 cursor-pointer"
+                      className="w-5 h-5 rounded text-swar-primary cursor-pointer"
                     />
-                    <h3 className={`font-semibold ${item.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                    <h3 className={`font-semibold ${item.completed ? 'line-through text-swar-text-secondary' : 'text-swar-text'}`}>
                       {item.title}
                     </h3>
                   </div>
@@ -238,15 +238,15 @@ export default function DailyViewPage() {
         {/* Reminders */}
         {groupedItems.reminders.length > 0 && (
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-swar-text mb-4 flex items-center gap-2">
               <Bell className="h-6 w-6 text-orange-600" />
               Today's Reminders
             </h2>
             <div className="grid gap-3">
               {groupedItems.reminders.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
-                  <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                  {item.description && <p className="text-sm text-gray-600 mt-1">{item.description}</p>}
+                  <h3 className="font-semibold text-swar-text">{item.title}</h3>
+                  {item.description && <p className="text-sm text-swar-text-secondary mt-1">{item.description}</p>}
                 </div>
               ))}
             </div>
@@ -255,9 +255,9 @@ export default function DailyViewPage() {
 
         {/* Empty State */}
         {dailyItems.length === 0 && (
-          <div className="rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center">
-            <p className="text-gray-600 text-lg">No items scheduled for {formatDateShort(selectedDate)}</p>
-            <p className="text-gray-500 text-sm mt-1">Add visions, goals, todos, or reminders to get started</p>
+          <div className="rounded-2xl border-2 border-dashed border-swar-border p-12 text-center">
+            <p className="text-swar-text-secondary text-lg">No items scheduled for {formatDateShort(selectedDate)}</p>
+            <p className="text-swar-text-secondary text-sm mt-1">Add visions, goals, todos, or reminders to get started</p>
           </div>
         )}
       </div>
