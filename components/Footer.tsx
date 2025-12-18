@@ -125,7 +125,7 @@ export default function Footer() {
                       fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                       letterSpacing: "-0.01em",
                       fontWeight: 700,
-                      color: "#000000"
+                      color: "#FFFFFF"
                     }}
                   >
                     Swar Yoga
