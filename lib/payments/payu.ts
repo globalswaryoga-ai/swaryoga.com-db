@@ -75,9 +75,24 @@ export function generatePayUHash(params: PayUParams): string {
     PAYU_MERCHANT_SALT,
   ].join('|');
   
-  console.log('🔐 PayU Hash String:', hashString);
+  // Detailed logging for debugging 403 errors
+  console.log('🔐 PayU Hash Generation:', {
+    mode: PAYU_MODE,
+    key: key.substring(0, 3) + '***',
+    txnid: params.txnid,
+    amount: params.amount,
+    productinfo: params.productinfo.substring(0, 20),
+    firstname: params.firstname,
+    email: params.email.substring(0, 10) + '***',
+    hashStringLength: hashString.length,
+  });
+  
   const hash = crypto.createHash('sha512').update(hashString).digest('hex');
-  console.log('🔐 Generated Hash:', hash);
+  
+  console.log('🔐 PayU Hash Result:', {
+    hash: hash.substring(0, 20) + '***',
+    status: '✅ Generated'
+  });
   
   return hash;
 }

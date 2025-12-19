@@ -41,6 +41,23 @@ function sanitizePayUField(value: unknown): string {
   return String(value).replace(/\|/g, ' ').trim();
 }
 
+function sanitizePhone(phone: string): string {
+  // Remove any non-digits
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // If it's 10 digits, assume India and prepend 91
+  if (cleaned.length === 10) {
+    cleaned = '91' + cleaned;
+  }
+  
+  // Ensure it's 12 digits (91 + 10 digits for India) or less
+  if (cleaned.length !== 12 && cleaned.length > 0) {
+    console.warn('⚠️  Phone number might be invalid:', { original: phone, cleaned, length: cleaned.length });
+  }
+  
+  return cleaned;
+}
+
 // POST endpoint to initiate payment
 export async function POST(request: NextRequest) {
   try {
@@ -223,7 +240,7 @@ export async function POST(request: NextRequest) {
       productinfo: sanitizePayUField(body.productInfo),
       firstname: sanitizePayUField(body.firstName),
       email: sanitizePayUField(body.email),
-      phone: sanitizePayUField(body.phone),
+      phone: sanitizePhone(body.phone), // ← Enhanced phone sanitization
       address1: sanitizePayUField(body.address || ''),
       city: sanitizePayUField(body.city),
       state: sanitizePayUField(body.state || ''),
