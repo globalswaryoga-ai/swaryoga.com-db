@@ -461,6 +461,34 @@ export default function AdminWorkshopSchedulesPage() {
       }
     };
 
+    const deleteSchedule = async (scheduleId: string) => {
+      if (!adminToken) return;
+      if (!confirm('Are you sure you want to delete this schedule? This action cannot be undone.')) {
+        return;
+      }
+      try {
+        setSavingId(scheduleId);
+        setError('');
+
+        const res = await fetch(`/api/admin/workshops/schedules/crud?id=${encodeURIComponent(scheduleId)}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${adminToken}`,
+          },
+        });
+
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Failed to delete schedule');
+
+        await loadAllSchedules(adminToken);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSavingId(null);
+      }
+    };
+
     return (
       <div className="flex h-screen bg-swar-primary-light">
         <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -470,7 +498,7 @@ export default function AdminWorkshopSchedulesPage() {
             <div className="px-6 py-4 flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-swar-text">Workshop Dates</h1>
-                <p className="text-sm text-swar-text-secondary">Same view as main site. Publish/Edit/Save schedules (no delete).</p>
+                <p className="text-sm text-swar-text-secondary">Manage workshop schedules. Publish/Edit/Delete dates.</p>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -970,7 +998,7 @@ export default function AdminWorkshopSchedulesPage() {
                                           </span>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
-                                          <div className="flex gap-2">
+                                          <div className="flex gap-2 flex-wrap">
                                             <button
                                               type="button"
                                               disabled={busy}
@@ -987,14 +1015,25 @@ export default function AdminWorkshopSchedulesPage() {
                                             </button>
 
                                             {!editing ? (
-                                              <button
-                                                type="button"
-                                                disabled={busy}
-                                                onClick={() => onStartEdit(s)}
-                                                className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-60"
-                                              >
-                                                Edit
-                                              </button>
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  disabled={busy}
+                                                  onClick={() => onStartEdit(s)}
+                                                  className="rounded-lg bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-60"
+                                                >
+                                                  Edit
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={busy}
+                                                  onClick={() => deleteSchedule(s.id)}
+                                                  className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-60"
+                                                  title="Delete this workshop schedule"
+                                                >
+                                                  Delete
+                                                </button>
+                                              </>
                                             ) : (
                                               <>
                                                 <button
