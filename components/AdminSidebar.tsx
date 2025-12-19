@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2 } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -71,6 +71,18 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
       label: 'Accounting',
       href: '/admin/accounting',
       color: 'text-indigo-600'
+    },
+    {
+      icon: Share2,
+      label: 'Social Media',
+      href: '/admin/social-media',
+      color: 'text-emerald-500'
+    },
+    {
+      icon: Share2,
+      label: 'Connect Accounts',
+      href: '/admin/social-media-setup',
+      color: 'text-cyan-500'
     }
   ];
 

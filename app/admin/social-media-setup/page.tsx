@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Copy, Check } from 'lucide-react';
+import { Plus, Copy, Check, Home, ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import AdminSidebar from '@/components/AdminSidebar';
 
 const platforms = {
@@ -82,6 +83,7 @@ const platforms = {
 };
 
 export default function SocialMediaSetup() {
+  const router = useRouter();
   const [token, setToken] = useState<string>('');
   const [selectedPlatform, setSelectedPlatform] = useState<string>('facebook');
   const [copied, setCopied] = useState(false);
@@ -172,10 +174,30 @@ export default function SocialMediaSetup() {
       
       <main className="flex-1 overflow-auto">
         <div className="p-8">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">🔗 Connect Social Media</h1>
-            <p className="text-slate-400">Add your social media account credentials to start posting</p>
+          {/* Header with Navigation */}
+          <div className="flex justify-between items-start mb-8">
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2">🔗 Connect Social Media</h1>
+              <p className="text-slate-400">Add your social media account credentials to start posting</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => router.push('/admin')}
+                className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-lg transition"
+                title="Go to Admin Home"
+              >
+                <Home size={20} />
+                Home
+              </button>
+              <button
+                onClick={() => router.back()}
+                className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-lg transition"
+                title="Go Back"
+              >
+                <ArrowLeft size={20} />
+                Back
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
