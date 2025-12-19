@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Download, Print, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { Download, Printer, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
 
 interface Vision {
   id: string;
@@ -163,7 +163,7 @@ export default function VisionDownloadPage() {
             onClick={printPage}
             className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-semibold"
           >
-            <Print size={18} />
+            <Printer size={18} />
             <span className="hidden sm:inline">Print</span>
           </button>
         </div>

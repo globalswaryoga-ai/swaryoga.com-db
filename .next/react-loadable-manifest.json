@@ -1,4 +1,14 @@
 {
+  "app/life-planner/dashboard/vision-download/page.tsx -> html2pdf.js": {
+    "id": 41690,
+    "files": [
+      "static/chunks/2f0b94e8.d0814a3ab940ba35.js",
+      "static/chunks/164f4fb6.ef629e7b31183d45.js",
+      "static/chunks/b645e135.ce0746b6431229ed.js",
+      "static/chunks/ad2866b8.ca6b762a0c3558fe.js",
+      "static/chunks/8758.a3cf8f3350edd18c.js"
+    ]
+  },
   "app/profile/page.tsx -> @react-pdf/renderer": {
     "id": 40950,
     "files": [
