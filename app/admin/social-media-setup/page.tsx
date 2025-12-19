@@ -85,6 +85,7 @@ const platforms = {
 export default function SocialMediaSetup() {
   const router = useRouter();
   const [token, setToken] = useState<string>('');
+  const [tokenChecked, setTokenChecked] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('facebook');
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -98,10 +99,9 @@ export default function SocialMediaSetup() {
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('authToken');
-    if (storedToken) {
-      setToken(storedToken);
-    }
+    const storedToken = localStorage.getItem('adminToken');
+    if (storedToken) setToken(storedToken);
+    setTokenChecked(true);
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -168,9 +168,40 @@ export default function SocialMediaSetup() {
 
   const currentPlatform = platforms[selectedPlatform as keyof typeof platforms];
 
+  if (!tokenChecked) {
+    return (
+      <div className="flex h-screen bg-slate-900">
+        <AdminSidebar isOpen={true} onClose={() => {}} />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-white text-2xl">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!token) {
+    return (
+      <div className="flex h-screen bg-slate-900">
+        <AdminSidebar isOpen={true} onClose={() => {}} />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-md px-6">
+            <h1 className="text-2xl font-bold text-white mb-2">Admin login required</h1>
+            <p className="text-slate-400 mb-6">Please sign in to connect social media accounts.</p>
+            <a
+              href="/admin/login"
+              className="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-lg transition"
+            >
+              Go to Admin Login
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-slate-900">
-      <AdminSidebar />
+      <AdminSidebar isOpen={true} onClose={() => {}} />
       
       <main className="flex-1 overflow-auto">
         <div className="p-8">

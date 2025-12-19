@@ -166,7 +166,7 @@ export default function CheckoutPage() {
       // Redirect to PayU form (submit hidden form)
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = data.paymentUrl || 'https://secure.payu.in/';
+      form.action = data.paymentUrl || 'https://secure.payu.in/_payment';
 
       Object.entries(data.params || {}).forEach(([key, value]) => {
         const input = document.createElement('input');

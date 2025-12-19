@@ -1,7 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PAYU_BASE_URL, PayUParams, PAYU_MERCHANT_KEY, PAYU_MERCHANT_SALT, generatePayUHash } from '@/lib/payments/payu';
+import {
+  getPayUPaymentUrl,
+  PayUParams,
+  PAYU_MERCHANT_KEY,
+  PAYU_MERCHANT_SALT,
+  generatePayUHash,
+} from '@/lib/payments/payu';
 import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+
+function getBaseUrl(request: NextRequest): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (configured && configured.trim()) return configured.trim().replace(/\/$/, '');
+
+  const origin = request.headers.get('origin');
+  if (origin) return origin.replace(/\/$/, '');
+
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  if (host) return `${proto}://${host}`.replace(/\/$/, '');
+
+  return '';
+}
+
+function isSafeRedirectTarget(value: string | null): value is string {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('/')) return true;
+  return /^https?:\/\//i.test(trimmed);
+}
 
 interface PaymentRequest {
   amount: number;
@@ -227,10 +255,15 @@ export async function POST(request: NextRequest) {
       mode: process.env.PAYU_MODE || 'TEST',
     });
 
-    // Set success/failure URLs based on environment
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    const successUrl = body.successUrl || `${baseUrl}/payment-successful`;
-    const failureUrl = body.failureUrl || `${baseUrl}/payment-failed`;
+    // PayU will POST the payment result to surl/furl.
+    // In Next.js, pages don't handle POST reliably, so we always point surl/furl to our callback route,
+    // and let the callback redirect to success/failure pages.
+    const baseUrl = getBaseUrl(request) || 'http://localhost:3000';
+    const callbackBase = `${baseUrl}/api/payments/payu/callback`;
+
+    const successTarget = isSafeRedirectTarget(body.successUrl) ? body.successUrl : '/payment-successful';
+    const failureTarget = isSafeRedirectTarget(body.failureUrl) ? body.failureUrl : '/payment-failed';
+    const callbackUrl = `${callbackBase}?success=${encodeURIComponent(successTarget)}&failure=${encodeURIComponent(failureTarget)}`;
 
     // Prepare PayU parameters
     const payuParams: PayUParams & { service_provider: string } = {
@@ -245,8 +278,8 @@ export async function POST(request: NextRequest) {
       city: sanitizePayUField(body.city),
       state: sanitizePayUField(body.state || ''),
       zipcode: sanitizePayUField(body.zip || ''),
-      surl: successUrl, // Success URL
-      furl: failureUrl, // Failure URL
+      surl: callbackUrl,
+      furl: callbackUrl,
       service_provider: 'payu_paisa'
     };
 
@@ -255,7 +288,7 @@ export async function POST(request: NextRequest) {
 
     // Log complete request for debugging 403 errors
     console.log('📤 COMPLETE PayU Request:', {
-      endpoint: `${PAYU_BASE_URL}/_xclick`,
+      endpoint: getPayUPaymentUrl(),
       method: 'POST',
       params: {
         key: payuParams.key?.substring(0, 3) + '***',
@@ -276,7 +309,7 @@ export async function POST(request: NextRequest) {
       success: true,
       orderId: txnid,
       country: body.country,
-      paymentUrl: `${PAYU_BASE_URL}/_xclick`,
+      paymentUrl: getPayUPaymentUrl(),
       params: {
         ...payuParams,
         hash

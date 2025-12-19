@@ -26,6 +26,14 @@ function buildRedirectUrl(baseUrl: string, pathOrAbsoluteUrl: string, params: Re
   return url.toString();
 }
 
+function pickRedirectTarget(value: string | null | undefined, fallback: string): string {
+  const candidate = (value || '').toString().trim();
+  if (!candidate) return fallback;
+  if (candidate.startsWith('/')) return candidate;
+  if (/^https?:\/\//i.test(candidate)) return candidate;
+  return fallback;
+}
+
 // Handle PayU success callback (POST)
 export async function POST(request: NextRequest) {
   try {
@@ -41,8 +49,15 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getBaseUrl(request);
 
-    const successTarget = process.env.NEXT_PUBLIC_PAYMENT_SUCCESS_URL || '/payment-successful';
-    const failureTarget = process.env.NEXT_PUBLIC_PAYMENT_FAILED_URL || '/payment-failed';
+    const requestUrl = new URL(request.url);
+    const successTarget = pickRedirectTarget(
+      requestUrl.searchParams.get('success'),
+      process.env.NEXT_PUBLIC_PAYMENT_SUCCESS_URL || '/payment-successful'
+    );
+    const failureTarget = pickRedirectTarget(
+      requestUrl.searchParams.get('failure'),
+      process.env.NEXT_PUBLIC_PAYMENT_FAILED_URL || '/payment-failed'
+    );
 
     // Verify hash
     if (!verifyPayUResponseHash(payuData)) {

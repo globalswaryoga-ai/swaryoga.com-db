@@ -12,6 +12,14 @@ export const PAYU_BASE_URL = isProductionMode
   ? 'https://secure.payu.in'
   : 'https://test.payu.in';
 
+// Modern PayU web checkout endpoint.
+// (Historically some integrations used /_xclick; PayU's current docs use /_payment.)
+export const PAYU_PAYMENT_PATH = '/_payment';
+
+export function getPayUPaymentUrl(): string {
+  return `${PAYU_BASE_URL}${PAYU_PAYMENT_PATH}`;
+}
+
 // Debug logging
 if (typeof window === 'undefined') {
   console.log('🔐 PayU Configuration:', {

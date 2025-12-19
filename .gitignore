@@ -1,5 +1,8 @@
 node_modules
-.next
+.next/
+out/
+.turbo/
+.swc/
 .env
 .env.local
 .env.*.local
@@ -18,3 +21,9 @@ api/
 server/
 models/
 bolt/
+
+# Local-only / experimental
+lib/payments/payu-v2.ts
+
+# Test / coverage
+coverage/

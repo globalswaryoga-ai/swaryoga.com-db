@@ -2,11 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Buffer } from 'buffer';
 import {
   generatePayUHash,
-  PAYU_BASE_URL,
+  getPayUPaymentUrl,
   PAYU_MERCHANT_KEY,
   PAYU_MERCHANT_SALT,
   PayUParams
 } from '@/lib/payments/payu';
+
+function getBaseUrl(request: NextRequest): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (configured && configured.trim()) return configured.trim().replace(/\/$/, '');
+
+  const origin = request.headers.get('origin');
+  if (origin) return origin.replace(/\/$/, '');
+
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  if (host) return `${proto}://${host}`.replace(/\/$/, '');
+
+  return '';
+}
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || '';
@@ -58,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     switch (method) {
       case 'payu':
-        return await createPayUResponse(body);
+        return await createPayUResponse(request, body);
       case 'paypal':
         return await createPayPalResponse(body);
       case 'nepal_qr':
@@ -78,13 +92,19 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function createPayUResponse(body: UnifiedPaymentRequest) {
+async function createPayUResponse(request: NextRequest, body: UnifiedPaymentRequest) {
   if (!PAYU_MERCHANT_KEY || !PAYU_MERCHANT_SALT) {
     return NextResponse.json(
       { error: 'PayU credentials not configured' },
       { status: 500 }
     );
   }
+
+  const baseUrl = getBaseUrl(request) || 'http://localhost:3000';
+  const callbackBase = `${baseUrl}/api/payments/payu/callback`;
+  const successTarget = body.successUrl || '/payment-successful';
+  const failureTarget = body.failureUrl || '/payment-failed';
+  const callbackUrl = `${callbackBase}?success=${encodeURIComponent(successTarget)}&failure=${encodeURIComponent(failureTarget)}`;
 
   const payuParams: PayUParams & { service_provider: string } = {
     key: PAYU_MERCHANT_KEY,
@@ -98,8 +118,8 @@ async function createPayUResponse(body: UnifiedPaymentRequest) {
     city: body.city || '',
     state: body.state || '',
     zipcode: body.zip || '',
-    surl: body.successUrl,
-    furl: body.failureUrl,
+    surl: callbackUrl,
+    furl: callbackUrl,
     service_provider: 'payu_paisa'
   };
 
@@ -108,7 +128,7 @@ async function createPayUResponse(body: UnifiedPaymentRequest) {
   return NextResponse.json({
     success: true,
     method: 'payu',
-    paymentUrl: `${PAYU_BASE_URL}/_xclick`,
+    paymentUrl: getPayUPaymentUrl(),
     params: {
       ...payuParams,
       hash

@@ -6,11 +6,11 @@ import { useRouter } from 'next/navigation';
 import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft } from 'lucide-react';
 
 interface AdminSidebarProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
+export default function AdminSidebar({ isOpen = true, onClose = () => {} }: AdminSidebarProps) {
   const router = useRouter();
 
   const handleNavClick = () => {

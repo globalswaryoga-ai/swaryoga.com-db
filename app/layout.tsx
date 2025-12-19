@@ -36,25 +36,15 @@ export default function RootLayout({
         <meta name="theme-color" content="#2D6A4F" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        {/* Prevent Datadog duplicate SDK loading */}
-        <script dangerouslySetInnerHTML={{
-          __html: `
-            // Prevent Datadog Browser SDK duplicate loading
-            window.__DD_DISABLE_RUM__ = true;
-            if (window.DD_RUM) { 
-              window.DD_RUM._pageLoaded = true;
-              window.DD_RUM.onReady && window.DD_RUM.onReady(() => {
-                if (window.DD_RUM.startSessionReplayRecording) {
-                  window.DD_RUM.startSessionReplayRecording();
-                }
-              });
-            }
-            // Throttle navigation to prevent browser hanging
-            if (typeof performance !== 'undefined' && performance.mark) {
-              performance.mark('page-load-start');
-            }
-          `
-        }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof performance !== 'undefined' && performance.mark) {
+                performance.mark('page-load-start');
+              }
+            `,
+          }}
+        />
       </head>
       <body className="antialiased bg-white text-swar-text overflow-x-hidden">
         <AppInitializer />
