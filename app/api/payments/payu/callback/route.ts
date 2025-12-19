@@ -74,27 +74,33 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     // Extract relevant data
-    const orderId = payuData.txnid;
+    const payuTxnId = payuData.txnid;
     const transactionId = payuData.mihpayid || payuData.payuMoneyId;
     const status = (payuData.status || '').toLowerCase(); // 'success' | 'failure' | 'pending'
     const amount = parseFloat(payuData.amount);
     const email = payuData.email;
 
     // Find and update order
-    const order = await Order.findOne({ _id: orderId });
+    // Prefer payuTxnId mapping (new). Fallback to _id for older flows.
+    const order =
+      (payuTxnId
+        ? await Order.findOne({ payuTxnId }).exec()
+        : null) ||
+      (payuTxnId ? await Order.findById(payuTxnId).exec() : null);
     
     if (!order) {
       const redirectUrl = baseUrl
         ? buildRedirectUrl(baseUrl, failureTarget, {
             status: 'failure',
-            orderId,
-            txnid: orderId,
+            txnid: payuTxnId,
             mihpayid: transactionId,
             error: 'Order not found. Please contact support.',
           })
         : '/payment-failed?status=failure&error=' + encodeURIComponent('Order not found. Please contact support.');
       return NextResponse.redirect(redirectUrl);
     }
+
+    const orderId = String(order._id);
 
     const wasCompleted = order.paymentStatus === 'completed' || order.status === 'completed';
 
@@ -179,6 +185,7 @@ export async function POST(request: NextRequest) {
     if (process.env.DEBUG_PAYU === '1') {
       console.log(`Payment ${status}:`, {
         orderId,
+        txnid: payuTxnId,
         transactionId,
         amount,
         email,
@@ -195,7 +202,7 @@ export async function POST(request: NextRequest) {
         buildRedirectUrl(baseUrl, successTarget, {
           status: 'success',
           orderId,
-          txnid: orderId,
+          txnid: payuTxnId,
           mihpayid: transactionId,
           amount: Number.isFinite(amount) ? amount.toFixed(2) : undefined,
           email,
@@ -208,7 +215,7 @@ export async function POST(request: NextRequest) {
       buildRedirectUrl(baseUrl, failureTarget, {
         status: status || 'failure',
         orderId,
-        txnid: orderId,
+        txnid: payuTxnId,
         mihpayid: transactionId,
         amount: Number.isFinite(amount) ? amount.toFixed(2) : undefined,
         email,

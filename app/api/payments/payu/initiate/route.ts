@@ -87,6 +87,14 @@ function sanitizePhone(phone: string): string {
   return cleaned;
 }
 
+function generatePayUTxnId(): string {
+  // Must be unique and <= 25 chars. Use base36 timestamp + short random.
+  // Example: TXN_kg1u2m3p_ab12
+  const ts = Date.now().toString(36);
+  const rnd = Math.random().toString(36).slice(2, 6);
+  return `TXN_${ts}_${rnd}`.slice(0, 25);
+}
+
 // POST endpoint to initiate payment
 export async function POST(request: NextRequest) {
   try {
@@ -292,6 +300,7 @@ export async function POST(request: NextRequest) {
       status: 'pending',
       paymentStatus: 'pending',
       paymentMethod: payMethod,
+      payuTxnId: generatePayUTxnId(),
       shippingAddress: {
         firstName: sanitizePayUField(body.firstName),
         lastName: sanitizePayUField(body.lastName),
@@ -304,9 +313,11 @@ export async function POST(request: NextRequest) {
       },
     });
     await order.save();
-    const txnid = order._id.toString();
+    const orderId = order._id.toString();
+    const txnid = String(order.payuTxnId || generatePayUTxnId());
 
     console.log('PayU payment initiated:', {
+      orderId,
       txnid,
       amount: totalAmount,
       email: body.email,
@@ -366,7 +377,7 @@ export async function POST(request: NextRequest) {
     // Return payment form data
     return NextResponse.json({
       success: true,
-      orderId: txnid,
+      orderId,
       country: body.country,
       paymentUrl: getPayUPaymentUrl(),
       params: {
