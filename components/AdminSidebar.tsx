@@ -2,7 +2,8 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -10,6 +11,8 @@ interface AdminSidebarProps {
 }
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
+  const router = useRouter();
+
   const handleNavClick = () => {
     // Auto-close sidebar on mobile when a link is clicked
     if (window.innerWidth < 768) {
@@ -102,24 +105,50 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        {/* Sidebar Header */}
-        <div className="p-4 sm:p-6 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center space-x-2 min-w-0">
-            <div className="w-10 h-10 bg-swar-primary rounded-lg flex items-center justify-center font-bold text-white text-lg flex-shrink-0">
-              SY
-            </div>
-            <div className="min-w-0">
+        {/* Sidebar Header with Logo */}
+        <div className="p-4 sm:p-6 border-b border-gray-800 space-y-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
+              <img
+                src="https://i.postimg.cc/xTPRSY4X/swar_yoga_new_logo.png"
+                alt="Swar Yoga Logo"
+                className="w-10 h-10 rounded-lg flex-shrink-0"
+              />
               <h2 className="font-bold text-base sm:text-lg truncate">Swar Yoga</h2>
-              <p className="text-xs text-gray-400">Admin Panel</p>
             </div>
+            <button
+              onClick={onClose}
+              className="md:hidden p-1 rounded-lg hover:bg-gray-800 transition"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="md:hidden p-2 hover:bg-gray-800 rounded-lg touch-target flex-shrink-0 ml-2"
-            aria-label="Close sidebar"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          
+          {/* Navigation Buttons */}
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => {
+                router.push('/');
+                onClose();
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-swar-primary hover:bg-swar-primary-dark rounded-lg text-white text-sm font-medium transition"
+              title="Go to Home"
+            >
+              <Home className="h-4 w-4" />
+              <span>Home</span>
+            </button>
+            <button
+              onClick={() => {
+                router.back();
+                onClose();
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-white text-sm font-medium transition"
+              title="Go Back"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back</span>
+            </button>
+          </div>
         </div>
 
         {/* Navigation Menu */}

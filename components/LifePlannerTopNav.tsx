@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogOut, Target, Flag, CheckSquare, Bell, NotebookPen, HeartPulse, Gem, BarChart3, User, Home } from 'lucide-react';
+import { Menu, X, LogOut, Target, Flag, CheckSquare, Bell, NotebookPen, HeartPulse, Gem, BarChart3, User, Home, ArrowLeft } from 'lucide-react';
 import HealthTracker from './HealthTracker';
 import ServerStatus from './ServerStatus';
 import { clearSession } from '@/lib/sessionManager';
@@ -47,15 +48,34 @@ export default function LifePlannerTopNav({
           >
             {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
-          <h1 className="text-2xl font-bold text-swar-primary flex items-center space-x-2 whitespace-nowrap">
-            <span>🗓️</span>
-            <span>Life Planner</span>
-          </h1>
+          
+          {/* Logo and Title */}
+          <div className="flex items-center space-x-3">
+            <img
+              src="https://i.postimg.cc/xTPRSY4X/swar_yoga_new_logo.png"
+              alt="Swar Yoga Logo"
+              className="w-10 h-10 rounded-lg"
+            />
+            <h1 className="text-2xl font-bold text-swar-primary flex items-center space-x-2 whitespace-nowrap">
+              <span>🗓️</span>
+              <span>Life Planner</span>
+            </h1>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
           <HealthTracker />
           <ServerStatus />
+          
+          {/* Back Button */}
+          <button
+            onClick={() => router.back()}
+            className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            title="Go Back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
+          </button>
           
           <Link
             href="/life-planner/profile"
