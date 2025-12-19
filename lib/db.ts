@@ -601,3 +601,68 @@ socialMediaAnalyticsSchema.index({ platform: 1, date: -1 });
 
 export const SocialMediaAnalytics =
   mongoose.models.SocialMediaAnalytics || mongoose.model('SocialMediaAnalytics', socialMediaAnalyticsSchema);
+
+// Note Schema - Stylish journaling with graphology & color psychology
+const noteSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  title: { type: String, required: true },
+  content: { type: String, required: true }, // Rich text or markdown
+  
+  // Graphology & Styling
+  fontFamily: { 
+    type: String, 
+    enum: ['poppins', 'playfair', 'caveat', 'abril', 'crimson', 'lora'],
+    default: 'poppins'
+  }, // Handwriting-inspired fonts
+  fontSize: { type: Number, default: 16, min: 12, max: 24 },
+  lineHeight: { type: Number, default: 1.6, min: 1.2, max: 2.0 },
+  letterSpacing: { type: Number, default: 0, min: -2, max: 2 },
+  
+  // Color Psychology
+  colorTheme: { 
+    type: String,
+    enum: ['serenity-blue', 'passion-red', 'growth-green', 'wisdom-purple', 'energy-orange', 'harmony-pink', 'clarity-yellow', 'nature-teal', 'calm-lavender', 'joy-coral'],
+    default: 'serenity-blue'
+  },
+  backgroundColor: { type: String, default: '#ffffff' },
+  textColor: { type: String, default: '#1a1a1a' },
+  
+  // Linking to life planner hierarchy
+  linkedTo: {
+    visionId: { type: String },
+    goalId: { type: String },
+    taskId: { type: String },
+    actionPlanId: { type: String },
+  },
+  
+  // Metadata
+  tags: [{ type: String }],
+  isPinned: { type: Boolean, default: false },
+  isPublic: { type: Boolean, default: false },
+  mood: { type: String, enum: ['happy', 'neutral', 'sad', 'excited', 'calm', 'focused', 'creative', 'confused'], default: 'neutral' },
+  
+  // Attachments
+  attachments: [{
+    url: { type: String },
+    type: { type: String, enum: ['link', 'image', 'pdf', 'file'], default: 'link' },
+    title: { type: String },
+    uploadedAt: { type: Date, default: Date.now }
+  }],
+  
+  // Word count and reading time (for analytics)
+  wordCount: { type: Number, default: 0 },
+  readingTimeMinutes: { type: Number, default: 0 },
+  
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now },
+  lastEditedAt: { type: Date, default: Date.now },
+});
+
+// Indexes for efficient querying
+noteSchema.index({ userId: 1, createdAt: -1 });
+noteSchema.index({ userId: 1, isPinned: -1, createdAt: -1 });
+noteSchema.index({ userId: 1, tags: 1 });
+noteSchema.index({ userId: 1, 'linkedTo.visionId': 1 });
+noteSchema.index({ userId: 1, mood: 1 });
+
+export const Note = mongoose.models.Note || mongoose.model('Note', noteSchema);

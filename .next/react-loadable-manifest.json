@@ -9,5 +9,22 @@
       "static/chunks/6095.94eacb85711bc3dc.js",
       "static/chunks/2480.2dc8c88f57ce68e9.js"
     ]
+  },
+  "node_modules/jspdf/dist/jspdf.es.min.js -> canvg": {
+    "id": 9631,
+    "files": [
+      "static/chunks/96fce4d8.2371d73cb9c5f44c.js",
+      "static/chunks/4851.f26a533d2e5aab00.js"
+    ]
+  },
+  "node_modules/jspdf/dist/jspdf.es.min.js -> dompurify": {
+    "id": 18848,
+    "files": [
+      "static/chunks/8848.af6f25af89f22dff.js"
+    ]
+  },
+  "node_modules/jspdf/dist/jspdf.es.min.js -> html2canvas": {
+    "id": 24457,
+    "files": []
   }
 }
