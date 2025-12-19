@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarDays, Calendar, CalendarClock, ChevronRight, BarChart3, Home, FileText } from 'lucide-react';
+import { CalendarDays, Calendar, ChevronRight, BarChart3, Home, FileText } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 interface LifePlannerSidebarProps {
@@ -22,7 +22,6 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
   const items = [
     { href: '/', label: 'Home', icon: Home, color: 'text-red-500' },
     { href: '/life-planner/dashboard/daily', label: 'Daily', icon: CalendarDays, color: 'text-emerald-400' },
-    { href: '/life-planner/dashboard/yearly', label: 'Yearly', icon: CalendarClock, color: 'text-amber-400' },
     { href: '/life-planner/dashboard/calendar', label: 'Calendar', icon: Calendar, color: 'text-pink-400' },
     { href: '/life-planner/dashboard/notes', label: 'Notes', icon: FileText, color: 'text-purple-400' },
     { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: BarChart3, color: 'text-swar-primary' },

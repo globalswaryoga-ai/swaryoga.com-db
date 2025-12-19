@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Download, Print, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
 
 interface Vision {
   id: string;
@@ -106,19 +105,28 @@ export default function VisionDownloadPage() {
     }));
   };
 
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
     if (!pdfRef.current) return;
 
-    const element = pdfRef.current;
-    const opt = {
-      margin: 10,
-      filename: `${selectedVision?.title || 'Vision'}-${new Date().toISOString().split('T')[0]}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
-    };
+    try {
+      // Dynamically import html2pdf only when needed
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = html2pdfModule.default;
 
-    html2pdf().set(opt).from(element).save();
+      const element = pdfRef.current;
+      const opt = {
+        margin: 10,
+        filename: `${selectedVision?.title || 'Vision'}-${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
+      };
+
+      html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
   };
 
   const printPage = () => {
