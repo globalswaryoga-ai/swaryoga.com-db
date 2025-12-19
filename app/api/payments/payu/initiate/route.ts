@@ -8,6 +8,7 @@ import {
 } from '@/lib/payments/payu';
 import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { isRateLimited } from '@/lib/rateLimit';
 
 function getBaseUrl(request: NextRequest): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_API_URL;
@@ -95,6 +96,31 @@ export async function POST(request: NextRequest) {
     const decoded = token ? verifyToken(token) : null;
     if (!decoded?.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Protect PayU from being hit multiple times rapidly (PayU may throttle and show “Too many Requests”).
+    // Enforce 1 initiation per 60s per userId+IP.
+    const forwardedFor = request.headers.get('x-forwarded-for') || '';
+    const ip = forwardedFor.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+    const rateKey = `${decoded.userId}:${ip}`;
+
+    const allowed = isRateLimited(rateKey, {
+      windowMs: 60_000,
+      max: 1,
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many payment attempts. Please wait 60 seconds and try again.',
+          retryAfterSec: 60,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': '60',
+          },
+        }
+      );
     }
 
     const body: PaymentRequest = await request.json();

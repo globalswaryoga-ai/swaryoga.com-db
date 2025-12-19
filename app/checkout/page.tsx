@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -26,6 +26,7 @@ export default function CheckoutPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const processingRef = useRef(false);
   const [showNepalQR, setShowNepalQR] = useState(false);
   const [error, setError] = useState('');
 
@@ -103,9 +104,13 @@ export default function CheckoutPage() {
   };
 
   const handlePayment = async (country: PaymentCountry) => {
+    // Prevent double-clicks / event bubbling from triggering multiple initiations.
+    if (processingRef.current || isProcessing) return;
+
     if (!validateForm()) return;
 
     setError('');
+    processingRef.current = true;
     setIsProcessing(true);
 
     try {
@@ -113,6 +118,7 @@ export default function CheckoutPage() {
       if (country === 'nepal') {
         setShowNepalQR(true);
         setIsProcessing(false);
+        processingRef.current = false;
         return;
       }
 
@@ -182,6 +188,7 @@ export default function CheckoutPage() {
       const message = err instanceof Error ? err.message : 'Payment processing failed';
       setError(message);
       setIsProcessing(false);
+      processingRef.current = false;
     }
   };
 
@@ -372,62 +379,65 @@ export default function CheckoutPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
               {/* India Payment */}
               <button
-                onClick={() => !isProcessing && handlePayment('india')}
+                type="button"
+                onClick={() => handlePayment('india')}
                 disabled={isProcessing}
-                className={`p-6 rounded-lg border-2 transition-all ${
+                className={`p-6 rounded-lg border-2 transition-all text-left ${
                   isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
                 } border-swar-border`}
               >
                 <div className="text-3xl mb-3">🇮🇳</div>
                 <h4 className="font-bold text-swar-text mb-1">India</h4>
                 <p className="text-xs text-swar-text-secondary mb-3">Pay via PayU</p>
-                <button
-                  onClick={() => !isProcessing && handlePayment('india')}
-                  disabled={isProcessing}
-                  className="w-full bg-swar-primary text-white py-2 rounded font-semibold hover:bg-swar-primary-hover transition-colors disabled:opacity-50"
+                <div
+                  className={`w-full text-center bg-swar-primary text-white py-2 rounded font-semibold transition-colors ${
+                    isProcessing ? 'opacity-50' : 'hover:bg-swar-primary-hover'
+                  }`}
                 >
                   {isProcessing ? 'Processing...' : 'Pay Now'}
-                </button>
+                </div>
               </button>
 
               {/* International Payment */}
               <button
-                onClick={() => !isProcessing && handlePayment('international')}
+                type="button"
+                onClick={() => handlePayment('international')}
                 disabled={isProcessing}
-                className={`p-6 rounded-lg border-2 transition-all ${
+                className={`p-6 rounded-lg border-2 transition-all text-left ${
                   isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
                 } border-swar-border`}
               >
                 <div className="text-3xl mb-3">🌍</div>
                 <h4 className="font-bold text-swar-text mb-1">International</h4>
                 <p className="text-xs text-swar-text-secondary mb-3">All Countries</p>
-                <button
-                  onClick={() => !isProcessing && handlePayment('international')}
-                  disabled={isProcessing}
-                  className="w-full bg-swar-primary text-white py-2 rounded font-semibold hover:bg-swar-primary-hover transition-colors disabled:opacity-50"
+                <div
+                  className={`w-full text-center bg-swar-primary text-white py-2 rounded font-semibold transition-colors ${
+                    isProcessing ? 'opacity-50' : 'hover:bg-swar-primary-hover'
+                  }`}
                 >
                   {isProcessing ? 'Processing...' : 'Pay Now'}
-                </button>
+                </div>
               </button>
 
               {/* Nepal QR */}
               <button
-                onClick={() => !isProcessing && handlePayment('nepal')}
+                type="button"
+                onClick={() => handlePayment('nepal')}
                 disabled={isProcessing}
-                className={`p-6 rounded-lg border-2 transition-all ${
+                className={`p-6 rounded-lg border-2 transition-all text-left ${
                   isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
                 } border-swar-border`}
               >
                 <div className="text-3xl mb-3">🇳🇵</div>
                 <h4 className="font-bold text-swar-text mb-1">Nepal</h4>
                 <p className="text-xs text-swar-text-secondary mb-3">QR Code</p>
-                <button
-                  onClick={() => !isProcessing && handlePayment('nepal')}
-                  disabled={isProcessing}
-                  className="w-full bg-swar-primary text-white py-2 rounded font-semibold hover:bg-swar-primary-hover transition-colors disabled:opacity-50"
+                <div
+                  className={`w-full text-center bg-swar-primary text-white py-2 rounded font-semibold transition-colors ${
+                    isProcessing ? 'opacity-50' : 'hover:bg-swar-primary-hover'
+                  }`}
                 >
                   {isProcessing ? 'Processing...' : 'Show QR'}
-                </button>
+                </div>
               </button>
             </div>
 
