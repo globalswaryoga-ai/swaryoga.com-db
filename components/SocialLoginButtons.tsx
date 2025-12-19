@@ -107,7 +107,7 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginPr
                   id: data.user.id,
                 });
               }
-              window.location.href = '/profile';
+              window.location.href = '/';
             } else {
               throw new Error(data.error || 'Google login failed');
             }
@@ -169,7 +169,7 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginPr
                         id: data.user.id,
                       });
                     }
-                    window.location.href = '/profile';
+                    window.location.href = '/';
                   } else {
                     throw new Error(data.error || 'Facebook login failed');
                   }
