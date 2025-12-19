@@ -51,9 +51,9 @@ export interface PayUParams {
 
 export function generatePayUHash(params: PayUParams): string {
   const key = (params.key || PAYU_MERCHANT_KEY).toString().trim();
-  // PayU hash formula (CORRECT):
-  // key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5|udf6|udf7|udf8|udf9|udf10|salt
-  // Note: Include all UDF fields (1-10) with proper ordering
+  // PayU hash formula (CORRECT per PayU docs):
+  // key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5||||||SALT
+  // Note: Only UDF fields 1-5, followed by 6 empty pipes (for udf6-10 placeholders), then SALT
   
   const hashString = [
     key,
@@ -67,11 +67,11 @@ export function generatePayUHash(params: PayUParams): string {
     params.udf3 || '',
     params.udf4 || '',
     params.udf5 || '',
-    params.udf6 || '',
-    params.udf7 || '',
-    params.udf8 || '',
-    params.udf9 || '',
-    params.udf10 || '',
+    '', // udf6 empty
+    '', // udf7 empty
+    '', // udf8 empty
+    '', // udf9 empty
+    '', // udf10 empty
     PAYU_MERCHANT_SALT,
   ].join('|');
   
