@@ -236,9 +236,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Durable throttling: prevent repeated PayU initiations within 60s.
+    // PayU can respond with “Too many Requests” if users retry rapidly; in-memory rate limits
+    // are not reliable on serverless, so we also enforce a DB-backed cooldown.
+    await connectDB();
+    const cooldownMs = 60_000;
+    const payMethod = body.country === 'india' ? 'india_payu' : 'international_payu';
+    const cutoff = new Date(Date.now() - cooldownMs);
+    const recentPending = await Order.findOne({
+      userId: decoded.userId,
+      paymentStatus: 'pending',
+      paymentMethod: payMethod,
+      createdAt: { $gte: cutoff },
+    })
+      .select({ _id: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (recentPending?.createdAt) {
+      const createdAt = new Date(recentPending.createdAt as unknown as string | number | Date).getTime();
+      const retryAfterSec = Math.max(1, Math.ceil((createdAt + cooldownMs - Date.now()) / 1000));
+      return NextResponse.json(
+        {
+          error: 'Too many payment attempts. Please wait and try again.',
+          retryAfterSec,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(retryAfterSec),
+          },
+        }
+      );
+    }
+
     // Create an Order record so txnid is PayU-safe (<=25 chars) and callback can update it.
     // Mongoose ObjectId string length is 24.
-    await connectDB();
     const order = new Order({
       userId: decoded.userId,
       items: (body.items || []).map((item) => ({
@@ -258,7 +291,7 @@ export async function POST(request: NextRequest) {
       currency: body.currency || (body.country === 'india' ? 'INR' : 'USD'),
       status: 'pending',
       paymentStatus: 'pending',
-      paymentMethod: body.country === 'india' ? 'india_payu' : 'international_payu',
+      paymentMethod: payMethod,
       shippingAddress: {
         firstName: sanitizePayUField(body.firstName),
         lastName: sanitizePayUField(body.lastName),
