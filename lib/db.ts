@@ -419,3 +419,185 @@ workshopScheduleSchema.index({ workshopSlug: 1, mode: 1, batch: 1, currency: 1, 
 
 export const WorkshopSchedule =
   mongoose.models.WorkshopSchedule || mongoose.model('WorkshopSchedule', workshopScheduleSchema);
+
+// Social Media Account Schema
+const socialMediaAccountSchema = new mongoose.Schema({
+  platform: {
+    type: String,
+    enum: ['facebook', 'youtube', 'x', 'linkedin', 'instagram', 'tiktok'],
+    required: true,
+    index: true,
+  },
+  accountName: { type: String, required: true },
+  accountHandle: { type: String, required: true },
+  accountId: { type: String, required: true },
+  accountEmail: { type: String },
+  profileImage: { type: String }, // URL to profile picture
+  
+  // Encrypted tokens - store securely
+  accessToken: { type: String, required: true }, // Will be encrypted
+  refreshToken: { type: String }, // Will be encrypted
+  tokenExpiresAt: { type: Date },
+  
+  // Connection status
+  isConnected: { type: Boolean, default: true, index: true },
+  connectedAt: { type: Date, default: Date.now },
+  disconnectedAt: { type: Date },
+  lastTokenRefresh: { type: Date },
+  
+  // Platform-specific metadata
+  metadata: {
+    followers: { type: Number, default: 0 },
+    following: { type: Number, default: 0 },
+    postsCount: { type: Number, default: 0 },
+    engagementRate: { type: Number, default: 0 },
+    lastSyncedAt: { type: Date },
+    businessCategory: { type: String },
+    website: { type: String },
+  },
+  
+  // Permissions
+  grantedScopes: [String], // OAuth scopes granted
+  
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+socialMediaAccountSchema.index({ platform: 1, isConnected: 1 });
+socialMediaAccountSchema.index({ accountId: 1, platform: 1 });
+
+export const SocialMediaAccount =
+  mongoose.models.SocialMediaAccount || mongoose.model('SocialMediaAccount', socialMediaAccountSchema);
+
+// Social Media Post Schema
+const socialMediaPostSchema = new mongoose.Schema({
+  // References to accounts
+  accountIds: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SocialMediaAccount',
+    },
+  ],
+  platforms: [
+    {
+      type: String,
+      enum: ['facebook', 'youtube', 'x', 'linkedin', 'instagram', 'tiktok'],
+    },
+  ],
+  
+  // Post content
+  content: {
+    text: { type: String, required: true },
+    images: [
+      {
+        url: { type: String },
+        caption: { type: String },
+        altText: { type: String },
+      },
+    ],
+    videos: [
+      {
+        url: { type: String },
+        thumbnail: { type: String },
+        duration: { type: Number }, // in seconds
+        title: { type: String },
+      },
+    ],
+    link: { type: String },
+    hashtags: [String],
+  },
+  
+  // Scheduling
+  status: {
+    type: String,
+    enum: ['draft', 'scheduled', 'published', 'failed', 'archived'],
+    default: 'draft',
+    index: true,
+  },
+  scheduledFor: { type: Date, index: true },
+  publishedAt: { type: Date, index: true },
+  
+  // Platform-specific post IDs
+  platformPostIds: {
+    facebook: String,
+    youtube: String,
+    x: String,
+    linkedin: String,
+    instagram: String,
+    tiktok: String,
+  },
+  
+  // Error tracking
+  failureReason: { type: String },
+  retryCount: { type: Number, default: 0 },
+  lastRetryAt: { type: Date },
+  
+  // Analytics
+  analytics: {
+    likes: { type: Number, default: 0 },
+    comments: { type: Number, default: 0 },
+    shares: { type: Number, default: 0 },
+    views: { type: Number, default: 0 },
+    impressions: { type: Number, default: 0 },
+    engagement: { type: Number, default: 0 },
+    clicks: { type: Number, default: 0 },
+    lastUpdatedAt: { type: Date },
+  },
+  
+  // Metadata
+  isPromoted: { type: Boolean, default: false },
+  campaign: { type: String }, // Campaign name if part of campaign
+  tags: [String], // Internal tags for organization
+  
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+socialMediaPostSchema.index({ status: 1, scheduledFor: 1 });
+socialMediaPostSchema.index({ platforms: 1, publishedAt: -1 });
+socialMediaPostSchema.index({ createdAt: -1 });
+
+export const SocialMediaPost =
+  mongoose.models.SocialMediaPost || mongoose.model('SocialMediaPost', socialMediaPostSchema);
+
+// Social Media Analytics Schema
+const socialMediaAnalyticsSchema = new mongoose.Schema({
+  accountId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SocialMediaAccount',
+    required: true,
+    index: true,
+  },
+  platform: {
+    type: String,
+    enum: ['facebook', 'youtube', 'x', 'linkedin', 'instagram', 'tiktok'],
+    required: true,
+  },
+  date: { type: Date, required: true, index: true },
+  
+  // Daily metrics
+  followers: { type: Number, default: 0 },
+  newFollowers: { type: Number, default: 0 },
+  engagement: { type: Number, default: 0 },
+  reach: { type: Number, default: 0 },
+  impressions: { type: Number, default: 0 },
+  clicks: { type: Number, default: 0 },
+  shares: { type: Number, default: 0 },
+  comments: { type: Number, default: 0 },
+  likes: { type: Number, default: 0 },
+  
+  // Post metrics
+  postsPublished: { type: Number, default: 0 },
+  topPost: {
+    postId: String,
+    engagement: Number,
+  },
+  
+  createdAt: { type: Date, default: Date.now },
+});
+
+socialMediaAnalyticsSchema.index({ accountId: 1, date: -1 });
+socialMediaAnalyticsSchema.index({ platform: 1, date: -1 });
+
+export const SocialMediaAnalytics =
+  mongoose.models.SocialMediaAnalytics || mongoose.model('SocialMediaAnalytics', socialMediaAnalyticsSchema);

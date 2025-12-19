@@ -12,37 +12,9 @@
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
-      "static/css/ebdcc51e0fdcea16.css",
+      "static/css/41a67317528f0064.css",
       "static/css/1872600733d75693.css",
       "static/chunks/app/layout-746b2ac1803639a1.js"
-    ],
-    "/admin/accounting/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/8556-c9b2788ebdbc1c92.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/admin/accounting/page-57cedc9180c8378a.js"
-    ],
-    "/admin/community/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/admin/community/page-45c899906b1781ca.js"
-    ],
-    "/admin/contact-messages/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/3612-d4e36f157b6b2260.js",
-      "static/chunks/app/admin/contact-messages/page-f17fa9a377a1f788.js"
     ],
     "/about/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -54,6 +26,24 @@
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/about/page-91079ca4a201991a.js"
     ],
+    "/admin/contact-messages/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3612-d4e36f157b6b2260.js",
+      "static/chunks/app/admin/contact-messages/page-f17fa9a377a1f788.js"
+    ],
+    "/admin/community/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/admin/community/page-45c899906b1781ca.js"
+    ],
     "/admin/login/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
@@ -61,14 +51,14 @@
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/app/admin/login/page-e74a5488b7c5abc9.js"
     ],
-    "/admin/signin-data/page": [
+    "/admin/dashboard/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/2972-6bd0010615b42342.js",
       "static/chunks/3612-d4e36f157b6b2260.js",
-      "static/chunks/app/admin/signin-data/page-070193b1c44d48d9.js"
+      "static/chunks/app/admin/dashboard/page-1af1262a5d321dde.js"
     ],
     "/admin/signup-data/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -79,6 +69,15 @@
       "static/chunks/3612-d4e36f157b6b2260.js",
       "static/chunks/app/admin/signup-data/page-9f182faaa8b23254.js"
     ],
+    "/admin/signin-data/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3612-d4e36f157b6b2260.js",
+      "static/chunks/app/admin/signin-data/page-070193b1c44d48d9.js"
+    ],
     "/admin/offers/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
@@ -87,6 +86,24 @@
       "static/chunks/2972-6bd0010615b42342.js",
       "static/chunks/3612-d4e36f157b6b2260.js",
       "static/chunks/app/admin/offers/page-fe3e98e1dcbd6d3d.js"
+    ],
+    "/admin/enquiries/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3612-d4e36f157b6b2260.js",
+      "static/chunks/app/admin/enquiries/page-7a8b41f698478702.js"
+    ],
+    "/admin/social-media/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3612-d4e36f157b6b2260.js",
+      "static/chunks/app/admin/social-media/page-e7c58cb1c77e1e0d.js"
     ],
     "/admin/workshops/schedules/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -98,23 +115,15 @@
       "static/chunks/419-f2b0f0d9393e2bc4.js",
       "static/chunks/app/admin/workshops/schedules/page-e9104b5aa0738551.js"
     ],
-    "/admin/enquiries/page": [
+    "/admin/accounting/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/3612-d4e36f157b6b2260.js",
-      "static/chunks/app/admin/enquiries/page-7a8b41f698478702.js"
-    ],
-    "/admin/dashboard/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/3612-d4e36f157b6b2260.js",
-      "static/chunks/app/admin/dashboard/page-1af1262a5d321dde.js"
+      "static/chunks/8556-c9b2788ebdbc1c92.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/admin/accounting/page-57cedc9180c8378a.js"
     ],
     "/batches-demo/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -124,6 +133,16 @@
       "static/chunks/2972-6bd0010615b42342.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/batches-demo/page-75da6896a469d270.js"
+    ],
+    "/blog/sleep-postures-swar-yoga/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/1067-ee0c76e91b8228d7.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/blog/sleep-postures-swar-yoga/page-df946b3577dc086b.js"
     ],
     "/blog/[slug]/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -141,29 +160,9 @@
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/4825-9e8a901dd5a2350d.js",
+      "static/chunks/8482-19264f2ae1826f6b.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/blog/page-7b0ee7bd64619dd3.js"
-    ],
-    "/blog/sleep-postures-swar-yoga/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/1067-ee0c76e91b8228d7.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/blog/sleep-postures-swar-yoga/page-df946b3577dc086b.js"
-    ],
-    "/cart/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/7607-4fb212d43461f6b9.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/cart/page-4a606e44f48170fd.js"
+      "static/chunks/app/blog/page-0b02a72939c8f45d.js"
     ],
     "/calendar/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -175,23 +174,15 @@
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/calendar/page-d92035a0b711596d.js"
     ],
-    "/community/[communityId]/create/page": [
+    "/cart/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/7607-4fb212d43461f6b9.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/community/[communityId]/create/page-a3ca06bda8580949.js"
-    ],
-    "/community/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/community/page-ca2216617a7077c4.js"
+      "static/chunks/app/cart/page-4a606e44f48170fd.js"
     ],
     "/community/[communityId]/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -212,14 +203,14 @@
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/contact/page-39629955514fdb3e.js"
     ],
-    "/crm/page": [
+    "/community/[communityId]/create/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/2972-6bd0010615b42342.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/crm/page-c1f0116b435f658a.js"
+      "static/chunks/app/community/[communityId]/create/page-a3ca06bda8580949.js"
     ],
     "/community/post/[postId]/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -229,6 +220,33 @@
       "static/chunks/2972-6bd0010615b42342.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/community/post/[postId]/page-b7ddb692f3b582a5.js"
+    ],
+    "/crm/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/crm/page-c1f0116b435f658a.js"
+    ],
+    "/life-planner/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/life-planner/page-51bff56428d02475.js"
+    ],
+    "/my-sessions/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/my-sessions/page-d352f23489c10d9f.js"
     ],
     "/life-planner/login/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -240,14 +258,15 @@
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/life-planner/login/page-e4ab6ce37b0c9c4b.js"
     ],
-    "/life-planner/page": [
+    "/life-planner/signup/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/35-6597eda1bd9dbafb.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/life-planner/page-51bff56428d02475.js"
+      "static/chunks/app/life-planner/signup/page-1bb5421f9794e821.js"
     ],
     "/life-planner/profile/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -268,24 +287,14 @@
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/page-4c8c3a48ced5fb83.js"
     ],
-    "/my-sessions/page": [
+    "/community/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/2972-6bd0010615b42342.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/my-sessions/page-d352f23489c10d9f.js"
-    ],
-    "/life-planner/signup/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/35-6597eda1bd9dbafb.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/life-planner/signup/page-1bb5421f9794e821.js"
+      "static/chunks/app/community/page-ca2216617a7077c4.js"
     ],
     "/profile/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -318,6 +327,22 @@
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/resort/page-fde2ace31e3fe3f9.js"
     ],
+    "/social-media/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/social-media/page-d2c397816520bc95.js"
+    ],
+    "/workshop/[id]/registernow/cart/checkout/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/workshop/[id]/registernow/cart/checkout/page-ae3f5e6a81c44a5a.js"
+    ],
     "/sessions/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
@@ -327,15 +352,6 @@
       "static/chunks/6416-d051cd3a11ad64be.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/sessions/page-961f0d10a88c2164.js"
-    ],
-    "/social-media/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/social-media/page-d2c397816520bc95.js"
     ],
     "/workshop/[id]/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -349,19 +365,24 @@
       "static/chunks/266-7f8637227155fceb.js",
       "static/chunks/app/workshop/[id]/page-f3700c3ad89c93da.js"
     ],
-    "/workshop/[id]/registernow/cart/checkout/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/workshop/[id]/registernow/cart/checkout/page-ae3f5e6a81c44a5a.js"
-    ],
     "/workshop/[id]/registernow/cart/checkout/payu/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/app/workshop/[id]/registernow/cart/checkout/payu/page-93f4daa602e4f668.js"
+    ],
+    "/workshop/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/6416-d051cd3a11ad64be.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/419-f2b0f0d9393e2bc4.js",
+      "static/chunks/3522-f9b3414532e3516a.js",
+      "static/chunks/app/workshop/page-c9524b25b257c426.js"
     ],
     "/workshop/[id]/registernow/cart/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -389,18 +410,6 @@
       "static/chunks/266-7f8637227155fceb.js",
       "static/chunks/app/workshops/[id]/page-86192eb7cbeb0ed8.js"
     ],
-    "/workshop/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/6416-d051cd3a11ad64be.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/419-f2b0f0d9393e2bc4.js",
-      "static/chunks/3522-f9b3414532e3516a.js",
-      "static/chunks/app/workshop/page-c9524b25b257c426.js"
-    ],
     "/checkout/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
@@ -419,6 +428,26 @@
       "static/chunks/2972-6bd0010615b42342.js",
       "static/chunks/3054-2cd7c9789b11f48f.js",
       "static/chunks/app/payment-failed/page-15d3457bbd525cb8.js"
+    ],
+    "/signin/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/5040-cd8042e2a470c1ae.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/signin/page-71514506fd3acf3e.js"
+    ],
+    "/thankyou/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/1914-d021e8daf24fd029.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/thankyou/page-25b5ccd6a92fe5ec.js"
     ],
     "/payment-successful/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -440,36 +469,6 @@
       "static/chunks/419-f2b0f0d9393e2bc4.js",
       "static/chunks/app/payment-confirmation/page-aa4a3b6bf364cd2a.js"
     ],
-    "/signin/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/5040-cd8042e2a470c1ae.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/signin/page-71514506fd3acf3e.js"
-    ],
-    "/signup/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/4918-bbad73a652873e84.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/signup/page-5be7669d7f319d51.js"
-    ],
-    "/thankyou/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/2972-6bd0010615b42342.js",
-      "static/chunks/1914-d021e8daf24fd029.js",
-      "static/chunks/3054-2cd7c9789b11f48f.js",
-      "static/chunks/app/thankyou/page-25b5ccd6a92fe5ec.js"
-    ],
     "/workshops/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
@@ -482,12 +481,22 @@
       "static/chunks/3522-f9b3414532e3516a.js",
       "static/chunks/app/workshops/page-4e91b6b98fba1c7c.js"
     ],
-    "/life-planner/dashboard/calendar/page": [
+    "/signup/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/calendar/page-e3427d12d8be6f3c.js"
+      "static/chunks/2972-6bd0010615b42342.js",
+      "static/chunks/4918-bbad73a652873e84.js",
+      "static/chunks/3054-2cd7c9789b11f48f.js",
+      "static/chunks/app/signup/page-5be7669d7f319d51.js"
+    ],
+    "/life-planner/dashboard/accounting/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/accounting/page-1adee841800e77e9.js"
     ],
     "/life-planner/dashboard/layout": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -498,6 +507,27 @@
       "static/chunks/6672-056c1784ba0718fb.js",
       "static/chunks/app/life-planner/dashboard/layout-e88c4b464fd8f1b5.js"
     ],
+    "/life-planner/dashboard/goals/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/goals/page-bdd5668bb7c81f79.js"
+    ],
+    "/life-planner/dashboard/diamond-people/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/diamond-people/page-8b8aad57432c5b74.js"
+    ],
+    "/life-planner/dashboard/health-routines/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/health-routines/page-65954bfc1537bb47.js"
+    ],
     "/life-planner/dashboard/action-plan/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
@@ -507,54 +537,12 @@
       "static/chunks/4231-0743ec27aa7a53df.js",
       "static/chunks/app/life-planner/dashboard/action-plan/page-47ff1dc1e966d4da.js"
     ],
-    "/life-planner/dashboard/daily/page": [
+    "/life-planner/dashboard/health/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/daily/page-e1cef6d3cc99e52f.js"
-    ],
-    "/life-planner/dashboard/diamond-people/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/diamond-people/page-8b8aad57432c5b74.js"
-    ],
-    "/life-planner/dashboard/goals/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/goals/page-bdd5668bb7c81f79.js"
-    ],
-    "/life-planner/dashboard/health-routines/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/health-routines/page-65954bfc1537bb47.js"
-    ],
-    "/life-planner/dashboard/monthly/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/monthly/page-42f1225274fc4536.js"
-    ],
-    "/life-planner/dashboard/routines/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/routines/page-89cde2461cdabed5.js"
-    ],
-    "/life-planner/dashboard/progress/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/progress/page-f1db4f3d4d0054ef.js"
+      "static/chunks/app/life-planner/dashboard/health/page-8d636a33ddd89e50.js"
     ],
     "/life-planner/dashboard/reminders/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -563,12 +551,26 @@
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/app/life-planner/dashboard/reminders/page-8edc96ddd0c103ef.js"
     ],
-    "/life-planner/dashboard/todos/page": [
+    "/life-planner/dashboard/daily/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/todos/page-e66116ff1e35c62f.js"
+      "static/chunks/app/life-planner/dashboard/daily/page-e1cef6d3cc99e52f.js"
+    ],
+    "/life-planner/dashboard/routines/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/routines/page-89cde2461cdabed5.js"
+    ],
+    "/life-planner/dashboard/tasks/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/tasks/page-6fa4a649be1aba8b.js"
     ],
     "/life-planner/dashboard/vision/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -579,12 +581,27 @@
       "static/chunks/4231-0743ec27aa7a53df.js",
       "static/chunks/app/life-planner/dashboard/vision/page-2fd0546bfbebf51e.js"
     ],
-    "/life-planner/dashboard/health/page": [
+    "/life-planner/dashboard/words/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/health/page-8d636a33ddd89e50.js"
+      "static/chunks/4005-4e0d754b5a69c4d3.js",
+      "static/chunks/app/life-planner/dashboard/words/page-a868300bab8baf04.js"
+    ],
+    "/life-planner/dashboard/visions/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/visions/page-aad822386146eaab.js"
+    ],
+    "/life-planner/dashboard/visions-blog/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/visions-blog/page-31473d457b8031cd.js"
     ],
     "/life-planner/dashboard/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -594,26 +611,33 @@
       "static/chunks/2972-6bd0010615b42342.js",
       "static/chunks/app/life-planner/dashboard/page-551eaaa5197786b6.js"
     ],
-    "/life-planner/dashboard/tasks/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/tasks/page-6fa4a649be1aba8b.js"
-    ],
-    "/life-planner/dashboard/visions-blog/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/visions-blog/page-31473d457b8031cd.js"
-    ],
     "/life-planner/dashboard/yearly/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/app/life-planner/dashboard/yearly/page-9b2feb93d2a9d670.js"
+    ],
+    "/life-planner/dashboard/todos/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/todos/page-e66116ff1e35c62f.js"
+    ],
+    "/life-planner/dashboard/progress/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/progress/page-f1db4f3d4d0054ef.js"
+    ],
+    "/life-planner/dashboard/calendar/page": [
+      "static/chunks/webpack-4ecb4f322dd9e380.js",
+      "static/chunks/fd9d1056-6773a6e9caf232db.js",
+      "static/chunks/2117-ce335a94bf1a27a1.js",
+      "static/chunks/main-app-383087782622661e.js",
+      "static/chunks/app/life-planner/dashboard/calendar/page-e3427d12d8be6f3c.js"
     ],
     "/life-planner/dashboard/weekly/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
@@ -622,27 +646,12 @@
       "static/chunks/main-app-383087782622661e.js",
       "static/chunks/app/life-planner/dashboard/weekly/page-538a87a78ea91c7f.js"
     ],
-    "/life-planner/dashboard/visions/page": [
+    "/life-planner/dashboard/monthly/page": [
       "static/chunks/webpack-4ecb4f322dd9e380.js",
       "static/chunks/fd9d1056-6773a6e9caf232db.js",
       "static/chunks/2117-ce335a94bf1a27a1.js",
       "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/visions/page-aad822386146eaab.js"
-    ],
-    "/life-planner/dashboard/accounting/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/app/life-planner/dashboard/accounting/page-1adee841800e77e9.js"
-    ],
-    "/life-planner/dashboard/words/page": [
-      "static/chunks/webpack-4ecb4f322dd9e380.js",
-      "static/chunks/fd9d1056-6773a6e9caf232db.js",
-      "static/chunks/2117-ce335a94bf1a27a1.js",
-      "static/chunks/main-app-383087782622661e.js",
-      "static/chunks/4005-4e0d754b5a69c4d3.js",
-      "static/chunks/app/life-planner/dashboard/words/page-a868300bab8baf04.js"
+      "static/chunks/app/life-planner/dashboard/monthly/page-42f1225274fc4536.js"
     ]
   }
 }
