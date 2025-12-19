@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogOut, Target, Flag, CheckSquare, Bell, NotebookPen, HeartPulse, Gem, BarChart3, User, Home, ArrowLeft } from 'lucide-react';
+import { Menu, X, LogOut, Target, Flag, CheckSquare, Bell, NotebookPen, HeartPulse, Gem, BarChart3, User, Home, ArrowLeft, Calendar, Download } from 'lucide-react';
 import HealthTracker from './HealthTracker';
 import ServerStatus from './ServerStatus';
 import { clearSession } from '@/lib/sessionManager';
@@ -11,7 +11,9 @@ import { clearSession } from '@/lib/sessionManager';
 const topTabs = [
   { href: '/life-planner/dashboard/vision', label: 'Vision Plan', icon: Target },
   { href: '/life-planner/dashboard/action-plan', label: 'Action Plan', icon: Flag },
-  { href: '/life-planner/dashboard/tasks', label: 'Tasks', icon: CheckSquare },
+  { href: '/life-planner/dashboard/daily', label: 'Daily', icon: CheckSquare },
+  { href: '/life-planner/dashboard/calendar', label: 'Calendar', icon: Calendar },
+  { href: '/life-planner/dashboard/vision-download', label: 'Download', icon: Download },
   { href: '/life-planner/dashboard/words', label: 'Words', icon: NotebookPen },
   { href: '/life-planner/dashboard/reminders', label: 'Reminders', icon: Bell },
   { href: '/life-planner/dashboard/health', label: 'Health', icon: HeartPulse },

@@ -79,22 +79,22 @@ export default function LifePlannerDashboardHome() {
         </div>
 
         <div className="rounded-2xl sm:rounded-3xl border border-swar-border bg-swar-primary-light p-4 sm:p-5 flex flex-col">
-          <p className="text-xs uppercase tracking-[0.3em] text-swar-accent font-bold">This week</p>
-          <h3 className="mt-2 sm:mt-3 text-lg sm:text-xl font-semibold text-swar-text">Weekly review</h3>
-          <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-swar-text-secondary flex-grow leading-relaxed">Plan your week, set priorities, and track progress against your vision.</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-swar-accent font-bold">Overview</p>
+          <h3 className="mt-2 sm:mt-3 text-lg sm:text-xl font-semibold text-swar-text">Calendar View</h3>
+          <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-swar-text-secondary flex-grow leading-relaxed">See all visions, goals, tasks, and reminders with symbols on calendar.</p>
           <div className="mt-3 sm:mt-4 flex gap-2">
-            <Link className="rounded-xl bg-swar-primary px-3 py-2 text-xs sm:text-sm text-white hover:bg-swar-primary-hover transition font-medium touch-target text-center flex-1" href="/life-planner/dashboard/weekly">
+            <Link className="rounded-xl bg-swar-primary px-3 py-2 text-xs sm:text-sm text-white hover:bg-swar-primary-hover transition font-medium touch-target text-center flex-1" href="/life-planner/dashboard/calendar">
               Open
             </Link>
           </div>
         </div>
 
         <div className="rounded-2xl sm:rounded-3xl border border-swar-border bg-swar-primary-light p-4 sm:p-5 flex flex-col md:col-span-2 lg:col-span-1">
-          <p className="text-xs uppercase tracking-[0.3em] text-swar-accent font-bold">Reports</p>
-          <h3 className="mt-2 sm:mt-3 text-lg sm:text-xl font-semibold text-swar-text">Progress report</h3>
-          <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-swar-text-secondary flex-grow leading-relaxed">Weekly, monthly, yearly completion and overdue breakdowns.</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-swar-accent font-bold">Download</p>
+          <h3 className="mt-2 sm:mt-3 text-lg sm:text-xl font-semibold text-swar-text">Vision Details</h3>
+          <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-swar-text-secondary flex-grow leading-relaxed">Download vision hierarchy as PDF with progress report.</p>
           <div className="mt-3 sm:mt-4 flex gap-2">
-            <Link className="rounded-xl bg-swar-primary px-3 py-2 text-xs sm:text-sm text-white hover:bg-swar-primary-hover transition font-medium touch-target text-center flex-1" href="/life-planner/dashboard/progress">
+            <Link className="rounded-xl bg-swar-primary px-3 py-2 text-xs sm:text-sm text-white hover:bg-swar-primary-hover transition font-medium touch-target text-center flex-1" href="/life-planner/dashboard/vision-download">
               Open
             </Link>
           </div>
