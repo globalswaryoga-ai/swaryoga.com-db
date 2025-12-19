@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import WorkshopDateBooking from '@/components/WorkshopDateBooking';
 import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import { workshopCatalog, findWorkshopBySlug, workshopDetails, type Schedule } from '@/lib/workshopsData';
@@ -717,6 +718,25 @@ export default function WorkshopDetail() {
       </div>
 
       {/* Register Modal removed in favor of full-page register view */}
+
+      {/* Workshop Date Booking Section */}
+      <section className="bg-gradient-to-b from-swar-50 to-white py-12 md:py-16">
+        <WorkshopDateBooking
+          workshopName={workshop.name}
+          workshopSlug={workshopSlug}
+          onBooking={(selectedDate) => {
+            // Add item to cart and redirect to checkout
+            const params = new URLSearchParams({
+              workshop: workshopSlug,
+              date: selectedDate.date.toISOString(),
+              mode: selectedDate.mode || 'online',
+              price: selectedDate.price.toString(),
+              currency: selectedDate.currency,
+            });
+            router.push(`/checkout?${params.toString()}`);
+          }}
+        />
+      </section>
 
       <Footer />
     </>

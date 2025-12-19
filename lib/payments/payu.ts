@@ -12,6 +12,17 @@ export const PAYU_BASE_URL = isProductionMode
   ? 'https://secure.payu.in'
   : 'https://test.payu.in';
 
+// Debug logging
+if (typeof window === 'undefined') {
+  console.log('🔐 PayU Configuration:', {
+    mode: PAYU_MODE,
+    baseUrl: PAYU_BASE_URL,
+    hasKey: !!PAYU_MERCHANT_KEY,
+    hasSalt: !!PAYU_MERCHANT_SALT,
+    keyPrefix: PAYU_MERCHANT_KEY?.substring(0, 3),
+  });
+}
+
 export interface PayUParams {
   key?: string;
   txnid: string;

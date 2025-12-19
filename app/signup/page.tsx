@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import SocialLoginButtons from '@/components/SocialLoginButtons';
 import { addCartItem, CartCurrency } from '@/lib/cart';
 import { getCurrencyForLanguage } from '@/lib/paymentLinkHelper';
 import { setSession } from '@/lib/sessionManager';
@@ -344,6 +345,20 @@ function SignUpInner() {
                     : redirectPath}
                 </div>
               )}
+            </div>
+
+            {/* Social Login Buttons */}
+            <div className="mb-8">
+              <SocialLoginButtons
+                onSuccess={(user) => {
+                  // User logged in successfully via social login
+                  // Redirect to the intended path
+                  router.push(redirectPath || '/profile');
+                }}
+                onError={(error) => {
+                  setErrors({ general: error || 'Social login failed' });
+                }}
+              />
             </div>
 
             {/* Status Messages */}

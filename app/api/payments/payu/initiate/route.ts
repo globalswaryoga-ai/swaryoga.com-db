@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
       success: true,
       orderId: txnid,
       country: body.country,
-      paymentUrl: `${PAYU_BASE_URL}/_payment`,
+      paymentUrl: `${PAYU_BASE_URL}/_xclick`,
       params: {
         ...payuParams,
         hash
