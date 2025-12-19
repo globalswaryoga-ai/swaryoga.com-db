@@ -108,7 +108,7 @@ async function createPayUResponse(body: UnifiedPaymentRequest) {
   return NextResponse.json({
     success: true,
     method: 'payu',
-    paymentUrl: `${PAYU_BASE_URL}/_payment`,
+    paymentUrl: `${PAYU_BASE_URL}/_xclick`,
     params: {
       ...payuParams,
       hash
