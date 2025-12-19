@@ -253,6 +253,24 @@ export async function POST(request: NextRequest) {
     // Generate hash
     const hash = generatePayUHash(payuParams);
 
+    // Log complete request for debugging 403 errors
+    console.log('📤 COMPLETE PayU Request:', {
+      endpoint: `${PAYU_BASE_URL}/_xclick`,
+      method: 'POST',
+      params: {
+        key: payuParams.key?.substring(0, 3) + '***',
+        txnid: payuParams.txnid,
+        amount: payuParams.amount,
+        productinfo: payuParams.productinfo?.substring(0, 20),
+        firstname: payuParams.firstname,
+        email: payuParams.email?.substring(0, 5) + '***',
+        phone: payuParams.phone,
+        city: payuParams.city,
+        hash: hash?.substring(0, 20) + '***',
+        service_provider: payuParams.service_provider
+      }
+    });
+
     // Return payment form data
     return NextResponse.json({
       success: true,
