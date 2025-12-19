@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import PermissionManager from '@/lib/permissionManager';
+import { PermissionManager } from '@/lib/permissionManager';
 
 describe('PermissionManager', () => {
   let manager: PermissionManager;

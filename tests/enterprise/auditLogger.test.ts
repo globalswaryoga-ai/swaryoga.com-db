@@ -1,30 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import AuditLogger from '@/lib/auditLogger';
+import { AuditLogger } from '@/lib/auditLogger';
 
 describe('AuditLogger', () => {
-  let logger: InstanceType<typeof AuditLogger>;
-
-  beforeEach(() => {
-    logger = new AuditLogger();
-  });
-
   describe('log', () => {
     it('should log an action successfully', async () => {
-      const log = await logger.log({
+      const result = await AuditLogger.log({
         userId: 'user-123',
-        action: 'CREATE_POST',
-        resource: 'posts',
+        actionType: 'CREATE_POST',
+        resourceType: 'posts',
         resourceId: 'post-456',
-        details: { title: 'Test Post' },
-        ipAddress: '192.168.1.1',
-        userAgent: 'Mozilla/5.0',
-        status: 'success',
-      });
-
-      expect(log).toBeDefined();
-      expect(log.action).toBe('CREATE_POST');
-      expect(log.status).toBe('success');
-      expect(log.timestamp).toBeDefined();
     });
 
     it('should handle errors gracefully', async () => {

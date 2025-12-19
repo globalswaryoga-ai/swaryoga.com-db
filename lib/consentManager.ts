@@ -15,7 +15,7 @@ export class ConsentManager {
   static async getConsentStatus(phoneNumber: string): Promise<any> {
     await connectDB();
     
-    const consent = await UserConsent.findOne({ phoneNumber }).lean();
+    const consent = await UserConsent.findOne({ phoneNumber }).lean() as any;
     
     if (!consent) {
       return {

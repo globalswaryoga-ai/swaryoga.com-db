@@ -6,7 +6,7 @@ const getUserOwner = (request: NextRequest) => {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
   if (!token) return null;
-  const decoded = verifyToken(token);
+  const decoded = verifyToken(token || "");
   if (!decoded?.userId) return null;
   return { ownerType: 'user' as const, ownerId: decoded.userId };
 };

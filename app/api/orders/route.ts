@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.substring(7);
-    const decoded = verifyToken(token);
+    const decoded = verifyToken(token || "");
     
     if (!decoded || !decoded.userId) {
       return NextResponse.json(

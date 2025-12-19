@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import RateLimitManager from '@/lib/rateLimitManager';
+import { RateLimitManager } from '@/lib/rateLimitManager';
 
 describe('RateLimitManager', () => {
   let manager: RateLimitManager;

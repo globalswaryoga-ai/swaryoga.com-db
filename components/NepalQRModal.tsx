@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { X, Download } from 'lucide-react';
-import { getCurrencySymbol } from '@/lib/paymentMath';
+import { getCurrencySymbol, type CurrencyCode } from '@/lib/paymentMath';
 
 interface NepalQRModalProps {
   onClose: () => void;
@@ -43,7 +43,7 @@ export default function NepalQRModal({ onClose, amount, currency }: NepalQRModal
           <div className="text-center bg-swar-bg rounded-lg p-4">
             <p className="text-sm text-swar-text-secondary mb-1">Amount to Pay</p>
             <p className="text-2xl font-bold text-swar-primary">
-              {getCurrencySymbol(currency)}
+              {getCurrencySymbol(currency as CurrencyCode)}
               {amount}
             </p>
           </div>

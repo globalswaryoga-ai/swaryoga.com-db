@@ -203,12 +203,12 @@ export class RateLimitManager {
     const hourly = await RateLimit.findOne({
       limitKey: `${userId}:hourly`,
       limitType: 'hourly',
-    }).lean();
+    }).lean() as any;
     
     const daily = await RateLimit.findOne({
       limitKey: `${userId}:daily`,
       limitType: 'daily',
-    }).lean();
+    }).lean() as any;
     
     return {
       hourly: hourly ? {

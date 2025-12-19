@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import ConsentManager from '@/lib/consentManager';
+import { ConsentManager } from '@/lib/consentManager';
 
 describe('ConsentManager', () => {
   let manager: ConsentManager;

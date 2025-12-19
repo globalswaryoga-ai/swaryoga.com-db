@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import MessageTracker from '@/lib/messageTracker';
+import { MessageTracker } from '@/lib/messageTracker';
 
 describe('MessageTracker', () => {
   let tracker: MessageTracker;
@@ -271,7 +271,7 @@ describe('MessageTracker', () => {
     });
 
     it('should update status for multiple messages', async () => {
-      const messageIds = [];
+      const messageIds: string[] = [];
       for (let i = 0; i < 5; i++) {
         const record = await tracker.trackMessage({
           messageId: `msg-multi-${i}`,
