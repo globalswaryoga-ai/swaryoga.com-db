@@ -13,13 +13,6 @@ interface WorkshopTask {
   text: string;
 }
 
-interface RoutineItem {
-  id: string;
-  name: string;
-  target: string;
-  completed: boolean;
-}
-
 interface SadhanaItem {
   id: string;
   name: string;
@@ -36,12 +29,6 @@ export default function DailyViewPage() {
   const [selectedWorkshopCategory, setSelectedWorkshopCategory] = useState<WorkshopCategory>('workStudy');
   const [workshopError, setWorkshopError] = useState<string>('');
   const [heroImgSrc, setHeroImgSrc] = useState('/images/swar-yoga-hero.jpg');
-
-  const [routine, setRoutine] = useState<RoutineItem[]>([
-    { id: '1', name: 'Pranayama', target: '2 times 5 mins', completed: false },
-    { id: '2', name: 'Meditation', target: '1 time 15 mins', completed: false },
-    { id: '3', name: 'Water', target: '3 liter', completed: false },
-  ]);
   
   const [sadhana, setSadhana] = useState<SadhanaItem[]>([
     { id: '1', name: 'Pranayama', frequency: '2 times', duration: '5 minutes', completed: false },
@@ -73,7 +60,6 @@ export default function DailyViewPage() {
   useEffect(() => {
     setHealthMounted(true);
     loadWorkshopTasks();
-    loadRoutine();
     loadSadhana();
     loadVisionGoalsTasks();
 
@@ -152,13 +138,6 @@ export default function DailyViewPage() {
     localStorage.setItem(getWorkshopStorageKey(), JSON.stringify(updated));
   };
 
-  const loadRoutine = () => {
-    const stored = localStorage.getItem('dailyRoutine');
-    if (stored) {
-      setRoutine(JSON.parse(stored));
-    }
-  };
-
   const loadSadhana = () => {
     const stored = localStorage.getItem('dailySadhana');
     if (stored) {
@@ -212,12 +191,6 @@ export default function DailyViewPage() {
     const text = nextText.trim();
     if (!text) return;
     persistWorkshopTasks(workshopTasks.map(t => (t.id === id ? { ...t, text } : t)));
-  };
-
-  const toggleRoutine = (id: string) => {
-    const updated = routine.map(r => r.id === id ? { ...r, completed: !r.completed } : r);
-    setRoutine(updated);
-    localStorage.setItem('dailyRoutine', JSON.stringify(updated));
   };
 
   const toggleSadhana = (id: string) => {
@@ -459,32 +432,6 @@ export default function DailyViewPage() {
               </div>
             )}
 
-            {/* Legacy quick checklist (kept for continuity) */}
-            <div className="mt-4 border-t border-swar-border pt-4">
-              <p className="text-xs font-semibold text-swar-text-secondary mb-2">Quick Checklist</p>
-              <div className="space-y-2">
-                {routine.map(item => (
-                  <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-green-50 transition">
-                    <button
-                      onClick={() => toggleRoutine(item.id)}
-                      className={`flex-shrink-0 w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center transition ${
-                        item.completed
-                          ? 'bg-green-500 border-green-500'
-                          : 'border-gray-300 hover:border-green-500'
-                      }`}
-                    >
-                      {item.completed && <Check size={14} className="text-white" />}
-                    </button>
-                    <div className="flex-grow">
-                      <p className={`text-sm font-semibold ${item.completed ? 'line-through text-gray-400' : 'text-swar-text'}`}>
-                        {item.name}
-                      </p>
-                      <p className="text-xs text-swar-text-secondary mt-0.5">{item.target}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
