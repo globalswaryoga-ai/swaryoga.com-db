@@ -24,6 +24,7 @@ build
 
 # Local-only / experimental
 lib/payments/payu-v2.ts
+test-payment-opening.js
 
 # Test / coverage
 coverage/
