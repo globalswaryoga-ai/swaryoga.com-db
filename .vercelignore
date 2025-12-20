@@ -11,6 +11,7 @@ yarn-error.log*
 .DS_Store
 .next/cache
 .vercel
+index.html
 src/**
 server/**
 
