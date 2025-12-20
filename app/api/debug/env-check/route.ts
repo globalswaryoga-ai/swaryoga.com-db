@@ -8,14 +8,23 @@ export async function GET() {
     jwtSecret: process.env.JWT_SECRET ? '✓ set' : '✗ missing',
     nextPublicApiUrl: process.env.NEXT_PUBLIC_API_URL,
     nextPublicAppUrl: process.env.NEXT_PUBLIC_APP_URL,
+    vercel: {
+      env: process.env.VERCEL_ENV,
+      url: process.env.VERCEL_URL,
+      deploymentId: process.env.VERCEL_DEPLOYMENT_ID,
+      git: {
+        commitSha: process.env.VERCEL_GIT_COMMIT_SHA,
+        commitRef: process.env.VERCEL_GIT_COMMIT_REF,
+        repoOwner: process.env.VERCEL_GIT_REPO_OWNER,
+        repoSlug: process.env.VERCEL_GIT_REPO_SLUG,
+      },
+    },
     payu: {
       mode: PAYU_MODE,
       baseUrl: PAYU_BASE_URL,
       merchantKey: process.env.PAYU_MERCHANT_KEY ? '✓ set' : '✗ missing',
       merchantSalt: process.env.PAYU_MERCHANT_SALT ? '✓ set' : '✗ missing',
     },
-    vercelEnv: process.env.VERCEL_ENV,
-    vercelUrl: process.env.VERCEL_URL,
   };
 
   if (!process.env.MONGODB_URI) {
