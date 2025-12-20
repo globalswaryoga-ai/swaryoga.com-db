@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { PAYU_BASE_URL, PAYU_MODE } from '@/lib/payments/payu';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   const env = {
     nodeEnv: process.env.NODE_ENV,
@@ -32,11 +35,20 @@ export async function GET() {
       error: 'Environment variables not configured properly on Vercel',
       details: 'MONGODB_URI is missing. Please add it to Vercel project settings.',
       env,
-    }, { status: 503 });
+    }, {
+      status: 503,
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    });
   }
 
   return NextResponse.json({
     message: 'Environment variables configured',
     env,
+  }, {
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+    },
   });
 }
