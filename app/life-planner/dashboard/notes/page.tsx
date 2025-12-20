@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Trash2, Pin, PinOff, Eye } from 'lucide-react';
 import NoteEditor from '@/components/NoteEditor';
-import Navigation from '@/components/Navigation';
-import Footer from '@/components/Footer';
 
 interface Note {
   _id: string;
   title: string;
   content: string;
+  canvasItems?: any[];
   colorTheme: string;
   fontFamily: string;
   fontSize: number;
@@ -60,7 +59,7 @@ export default function NotesPage() {
 
   // Fetch notes
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
+    const storedToken = localStorage.getItem('lifePlannerToken') || localStorage.getItem('token');
     if (!storedToken) {
       setError('Please login first');
       setLoading(false);
@@ -89,7 +88,6 @@ export default function NotesPage() {
 
       const data = await res.json();
       setNotes(data.data);
-      applyFilters(data.data);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load notes');
@@ -103,8 +101,8 @@ export default function NotesPage() {
 
     if (search) {
       filtered = filtered.filter(n =>
-        n.title.toLowerCase().includes(search.toLowerCase()) ||
-        n.content.toLowerCase().includes(search.toLowerCase())
+        String(n.title || '').toLowerCase().includes(search.toLowerCase()) ||
+        String(n.content || '').toLowerCase().includes(search.toLowerCase())
       );
     }
 
@@ -121,7 +119,7 @@ export default function NotesPage() {
 
   useEffect(() => {
     applyFilters(notes);
-  }, [search, selectedMood, selectedTag]);
+  }, [notes, search, selectedMood, selectedTag]);
 
   const handleSaveNote = async (noteData: any) => {
     try {
@@ -195,17 +193,28 @@ export default function NotesPage() {
   const allTags = Array.from(new Set(notes.flatMap(n => n.tags)));
   const allMoods = Array.from(new Set(notes.map(n => n.mood)));
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-swar-bg to-swar-primary/5">
-      <Navigation />
+  const formatSubmittedAt = (isoString: string) => {
+    const d = new Date(isoString);
+    if (!isoString || Number.isNaN(d.getTime())) return '';
+    // Show date + submission time (hours/minutes) in user's locale.
+    return d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
-      <div className="container mx-auto max-w-6xl px-4 py-8 sm:py-12">
+  return (
+    <div className="bg-gradient-to-br from-swar-bg to-swar-primary/5 rounded-2xl border border-swar-border">
+      <div className="container mx-auto max-w-6xl px-4 py-8 sm:py-10">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">📝 My Notes</h1>
-              <p className="text-swar-text-secondary">Capture thoughts, reflections, and ideas linked to your vision</p>
+              <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">📓 My Journal</h1>
+              <p className="text-swar-text-secondary">Capture thoughts, reflections, memories, and ideas linked to your vision</p>
             </div>
             <button
               onClick={() => {
@@ -215,7 +224,7 @@ export default function NotesPage() {
               className="bg-swar-primary text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-swar-primary/90 transition"
             >
               <Plus size={20} />
-              New Note
+              New Journal
             </button>
           </div>
         </div>
@@ -279,7 +288,7 @@ export default function NotesPage() {
         ) : filteredNotes.length === 0 ? (
           <div className="bg-swar-primary/10 rounded-xl p-12 text-center">
             <p className="text-2xl mb-2">📭</p>
-            <p className="text-swar-text-secondary mb-4">No notes yet. Create your first note!</p>
+            <p className="text-swar-text-secondary mb-4">No journal entries yet. Create your first entry!</p>
             <button
               onClick={() => {
                 setSelectedNote(null);
@@ -287,11 +296,11 @@ export default function NotesPage() {
               }}
               className="bg-swar-primary text-white px-6 py-2 rounded-lg font-semibold hover:bg-swar-primary/90 transition"
             >
-              Create Note
+              Create Entry
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[10px] auto-rows-max">
             {filteredNotes.map(note => {
               const theme = COLOR_THEMES[note.colorTheme as keyof typeof COLOR_THEMES];
               const moodEmoji = MOOD_EMOJIS[note.mood as keyof typeof MOOD_EMOJIS];
@@ -299,8 +308,8 @@ export default function NotesPage() {
               return (
                 <div
                   key={note._id}
-                  className="rounded-xl shadow-lg hover:shadow-xl transition overflow-hidden cursor-pointer group relative"
-                  style={{ backgroundColor: theme.bg }}
+                  className="relative group cursor-pointer rounded-2xl border shadow-sm hover:shadow-lg transition overflow-hidden"
+                  style={{ backgroundColor: theme.bg, borderColor: theme.accent + '40' }}
                   onClick={() => {
                     setSelectedNote(note);
                     setShowEditor(true);
@@ -314,7 +323,7 @@ export default function NotesPage() {
                   )}
 
                   {/* Card Content */}
-                  <div className="p-6 space-y-4 h-80 flex flex-col">
+                  <div className="p-6 space-y-4">
                     {/* Header */}
                     <div>
                       <div className="flex items-start justify-between mb-2">
@@ -329,11 +338,9 @@ export default function NotesPage() {
                     </div>
 
                     {/* Preview */}
-                    <p
-                      className="text-sm line-clamp-3 flex-1"
-                      style={{ color: theme.text }}
-                      dangerouslySetInnerHTML={{ __html: note.content.substring(0, 150) + '...' }}
-                    />
+                    <p className="text-sm whitespace-pre-wrap break-words" style={{ color: theme.text }}>
+                      {note.content}
+                    </p>
 
                     {/* Tags */}
                     {note.tags.length > 0 && (
@@ -357,7 +364,7 @@ export default function NotesPage() {
                     <div className="flex items-center justify-between text-xs pt-2 border-t" style={{ borderColor: theme.accent + '40' }}>
                       <span style={{ color: theme.text }}>{note.wordCount} words</span>
                       <span style={{ color: theme.text }}>
-                        {new Date(note.createdAt).toLocaleDateString()}
+                        {formatSubmittedAt(note.createdAt) || new Date(note.createdAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
@@ -403,8 +410,6 @@ export default function NotesPage() {
           }}
         />
       )}
-
-      <Footer />
     </div>
   );
 }

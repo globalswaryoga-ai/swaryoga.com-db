@@ -1,4 +1,10 @@
 {
-  "buildCommand": "next build",
-  "framework": "nextjs"
+  "version": 2,
+  "framework": "nextjs",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ]
 }

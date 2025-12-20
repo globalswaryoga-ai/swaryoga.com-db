@@ -125,6 +125,9 @@ export interface Reminder {
   // Linkage (optional)
   visionId?: string;
   goalId?: string;
+  eventId?: string;
+  // Vision Head (10 heads)
+  visionHead?: VisionCategory;
   // Optional metadata used in some dashboards
   category?: string;
   priority?: 'low' | 'medium' | 'high';
@@ -182,6 +185,14 @@ export interface HealthRoutine {
   category?: 'exercise' | 'meditation' | 'nutrition' | 'sleep' | 'other' | string;
   type?: 'yoga' | 'meditation' | 'exercise' | 'diet' | 'sleep' | 'other';
   frequency: 'daily' | 'weekly' | 'monthly';
+  /**
+   * Optional fields used as reusable "Often" presets on the Health daily plan.
+   * Stored in Mongo as Mixed, so these are safe to add without migrations.
+   */
+  dailyFrequency?: 'once' | 'daily' | 'custom';
+  time?: string; // HH:mm
+  startTime?: string; // HH:mm (for custom slot)
+  endTime?: string; // HH:mm (for custom slot)
   duration?: number;
   daysOfWeek?: string[];
   startDate?: string;
@@ -193,12 +204,74 @@ export interface HealthRoutine {
   updatedAt: string;
 }
 
+export type MealItem = {
+  id: string;
+  name: string;
+};
+
+export type MealSection = {
+  time: string; // HH:mm
+  items: MealItem[];
+};
+
+export type DailyMeals = {
+  breakfast: MealSection;
+  lunch: MealSection;
+  dinner: MealSection;
+};
+
+export type DailyRoutineItem = {
+  id: string;
+  title: string;
+  notes?: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  // Frequency/mode requested on Health page
+  frequency?: 'once' | 'daily' | 'custom';
+  // For simple routines, user can set a single time
+  time?: string; // HH:mm
+  // For custom time slot routines, use start/end time
+  startTime?: string; // HH:mm
+  endTime?: string; // HH:mm
+  whatToEat?: string;
+};
+
+export type HealthIntakeItem = {
+  id: string;
+  name: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  startTime?: string; // HH:mm
+  endTime?: string; // HH:mm
+  notes?: string;
+};
+
+export type HealthIntakeSection = {
+  id: string;
+  title: string;
+  items: HealthIntakeItem[];
+};
+
+export type DailyHealthPlan = {
+  id: string;
+  date: string; // YYYY-MM-DD (the day this plan is for)
+  routines: DailyRoutineItem[];
+  // Back-compat: previous version stored only breakfast/lunch/dinner
+  meals: DailyMeals;
+  // New: flexible sections (herbal drink, tea/coffee, breakfast/lunch/snacks/dinner, medicines, sleeping drink, etc.)
+  intakeSections?: HealthIntakeSection[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export interface DiamondPerson {
   id: string;
   name: string;
   // Relationship metadata
   relationship: 'professional' | 'personal' | 'family' | 'friend' | string;
   category?: string;
+  // Vision Head (10 heads)
+  visionHead?: VisionCategory;
 
   // Contact details (expanded)
   mobile?: string;
@@ -240,8 +313,10 @@ export interface Todo {
   title: string;
   description?: string;
   taskId?: string;
+  eventId?: string;
   startDate: string;
   dueDate: string;
+  dueTime?: string;
   budget?: number;
   priority: 'low' | 'medium' | 'high';
   completed: boolean;

@@ -1,380 +1,299 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Download, Printer, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Download, ExternalLink, Printer } from 'lucide-react';
+import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
+import { useRouter } from 'next/navigation';
+import type { Vision } from '@/lib/types/lifePlanner';
 
-interface Vision {
-  id: string;
-  title: string;
-  description?: string;
-  date?: string;
-}
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80';
 
-interface Milestone {
-  id: string;
-  title: string;
-  visionId: string;
-}
-
-interface Goal {
-  id: string;
-  title: string;
-  visionId?: string;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  completed?: boolean;
-}
-
-interface Todo {
-  id: string;
-  title: string;
-  completed?: boolean;
-}
-
-interface Reminder {
-  id: string;
-  title: string;
-  dueDate?: string;
-}
-
-interface Word {
-  id: string;
-  title: string;
-}
-
-interface DiamondPeople {
-  id: string;
-  name: string;
-}
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
 export default function VisionDownloadPage() {
+  const router = useRouter();
   const [visions, setVisions] = useState<Vision[]>([]);
   const [selectedVisionId, setSelectedVisionId] = useState<string | null>(null);
-  const [expandedSections, setExpandedSections] = useState({
-    milestones: true,
-    goals: true,
-    tasks: true,
-    todos: true,
-    reminders: true,
-    words: true,
-    diamond: true,
-  });
-  const pdfRef = useRef<HTMLDivElement>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterMonth, setFilterMonth] = useState('all');
 
   useEffect(() => {
-    // Load visions from localStorage
-    const storedVisions = JSON.parse(localStorage.getItem('lifePlannerVision') || '[]');
-    setVisions(storedVisions);
-    
-    if (storedVisions.length > 0 && !selectedVisionId) {
-      setSelectedVisionId(storedVisions[0].id);
-    }
+    let cancelled = false;
+
+    const load = async () => {
+      const storedVisions = await lifePlannerStorage.getVisions();
+
+      if (cancelled) return;
+
+      setVisions(Array.isArray(storedVisions) ? (storedVisions as Vision[]) : []);
+
+      if (Array.isArray(storedVisions) && storedVisions.length > 0) {
+        setSelectedVisionId((prev) => prev || storedVisions[0].id);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const selectedVision = visions.find(v => v.id === selectedVisionId);
+  const selectedVision = visions.find((v) => v.id === selectedVisionId) || null;
 
-  // Load related data
-  const milestones = selectedVision
-    ? (JSON.parse(localStorage.getItem('lifePlannerMilestones') || '[]') as Milestone[]).filter(
-        m => m.visionId === selectedVision.id
-      )
-    : [];
+  const normalizedSearch = searchTerm.trim().toLowerCase();
 
-  const goals = JSON.parse(localStorage.getItem('lifePlannerGoals') || '[]') as Goal[];
-  const tasks = JSON.parse(localStorage.getItem('lifePlannerTasks') || '[]') as Task[];
-  const todos = JSON.parse(localStorage.getItem('lifePlannerTodos') || '[]') as Todo[];
-  const reminders = JSON.parse(localStorage.getItem('lifePlannerReminders') || '[]') as Reminder[];
-  const words = JSON.parse(localStorage.getItem('lifePlannerWords') || '[]') as Word[];
-  const diamondPeople = JSON.parse(localStorage.getItem('lifePlannerDiamondPeople') || '[]') as DiamondPeople[];
+  const filteredVisions = useMemo(() => {
+    return visions.filter((v) => {
+      const haystack = `${v.title || ''} ${v.description || ''} ${String(v.category || '')}`.toLowerCase();
+      const matchesSearch = normalizedSearch.length === 0 || haystack.includes(normalizedSearch);
 
-  const completionStats = {
-    tasksCompleted: tasks.filter(t => t.completed).length,
-    tasksTotal: tasks.length,
-    todosCompleted: todos.filter(t => t.completed).length,
-    todosTotal: todos.length,
-    completionPercentage: tasks.length > 0 ? Math.round((tasks.filter(t => t.completed).length / tasks.length) * 100) : 0,
+      const matchesCategory = filterCategory === 'all' || String(v.category) === filterCategory;
+      const matchesStatus = filterStatus === 'all' || String(v.status || '') === filterStatus;
+
+      const monthIdx = filterMonth === 'all' ? null : MONTHS.indexOf(filterMonth as any);
+      if (monthIdx === null) return matchesSearch && matchesCategory && matchesStatus;
+
+      const raw = (v.startDate || v.createdAt || '').toString();
+      const d = raw ? new Date(raw) : null;
+      const matchesMonth = !!d && !Number.isNaN(d.getTime()) && d.getMonth() === monthIdx;
+      return matchesSearch && matchesCategory && matchesStatus && matchesMonth;
+    });
+  }, [visions, normalizedSearch, filterCategory, filterStatus, filterMonth]);
+
+  const stats = useMemo(() => {
+    const total = visions.length;
+    const completed = visions.filter((v) => v.status === 'completed').length;
+    const inProgress = visions.filter((v) => v.status === 'in-progress').length;
+    const categories = new Set(visions.map((v) => String(v.category || ''))).size;
+    return { total, completed, inProgress, categories };
+  }, [visions]);
+
+  const openPreview = () => {
+    if (!selectedVisionId) return;
+    router.push(`/life-planner/dashboard/vision/print?visionId=${encodeURIComponent(selectedVisionId)}`);
   };
 
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
+  const openPreviewFor = (visionId: string) => {
+    router.push(`/life-planner/dashboard/vision/print?visionId=${encodeURIComponent(visionId)}`);
   };
-
-  const downloadPDF = async () => {
-    if (!pdfRef.current) return;
-
-    try {
-      // Dynamically import html2pdf only when needed
-      const html2pdfModule = await import('html2pdf.js');
-      const html2pdf = html2pdfModule.default;
-
-      const element = pdfRef.current;
-      const opt = {
-        margin: 10,
-        filename: `${selectedVision?.title || 'Vision'}-${new Date().toISOString().split('T')[0]}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
-      };
-
-      html2pdf().set(opt).from(element).save();
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
-    }
-  };
-
-  const printPage = () => {
-    window.print();
-  };
-
-  if (!selectedVision) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-swar-text-secondary">No visions found. Create one to get started!</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6 pb-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-swar-primary">Vision Details & Download</h1>
-          <p className="text-sm text-swar-text-secondary mt-1">View and download complete vision hierarchy</p>
+          <h1 className="text-3xl font-bold text-swar-text mb-2">Vision PDF Download</h1>
+          <p className="text-swar-text-secondary">Select a vision → open A4 preview → Download PDF</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex space-x-3">
           <button
-            onClick={downloadPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-swar-primary text-white rounded-lg hover:bg-swar-primary-dark transition font-semibold"
+            type="button"
+            onClick={() => selectedVisionId && openPreview()}
+            disabled={!selectedVisionId}
+            className="flex items-center space-x-2 bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
           >
-            <Download size={18} />
-            <span className="hidden sm:inline">Download PDF</span>
+            <Printer className="h-4 w-4" />
+            <span>Preview</span>
           </button>
           <button
-            onClick={printPage}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-semibold"
+            type="button"
+            onClick={() => selectedVisionId && openPreview()}
+            disabled={!selectedVisionId}
+            className="flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg hover:shadow-xl"
           >
-            <Printer size={18} />
-            <span className="hidden sm:inline">Print</span>
+            <Download className="h-5 w-5" />
+            <span>Download PDF</span>
           </button>
         </div>
       </div>
 
-      {/* Vision Selector */}
-      <div className="bg-white rounded-2xl p-4 border border-swar-border">
-        <label className="block text-sm font-semibold text-swar-text mb-2">Select Vision:</label>
-        <select
-          value={selectedVisionId || ''}
-          onChange={(e) => setSelectedVisionId(e.target.value)}
-          className="w-full px-4 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-swar-primary"
-        >
-          {visions.map(v => (
-            <option key={v.id} value={v.id}>
-              {v.title}
-            </option>
-          ))}
-        </select>
+      {/* Stats */}
+      <div className="grid md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <div className="text-2xl font-bold text-emerald-600 mb-1">{stats.total}</div>
+          <div className="text-swar-text-secondary text-sm">Total Visions</div>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <div className="text-2xl font-bold text-blue-600 mb-1">{stats.inProgress}</div>
+          <div className="text-swar-text-secondary text-sm">In Progress</div>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <div className="text-2xl font-bold text-purple-600 mb-1">{stats.completed}</div>
+          <div className="text-swar-text-secondary text-sm">Completed</div>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-lg">
+          <div className="text-2xl font-bold text-orange-600 mb-1">{stats.categories}</div>
+          <div className="text-swar-text-secondary text-sm">Vision Heads</div>
+        </div>
       </div>
 
-      {/* PDF Content */}
-      <div ref={pdfRef} className="bg-white rounded-2xl p-6 border border-swar-border space-y-8 print:border-0 print:rounded-0 print:p-0">
-        {/* Vision Header */}
-        <div className="border-b-4 border-swar-primary pb-6">
-          <h1 className="text-4xl font-bold text-swar-primary mb-3">{selectedVision.title}</h1>
-          {selectedVision.description && (
-            <p className="text-lg text-swar-text-secondary mb-3">{selectedVision.description}</p>
-          )}
-          {selectedVision.date && (
-            <p className="text-sm text-swar-text-secondary">Created: {new Date(selectedVision.date).toLocaleDateString()}</p>
-          )}
-        </div>
-
-        {/* Progress Section */}
-        <div className="bg-gradient-to-r from-swar-primary-light to-blue-50 rounded-xl p-6 border border-swar-primary">
-          <div className="flex items-center gap-3 mb-4">
-            <BarChart3 className="h-6 w-6 text-swar-primary" />
-            <h2 className="text-2xl font-bold text-swar-primary">Progress</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-white rounded-lg p-4">
-              <p className="text-xs font-semibold text-swar-text-secondary uppercase">Tasks Completed</p>
-              <p className="text-3xl font-bold text-swar-primary mt-2">
-                {completionStats.tasksCompleted}/{completionStats.tasksTotal}
-              </p>
-            </div>
-            <div className="bg-white rounded-lg p-4">
-              <p className="text-xs font-semibold text-swar-text-secondary uppercase">Overall Progress</p>
-              <p className="text-3xl font-bold text-swar-primary mt-2">{completionStats.completionPercentage}%</p>
-            </div>
-          </div>
-          <div className="w-full bg-gray-300 rounded-full h-4">
-            <div
-              className="bg-gradient-to-r from-swar-primary to-blue-500 h-4 rounded-full transition-all"
-              style={{ width: `${completionStats.completionPercentage}%` }}
+      {/* Filters */}
+      <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search title / description"
+              className="w-full px-3 py-2 rounded-lg border border-swar-border focus:outline-none focus:ring-2 focus:ring-emerald-200"
             />
           </div>
-        </div>
 
-        {/* Development/Improvement Section */}
-        <div className="bg-orange-50 rounded-xl p-6 border border-orange-200">
-          <h2 className="text-2xl font-bold text-orange-700 mb-4">📈 Development & Areas to Improve</h2>
-          <div className="space-y-3">
-            <div className="bg-white rounded-lg p-4 border-l-4 border-orange-500">
-              <h3 className="font-semibold text-swar-text">1. Current Strengths</h3>
-              <p className="text-sm text-swar-text-secondary mt-1">
-                {tasks.length > 0 ? `${completionStats.completionPercentage}% of tasks completed - Good momentum!` : 'No tasks tracked yet.'}
-              </p>
-            </div>
-            <div className="bg-white rounded-lg p-4 border-l-4 border-orange-500">
-              <h3 className="font-semibold text-swar-text">2. Areas for Improvement</h3>
-              <p className="text-sm text-swar-text-secondary mt-1">
-                Focus on completing pending tasks and increasing accountability through reminders and milestones.
-              </p>
-            </div>
-            <div className="bg-white rounded-lg p-4 border-l-4 border-orange-500">
-              <h3 className="font-semibold text-swar-text">3. Next Steps</h3>
-              <p className="text-sm text-swar-text-secondary mt-1">
-                Set milestones, break down goals into actionable tasks, and review progress weekly.
-              </p>
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-swar-text mb-1">Vision Head</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="all">All</option>
+              {Array.from(new Set(visions.map((v) => String(v.category || '')).filter(Boolean))).map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-swar-text mb-1">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="all">All</option>
+              <option value="not-started">Not Started</option>
+              <option value="in-progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="on-hold">On Hold</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-swar-text mb-1">Month</label>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            >
+              <option value="all">All</option>
+              {MONTHS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setFilterCategory('all');
+                setFilterStatus('all');
+                setFilterMonth('all');
+              }}
+              className="w-full px-3 py-2 rounded-lg bg-swar-primary-light text-swar-text font-bold hover:bg-swar-primary-light transition"
+            >
+              Clear Filters
+            </button>
           </div>
         </div>
 
-        {/* Milestones */}
-        <div>
-          <h2 className="text-2xl font-bold text-swar-primary mb-4">⭐ Milestones ({milestones.length})</h2>
-          {milestones.length > 0 ? (
-            <div className="space-y-2">
-              {milestones.map(m => (
-                <div key={m.id} className="flex items-center gap-3 p-3 bg-pink-50 rounded-lg border border-pink-200">
-                  <div className="w-2 h-2 bg-pink-500 rounded-full flex-shrink-0" />
-                  <p className="text-sm text-swar-text">{m.title}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-swar-text-secondary italic">No milestones added yet.</p>
-          )}
-        </div>
+        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredVisions.length} of {visions.length} visions</p>
+      </div>
 
-        {/* Goals */}
-        <div>
-          <h2 className="text-2xl font-bold text-swar-primary mb-4">🏆 Goals ({goals.length})</h2>
-          {goals.length > 0 ? (
-            <div className="space-y-2">
-              {goals.map(g => (
-                <div key={g.id} className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
-                  <p className="text-sm text-swar-text">{g.title}</p>
+      {/* Vision Grid (same card style as Diamond People) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
+        {filteredVisions.map((v) => (
+          <div
+            key={v.id}
+            className={
+              `w-80 bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full ` +
+              (v.id === selectedVisionId ? 'ring-2 ring-emerald-300' : '')
+            }
+          >
+            <div
+              className="relative h-40 overflow-hidden bg-emerald-600 flex items-center justify-center"
+              style={{
+                backgroundImage: `url('${v.imageUrl || (v as any).categoryImageUrl || DEFAULT_IMAGE}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            >
+              <div className="absolute top-3 right-3">
+                <div className="bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                  {(v.status ? String(v.status) : 'VISION').toUpperCase()}
                 </div>
-              ))}
+              </div>
             </div>
-          ) : (
-            <p className="text-sm text-swar-text-secondary italic">No goals added yet.</p>
-          )}
-        </div>
 
-        {/* Tasks */}
-        <div>
-          <h2 className="text-2xl font-bold text-swar-primary mb-4">✅ Tasks ({tasks.length})</h2>
-          {tasks.length > 0 ? (
-            <div className="space-y-2">
-              {tasks.map(t => (
-                <div key={t.id} className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                  <input type="checkbox" checked={t.completed} disabled className="w-4 h-4" />
-                  <p className={`text-sm ${t.completed ? 'line-through text-gray-400' : 'text-swar-text'}`}>
-                    {t.title}
-                  </p>
-                </div>
-              ))}
+            <div className="p-5 flex-1 flex flex-col">
+              <h3 className="text-xl font-bold text-swar-text mb-1 line-clamp-2">{v.title}</h3>
+              <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{v.description || '—'}</p>
+
+              <div className="space-y-2 text-xs text-swar-text mb-auto">
+                <div className="flex items-center gap-2">🎯 {String(v.category || '')}</div>
+                {(v.startDate || v.endDate) ? (
+                  <div className="flex items-center gap-2">📅 {(v.startDate || '—')} → {(v.endDate || v.startDate || '—')}</div>
+                ) : null}
+              </div>
+
+              <div className="mt-3">
+                {v.category ? (
+                  <span className="inline-block bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                    {String(v.category)}
+                  </span>
+                ) : null}
+                {v.status ? (
+                  <span className="ml-2 inline-block bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-medium">
+                    {String(v.status)}
+                  </span>
+                ) : null}
+              </div>
             </div>
-          ) : (
-            <p className="text-sm text-swar-text-secondary italic">No tasks added yet.</p>
-          )}
-        </div>
 
-        {/* Todos */}
-        <div>
-          <h2 className="text-2xl font-bold text-swar-primary mb-4">📋 Todos ({todos.length})</h2>
-          {todos.length > 0 ? (
-            <div className="space-y-2">
-              {todos.map(t => (
-                <div key={t.id} className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <input type="checkbox" checked={t.completed} disabled className="w-4 h-4" />
-                  <p className={`text-sm ${t.completed ? 'line-through text-gray-400' : 'text-swar-text'}`}>
-                    {t.title}
-                  </p>
-                </div>
-              ))}
+            <div className="flex gap-2 p-4 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedVisionId(v.id);
+                  openPreviewFor(v.id);
+                }}
+                className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition inline-flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Preview
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedVisionId(v.id)}
+                className="flex-1 px-3 py-2 bg-gray-600 text-white text-xs font-bold rounded-lg hover:bg-gray-700 transition"
+              >
+                Select
+              </button>
             </div>
-          ) : (
-            <p className="text-sm text-swar-text-secondary italic">No todos added yet.</p>
-          )}
-        </div>
+          </div>
+        ))}
+      </div>
 
-        {/* Reminders */}
-        <div>
-          <h2 className="text-2xl font-bold text-swar-primary mb-4">🔔 Reminders ({reminders.length})</h2>
-          {reminders.length > 0 ? (
-            <div className="space-y-2">
-              {reminders.map(r => (
-                <div key={r.id} className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0" />
-                  <p className="text-sm text-swar-text">{r.title}</p>
-                  {r.dueDate && <span className="text-xs text-swar-text-secondary ml-auto">{new Date(r.dueDate).toLocaleDateString()}</span>}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-swar-text-secondary italic">No reminders added yet.</p>
-          )}
+      {filteredVisions.length === 0 && (
+        <div className="text-center py-12">
+          <div className="text-swar-text-secondary mb-4">
+            <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h8l6 6v10a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-swar-text mb-2">No visions found</h3>
+          <p className="text-swar-text-secondary mb-4">Create a vision first, then you can download it as PDF.</p>
         </div>
+      )}
 
-        {/* Words */}
-        <div>
-          <h2 className="text-2xl font-bold text-swar-primary mb-4">📝 Words ({words.length})</h2>
-          {words.length > 0 ? (
-            <div className="grid grid-cols-2 gap-2">
-              {words.map(w => (
-                <div key={w.id} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                  <p className="text-sm font-semibold text-swar-text">{w.title}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-swar-text-secondary italic">No words added yet.</p>
-          )}
-        </div>
-
-        {/* Diamond People */}
-        <div>
-          <h2 className="text-2xl font-bold text-swar-primary mb-4">👥 Diamond People ({diamondPeople.length})</h2>
-          {diamondPeople.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {diamondPeople.map(d => (
-                <div key={d.id} className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                  <p className="text-sm font-semibold text-swar-text text-center">{d.name}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-swar-text-secondary italic">No diamond people added yet.</p>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t-4 border-swar-primary pt-6 mt-8 text-center text-xs text-swar-text-secondary">
-          <p>Generated on {new Date().toLocaleDateString()} • Vision Planner</p>
-        </div>
+      {/* Note */}
+      <div className="mt-8 rounded-2xl border border-swar-border bg-swar-primary-light p-4 text-sm text-swar-text">
+        <p className="mb-0">
+          PDF download happens from the A4 preview page (one vision at a time) so it prints cleanly and shows images reliably.
+        </p>
       </div>
     </div>
   );

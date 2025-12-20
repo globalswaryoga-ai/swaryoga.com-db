@@ -855,9 +855,7 @@ export default function SocialMediaAdmin() {
                           <p className="text-slate-400 text-sm">
                             {post.status === 'scheduled'
                               ? `Scheduled for: ${new Date(post.scheduledFor || '').toLocaleString()}`
-                              : post.status === 'published'
-                                ? `Published: ${new Date(post.publishedAt || '').toLocaleString()}`
-                                : `Created: ${new Date(post.createdAt).toLocaleString()}`}
+                              : `Created: ${new Date(post.createdAt).toLocaleString()}`}
                           </p>
 
                           <button

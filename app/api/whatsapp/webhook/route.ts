@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
           if (!body) continue;
 
           // Ensure a Lead exists
-          let lead = await Lead.findOne({ phoneNumber: from }).lean();
+          let lead: { _id: unknown } | null = (await Lead.findOne({ phoneNumber: from }).lean()) as { _id: unknown } | null;
           if (!lead) {
             const created = await Lead.create({
               phoneNumber: from,
@@ -115,10 +115,12 @@ export async function POST(request: NextRequest) {
               status: 'lead',
               lastMessageAt: now,
             });
-            lead = created.toObject();
+            lead = created.toObject() as { _id: unknown };
           } else {
             await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now, updatedAt: now } });
           }
+
+          if (!lead?._id) continue;
 
           // Handle STOP/OPTOUT keywords
           const keyword = body.trim().toUpperCase();

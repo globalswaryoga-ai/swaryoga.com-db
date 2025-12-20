@@ -46,14 +46,80 @@ export default function TasksPage() {
   useEffect(() => {
     setMounted(true);
     (async () => {
-      const [savedTasks, savedGoals, savedVisions] = await Promise.all([
+      const [savedTasks, savedGoals, savedVisions, savedActionPlans] = await Promise.all([
         lifePlannerStorage.getTasks(),
         lifePlannerStorage.getGoals(),
         lifePlannerStorage.getVisions(),
+        lifePlannerStorage.getActionPlans(),
       ]);
-      setTasks(Array.isArray(savedTasks) ? savedTasks : []);
-      setGoals(Array.isArray(savedGoals) ? savedGoals : []);
-      setVisions(Array.isArray(savedVisions) ? savedVisions : []);
+
+      const tasksArr = Array.isArray(savedTasks) ? savedTasks : [];
+      const visionsArr = Array.isArray(savedVisions) ? savedVisions : [];
+
+      // Some goals are stored inside Action Plans (plan.goals). Users expect those goals
+      // to be selectable when creating Tasks under the same Vision.
+      const plansArr = Array.isArray(savedActionPlans) ? (savedActionPlans as any[]) : [];
+      const actionPlanDerivedGoals: Goal[] = plansArr
+        .flatMap((p: any) => {
+          const visionId = String(p?.visionId || '').trim();
+          const list = Array.isArray(p?.goals) ? (p.goals as any[]) : [];
+          return list
+            .filter(Boolean)
+            .map((g: any) => {
+              // Map ActionPlanGoal -> Goal-like option (id/title/visionId are what TaskModal needs)
+              return {
+                ...g,
+                visionId,
+                // Keep a hint of the original dates if present
+                startDate: g?.startDate,
+                targetDate: g?.endDate,
+              } as Goal;
+            });
+        })
+        .filter((g: any) => g?.id && g?.title);
+
+      // Some parts of the app store goals nested under visions (vision.goals).
+      // Always merge those derived goals into the flat goals list so TaskModal can map goals correctly.
+      // Also repair missing goal.visionId when we can.
+      const flatGoals = Array.isArray(savedGoals) ? (savedGoals as Goal[]) : [];
+
+      const derivedGoals: Goal[] = visionsArr.flatMap((v) => {
+        const list = Array.isArray((v as any).goals) ? ((v as any).goals as any[]) : [];
+        return list
+          .filter(Boolean)
+          .map((g: any) => {
+            const visionId = String(g?.visionId || v.id || '').trim();
+            return {
+              ...g,
+              visionId,
+            } as Goal;
+          });
+      });
+
+      // Repair missing visionId using a legacy goal.visionTitle if present
+      const visionsByTitle = new Map<string, string>();
+      for (const v of visionsArr) {
+        if (v?.title) visionsByTitle.set(String(v.title).trim().toLowerCase(), v.id);
+      }
+
+      const repairedFlatGoals = flatGoals.map((g: any) => {
+        if (g?.visionId) return g as Goal;
+        const vt = String(g?.visionTitle || '').trim().toLowerCase();
+        const guessed = vt ? visionsByTitle.get(vt) : undefined;
+        return ({ ...g, visionId: guessed || g?.visionId } as Goal);
+      });
+
+      const byId = new Map<string, Goal>();
+      for (const g of [...repairedFlatGoals, ...derivedGoals, ...actionPlanDerivedGoals]) {
+        if (!g?.id) continue;
+        byId.set(String(g.id), g);
+      }
+
+      const goalsArr = Array.from(byId.values());
+
+      setTasks(tasksArr);
+      setGoals(goalsArr);
+      setVisions(visionsArr);
       setHasLoaded(true);
     })();
   }, []);

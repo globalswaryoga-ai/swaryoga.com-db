@@ -1,5 +1,6 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MessageTracker } from '@/lib/messageTracker';
+import { MessageTracker } from '../../lib/messageTracker';
 
 describe('MessageTracker', () => {
   let tracker: MessageTracker;

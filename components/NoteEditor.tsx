@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Save, X, Pin, Palette, Type, Heart, Link2, Plus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Rnd } from 'react-rnd';
+import { Save, X, Pin, Palette, Type, Heart, Link2, Plus, Trash2, Image as ImageIcon, Youtube } from 'lucide-react';
 
 interface NoteEditorProps {
   initialNote?: any;
   visionId?: string;
   goalId?: string;
   taskId?: string;
-  onSave: (note: any) => void;
+  onSave: (note: any) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -68,13 +69,110 @@ export default function NoteEditor({
   const [tagInput, setTagInput] = useState('');
   const contentRef = useRef<HTMLTextAreaElement>(null);
 
+  type CanvasItem = {
+    id: string;
+    kind: 'image' | 'youtube';
+    url: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    zIndex: number;
+  };
+
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
+  const [selectedCanvasItemId, setSelectedCanvasItemId] = useState<string | null>(null);
+  const [selectedUrlInput, setSelectedUrlInput] = useState('');
+  const [canvasItems, setCanvasItems] = useState<CanvasItem[]>(() => {
+    const raw = initialNote?.canvasItems;
+    return Array.isArray(raw) ? raw : [];
+  });
+
+  const bringToFront = (id: string) => {
+    setCanvasItems((prev) => {
+      const maxZ = prev.reduce((m, it) => Math.max(m, Number.isFinite(it.zIndex) ? it.zIndex : 0), 0);
+      return prev.map((it) => (it.id === id ? { ...it, zIndex: maxZ + 1 } : it));
+    });
+  };
+
+  const updateCanvasItem = (id: string, patch: Partial<CanvasItem>) => {
+    setCanvasItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  };
+
+  const deleteCanvasItem = (id: string) => {
+    setCanvasItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const isAllowedImageUrl = (url: string) => {
+    const u = url.trim();
+    if (!u) return false;
+    if (u.startsWith('data:image/')) return true;
+    return /\.(png|jpg|jpeg)(\?.*)?$/i.test(u);
+  };
+
+  const getYouTubeId = (url: string): string | null => {
+    const raw = (url || '').trim();
+    if (!raw) return null;
+
+    try {
+      // Handle naked IDs
+      if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) return raw;
+
+      const u = new URL(raw);
+      const host = u.hostname.replace('www.', '');
+
+      if (host === 'youtu.be') {
+        const id = u.pathname.split('/').filter(Boolean)[0];
+        return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
+      }
+
+      if (host.endsWith('youtube.com')) {
+        const v = u.searchParams.get('v');
+        if (v && /^[a-zA-Z0-9_-]{11}$/.test(v)) return v;
+
+        const parts = u.pathname.split('/').filter(Boolean);
+        // /embed/{id}
+        if (parts[0] === 'embed' && parts[1] && /^[a-zA-Z0-9_-]{11}$/.test(parts[1])) return parts[1];
+        // /shorts/{id}
+        if (parts[0] === 'shorts' && parts[1] && /^[a-zA-Z0-9_-]{11}$/.test(parts[1])) return parts[1];
+      }
+    } catch {
+      // ignore
+    }
+
+    return null;
+  };
+
+  const toYouTubeEmbedUrl = (url: string): string | null => {
+    const id = getYouTubeId(url);
+    if (!id) return null;
+    return `https://www.youtube.com/embed/${id}`;
+  };
+
+  const maxZIndex = useMemo(() => canvasItems.reduce((m, it) => Math.max(m, it.zIndex || 0), 0), [canvasItems]);
+
+  const selectedCanvasItem = useMemo(() => {
+    if (!selectedCanvasItemId) return null;
+    return canvasItems.find((it) => it.id === selectedCanvasItemId) || null;
+  }, [canvasItems, selectedCanvasItemId]);
+
+  useEffect(() => {
+    if (!selectedCanvasItem) {
+      setSelectedUrlInput('');
+      return;
+    }
+    setSelectedUrlInput(selectedCanvasItem.url || '');
+  }, [selectedCanvasItem]);
+
   const currentTheme = COLOR_THEMES[colorTheme as keyof typeof COLOR_THEMES];
   const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
   const readingTime = Math.ceil(wordCount / 200);
 
   const handleSave = async () => {
-    if (!title.trim() || !content.trim()) {
-      alert('Please fill in title and content');
+    const hasMedia = Array.isArray(canvasItems) && canvasItems.length > 0;
+    if (!title.trim() || (!content.trim() && !hasMedia)) {
+      alert('Please fill in title and content (or add at least one Image/YouTube item)');
       return;
     }
 
@@ -88,6 +186,7 @@ export default function NoteEditor({
       mood,
       tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0),
       isPinned,
+      canvasItems,
       linkedTo: {
         visionId: visionId || initialNote?.linkedTo?.visionId,
         goalId: goalId || initialNote?.linkedTo?.goalId,
@@ -95,7 +194,7 @@ export default function NoteEditor({
       },
     };
 
-    onSave(noteData);
+    await onSave(noteData);
     setIsSaving(false);
   };
 
@@ -112,7 +211,7 @@ export default function NoteEditor({
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{MOOD_EMOJIS[mood as keyof typeof MOOD_EMOJIS]}</span>
-            <h1 className="text-xl font-bold" style={{ color: currentTheme.text }}>New Note</h1>
+            <h1 className="text-xl font-bold" style={{ color: currentTheme.text }}>New Journal</h1>
           </div>
           <button
             onClick={onClose}
@@ -224,6 +323,245 @@ export default function NoteEditor({
               lineHeight: '1.8',
             }}
           />
+
+          {/* Media Canvas */}
+          <div className="rounded-xl border-2 bg-white/25 p-4" style={{ borderColor: currentTheme.accent }}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-bold" style={{ color: currentTheme.text }}>Media (move + resize)</p>
+                <p className="text-xs" style={{ color: currentTheme.text, opacity: 0.8 }}>
+                  Add an image (JPG/PNG URL) or a YouTube URL. Then drag & resize anywhere.
+                </p>
+                <p className="text-[11px] mt-1" style={{ color: currentTheme.text, opacity: 0.7 }}>
+                  Tip: click a media item to select it and edit its URL.
+                </p>
+              </div>
+            </div>
+
+            {selectedCanvasItem ? (
+              <div className="mt-3 rounded-lg bg-white/40 border p-3" style={{ borderColor: currentTheme.accent }}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-extrabold" style={{ color: currentTheme.text }}>
+                    Selected: {selectedCanvasItem.kind === 'image' ? 'Image' : 'YouTube'}
+                  </p>
+                  <button
+                    type="button"
+                    className="text-xs font-bold px-2 py-1 rounded-md bg-white/60 hover:bg-white/80 border"
+                    style={{ borderColor: currentTheme.accent, color: currentTheme.text }}
+                    onClick={() => setSelectedCanvasItemId(null)}
+                    title="Deselect"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                  <input
+                    value={selectedUrlInput}
+                    onChange={(e) => setSelectedUrlInput(e.target.value)}
+                    placeholder={
+                      selectedCanvasItem.kind === 'image'
+                        ? 'https://.../photo.jpg'
+                        : 'https://www.youtube.com/watch?v=...'
+                    }
+                    className="flex-1 px-3 py-2 rounded-lg border bg-white/70 focus:outline-none"
+                    style={{ borderColor: currentTheme.accent, color: currentTheme.text }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedCanvasItem) return;
+
+                      const raw = selectedUrlInput.trim();
+                      if (selectedCanvasItem.kind === 'image') {
+                        if (!isAllowedImageUrl(raw)) {
+                          alert('Please enter a valid image URL ending with .jpg, .jpeg, or .png');
+                          return;
+                        }
+                        updateCanvasItem(selectedCanvasItem.id, { url: raw });
+                        return;
+                      }
+
+                      const embed = toYouTubeEmbedUrl(raw);
+                      if (!embed) {
+                        alert('Please enter a valid YouTube URL');
+                        return;
+                      }
+                      updateCanvasItem(selectedCanvasItem.id, { url: embed });
+                    }}
+                    className="px-3 py-2 rounded-lg font-semibold text-white flex items-center justify-center gap-2"
+                    style={{ backgroundColor: currentTheme.accent }}
+                    title="Update URL"
+                  >
+                    Update
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {/* Add Image */}
+              <div className="rounded-lg bg-white/40 border p-3" style={{ borderColor: currentTheme.accent }}>
+                <label className="block text-xs font-bold mb-1" style={{ color: currentTheme.text }}>Image URL (jpg/png)</label>
+                <div className="flex gap-2">
+                  <input
+                    value={imageUrlInput}
+                    onChange={(e) => setImageUrlInput(e.target.value)}
+                    placeholder="https://.../photo.jpg"
+                    className="flex-1 px-3 py-2 rounded-lg border bg-white/70 focus:outline-none"
+                    style={{ borderColor: currentTheme.accent, color: currentTheme.text }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = imageUrlInput.trim();
+                      if (!isAllowedImageUrl(url)) {
+                        alert('Please enter a valid image URL ending with .jpg, .jpeg, or .png');
+                        return;
+                      }
+                      const id = `img-${Date.now()}`;
+                      const next: CanvasItem = {
+                        id,
+                        kind: 'image',
+                        url,
+                        x: 10,
+                        y: 10,
+                        width: 260,
+                        height: 180,
+                        zIndex: maxZIndex + 1,
+                      };
+                      setCanvasItems((prev) => [...prev, next]);
+                      setImageUrlInput('');
+                    }}
+                    className="px-3 py-2 rounded-lg font-semibold text-white flex items-center gap-2"
+                    style={{ backgroundColor: currentTheme.accent }}
+                    title="Add image"
+                  >
+                    <ImageIcon size={16} />
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Add YouTube */}
+              <div className="rounded-lg bg-white/40 border p-3" style={{ borderColor: currentTheme.accent }}>
+                <label className="block text-xs font-bold mb-1" style={{ color: currentTheme.text }}>YouTube URL</label>
+                <div className="flex gap-2">
+                  <input
+                    value={youtubeUrlInput}
+                    onChange={(e) => setYoutubeUrlInput(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="flex-1 px-3 py-2 rounded-lg border bg-white/70 focus:outline-none"
+                    style={{ borderColor: currentTheme.accent, color: currentTheme.text }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const raw = youtubeUrlInput.trim();
+                      const embed = toYouTubeEmbedUrl(raw);
+                      if (!embed) {
+                        alert('Please enter a valid YouTube URL');
+                        return;
+                      }
+                      const id = `yt-${Date.now()}`;
+                      const next: CanvasItem = {
+                        id,
+                        kind: 'youtube',
+                        url: embed,
+                        x: 20,
+                        y: 20,
+                        width: 320,
+                        height: 180,
+                        zIndex: maxZIndex + 1,
+                      };
+                      setCanvasItems((prev) => [...prev, next]);
+                      setYoutubeUrlInput('');
+                    }}
+                    className="px-3 py-2 rounded-lg font-semibold text-white flex items-center gap-2"
+                    style={{ backgroundColor: currentTheme.accent }}
+                    title="Add YouTube"
+                  >
+                    <Youtube size={16} />
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 relative w-full h-[420px] rounded-xl overflow-hidden bg-white/40 border" style={{ borderColor: currentTheme.accent }}>
+              {canvasItems.length === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <p className="text-sm" style={{ color: currentTheme.text, opacity: 0.7 }}>No media yet — add an Image or YouTube link above.</p>
+                </div>
+              ) : null}
+
+              {canvasItems.map((it) => (
+                <Rnd
+                  key={it.id}
+                  bounds="parent"
+                  size={{ width: it.width, height: it.height }}
+                  position={{ x: it.x, y: it.y }}
+                  onDragStart={() => bringToFront(it.id)}
+                  onResizeStart={() => bringToFront(it.id)}
+                  onDragStop={(_, d) => updateCanvasItem(it.id, { x: d.x, y: d.y })}
+                  onResizeStop={(_, __, ref, ___, position) =>
+                    updateCanvasItem(it.id, {
+                      width: ref.offsetWidth,
+                      height: ref.offsetHeight,
+                      x: position.x,
+                      y: position.y,
+                    })
+                  }
+                  style={{ zIndex: it.zIndex || 0 }}
+                  className="group"
+                >
+                  <div
+                    className="h-full w-full rounded-lg border bg-white shadow-sm overflow-hidden relative"
+                    style={{
+                      borderColor: currentTheme.accent,
+                      boxShadow:
+                        selectedCanvasItemId === it.id
+                          ? `0 0 0 3px ${currentTheme.accent}55, 0 10px 22px rgba(0,0,0,0.12)`
+                          : undefined,
+                    }}
+                    onMouseDown={() => {
+                      setSelectedCanvasItemId(it.id);
+                      bringToFront(it.id);
+                    }}
+                  >
+                    <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                      <button
+                        type="button"
+                        onClick={() => deleteCanvasItem(it.id)}
+                        className="h-8 w-8 rounded-lg bg-red-600 text-white flex items-center justify-center hover:bg-red-700"
+                        title="Remove"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    {it.kind === 'image' ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={it.url}
+                        alt="Journal image"
+                        className="h-full w-full object-cover"
+                        draggable={false}
+                      />
+                    ) : (
+                      <iframe
+                        src={it.url}
+                        className="h-full w-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        title="YouTube video"
+                      />
+                    )}
+                  </div>
+                </Rnd>
+              ))}
+            </div>
+          </div>
 
           {/* Tags Section */}
           <div className="space-y-2">

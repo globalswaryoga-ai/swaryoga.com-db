@@ -9,19 +9,10 @@ import {
 import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { isRateLimited } from '@/lib/rateLimit';
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 
 function getBaseUrl(request: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_API_URL;
-  if (configured && configured.trim()) return configured.trim().replace(/\/$/, '');
-
-  const origin = request.headers.get('origin');
-  if (origin) return origin.replace(/\/$/, '');
-
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-  const proto = request.headers.get('x-forwarded-proto') || 'https';
-  if (host) return `${proto}://${host}`.replace(/\/$/, '');
-
-  return '';
+  return getRequestBaseUrl(request);
 }
 
 function isSafeRedirectTarget(value: string | null): value is string {
@@ -308,7 +299,8 @@ export async function POST(request: NextRequest) {
     const cooldownMs = 60_000;
     const payMethod = body.country === 'india' ? 'india_payu' : 'international_payu';
     const cutoff = new Date(Date.now() - cooldownMs);
-    const recentPending = await Order.findOne({
+    type RecentPendingLean = { _id: unknown; createdAt?: unknown };
+    const recentPending = (await Order.findOne({
       userId: decoded.userId,
       paymentStatus: 'pending',
       paymentMethod: payMethod,
@@ -316,10 +308,10 @@ export async function POST(request: NextRequest) {
     })
       .select({ _id: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
-      .lean();
+      .lean()) as RecentPendingLean | null;
 
     if (recentPending?.createdAt) {
-      const createdAt = new Date(recentPending.createdAt as unknown as string | number | Date).getTime();
+      const createdAt = new Date(recentPending.createdAt as string | number | Date).getTime();
       const retryAfterSec = Math.max(1, Math.ceil((createdAt + cooldownMs - Date.now()) / 1000));
       return NextResponse.json(
         {
@@ -388,8 +380,10 @@ export async function POST(request: NextRequest) {
     const baseUrl = getBaseUrl(request) || 'http://localhost:3000';
     const callbackBase = `${baseUrl}/api/payments/payu/callback`;
 
-    const successTarget = isSafeRedirectTarget(body.successUrl) ? body.successUrl : '/payment-successful';
-    const failureTarget = isSafeRedirectTarget(body.failureUrl) ? body.failureUrl : '/payment-failed';
+    const successUrl = typeof body.successUrl === 'string' ? body.successUrl : null;
+    const failureUrl = typeof body.failureUrl === 'string' ? body.failureUrl : null;
+    const successTarget = successUrl && isSafeRedirectTarget(successUrl) ? successUrl : '/payment-successful';
+    const failureTarget = failureUrl && isSafeRedirectTarget(failureUrl) ? failureUrl : '/payment-failed';
     const callbackUrl = `${callbackBase}?success=${encodeURIComponent(successTarget)}&failure=${encodeURIComponent(failureTarget)}`;
 
     // Prepare PayU parameters

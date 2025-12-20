@@ -88,7 +88,7 @@ export default function ActionPlanModal({
     setNewTodoTitle('');
     setNewTodoDueDate('');
     setNewTodoDueTime('11:00');
-  }, [isOpen, editingPlan?.id, editingPlan?.visionId, visions, today]);
+  }, [isOpen, editingPlan, visions, today]);
   
   // Filter visions by selected head
   const visionsUnderHead = selectedVisionHead
@@ -327,7 +327,7 @@ export default function ActionPlanModal({
           </div>
 
           {/* Date Range */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-swar-text mb-2">
                 Start Date *
@@ -351,7 +351,7 @@ export default function ActionPlanModal({
           </div>
 
           {/* Working Hours */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-swar-text mb-2">
                 Working Hours Start
@@ -410,7 +410,7 @@ export default function ActionPlanModal({
               <h3 className="text-lg font-bold text-swar-text">Milestones</h3>
               <button
                 onClick={handleAddMilestone}
-                className="px-4 py-2 bg-swar-primary-light0 text-white rounded-lg hover:bg-swar-primary transition-colors"
+                className="px-4 py-2 bg-swar-primary text-white rounded-lg hover:opacity-90 transition-colors"
               >
                 + Add Milestone
               </button>
@@ -435,7 +435,7 @@ export default function ActionPlanModal({
               <h3 className="text-lg font-bold text-swar-text">Goals</h3>
               <button
                 onClick={handleAddGoal}
-                className="px-4 py-2 bg-swar-primary-light0 text-white rounded-lg hover:bg-swar-primary transition-colors"
+                className="px-4 py-2 bg-swar-primary text-white rounded-lg hover:opacity-90 transition-colors"
               >
                 + Add Goal
               </button>

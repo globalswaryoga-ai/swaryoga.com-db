@@ -3,7 +3,7 @@
  * Replaces localStorage with persistent MongoDB storage
  */
 
-import { Reminder, Vision, Goal, Task, Todo, Word, HealthRoutine, DiamondPerson, ProgressReport, ActionPlan } from '@/lib/types/lifePlanner';
+import { Reminder, Vision, Goal, Task, Todo, Word, HealthRoutine, DiamondPerson, ProgressReport, ActionPlan, DailyHealthPlan } from '@/lib/types/lifePlanner';
 import { getSession } from '@/lib/sessionManager';
 
 class LifePlannerMongoStorage {
@@ -330,6 +330,40 @@ class LifePlannerMongoStorage {
       if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save health routines');
+    }
+  }
+
+  async getDailyHealthPlans(): Promise<DailyHealthPlan[]> {
+    const email = this.getEmail() || this.getEmailFallback();
+    if (!email) return [];
+    try {
+      const response = await fetch(`/api/life-planner/data?type=dailyHealthPlans`, {
+        headers: this.authHeaders(),
+      });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
+      if (!response.ok) return [];
+      const result = await response.json();
+      return result.data || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async saveDailyHealthPlans(plans: DailyHealthPlan[]): Promise<void> {
+    const email = this.getEmail() || this.getEmailFallback();
+    if (!email) return;
+    try {
+      const response = await fetch('/api/life-planner/data', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ type: 'dailyHealthPlans', data: plans }),
+      });
+      if (response.status === 401) this.handleUnauthorized();
+    } catch {
+      console.error('Failed to save daily health plans');
     }
   }
 

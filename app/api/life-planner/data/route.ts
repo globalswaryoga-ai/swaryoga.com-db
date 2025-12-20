@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
       words: user.lifePlannerWords || [],
       reminders: user.lifePlannerReminders || [],
       healthRoutines: user.lifePlannerHealthRoutines || [],
+      dailyHealthPlans: user.lifePlannerDailyHealthPlans || [],
       diamondPeople: user.lifePlannerDiamondPeople || [],
       progress: user.lifePlannerProgress || [],
     });

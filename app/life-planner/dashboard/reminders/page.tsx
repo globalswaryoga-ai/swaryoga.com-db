@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { AlertCircle, Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
-import type { Reminder as DbReminder } from '@/lib/types/lifePlanner';
+import { VISION_CATEGORIES, type Reminder as DbReminder, type VisionCategory } from '@/lib/types/lifePlanner';
 
 const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
@@ -13,6 +13,7 @@ type UiReminder = {
   text: string;
   date: string;
   time: string;
+  visionHead?: VisionCategory;
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
   customDays?: number;
   completed?: boolean;
@@ -25,6 +26,7 @@ function dbToUiReminder(r: DbReminder): UiReminder {
     text: r.title || r.description || '',
     date: r.dueDate || r.startDate || '',
     time: r.dueTime || '11:00',
+    visionHead: (r.visionHead || (r.category as any)) as VisionCategory | undefined,
     frequency: (r.frequency as UiReminder['frequency']) || 'once',
     completed: Boolean(r.completed),
     imageUrl: r.imageUrl,
@@ -36,6 +38,10 @@ function uiToDbReminder(r: UiReminder): DbReminder {
     id: r.id,
     title: r.text,
     description: '',
+    // Persist Vision Head in a dedicated field, but also mirror into `category`
+    // because some older dashboards only read `category`.
+    visionHead: r.visionHead,
+    category: r.visionHead,
     startDate: r.date,
     dueDate: r.date,
     // Keep both fields for back-compat across screens
@@ -63,6 +69,7 @@ export default function RemindersPage() {
     text: '',
     date: '',
     time: '11:00',
+    visionHead: '' as '' | VisionCategory,
     frequency: 'once' as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
     customDays: 1,
     imageUrl: DEFAULT_IMAGE,
@@ -119,8 +126,8 @@ export default function RemindersPage() {
   }, [mounted, searchParams, openCreate, router]);
 
   const isFormValid = useMemo(
-    () => formData.text.trim().length > 0 && formData.date && formData.time,
-    [formData.text, formData.date, formData.time]
+    () => formData.text.trim().length > 0 && formData.date && formData.time && Boolean(formData.visionHead),
+    [formData.text, formData.date, formData.time, formData.visionHead]
   );
 
   const handleAddReminder = useCallback(() => {
@@ -134,6 +141,7 @@ export default function RemindersPage() {
       text: formData.text,
       date: formData.date,
       time: formData.time,
+      visionHead: formData.visionHead || undefined,
       frequency: formData.frequency,
       customDays: formData.frequency === 'custom' ? formData.customDays : undefined,
       imageUrl: formData.imageUrl || DEFAULT_IMAGE,
@@ -144,6 +152,7 @@ export default function RemindersPage() {
       text: '',
       date: '',
       time: '11:00',
+      visionHead: '',
       frequency: 'once',
       customDays: 1,
       imageUrl: DEFAULT_IMAGE,
@@ -180,16 +189,16 @@ export default function RemindersPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-swar-text">Reminders</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text">Reminders</h1>
           <p className="text-swar-text-secondary mt-1">Set up reminders for important tasks and events</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-swar-accent to-swar-accent px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
+          className="w-full sm:w-auto justify-center flex items-center gap-2 rounded-xl bg-gradient-to-r from-swar-accent to-swar-accent px-4 py-2 text-white font-semibold hover:from-red-600 hover:to-pink-600 transition"
         >
           <Plus className="h-5 w-5" />
           Add Reminder
@@ -198,7 +207,7 @@ export default function RemindersPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div>
             <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
@@ -310,6 +319,20 @@ export default function RemindersPage() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-swar-text mb-2">Vision Head *</label>
+                <select
+                  value={formData.visionHead}
+                  onChange={(e) => setFormData({ ...formData, visionHead: e.target.value as any })}
+                  className="w-full rounded-lg border border-swar-border px-4 py-3 text-swar-text outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 bg-white"
+                >
+                  <option value="">Select Vision Head</option>
+                  {VISION_CATEGORIES.map((head) => (
+                    <option key={head} value={head}>{head}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-swar-text mb-2">Image URL</label>
                 <input
                   type="text"
@@ -325,7 +348,7 @@ export default function RemindersPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-swar-text mb-2">Date *</label>
                   <input
@@ -384,7 +407,7 @@ export default function RemindersPage() {
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-3 pt-5 pb-5 border-t-2 border-swar-border bg-gradient-to-r from-pink-50 via-white to-red-50 sticky bottom-0">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-5 pb-5 border-t-2 border-swar-border bg-gradient-to-r from-pink-50 via-white to-red-50 sticky bottom-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -394,19 +417,20 @@ export default function RemindersPage() {
                       text: '',
                       date: today,
                       time: '11:00',
+                      visionHead: '',
                       frequency: 'once',
                       customDays: 1,
                       imageUrl: DEFAULT_IMAGE,
                     });
                   }}
-                  className="px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
+                  className="w-full sm:w-auto px-6 py-2 border border-swar-border rounded-lg text-swar-text font-medium hover:bg-swar-bg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleAddReminder}
-                  className="px-6 py-2 bg-gradient-to-r from-swar-accent to-swar-accent text-white rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-colors disabled:opacity-60"
+                  className="w-full sm:w-auto px-6 py-2 bg-gradient-to-r from-swar-accent to-swar-accent text-white rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-colors disabled:opacity-60"
                 >
                   Create Reminder
                 </button>

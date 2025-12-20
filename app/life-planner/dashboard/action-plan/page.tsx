@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ActionPlan, Vision } from '@/lib/types/lifePlanner';
+import { ActionPlan, Goal, Vision } from '@/lib/types/lifePlanner';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import ActionPlanModal from '@/components/ActionPlanModal';
 
@@ -34,6 +34,7 @@ export default function ActionPlanPage() {
 
   const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
   const [visions, setVisions] = useState<Vision[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<ActionPlan | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -49,10 +50,48 @@ export default function ActionPlanPage() {
   useEffect(() => {
     setMounted(true);
     (async () => {
-      const savedPlans = await lifePlannerStorage.getActionPlans();
-      const savedVisions = await lifePlannerStorage.getVisions();
-      setActionPlans(savedPlans);
-      setVisions(savedVisions);
+      const [savedPlans, savedVisions, savedGoals] = await Promise.all([
+        lifePlannerStorage.getActionPlans(),
+        lifePlannerStorage.getVisions(),
+        lifePlannerStorage.getGoals(),
+      ]);
+
+      const plansArr = Array.isArray(savedPlans) ? savedPlans : [];
+      const visionsArr = Array.isArray(savedVisions) ? savedVisions : [];
+
+      // Merge flat goals with any goals embedded under visions (back-compat).
+      const flatGoals = Array.isArray(savedGoals) ? (savedGoals as Goal[]) : [];
+      const derivedGoals: Goal[] = visionsArr.flatMap((v) => {
+        const list = Array.isArray((v as any).goals) ? ((v as any).goals as any[]) : [];
+        return list
+          .filter(Boolean)
+          .map((g: any) => {
+            const visionId = String(g?.visionId || v.id || '').trim();
+            return { ...g, visionId } as Goal;
+          });
+      });
+
+      const visionsByTitle = new Map<string, string>();
+      for (const v of visionsArr) {
+        if (v?.title) visionsByTitle.set(String(v.title).trim().toLowerCase(), v.id);
+      }
+
+      const repairedFlatGoals = flatGoals.map((g: any) => {
+        if (g?.visionId) return g as Goal;
+        const vt = String(g?.visionTitle || '').trim().toLowerCase();
+        const guessed = vt ? visionsByTitle.get(vt) : undefined;
+        return ({ ...g, visionId: guessed || g?.visionId } as Goal);
+      });
+
+      const byId = new Map<string, Goal>();
+      for (const g of [...repairedFlatGoals, ...derivedGoals]) {
+        if (!g?.id) continue;
+        byId.set(String(g.id), g);
+      }
+
+      setActionPlans(plansArr);
+      setVisions(visionsArr);
+      setGoals(Array.from(byId.values()));
       setHasLoaded(true);
     })();
   }, []);
@@ -155,15 +194,15 @@ export default function ActionPlanPage() {
   if (!mounted) return null;
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-swar-text mb-2">Action Plans</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text mb-2">Action Plans</h1>
           <p className="text-swar-text-secondary">Break down your visions into actionable milestones and goals</p>
         </div>
         <button
           onClick={handleAddPlan}
-          className="flex items-center space-x-2 bg-gradient-to-r from-swar-primary to-swar-accent text-white px-6 py-3 rounded-lg hover:from-swar-primary hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
+          className="w-full sm:w-auto justify-center flex items-center space-x-2 bg-gradient-to-r from-swar-primary to-swar-accent text-white px-6 py-3 rounded-lg hover:from-swar-primary hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl"
         >
           <Plus className="h-5 w-5" />
           <span>Create Action Plan</span>
@@ -266,7 +305,14 @@ export default function ActionPlanPage() {
           <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
             {filteredPlans.length > 0 ? (
               filteredPlans.slice(sliderIndex, sliderIndex + 3).map((plan) => (
-                <div key={plan.id} className="flex-shrink-0 w-80">
+                (() => {
+                  const visionGoals = goals.filter((g) => g.visionId === plan.visionId);
+                  const actionPlanGoals = plan.goals || [];
+                  const combinedGoalCount = visionGoals.length + actionPlanGoals.length;
+                  const firstGoalId = visionGoals?.[0]?.id || actionPlanGoals?.[0]?.id || '';
+
+                  return (
+                <div key={plan.id} className="flex-shrink-0 w-[min(22rem,90vw)] sm:w-80">
                   {/* Card - Increased Height */}
                   <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 h-auto flex flex-col" style={{maxHeight: '600px'}}>
                     {/* Header with Image and Status */}
@@ -284,14 +330,13 @@ export default function ActionPlanPage() {
                         </div>
                       )}
                       <div className="absolute top-3 left-3">
-                        {plan.goals && plan.goals.length > 0 && (
+                        {combinedGoalCount > 0 && (
                           <button
                             type="button"
                             className="inline-flex items-center gap-2 bg-black/55 backdrop-blur text-white px-3 py-1 rounded-full text-xs font-extrabold border border-white/20 hover:bg-black/65 transition"
                             title="Open Tasks"
                             onClick={() => {
                               const head = getVisionCategory(plan.visionId);
-                              const firstGoalId = plan.goals?.[0]?.id || '';
                               const params = new URLSearchParams();
                               params.set('openTaskForm', '1');
                               if (head) params.set('head', head);
@@ -302,7 +347,7 @@ export default function ActionPlanPage() {
                             <span className="text-sm">🎯</span>
                             <span>Goals</span>
                             <span className="text-[11px] font-black bg-white/20 rounded-full px-2 py-0.5">
-                              {plan.goals.length}
+                              {combinedGoalCount}
                             </span>
                           </button>
                         )}
@@ -322,7 +367,7 @@ export default function ActionPlanPage() {
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-swar-primary-light text-swar-text text-xs font-bold">
                           <span>🎯 Goals</span>
                           <span className="text-[11px] font-black bg-white rounded-full px-2 py-0.5 border border-swar-border">
-                            {plan.goals?.length || 0}
+                            {combinedGoalCount}
                           </span>
                         </div>
 
@@ -416,21 +461,43 @@ export default function ActionPlanPage() {
                         </div>
                       )}
 
-                      {/* Goals Section */}
-                      {plan.goals && plan.goals.length > 0 && (
+                      {/* Goals Section (Vision Goals + Action Plan Goals) */}
+                      {combinedGoalCount > 0 && (
                         <div className="mb-3">
                           <div className="flex items-center justify-between mb-2">
                             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 text-emerald-700 px-3 py-1 text-sm font-extrabold border border-emerald-100">
                               <span className="text-base">🎯</span>
                               <span>Goals</span>
-                              <span className="text-xs font-black bg-emerald-600 text-white rounded-full px-2 py-0.5">{plan.goals.length}</span>
+                              <span className="text-xs font-black bg-emerald-600 text-white rounded-full px-2 py-0.5">{combinedGoalCount}</span>
                             </div>
                           </div>
-                          <div className="h-px bg-gradient-to-r from-emerald-200 via-gray-200 to-transparent mb-2" />
+                          <div className="h-px bg-gray-200 mb-2" />
                           <div className="space-y-2 max-h-24 overflow-y-auto">
-                            {plan.goals.map((goal) => (
-                              <div key={goal.id} className="text-xs bg-swar-bg border border-gray-100 rounded-lg px-3 py-2">
-                                <p className="font-bold text-swar-text">{goal.title || 'Goal'}</p>
+                            {visionGoals.map((g) => (
+                              <div key={`vgoal-${g.id}`} className="text-xs bg-swar-bg border border-emerald-100 rounded-lg px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-bold text-swar-text">{g.title || 'Goal'}</p>
+                                  <span className="text-[10px] font-black rounded-full px-2 py-0.5 bg-emerald-600 text-white">Vision</span>
+                                </div>
+                                {(g.startDate || g.targetDate) && (
+                                  <p className="text-[11px] text-swar-text mt-0.5">
+                                    📅 {g.startDate ? new Date(g.startDate).toLocaleDateString() : '—'}
+                                    {'  '}–{'  '}
+                                    {g.targetDate ? new Date(g.targetDate).toLocaleDateString() : '—'}
+                                  </p>
+                                )}
+                                {g.description?.trim() && (
+                                  <p className="text-swar-text-secondary mt-1 line-clamp-2">{g.description}</p>
+                                )}
+                              </div>
+                            ))}
+
+                            {actionPlanGoals.map((goal) => (
+                              <div key={`pgoal-${goal.id}`} className="text-xs bg-swar-bg border border-gray-100 rounded-lg px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-bold text-swar-text">{goal.title || 'Goal'}</p>
+                                  <span className="text-[10px] font-black rounded-full px-2 py-0.5 bg-blue-600 text-white">Plan</span>
+                                </div>
                                 {(goal.startDate || goal.endDate) && (
                                   <p className="text-[11px] text-swar-text mt-0.5">
                                     📅 {goal.startDate ? new Date(goal.startDate).toLocaleDateString() : '—'}
@@ -481,6 +548,8 @@ export default function ActionPlanPage() {
                     </div>
                   </div>
                 </div>
+                  );
+                })()
               ))
             ) : (
               <div className="w-full flex items-center justify-center py-12">

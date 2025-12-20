@@ -75,31 +75,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, content, fontFamily, colorTheme, linkedTo, tags, mood, attachments } = body;
+    const { title, content, fontFamily, colorTheme, linkedTo, tags, mood, attachments, canvasItems } = body;
 
     // Validation
     if (!title?.trim()) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
-    if (!content?.trim()) {
-      return NextResponse.json({ error: 'Content is required' }, { status: 400 });
+    const hasCanvasItems = Array.isArray(canvasItems) && canvasItems.length > 0;
+    if (!content?.trim() && !hasCanvasItems) {
+      return NextResponse.json({ error: 'Content is required (or add an image / YouTube item)' }, { status: 400 });
     }
 
     // Calculate reading time (rough estimate: 200 words per minute)
-    const wordCount = content.split(/\s+/).length;
+    const safeContent = typeof content === 'string' ? content : '';
+    const wordCount = safeContent.trim() ? safeContent.trim().split(/\s+/).length : 0;
     const readingTimeMinutes = Math.ceil(wordCount / 200);
 
     // Create note
     const note = new Note({
       userId: decoded.userId,
       title: title.trim(),
-      content,
+      content: safeContent,
       fontFamily: fontFamily || 'poppins',
       colorTheme: colorTheme || 'serenity-blue',
       linkedTo: linkedTo || {},
       tags: tags || [],
       mood: mood || 'neutral',
       attachments: attachments || [],
+      canvasItems: Array.isArray(canvasItems) ? canvasItems : [],
       wordCount,
       readingTimeMinutes,
     });

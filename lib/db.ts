@@ -79,6 +79,7 @@ const userSchema = new mongoose.Schema({
   lifePlannerWords: [mongoose.Schema.Types.Mixed],
   lifePlannerReminders: [mongoose.Schema.Types.Mixed],
   lifePlannerHealthRoutines: [mongoose.Schema.Types.Mixed],
+  lifePlannerDailyHealthPlans: [mongoose.Schema.Types.Mixed],
   lifePlannerDiamondPeople: [mongoose.Schema.Types.Mixed],
   lifePlannerProgress: [mongoose.Schema.Types.Mixed],
   
@@ -651,6 +652,20 @@ const noteSchema = new mongoose.Schema({
     title: { type: String },
     uploadedAt: { type: Date, default: Date.now }
   }],
+
+  // Canvas items (draggable/resizable embeds) for Journal
+  canvasItems: [
+    {
+      id: { type: String, required: true },
+      kind: { type: String, enum: ['image', 'youtube'], required: true },
+      url: { type: String, required: true },
+      x: { type: Number, default: 0 },
+      y: { type: Number, default: 0 },
+      width: { type: Number, default: 260 },
+      height: { type: Number, default: 180 },
+      zIndex: { type: Number, default: 1 },
+    },
+  ],
   
   // Word count and reading time (for analytics)
   wordCount: { type: Number, default: 0 },

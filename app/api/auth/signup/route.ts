@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Validate input - trim strings and check for empty values
-    const missingFields = [];
+    const missingFields: string[] = [];
     if (!name?.trim()) missingFields.push('name');
     if (!email?.trim()) missingFields.push('email');
     if (!phone?.trim()) missingFields.push('phone');

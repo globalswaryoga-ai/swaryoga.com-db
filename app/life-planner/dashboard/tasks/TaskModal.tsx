@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Eye, Trash2, Plus } from 'lucide-react';
-import { Task, Vision, VisionCategory } from '@/lib/types/lifePlanner';
+import { Task, Vision, VisionCategory, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
 
 type GoalOption = {
@@ -57,6 +57,7 @@ const TaskModal: React.FC<TaskModalProps> = ({
 }) => {
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [showTodosEditor, setShowTodosEditor] = useState(false);
+  const [formError, setFormError] = useState<string>('');
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [newTodoDueDate, setNewTodoDueDate] = useState('');
   const [newTodoDueTime, setNewTodoDueTime] = useState('11:00');
@@ -82,37 +83,72 @@ const TaskModal: React.FC<TaskModalProps> = ({
 
   const formState = externalFormState || localFormState;
   const setFormState = externalSetFormState || setLocalFormState;
-  const visionOptionsForHead = externalVisionOptionsForHead || (() => []);
-  const goalOptionsForVision = externalGoalOptionsForVision || (() => []);
+
+  const normalizeHead = (value: unknown): string => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    const canonical = VISION_CATEGORIES.find((c) => c.toLowerCase() === raw.toLowerCase());
+    return canonical || raw;
+  };
+
+  const visionOptionsForHead =
+    externalVisionOptionsForHead ||
+    ((head: string) => {
+      const h = normalizeHead(head);
+      return visions.filter((v) => normalizeHead((v as any).category) === h);
+    });
+  const goalOptionsForVision =
+    externalGoalOptionsForVision ||
+    ((visionId: string) => {
+      const selectedVision = visions.find((v) => v.id === visionId);
+      const selectedVisionTitle = (selectedVision?.title || '').trim().toLowerCase();
+      const embeddedGoalIds = new Set(
+        (Array.isArray((selectedVision as any)?.goals) ? ((selectedVision as any).goals as any[]) : [])
+          .map((g: any) => String(g?.id || ''))
+          .filter(Boolean)
+      );
+
+      return goals.filter((g: any) => {
+        if (g?.visionId === visionId) return true;
+        // Legacy shape: some UIs stored visionTitle on the goal
+        if (selectedVisionTitle && String(g?.visionTitle || '').trim().toLowerCase() === selectedVisionTitle) return true;
+        // If the goal exists in the selected vision's embedded goals list, include it.
+        if (g?.id && embeddedGoalIds.has(String(g.id))) return true;
+        return false;
+      });
+    });
 
   const handleHeadChange = (head: string) => {
+    setFormError('');
     setFormState(prev => ({
       ...prev,
-      visionHead: head,
+      visionHead: normalizeHead(head),
       visionId: '',
       goalId: '',
     }));
   };
 
   const handleVisionChange = (visionId: string) => {
+    setFormError('');
     const v = visions.find(vv => vv.id === visionId);
     setFormState(prev => ({
       ...prev,
-      visionHead: v?.category ? String(v.category) : prev.visionHead,
+      visionHead: v?.category ? normalizeHead(v.category) : prev.visionHead,
       visionId,
       goalId: '',
     }));
   };
 
   const handleGoalChange = (goalId: string) => {
+    setFormError('');
     setFormState(prev => ({
       ...prev,
       goalId,
     }));
   };
 
-  const availableHeads = Array.from(new Set(visions.map(v => v.category).filter(Boolean)));
-  const visionsForHead = formState.visionHead ? visionOptionsForHead(formState.visionHead) : [];
+  const availableHeads = Array.from(new Set(visions.map((v) => normalizeHead((v as any).category)).filter(Boolean)));
+  const visionsForHead = formState.visionHead ? visionOptionsForHead(normalizeHead(formState.visionHead)) : [];
 
   const goalsForVision = useMemo(() => {
     if (!formState.visionId) return [] as GoalOption[];
@@ -202,6 +238,24 @@ const TaskModal: React.FC<TaskModalProps> = ({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+
+            if (!formState.visionHead?.trim()) {
+              setFormError('Please select a Head / Category.');
+              return;
+            }
+            if (!formState.visionId?.trim()) {
+              setFormError('Please select a Vision.');
+              return;
+            }
+            if (!formState.goalId?.trim()) {
+              setFormError('Please select a Goal.');
+              return;
+            }
+            if (!formState.title?.trim()) {
+              setFormError('Please enter a Task Title.');
+              return;
+            }
+
             const taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> = {
               title: formState.title,
               description: formState.description,
@@ -223,6 +277,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
           }}
           className="p-6 space-y-5"
         >
+          {formError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              {formError}
+            </div>
+          ) : null}
+
           {/* Head Selection */}
           <div>
             <label className="block text-sm font-semibold text-swar-text mb-2">

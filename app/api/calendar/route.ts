@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const results = [];
+    const results: Array<unknown> = [];
     const current = new Date(start);
     
     while (current <= end) {

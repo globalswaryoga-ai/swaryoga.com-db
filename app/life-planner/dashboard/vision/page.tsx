@@ -157,17 +157,32 @@ export default function VisionPage() {
 
   const handleSaveVision = (visionData: Omit<Vision, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingVision) {
+      const visionId = editingVision.id;
+      const fixedVisionData: Omit<Vision, 'id' | 'createdAt' | 'updatedAt'> = {
+        ...visionData,
+        goals: Array.isArray((visionData as any).goals)
+          ? (visionData as any).goals.map((g: any) => ({ ...g, visionId }))
+          : (visionData as any).goals,
+      };
       setVisions(prev =>
         prev.map(v =>
           v.id === editingVision.id
-            ? { ...v, ...visionData, updatedAt: new Date().toISOString() }
+            ? { ...v, ...fixedVisionData, updatedAt: new Date().toISOString() }
             : v
         )
       );
     } else {
-      const newVision: Vision = {
+      const newId = Date.now().toString();
+      const fixedVisionData: Omit<Vision, 'id' | 'createdAt' | 'updatedAt'> = {
         ...visionData,
-        id: Date.now().toString(),
+        goals: Array.isArray((visionData as any).goals)
+          ? (visionData as any).goals.map((g: any) => ({ ...g, visionId: g?.visionId || newId }))
+          : (visionData as any).goals,
+      };
+
+      const newVision: Vision = {
+        ...fixedVisionData,
+        id: newId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -193,23 +208,50 @@ export default function VisionPage() {
   if (!mounted) return null;
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-swar-text mb-2">My Vision Plans</h1>
-          <p className="text-swar-text-secondary">Your long-term projects with milestones and timelines</p>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Report-style header */}
+      <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200" style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.12) 0%, rgba(99,102,241,0.10) 45%, rgba(236,72,153,0.10) 100%)' }}>
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.18em] font-extrabold text-slate-600">Vision Project Report</p>
+              <h1 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight text-slate-900">My Vision Plans</h1>
+              <p className="mt-1 text-sm text-slate-600">Your long-term projects with milestones and timelines.</p>
+            </div>
+            <button
+              onClick={handleAddVision}
+              className="inline-flex items-center gap-2 rounded-2xl bg-swar-primary px-5 py-2.5 text-white font-extrabold hover:bg-swar-primary-dark transition shadow-sm"
+            >
+              <Plus className="h-5 w-5" />
+              Add Vision
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleAddVision}
-          className="flex items-center space-x-2 bg-gradient-to-r from-swar-accent to-swar-accent text-white px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Add Vision Plan</span>
-        </button>
+
+        <div className="px-6 py-5">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-extrabold text-emerald-700">Total visions</p>
+              <p className="mt-1 text-2xl font-black text-slate-900">{visions.length}</p>
+            </div>
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-extrabold text-indigo-700">Shown</p>
+              <p className="mt-1 text-2xl font-black text-slate-900">{filteredVisions.length}</p>
+            </div>
+            <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-extrabold text-orange-700">Vision Heads</p>
+              <p className="mt-1 text-2xl font-black text-slate-900">{uniqueCategories.length}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] font-extrabold text-slate-600">Statuses</p>
+              <p className="mt-1 text-2xl font-black text-slate-900">{uniqueStatuses.length}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="mb-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div>
             <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
@@ -299,22 +341,27 @@ export default function VisionPage() {
           </div>
         </div>
 
-        <p className="mt-3 text-sm text-swar-text-secondary">Showing {filteredVisions.length} of {visions.length} vision plans</p>
+        <p className="mt-3 text-sm text-slate-600">Showing {filteredVisions.length} of {visions.length} vision plans</p>
       </div>
 
-      <div className="mb-12">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-swar-text">Vision Plan Preview Slider</h2>
-          <p className="text-sm text-swar-text-secondary">Showing {Math.min(3, filteredVisions.length)} of {filteredVisions.length} vision plans</p>
+      <div>
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">Preview</h2>
+            <p className="text-sm text-slate-600">Open PDF to see the full A4 report.</p>
+          </div>
+          <p className="text-sm text-slate-600">
+            Showing {filteredVisions.slice(sliderIndex, sliderIndex + 3).length} of {filteredVisions.length}
+          </p>
         </div>
 
         <div className="relative">
           <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
-            {filteredVisions.slice(0, 3).length > 0 ? (
-              filteredVisions.slice(0, 3).map((vision) => (
+            {filteredVisions.slice(sliderIndex, sliderIndex + 3).length > 0 ? (
+              filteredVisions.slice(sliderIndex, sliderIndex + 3).map((vision) => (
               <div key={vision.id} className="flex-shrink-0 w-80 min-w-[300px] max-w-[300px] h-full snap-start">
                 {/* Card */}
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
+                <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300 h-full flex flex-col">
                   <div className="relative h-48 overflow-hidden">
                     <img
                       src={vision.imageUrl || 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80'}
@@ -324,12 +371,12 @@ export default function VisionPage() {
                     <div className="absolute top-3 right-3 flex items-center gap-2">
                       <button
                         onClick={() => handleAddActionPlanForVision(vision)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-full text-xs font-bold transition"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-full text-xs font-extrabold transition shadow-sm"
                       >
                         + Action Plan
                       </button>
                       {vision.category && (
-                        <div className={`${CATEGORY_COLORS[vision.category]?.bg || 'bg-gray-600'} ${CATEGORY_COLORS[vision.category]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-bold`}>
+                        <div className={`${CATEGORY_COLORS[vision.category]?.bg || 'bg-slate-600'} ${CATEGORY_COLORS[vision.category]?.text || 'text-white'} px-3 py-1 rounded-full text-xs font-extrabold shadow-sm`}>
                           {vision.category}
                         </div>
                       )}
@@ -337,8 +384,8 @@ export default function VisionPage() {
                   </div>
 
                   <div className="p-5">
-                    <h3 className="text-lg font-bold text-swar-text mb-2 line-clamp-2">{vision.title}</h3>
-                    <p className="text-sm text-swar-text-secondary mb-4 line-clamp-2">{vision.description}</p>
+                    <h3 className="text-lg font-black tracking-tight text-slate-900 mb-1 line-clamp-2">{vision.title}</h3>
+                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">{vision.description}</p>
 
                     <div className="space-y-2 text-xs text-swar-text">
                       {vision.place && <div className="flex items-center gap-2">📍 {vision.place}</div>}
@@ -351,7 +398,7 @@ export default function VisionPage() {
                       {vision.budget && <div className="flex items-center gap-2">💰 Rs. {vision.budget}</div>}
                     </div>
 
-                    <div className="mt-4 flex gap-2">
+                    <div className="mt-4 flex flex-wrap gap-2">
                       <button
                         className="flex-1 px-3 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition"
                       >
@@ -362,6 +409,13 @@ export default function VisionPage() {
                         className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
                       >
                         Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/life-planner/dashboard/vision/print?visionId=${encodeURIComponent(vision.id)}`)}
+                        className="flex-1 px-3 py-2 bg-slate-900 text-white text-xs font-extrabold rounded-lg hover:bg-slate-800 transition"
+                      >
+                        PDF
                       </button>
                       <button
                         onClick={() => handleDeleteVision(vision.id)}

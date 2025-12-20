@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import Navigation from '@/components/Navigation';
 import LifePlannerSidebar from '@/components/LifePlannerSidebar';
 import LifePlannerTopNav from '@/components/LifePlannerTopNav';
 
@@ -59,12 +60,18 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
   }
 
   return (
-    <div className="flex h-screen bg-white">
-      <LifePlannerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+    <div className="min-h-screen flex flex-col bg-white">
+      {/* Main website header always on top */}
+      <Navigation />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <LifePlannerTopNav sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="flex-1 overflow-auto p-6 bg-white">{children}</main>
+      {/* Life Planner UI sits below website header */}
+      <div className="flex flex-1 min-h-0 bg-white">
+        <LifePlannerSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+          <LifePlannerTopNav sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+          <main className="flex-1 overflow-auto p-6 bg-white">{children}</main>
+        </div>
       </div>
     </div>
   );

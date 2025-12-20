@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { DiamondPerson } from '@/lib/types/lifePlanner';
+import { DiamondPerson, VISION_CATEGORIES, type VisionCategory } from '@/lib/types/lifePlanner';
 
 interface DiamondPersonModalProps {
   person: DiamondPerson | null;
@@ -22,6 +22,7 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
     notes: '',
     imageUrl: '',
     category: 'Spiritual Mentor',
+    visionHead: '' as '' | VisionCategory,
     relationship: 'professional' as 'professional' | 'personal' | 'family' | 'friend',
     lastContact: new Date().toISOString().split('T')[0],
   });
@@ -39,6 +40,7 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
         notes: person.notes || '',
         imageUrl: person.imageUrl || '',
         category: person.category || 'Spiritual Mentor',
+        visionHead: (person.visionHead || '') as any,
         relationship: (person.relationship || 'professional') as any,
         lastContact: person.lastContact || new Date().toISOString().split('T')[0],
       });
@@ -52,7 +54,10 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({
+      ...formData,
+      visionHead: formData.visionHead ? (formData.visionHead as any) : undefined,
+    });
   };
 
   return (
@@ -200,6 +205,23 @@ const DiamondPersonModal: React.FC<DiamondPersonModalProps> = ({ person, onSave,
                 <option value="friend">Friend</option>
               </select>
             </div>
+          </div>
+
+          {/* Vision Head */}
+          <div>
+            <label className="block text-sm font-medium text-swar-text mb-2">Vision Head</label>
+            <select
+              name="visionHead"
+              value={formData.visionHead}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-swar-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
+            >
+              <option value="">Select Vision Head</option>
+              {VISION_CATEGORIES.map((h) => (
+                <option key={h} value={h}>{h}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-swar-text-secondary">Optional: connects this person to one of your 10 Vision Heads.</p>
           </div>
 
           {/* Last Contact */}

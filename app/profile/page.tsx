@@ -8,6 +8,7 @@ import Footer from '@/components/Footer';
 import UserOffersDisplay from '@/components/UserOffersDisplay';
 import { LogOut, Mail, MessageSquare, ArrowLeft, User, Phone, MapPin, Briefcase, Shield, Calendar, Upload, ShoppingCart, CreditCard, Download } from 'lucide-react';
 import { getCurrencySymbol, roundMoney, type CurrencyCode } from '@/lib/paymentMath';
+import { clearSession } from '@/lib/sessionManager';
 
 interface Message {
   _id: string;
@@ -88,9 +89,40 @@ export default function UserProfile() {
   const [sendingChat, setSendingChat] = useState(false);
   const [downloadingReceipt, setDownloadingReceipt] = useState<string | null>(null);
 
+  const getUnifiedToken = () => {
+    return localStorage.getItem('token') || localStorage.getItem('lifePlannerToken') || '';
+  };
+
+  const getUnifiedUserRaw = () => {
+    return localStorage.getItem('user') || localStorage.getItem('lifePlannerUser') || '';
+  };
+
+  const safeUserFromStorage = (parsed: any): UserData | null => {
+    const email = typeof parsed?.email === 'string' ? parsed.email : '';
+    if (!email) return null;
+    const name = typeof parsed?.name === 'string' && parsed.name.trim() ? parsed.name : email.split('@')[0] || 'User';
+    const id = typeof parsed?.id === 'string' ? parsed.id : '';
+    return {
+      id,
+      profileId: typeof parsed?.profileId === 'string' ? parsed.profileId : undefined,
+      name,
+      email,
+      phone: typeof parsed?.phone === 'string' ? parsed.phone : undefined,
+      country: typeof parsed?.country === 'string' ? parsed.country : undefined,
+      state: typeof parsed?.state === 'string' ? parsed.state : undefined,
+      gender: typeof parsed?.gender === 'string' ? parsed.gender : undefined,
+      age: typeof parsed?.age === 'number' ? parsed.age : undefined,
+      profession: typeof parsed?.profession === 'string' ? parsed.profession : undefined,
+      countryCode: typeof parsed?.countryCode === 'string' ? parsed.countryCode : undefined,
+      profileImage: typeof parsed?.profileImage === 'string' ? parsed.profileImage : undefined,
+    };
+  };
+
   const downloadReceipt = async (orderId: string) => {
     try {
       setDownloadingReceipt(orderId);
+
+      const token = getUnifiedToken();
       
       // Fetch receipt data from API
       const response = await fetch(`/api/orders/${orderId}/receipt`, {
@@ -498,9 +530,13 @@ export default function UserProfile() {
 
       // Generate PDF
       const pdfBuffer = await renderToBuffer(<ReceiptDoc />);
+
+      // Ensure we always pass a plain Uint8Array backed by an ArrayBuffer to Blob
+      // (Buffer typings can involve SharedArrayBuffer which TS doesn't accept as BlobPart).
+      const pdfBytes = Uint8Array.from(pdfBuffer as unknown as Uint8Array);
       
       // Download file
-      const url = URL.createObjectURL(new Blob([pdfBuffer], { type: 'application/pdf' }));
+      const url = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
       link.download = `Swar-Yoga-Receipt-${orderId}.pdf`;
@@ -537,24 +573,30 @@ export default function UserProfile() {
         }
       } else if (response.status === 404) {
         // API doesn't exist yet, use stored user
-        const storedUser = localStorage.getItem('user');
+        const storedUser = getUnifiedUserRaw();
         if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          setUser(userData);
-          if (userData.profileImage) {
-            setProfileImagePreview(userData.profileImage);
+          const parsed = JSON.parse(storedUser);
+          const userData = safeUserFromStorage(parsed);
+          if (userData) {
+            setUser(userData);
+            if (userData.profileImage) {
+              setProfileImagePreview(userData.profileImage);
+            }
           }
         }
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
       // Fallback to stored user
-      const storedUser = localStorage.getItem('user');
+      const storedUser = getUnifiedUserRaw();
       if (storedUser) {
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-        if (userData.profileImage) {
-          setProfileImagePreview(userData.profileImage);
+        const parsed = JSON.parse(storedUser);
+        const userData = safeUserFromStorage(parsed);
+        if (userData) {
+          setUser(userData);
+          if (userData.profileImage) {
+            setProfileImagePreview(userData.profileImage);
+          }
         }
       }
     }
@@ -577,7 +619,16 @@ export default function UserProfile() {
         // API already filters to this user; keep a legacy fallback just in case.
         const data = Array.isArray(payload) ? payload : payload?.data;
 
-        const userEmail = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).email : '';
+        const userEmail = (() => {
+          try {
+            const raw = getUnifiedUserRaw();
+            if (!raw) return '';
+            const parsed = JSON.parse(raw);
+            return typeof parsed?.email === 'string' ? parsed.email : '';
+          } catch {
+            return '';
+          }
+        })();
         const filteredMessages = Array.isArray(data)
           ? data.filter((msg) => msg.recipientEmail === userEmail || msg.senderEmail === userEmail)
           : [];
@@ -611,8 +662,8 @@ export default function UserProfile() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
+    const token = getUnifiedToken();
+    const storedUser = getUnifiedUserRaw();
     
     if (!token || !storedUser) {
       router.push('/signin?redirect=/profile');
@@ -620,7 +671,12 @@ export default function UserProfile() {
     }
 
     try {
-      const userData = JSON.parse(storedUser);
+      const parsed = JSON.parse(storedUser);
+      const userData = safeUserFromStorage(parsed);
+      if (!userData) {
+        router.push('/signin?redirect=/profile');
+        return;
+      }
       setUser(userData);
       
       // Fetch all fresh data
@@ -636,8 +692,10 @@ export default function UserProfile() {
   }, [router]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearSession();
+    // Also clear legacy Life Planner keys so profile + dashboards stay in sync.
+    localStorage.removeItem('lifePlannerToken');
+    localStorage.removeItem('lifePlannerUser');
     router.push('/');
   };
 
@@ -661,7 +719,7 @@ export default function UserProfile() {
         setProfileImagePreview(base64Image);
 
         // Send to API to update profile
-        const token = localStorage.getItem('token');
+        const token = getUnifiedToken();
         const response = await fetch('/api/user/profile', {
           method: 'PUT',
           headers: {
@@ -707,7 +765,7 @@ export default function UserProfile() {
     }
 
     setSubmitting(true);
-    const token = localStorage.getItem('token');
+    const token = getUnifiedToken();
 
     try {
       const response = await fetch('/api/auth/change-password', {
@@ -747,7 +805,7 @@ export default function UserProfile() {
       return;
     }
 
-    const token = localStorage.getItem('token');
+    const token = getUnifiedToken();
     if (!token) {
       setChatStatus({ type: 'error', text: 'You must be signed in to chat with us.' });
       return;

@@ -96,7 +96,7 @@ const DiamondPeoplePage = () => {
   });
 
   const exportToCSV = () => {
-    const headers = ['Name', 'Mobile', 'Profession', 'Country', 'State', 'Email', 'Category', 'Relationship', 'Last Contact'];
+    const headers = ['Name', 'Mobile', 'Profession', 'Country', 'State', 'Email', 'Category', 'Vision Head', 'Relationship', 'Last Contact'];
     const csvContent = [
       headers.join(','),
       ...filteredPeople.map(person =>
@@ -108,6 +108,7 @@ const DiamondPeoplePage = () => {
           person.state,
           person.email,
           person.category,
+          person.visionHead,
           person.relationship,
           person.lastContact,
         ].join(',')
@@ -301,6 +302,11 @@ const DiamondPeoplePage = () => {
                 {person.category && (
                   <span className="inline-block bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
                     {person.category}
+                  </span>
+                )}
+                {person.visionHead && (
+                  <span className="ml-2 inline-block bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-medium">
+                    {person.visionHead}
                   </span>
                 )}
               </div>

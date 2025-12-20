@@ -23,7 +23,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { title, content, fontFamily, colorTheme, linkedTo, tags, mood, attachments, isPinned } = body;
+    const { title, content, fontFamily, colorTheme, linkedTo, tags, mood, attachments, canvasItems, isPinned } = body;
 
     // Fetch note to verify ownership
     const note = await Note.findOne({ _id: id, userId: decoded.userId });
@@ -46,6 +46,7 @@ export async function PUT(
     if (tags !== undefined) note.tags = tags;
     if (mood !== undefined) note.mood = mood;
     if (attachments !== undefined) note.attachments = attachments;
+    if (canvasItems !== undefined) note.canvasItems = Array.isArray(canvasItems) ? canvasItems : [];
     if (isPinned !== undefined) note.isPinned = isPinned;
 
     note.updatedAt = new Date();

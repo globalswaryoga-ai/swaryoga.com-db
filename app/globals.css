@@ -142,12 +142,13 @@ button, .btn {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1E7F43;
+  /* Neutral thumb to avoid the distracting green "standing lines" in dashboards */
+  background: #C9D1CC;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #166235;
+  background: #AAB3AE;
 }
 
 /* ===== UTILITY CLASSES ===== */
@@ -155,3 +156,112 @@ button, .btn {
 .text-accent { color: #F27A2C; }
 .bg-primary { background-color: #1E7F43; }
 .bg-accent { background-color: #F27A2C; }
+
+/* =====================================================
+   LIFE PLANNER – FINAL COLOR + CALENDAR LINE SYSTEM
+   Graphology-approved | Mass-friendly | SaaS-grade
+   ===================================================== */
+
+/* =====================================================
+  IMPORTANT CALENDAR INSTRUCTION (DO NOT REMOVE)
+  -----------------------------------------------------
+  Range items (Goals / Tasks / Events)
+  MUST appear as COLORED LINES spanning across dates.
+  Vision / Action Plan should NOT be shown as range lines.
+   ===================================================== */
+
+:root {
+  /* ================= BRAND ================= */
+  --brand-green: #1F7A45;
+  --brand-green-light: #E6F4EC;
+  --brand-orange: #F28C28;
+  --brand-white: #FFFFFF;
+  --brand-black: #1E2D26;
+
+  /* ================= SIDEBAR ================= */
+  --sidebar-bg: #1F7A45;
+  --sidebar-text: #FFFFFF;
+  --sidebar-icon: #DFF3E8;
+  --sidebar-active-bg: #E6F4EC;
+  --sidebar-active-text: #1F7A45;
+
+  /* ================= HEADER / TABS ================= */
+  --header-bg: #FFFFFF;
+  --header-border: #E2E8E4;
+
+  --tab-active-bg: #EAF7F0;
+  --tab-active-text: #1F7A45;
+  --tab-inactive-text: #6B8F7B;
+  --tab-hover-bg: #F2FBF6;
+
+  /* ================= CALENDAR ================= */
+  --calendar-bg: #F9FCFA;
+  --calendar-border: #E2E8E4;
+  --calendar-text: #1E2D26;
+
+  --calendar-today-bg: #E6F4EC;
+  --calendar-selected-bg: #B7E1C5;
+  --calendar-hover-bg: #F2FBF6;
+
+  /* ================= RANGE LINE COLORS ================= */
+  /* Used ONLY for multi-day items (lines across dates) */
+  --line-vision: #8B5CF6;     /* Purple */
+  --line-action: #0EA5E9;     /* Blue */
+  --line-goal: #22C55E;       /* Green */
+  --line-task: #F59E0B;       /* Orange */
+  --line-event: #60A5FA;      /* Light blue */
+
+  /* Optional icon/dot colors (when a type is not rendered as a range line) */
+  --dot-vision: #8B5CF6;
+  --dot-action: #0EA5E9;
+
+  /* ================= SINGLE-DAY ITEMS ================= */
+  --dot-todo: #64748B;        /* Grey */
+  --dot-reminder: #EF4444;    /* Red (alert only) */
+  --dot-word: #EC4899;        /* Pink */
+  --dot-event: #F97316;       /* Deep orange */
+
+  /* ================= RIGHT PANEL ================= */
+  --panel-bg: #FFFFFF;
+  --panel-border: #CFE9DA;
+
+  --card-bg: #FFFFFF;
+  --card-border: #CFE9DA;
+
+  /* ================= BUTTONS ================= */
+  --btn-primary-bg: #F28C28;
+  --btn-primary-text: #FFFFFF;
+  --btn-primary-hover: #E67E22;
+
+  --btn-secondary-bg: #E6F4EC;
+  --btn-secondary-text: #1F7A45;
+
+  /* ================= STATUS ================= */
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #E74C3C;
+
+  /* ================= TEXT ================= */
+  --text-primary: #1E2D26;
+  --text-secondary: #6B8F7B;
+  --text-muted: #9FB6AA;
+
+  /* ================= UI ================= */
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+/* Range line helpers (used by Calendar UI) */
+.range-line {
+  height: 3px;
+  border-radius: 2px;
+}
+
+.range-line.vision { background-color: var(--line-vision); }
+.range-line.action { background-color: var(--line-action); }
+.range-line.goal { background-color: var(--line-goal); }
+.range-line.task { background-color: var(--line-task); }
+.range-line.event { background-color: var(--line-event); }
+

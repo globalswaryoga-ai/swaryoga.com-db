@@ -1,8 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarDays, Calendar, ChevronRight, BarChart3, Home, FileText } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import {
+  ArrowLeft,
+  Bell,
+  Calculator,
+  ChevronRight,
+  Download,
+  Flag,
+  Home,
+  LayoutDashboard,
+  ListTodo,
+  LogOut,
+  Calendar,
+  NotebookPen,
+  Target,
+} from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { clearSession } from '@/lib/sessionManager';
 
 interface LifePlannerSidebarProps {
   isOpen: boolean;
@@ -11,6 +26,7 @@ interface LifePlannerSidebarProps {
 
 export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   
   const handleNavClick = () => {
     // Auto-close sidebar on mobile when a link is clicked
@@ -20,14 +36,33 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
   };
   
   const items = [
-    { href: '/', label: 'Home', icon: Home, color: 'text-red-500' },
-    { href: '/life-planner/dashboard/daily', label: 'Daily', icon: CalendarDays, color: 'text-emerald-400' },
-    { href: '/life-planner/dashboard/calendar', label: 'Calendar', icon: Calendar, color: 'text-pink-400' },
-    { href: '/life-planner/dashboard/notes', label: 'Notes', icon: FileText, color: 'text-purple-400' },
-    { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: BarChart3, color: 'text-swar-primary' },
+    // User requested: Life Planner "Home" should go to main website homepage
+    { href: '/', label: 'Home', icon: Home },
+    // Keep a dedicated link to open the Life Planner dashboard
+    { href: '/life-planner/dashboard', label: 'Life Planner', icon: LayoutDashboard },
+    { href: '/life-planner/dashboard/vision', label: 'Vision Plan', icon: Target },
+    { href: '/life-planner/dashboard/action-plan', label: 'Action Plan', icon: Flag },
+
+    { href: '/life-planner/dashboard/tasks', label: 'Tasks', icon: ListTodo },
+
+
+    { href: '/life-planner/dashboard/reminders', label: 'Reminders', icon: Bell },
+    { href: '/life-planner/dashboard/words', label: 'Words', icon: NotebookPen },
+    { href: '/life-planner/dashboard/notes', label: 'Journal', icon: NotebookPen },
+    { href: '/life-planner/dashboard/vision-download', label: 'Vision Download', icon: Download },
+
+    { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: Calculator },
+    { href: '/life-planner/dashboard/events', label: 'Events', icon: Calendar },
   ];
 
   const isActive = (href: string) => pathname === href;
+
+  const logout = () => {
+    localStorage.removeItem('lifePlannerUser');
+    localStorage.removeItem('lifePlannerToken');
+    clearSession();
+    router.push('/life-planner/login');
+  };
 
   return (
     <>
@@ -66,13 +101,17 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
                 key={item.href}
                 href={item.href}
                 onClick={handleNavClick}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all group font-medium ${
+                className={`flex cursor-pointer items-center space-x-3 px-4 py-3 rounded-lg transition-all group font-medium ${
                   active
                     ? 'bg-swar-accent text-white shadow-md'
-                    : 'hover:bg-swar-primary-hover text-swar-primary-light'
+                    : 'text-swar-primary-light hover:bg-swar-accent/20 hover:text-white'
                 }`}
               >
-                <Icon className={`h-5 w-5 ${active ? 'text-white' : 'text-swar-primary-light'}`} />
+                <Icon
+                  className={`h-5 w-5 transition-colors ${
+                    active ? 'text-white' : 'text-swar-primary-light group-hover:text-white'
+                  }`}
+                />
                 <span>{item.label}</span>
                 {active && <ChevronRight className="h-5 w-5 ml-auto text-white font-bold" />}
               </Link>
@@ -85,6 +124,16 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
             <p className="font-semibold text-white mb-2">Planner v1 (demo)</p>
             <p>Vision Plan → Action Plan → Tasks → Reminders</p>
           </div>
+
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 text-white px-4 py-3 font-semibold transition-colors"
+            title="Logout"
+          >
+            <LogOut className="h-5 w-5" />
+            <span>Logout</span>
+          </button>
         </div>
       </aside>
     </>

@@ -10,6 +10,21 @@ import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
 
 const DEFAULT_IMAGE = 'https://i.postimg.cc/Y0zjsTd2/image.jpg';
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
 type WordFormState = {
   title: string;
   description: string;
@@ -100,9 +115,7 @@ export default function WordsPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterFrequency] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterMonth, setFilterMonth] = useState<string>('all');
-
-  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const [filterMonth, setFilterMonth] = useState<(typeof MONTHS)[number] | 'all'>('all');
 
   useEffect(() => {
     setMounted(true);
@@ -156,7 +169,8 @@ export default function WordsPage() {
 
       return matchesSearch && matchesType && matchesCategory && matchesFrequency && matchesStatus && matchesMonth;
     });
-  }, [words, searchText, filterType, filterCategory, filterFrequency, filterStatus, filterMonth, MONTHS]);
+  }, [words, searchText, filterType, filterCategory, filterFrequency, filterStatus, filterMonth]);
+
 
   const openCreate = () => {
     setEditingId(null);
@@ -275,15 +289,15 @@ export default function WordsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-swar-text">Words of Inspiration</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-swar-text">Words of Inspiration</h1>
           <p className="text-sm text-swar-text-secondary">Head → Title → Dates/Time → Priority → Repeat → Todos</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 px-4 py-2 text-white font-semibold hover:from-orange-600 hover:to-yellow-600 transition"
+          className="w-full sm:w-auto justify-center flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 px-4 py-2 text-white font-semibold hover:from-orange-600 hover:to-yellow-600 transition"
         >
           <Plus className="h-5 w-5" />
           Add Word
@@ -292,7 +306,7 @@ export default function WordsPage() {
 
       {/* Filters */}
       <div className="mb-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div>
             <label className="block text-xs font-bold text-swar-text mb-1">Search</label>
             <input
@@ -335,7 +349,7 @@ export default function WordsPage() {
             <label className="block text-xs font-bold text-swar-text mb-1">Month</label>
             <select
               value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
+              onChange={(e) => setFilterMonth(e.target.value as any)}
               className="w-full px-3 py-2 rounded-lg border border-swar-border bg-white focus:outline-none focus:ring-2 focus:ring-orange-200"
             >
               <option value="all">All</option>
@@ -375,9 +389,9 @@ export default function WordsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max justify-items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-max">
           {filteredWords.map(word => (
-            <div key={word.id} className="w-80 bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
+            <div key={word.id} className="w-full max-w-sm bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col h-full">
               {/* Image Header (h-40 - Vision style) */}
               <div 
                 className="relative h-40 overflow-hidden bg-orange-600"

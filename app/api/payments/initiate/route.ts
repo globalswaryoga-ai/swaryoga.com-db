@@ -7,19 +7,10 @@ import {
   PAYU_MERCHANT_SALT,
   PayUParams
 } from '@/lib/payments/payu';
+import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 
 function getBaseUrl(request: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_API_URL;
-  if (configured && configured.trim()) return configured.trim().replace(/\/$/, '');
-
-  const origin = request.headers.get('origin');
-  if (origin) return origin.replace(/\/$/, '');
-
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-  const proto = request.headers.get('x-forwarded-proto') || 'https';
-  if (host) return `${proto}://${host}`.replace(/\/$/, '');
-
-  return '';
+  return getRequestBaseUrl(request);
 }
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
