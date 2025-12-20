@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Trash2, Link as LinkIcon, Calendar, Image, Play, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Trash2, Link as LinkIcon, Calendar, Image, Play, X, Plus } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 
 interface SocialAccount {
@@ -64,6 +64,9 @@ export default function SocialMediaAdmin() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [scheduledDate, setScheduledDate] = useState('');
   const [postLoading, setPostLoading] = useState(false);
+
+  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [publishLoadingId, setPublishLoadingId] = useState<string | null>(null);
   const [publishMessage, setPublishMessage] = useState<string>('');
@@ -546,7 +549,19 @@ export default function SocialMediaAdmin() {
                         <Image size={18} /> Images
                       </div>
 
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => imageFileInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold px-4 py-2 rounded-lg"
+                        >
+                          <Plus size={18} /> Add image(s)
+                        </button>
+                        <span className="text-slate-400 text-xs">PNG/JPG/WebP • multiple allowed</span>
+                      </div>
+
                       <input
+                        ref={imageFileInputRef}
                         type="file"
                         accept="image/*"
                         multiple
@@ -567,7 +582,7 @@ export default function SocialMediaAdmin() {
                             e.currentTarget.value = '';
                           }
                         }}
-                        className="block w-full text-slate-300 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+                        className="hidden"
                       />
 
                       <div className="flex gap-2 mt-3">
@@ -610,7 +625,19 @@ export default function SocialMediaAdmin() {
                         <Play size={18} /> Videos
                       </div>
 
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => videoFileInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold px-4 py-2 rounded-lg"
+                        >
+                          <Plus size={18} /> Add video
+                        </button>
+                        <span className="text-slate-400 text-xs">MP4/MOV • one at a time</span>
+                      </div>
+
                       <input
+                        ref={videoFileInputRef}
                         type="file"
                         accept="video/*"
                         onChange={async (e) => {
@@ -627,7 +654,7 @@ export default function SocialMediaAdmin() {
                             e.currentTarget.value = '';
                           }
                         }}
-                        className="block w-full text-slate-300 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+                        className="hidden"
                       />
                       <p className="text-slate-400 text-xs mt-2">
                         Tip: server uploads are limited in size. For larger videos, paste a YouTube/Drive URL below.

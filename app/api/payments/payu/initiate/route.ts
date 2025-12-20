@@ -204,7 +204,63 @@ export async function POST(request: NextRequest) {
     const chargeAmount = subtotal * 0.033;
     const totalAmount = subtotal + chargeAmount;
 
-    // Validate required fields
+    // Validate required fields (per PayU best practices)
+    const validationErrors: string[] = [];
+    
+    if (!Number.isFinite(subtotal) || subtotal <= 0) {
+      validationErrors.push(`amount: ${subtotal} (must be > 0)`);
+    }
+    if (!body.productInfo || body.productInfo.trim() === '') {
+      validationErrors.push('productInfo: empty or missing');
+    }
+    if (!body.firstName || body.firstName.trim() === '') {
+      validationErrors.push('firstName: empty or missing');
+    }
+    if (!body.email || body.email.trim() === '') {
+      validationErrors.push('email: empty or missing');
+    }
+    if (!body.phone || body.phone.trim() === '') {
+      validationErrors.push('phone: empty or missing');
+    }
+    if (!body.city || body.city.trim() === '') {
+      validationErrors.push('city: empty or missing');
+    }
+
+    if (validationErrors.length > 0) {
+      console.error('❌ PayU validation error: Mandatory fields missing or empty:', validationErrors);
+      return NextResponse.json(
+        { 
+          error: 'Missing or invalid required fields',
+          details: validationErrors,
+          hint: 'All mandatory fields must be non-empty: amount, productInfo, firstName, email, phone, city'
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate field lengths to prevent hash/encoding issues
+    const fieldValidation = {
+      productInfo: { value: body.productInfo, maxLength: 100 },
+      firstName: { value: body.firstName, maxLength: 50 },
+      email: { value: body.email, maxLength: 100 },
+      city: { value: body.city, maxLength: 50 },
+    };
+
+    const lengthErrors = Object.entries(fieldValidation)
+      .filter(([_, config]) => config.value.length > config.maxLength)
+      .map(([name, config]) => `${name}: ${config.value.length} chars (max ${config.maxLength})`);
+
+    if (lengthErrors.length > 0) {
+      console.error('❌ PayU field length error:', lengthErrors);
+      return NextResponse.json(
+        { 
+          error: 'Field length validation failed',
+          details: lengthErrors
+        },
+        { status: 400 }
+      );
+    }
+
     if (
       !Number.isFinite(subtotal) ||
       subtotal <= 0 ||

@@ -59,15 +59,31 @@ export async function POST(request: NextRequest) {
       process.env.NEXT_PUBLIC_PAYMENT_FAILED_URL || '/payment-failed'
     );
 
-    // Verify hash
+    // Verify hash (per PayU best practices - "Checksum failed" error debugging)
     if (!verifyPayUResponseHash(payuData)) {
-      console.error('Invalid PayU hash');
+      console.error('❌ CRITICAL: Invalid PayU hash - Checksum verification failed');
+      console.error('PayU Response Data (first 10 fields):', {
+        txnid: payuData.txnid,
+        amount: payuData.amount,
+        status: payuData.status,
+        hash: payuData.hash?.substring(0, 20) + '...',
+        mihpayid: payuData.mihpayid,
+        email: payuData.email?.substring(0, 5) + '***',
+        firstname: payuData.firstname,
+        productinfo: payuData.productinfo?.substring(0, 20),
+      });
+      console.error('This likely indicates:');
+      console.error('  1. PAYU_MERCHANT_SALT mismatch in environment');
+      console.error('  2. PayU response parameters were modified');
+      console.error('  3. Hash calculation order mismatch with PayU docs');
+      
       const redirectUrl = baseUrl
         ? buildRedirectUrl(baseUrl, failureTarget, {
             status: 'failure',
-            error: 'Invalid payment signature. Please try again.',
+            error: 'Payment verification failed. Please contact support with transaction ID.',
+            txnid: payuData.txnid,
           })
-        : '/payment-failed?status=failure&error=' + encodeURIComponent('Invalid payment signature. Please try again.');
+        : '/payment-failed?status=failure&error=' + encodeURIComponent('Payment verification failed. Please contact support with transaction ID.');
       return NextResponse.redirect(redirectUrl);
     }
 

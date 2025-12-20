@@ -58,12 +58,38 @@ export interface PayUParams {
 }
 
 export function generatePayUHash(params: PayUParams): string {
-  const key = (params.key || PAYU_MERCHANT_KEY).toString().trim();
+  // Validate mandatory parameters before hashing
+  const mandatoryFields = {
+    key: params.key || PAYU_MERCHANT_KEY,
+    txnid: params.txnid,
+    amount: params.amount,
+    productinfo: params.productinfo,
+    firstname: params.firstname,
+    email: params.email,
+  };
+
+  const missingFields = Object.entries(mandatoryFields)
+    .filter(([_, value]) => !value || value.toString().trim() === '')
+    .map(([key]) => key);
+
+  if (missingFields.length > 0) {
+    console.error('❌ PayU Hash Error: Missing mandatory fields:', missingFields);
+    throw new Error(`Cannot generate hash: Missing mandatory fields: ${missingFields.join(', ')}`);
+  }
+
+  const key = mandatoryFields.key.toString().trim();
+  const salt = PAYU_MERCHANT_SALT.toString().trim();
+
+  if (!salt || salt === '') {
+    console.error('❌ PayU Hash Error: PAYU_MERCHANT_SALT is not configured');
+    throw new Error('PAYU_MERCHANT_SALT environment variable is not set');
+  }
+
   // PayU hash formula (CORRECT per PayU docs):
   // key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5||||||SALT
   // Note: Only UDF fields 1-5, followed by 6 empty pipes (for udf6-10 placeholders), then SALT
   
-  const hashString = [
+  const hashArray = [
     key,
     params.txnid,
     params.amount,
@@ -80,28 +106,47 @@ export function generatePayUHash(params: PayUParams): string {
     '', // udf8 empty
     '', // udf9 empty
     '', // udf10 empty
-    PAYU_MERCHANT_SALT,
-  ].join('|');
-  
-  // Detailed logging for debugging 403 errors
-  console.log('🔐 PayU Hash Generation:', {
+    salt,
+  ];
+
+  const hashString = hashArray.join('|');
+
+  // Enhanced debugging for PayU hash issues (per PayU docs best practices)
+  if (process.env.DEBUG_PAYU === '1' || process.env.NODE_ENV === 'development') {
+    console.log('\n🔐 ========== PayU Hash Generation Debug ==========');
+    console.log('Mode:', PAYU_MODE);
+    console.log('\n📋 Parameters (in order):');
+    console.log('  [00] key:', key.substring(0, 3) + '***');
+    console.log('  [01] txnid:', params.txnid);
+    console.log('  [02] amount:', params.amount);
+    console.log('  [03] productinfo:', params.productinfo);
+    console.log('  [04] firstname:', params.firstname);
+    console.log('  [05] email:', params.email.substring(0, 5) + '***');
+    console.log('  [06] udf1:', params.udf1 || '(empty)');
+    console.log('  [07] udf2:', params.udf2 || '(empty)');
+    console.log('  [08] udf3:', params.udf3 || '(empty)');
+    console.log('  [09] udf4:', params.udf4 || '(empty)');
+    console.log('  [10] udf5:', params.udf5 || '(empty)');
+    console.log('  [11-15] udf6-10: (all empty)');
+    console.log('  [16] salt:', salt.substring(0, 5) + '***');
+    console.log('\n📝 Full hash string (for verification):');
+    console.log('  LENGTH:', hashString.length, 'characters');
+    console.log('  VALUE:', hashString);
+    console.log('🔐 ================================================\n');
+  }
+
+  const hash = crypto.createHash('sha512').update(hashString).digest('hex');
+
+  // Log hash result
+  console.log('🔐 PayU Hash Generated:', {
     mode: PAYU_MODE,
-    key: key.substring(0, 3) + '***',
     txnid: params.txnid,
     amount: params.amount,
-    productinfo: params.productinfo.substring(0, 20),
-    firstname: params.firstname,
-    email: params.email.substring(0, 10) + '***',
-    hashStringLength: hashString.length,
+    hashLength: hash.length,
+    hashPrefix: hash.substring(0, 20) + '...',
+    status: '✅ Valid',
   });
-  
-  const hash = crypto.createHash('sha512').update(hashString).digest('hex');
-  
-  console.log('🔐 PayU Hash Result:', {
-    hash: hash.substring(0, 20) + '***',
-    status: '✅ Generated'
-  });
-  
+
   return hash;
 }
 

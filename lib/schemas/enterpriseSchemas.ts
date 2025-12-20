@@ -6,12 +6,49 @@ import mongoose from 'mongoose';
  */
 
 // ============================================================================
+// 0. LEAD SCHEMA (CRM)
+// Basic lead/contact record used by CRM + WhatsApp message tracking
+// ==========================================================================
+const LeadSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+    phoneNumber: { type: String, required: true, unique: true, index: true },
+    email: { type: String, trim: true, lowercase: true },
+    status: {
+      type: String,
+      enum: ['lead', 'prospect', 'customer', 'inactive'],
+      default: 'lead',
+      index: true,
+    },
+    labels: { type: [String], default: [] },
+    source: {
+      type: String,
+      enum: ['website', 'import', 'api', 'manual', 'whatsapp'],
+      default: 'manual',
+      index: true,
+    },
+    lastMessageAt: { type: Date, index: true },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'leads' }
+);
+
+LeadSchema.index({ status: 1, lastMessageAt: -1 });
+LeadSchema.index({ labels: 1 });
+
+// ============================================================================
 // 1. WHATSAPP MESSAGE SCHEMA - Track all WhatsApp messages sent
 // ============================================================================
 const WhatsAppMessageSchema = new mongoose.Schema(
   {
     leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
     phoneNumber: { type: String, required: true, index: true },
+    direction: {
+      type: String,
+      enum: ['outbound', 'inbound'],
+      default: 'outbound',
+      index: true,
+    },
     messageContent: String,
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate' },
     templateVariables: mongoose.Schema.Types.Mixed, // For template parameter substitution
@@ -28,7 +65,9 @@ const WhatsAppMessageSchema = new mongoose.Schema(
     },
     failureReason: String,
     waMessageId: String, // WhatsApp message ID from Meta API
-    sentBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    // Optional because admin JWTs may not map to a User document.
+    sentBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
+    sentByLabel: String,
     sentAt: { type: Date, default: Date.now },
     deliveredAt: Date,
     readAt: Date,
@@ -44,6 +83,8 @@ const WhatsAppMessageSchema = new mongoose.Schema(
 WhatsAppMessageSchema.index({ leadId: 1, sentAt: -1 });
 WhatsAppMessageSchema.index({ phoneNumber: 1, status: 1 });
 WhatsAppMessageSchema.index({ sentBy: 1, sentAt: -1 });
+WhatsAppMessageSchema.index({ waMessageId: 1 });
+WhatsAppMessageSchema.index({ direction: 1, sentAt: -1 });
 
 // ============================================================================
 // 2. USER CONSENT SCHEMA - Track opt-in/opt-out status per lead
@@ -396,6 +437,7 @@ SalesReportSchema.index({ saleDate: 1, paymentMode: 1 });
 // ============================================================================
 // EXPORT MODELS
 // ============================================================================
+export const Lead = mongoose.models.Lead || mongoose.model('Lead', LeadSchema);
 export const WhatsAppMessage = mongoose.models.WhatsAppMessage || mongoose.model('WhatsAppMessage', WhatsAppMessageSchema);
 export const UserConsent = mongoose.models.UserConsent || mongoose.model('UserConsent', UserConsentSchema);
 export const MessageStatus = mongoose.models.MessageStatus || mongoose.model('MessageStatus', MessageStatusSchema);
