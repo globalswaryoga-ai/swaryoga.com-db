@@ -14,10 +14,8 @@ yarn-error.log*
 index.html
 src/**
 server/**
-# Deploying it causes Vercel to generate API-only routing and makes all frontend pages return NOT_FOUND.
-# The Next.js API lives under `app/api/**` and should be used instead.
-/
-/api/**
+# Ignore the legacy Express-style API folder at repo root (Next.js API lives under `app/api/**`).
+api/**
 
 # Don't ignore .env.local - Vercel needs it
 # but set env vars in Vercel dashboard instead
