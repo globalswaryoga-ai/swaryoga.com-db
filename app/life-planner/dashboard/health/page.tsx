@@ -174,24 +174,24 @@ function IntakeSectionEditor({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+    <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold tracking-tight text-slate-900">{section.title}</h3>
-          <p className="text-xs text-slate-600">Item name + start/end date + time.</p>
+          <h3 className="text-sm font-bold tracking-tight text-swar-text">{section.title}</h3>
+          <p className="text-xs text-swar-text-secondary">Item name + start/end date + time.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={addItem}
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition"
+            className="rounded-lg bg-swar-primary px-3 py-2 text-xs font-semibold text-white hover:bg-swar-primary/90 transition"
           >
             + Add item
           </button>
           <button
             type="button"
             onClick={onDeleteSection}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
           >
             Delete
           </button>
@@ -200,56 +200,56 @@ function IntakeSectionEditor({
 
       <div className="mt-3 space-y-3">
         {(section.items || []).map((it) => (
-          <div key={it.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div key={it.id} className="rounded-lg border border-gray-200 bg-swar-bg p-3">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-end">
               <div className="lg:col-span-4">
-                <label className="block text-xs font-bold text-slate-700 mb-1">Item name</label>
+                <label className="block text-xs font-bold text-swar-text mb-1">Item name</label>
                 <input
                   type="text"
                   value={it.name || ''}
                   onChange={(e) => updateItem(it.id, { name: e.target.value })}
                   placeholder="e.g. Ashwagandha / Honey lemon / Tablet"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                 />
               </div>
 
               <div className="lg:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">Start date</label>
+                <label className="block text-xs font-bold text-swar-text mb-1">Start date</label>
                 <input
                   type="date"
                   value={it.startDate || ''}
                   onChange={(e) => updateItem(it.id, { startDate: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                 />
               </div>
 
               <div className="lg:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">End date</label>
+                <label className="block text-xs font-bold text-swar-text mb-1">End date</label>
                 <input
                   type="date"
                   value={it.endDate || ''}
                   onChange={(e) => updateItem(it.id, { endDate: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                 />
               </div>
 
               <div className="lg:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">Start time</label>
+                <label className="block text-xs font-bold text-swar-text mb-1">Start time</label>
                 <input
                   type="time"
                   value={it.startTime || ''}
                   onChange={(e) => updateItem(it.id, { startTime: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                 />
               </div>
 
               <div className="lg:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">End time</label>
+                <label className="block text-xs font-bold text-swar-text mb-1">End time</label>
                 <input
                   type="time"
                   value={it.endTime || ''}
                   onChange={(e) => updateItem(it.id, { endTime: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                 />
               </div>
 
@@ -257,7 +257,7 @@ function IntakeSectionEditor({
                 <button
                   type="button"
                   onClick={() => deleteItem(it.id)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
                 >
                   Delete item
                 </button>
@@ -685,42 +685,38 @@ export default function HealthPage() {
 
   return (
     <div
-      className="max-w-7xl mx-auto space-y-6"
+      className="bg-gradient-to-br from-swar-bg to-swar-primary/5 rounded-2xl border border-swar-border"
       style={{ fontFamily: 'Poppins, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial' }}
     >
-      {error && (
-        <div className="mb-4 p-4 bg-swar-primary-light border border-red-400 text-swar-primary rounded-lg">
-          {error}
-          <button 
-            onClick={loadRoutines}
-            className="ml-4 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      )}
+      <div className="container mx-auto max-w-6xl px-4 py-8 sm:py-10 space-y-6">
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start justify-between gap-3 flex-wrap">
+            <div className="text-sm font-medium">{error}</div>
+            <button
+              onClick={loadRoutines}
+              className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
-      {/* Page header + tabs */}
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
-        <div
-          className="px-6 py-5 border-b border-slate-200"
-          style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.12) 0%, rgba(45,212,191,0.10) 45%, rgba(99,102,241,0.10) 100%)' }}
-        >
-          <p className="text-[11px] uppercase tracking-[0.18em] font-semibold text-slate-600">Life Planner • Health</p>
-          <div className="mt-1 flex items-end justify-between gap-4 flex-wrap">
+        {/* Header + tabs (Journal-style) */}
+        <div className="mb-2">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">Health Planner</h1>
-              <p className="mt-1 text-sm text-slate-600">Daily schedule + meals, plus your reusable health routines.</p>
+              <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">💪 Health Planner</h1>
+              <p className="text-swar-text-secondary">Build your daily routine + track drinks, food & medicines. Save “Often” presets for 1-tap add.</p>
             </div>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setActiveTab('daily')}
                 className={
-                  `rounded-lg px-4 py-2 text-sm font-semibold border transition ` +
+                  'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
                   (activeTab === 'daily'
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50')
+                    ? 'bg-swar-primary text-white border-swar-primary'
+                    : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
                 }
               >
                 Daily Plan
@@ -729,10 +725,10 @@ export default function HealthPage() {
                 type="button"
                 onClick={() => setActiveTab('routines')}
                 className={
-                  `rounded-lg px-4 py-2 text-sm font-semibold border transition ` +
+                  'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
                   (activeTab === 'routines'
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-900 border-slate-200 hover:bg-slate-50')
+                    ? 'bg-swar-primary text-white border-swar-primary'
+                    : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
                 }
               >
                 Routines
@@ -740,28 +736,27 @@ export default function HealthPage() {
             </div>
           </div>
         </div>
-      </div>
 
       {/* Inline create/edit (replaces modal) */}
       {isFormOpen && (
-        <div className="bg-white rounded-xl shadow-md p-4 sm:p-5 border border-slate-200">
+        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 border border-gray-100">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">{editingId ? 'Edit Often item' : 'Add Often item'}</h3>
-              <p className="text-sm text-slate-600">Used inside the “Often” dropdown buttons.</p>
+              <h3 className="text-base font-bold text-swar-text">{editingId ? 'Edit Often item' : 'Add Often item'}</h3>
+              <p className="text-sm text-swar-text-secondary">Used inside the “Often” dropdown buttons.</p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIsFormOpen(false)}
-                className="px-3 py-2 rounded-lg border border-slate-200 text-sm font-semibold hover:bg-slate-50"
+                className="px-3 py-2 rounded-lg border-2 border-gray-200 text-sm font-semibold hover:border-swar-primary transition"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={saveRoutine}
-                className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+                className="px-3 py-2 rounded-lg bg-swar-primary text-white text-sm font-semibold hover:bg-swar-primary/90 transition"
               >
                 {editingId ? 'Update' : 'Create'}
               </button>
@@ -770,20 +765,20 @@ export default function HealthPage() {
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Title</label>
+              <label className="block text-xs font-semibold text-swar-text mb-1">Title</label>
               <input
                 value={form.title}
                 onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
                 placeholder="e.g. Yoga / Walk / Pranayama"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+              <label className="block text-xs font-semibold text-swar-text mb-1">Category</label>
               <select
                 value={form.category}
                 onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-white focus:border-swar-primary focus:outline-none"
               >
                 {categories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -794,11 +789,11 @@ export default function HealthPage() {
 
           <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Tracking frequency</label>
+              <label className="block text-xs font-semibold text-swar-text mb-1">Tracking frequency</label>
               <select
                 value={form.frequency}
                 onChange={(e) => setForm((prev) => ({ ...prev, frequency: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-white focus:border-swar-primary focus:outline-none"
               >
                 <option value="daily">daily</option>
                 <option value="weekly">weekly</option>
@@ -807,11 +802,11 @@ export default function HealthPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Often mode</label>
+              <label className="block text-xs font-semibold text-swar-text mb-1">Often mode</label>
               <select
                 value={form.dailyFrequency}
                 onChange={(e) => setForm((prev) => ({ ...prev, dailyFrequency: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-white focus:border-swar-primary focus:outline-none"
               >
                 <option value="once">Once</option>
                 <option value="daily">Daily</option>
@@ -821,32 +816,32 @@ export default function HealthPage() {
 
             {form.dailyFrequency !== 'custom' ? (
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Time</label>
+                <label className="block text-xs font-semibold text-swar-text mb-1">Time</label>
                 <input
                   type="time"
                   value={form.time}
                   onChange={(e) => setForm((prev) => ({ ...prev, time: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
                 />
               </div>
             ) : (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Start</label>
+                  <label className="block text-xs font-semibold text-swar-text mb-1">Start</label>
                   <input
                     type="time"
                     value={form.startTime}
                     onChange={(e) => setForm((prev) => ({ ...prev, startTime: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">End</label>
+                  <label className="block text-xs font-semibold text-swar-text mb-1">End</label>
                   <input
                     type="time"
                     value={form.endTime}
                     onChange={(e) => setForm((prev) => ({ ...prev, endTime: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
                   />
                 </div>
               </>
@@ -854,11 +849,11 @@ export default function HealthPage() {
           </div>
 
           <div className="mt-3">
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Description (optional)</label>
+            <label className="block text-xs font-semibold text-swar-text mb-1">Description (optional)</label>
             <textarea
               value={form.description}
               onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-swar-primary focus:outline-none"
               rows={2}
             />
           </div>
@@ -869,45 +864,42 @@ export default function HealthPage() {
       {activeTab === 'daily' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Card 1: My 24 hours daily routines */}
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-            <div
-              className="px-6 py-5 border-b border-slate-200"
-              style={{ background: 'linear-gradient(90deg, rgba(16,185,129,0.12) 0%, rgba(45,212,191,0.10) 45%, rgba(99,102,241,0.10) 100%)' }}
-            >
+          <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
               <div className="flex items-end justify-between gap-4 flex-wrap">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] font-extrabold text-slate-600">Health • Daily</p>
-                  <h2 className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-slate-900">My 24 hours daily routines</h2>
-                  <p className="mt-1 text-sm text-slate-600">Title + time + once/daily/custom time slot.</p>
+                  <p className="text-xs font-semibold text-swar-text-secondary">Daily routines</p>
+                  <h2 className="mt-1 text-xl sm:text-2xl font-bold text-swar-text">My 24 hours daily routines</h2>
+                  <p className="mt-1 text-sm text-swar-text-secondary">Add items with time + once/daily/custom slot.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <div>
-                    <label className="block text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-600 mb-1">Date</label>
+                    <label className="block text-xs font-semibold text-swar-text mb-1">Date</label>
                     <input
                       type="date"
                       value={activeDate}
                       onChange={(e) => setActiveDate(e.target.value)}
-                      className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                      className="rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-swar-text focus:border-swar-primary focus:outline-none"
                     />
                   </div>
 
                   {/* Often dropdown buttons */}
                   <div className="mt-5">
                     <details ref={oftenDetailsRef} className="relative">
-                      <summary className="cursor-pointer select-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                      <summary className="cursor-pointer select-none rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-swar-text hover:border-swar-primary transition [&::-webkit-details-marker]:hidden">
                         Often ▾
                       </summary>
 
-                      <div className="absolute right-0 mt-2 w-[320px] max-w-[90vw] rounded-xl border border-slate-200 bg-white shadow-xl p-2 z-30">
+                      <div className="absolute right-0 mt-2 w-[320px] max-w-[90vw] rounded-xl border border-gray-200 bg-white shadow-xl p-2 z-30">
                         <div className="flex items-center justify-between gap-2 px-2 pb-2">
-                          <div className="text-xs font-semibold text-slate-600">Select and add quickly</div>
+                          <div className="text-xs font-semibold text-swar-text-secondary">Select and add quickly</div>
                           <button
                             type="button"
                             onClick={() => {
                               closeOftenDropdown();
                               openCreate();
                             }}
-                            className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                            className="rounded-lg bg-swar-primary px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-swar-primary/90 transition"
                           >
                             + New
                           </button>
@@ -915,7 +907,7 @@ export default function HealthPage() {
 
                         <div className="max-h-72 overflow-auto">
                           {routines.length === 0 ? (
-                            <div className="px-2 py-3 text-sm text-slate-600">No Often items yet. Click “New”.</div>
+                            <div className="px-2 py-3 text-sm text-swar-text-secondary">No Often items yet. Click “New”.</div>
                           ) : (
                             routines
                               .slice()
@@ -923,16 +915,16 @@ export default function HealthPage() {
                               .map((r) => (
                                 <div
                                   key={r.id}
-                                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-slate-50"
+                                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-swar-bg"
                                 >
                                   <button
                                     type="button"
                                     onClick={() => addOftenToDayFrom(r)}
-                                    className="min-w-0 text-left text-sm font-medium text-slate-900 hover:underline"
+                                    className="min-w-0 text-left text-sm font-semibold text-swar-text hover:underline"
                                     title="Add to today"
                                   >
                                     {r.title || 'Untitled'}
-                                    <div className="text-xs text-slate-500">
+                                    <div className="text-xs text-swar-text-secondary">
                                       {(r.dailyFrequency || 'daily')}{r.time ? ` • ${r.time}` : r.startTime ? ` • ${r.startTime}-${r.endTime || ''}` : ''}
                                     </div>
                                   </button>
@@ -944,7 +936,7 @@ export default function HealthPage() {
                                         closeOftenDropdown();
                                         openEdit(r);
                                       }}
-                                      className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-slate-50"
+                                      className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-swar-text hover:border-swar-primary transition"
                                     >
                                       Edit
                                     </button>
@@ -954,7 +946,7 @@ export default function HealthPage() {
                                         closeOftenDropdown();
                                         deleteRoutine(r.id);
                                       }}
-                                      className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                      className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
                                     >
                                       Delete
                                     </button>
@@ -970,7 +962,7 @@ export default function HealthPage() {
                   <button
                     type="button"
                     onClick={() => addRoutineItem(new Date().getHours())}
-                    className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+                    className="mt-5 inline-flex items-center gap-2 rounded-lg bg-swar-primary px-4 py-2 text-sm font-semibold text-white hover:bg-swar-primary/90 transition"
                   >
                     <Plus className="h-5 w-5" /> Add
                   </button>
@@ -999,7 +991,7 @@ export default function HealthPage() {
                       return { ...plan, routines: template };
                     });
                   }}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-50"
+                  className="rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-swar-text hover:border-swar-primary transition"
                 >
                   Create 24 hours
                 </button>
@@ -1009,17 +1001,17 @@ export default function HealthPage() {
                     loadDailyPlans();
                     if (activeDate) ensurePlanExists(activeDate);
                   }}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-50"
+                  className="rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-swar-text hover:border-swar-primary transition"
                 >
                   Refresh
                 </button>
               </div>
             </div>
 
-            <div className="px-6 py-6">
+            <div className="px-4 sm:px-6 py-5">
               {(activePlan?.routines || []).length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                  <p className="text-sm text-slate-600 italic">No routines yet. Click “Create 24 hours” or “Add”.</p>
+                <div className="rounded-lg border border-gray-200 bg-swar-bg p-5">
+                  <p className="text-sm text-swar-text-secondary italic">No routines yet. Click “Create 24 hours” or “Add”.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1034,21 +1026,21 @@ export default function HealthPage() {
                       const freq = it.frequency || 'daily';
                       const isCustom = freq === 'custom';
                       return (
-                        <div key={it.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div key={it.id} className="rounded-xl border border-gray-200 bg-white p-4">
                           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
                             <div className="lg:col-span-6">
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Title</label>
+                              <label className="block text-xs font-bold text-swar-text mb-1">Title</label>
                               <input
                                 type="text"
                                 value={it.title || ''}
                                 onChange={(e) => updateRoutineItem(it.id, { title: e.target.value })}
                                 placeholder="e.g. Yoga / Walk / Office / Meditation"
-                                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                               />
                             </div>
 
                             <div className="lg:col-span-3">
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Frequency</label>
+                              <label className="block text-xs font-bold text-swar-text mb-1">Frequency</label>
                               <select
                                 value={freq}
                                 onChange={(e) => {
@@ -1059,7 +1051,7 @@ export default function HealthPage() {
                                     updateRoutineItem(it.id, { frequency: next, time: it.time || it.startTime || '', startTime: undefined, endTime: undefined });
                                   }
                                 }}
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                className="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                               >
                                 <option value="once">Once</option>
                                 <option value="daily">Daily</option>
@@ -1069,32 +1061,32 @@ export default function HealthPage() {
 
                             {!isCustom ? (
                               <div className="lg:col-span-2">
-                                <label className="block text-xs font-bold text-slate-700 mb-1">Time</label>
+                                <label className="block text-xs font-bold text-swar-text mb-1">Time</label>
                                 <input
                                   type="time"
                                   value={it.time || ''}
                                   onChange={(e) => updateRoutineItem(it.id, { time: e.target.value })}
-                                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                  className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                                 />
                               </div>
                             ) : (
                               <>
                                 <div className="lg:col-span-2">
-                                  <label className="block text-xs font-bold text-slate-700 mb-1">Start</label>
+                                  <label className="block text-xs font-bold text-swar-text mb-1">Start</label>
                                   <input
                                     type="time"
                                     value={it.startTime || ''}
                                     onChange={(e) => updateRoutineItem(it.id, { startTime: e.target.value })}
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                    className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                                   />
                                 </div>
                                 <div className="lg:col-span-1">
-                                  <label className="block text-xs font-bold text-slate-700 mb-1">End</label>
+                                  <label className="block text-xs font-bold text-swar-text mb-1">End</label>
                                   <input
                                     type="time"
                                     value={it.endTime || ''}
                                     onChange={(e) => updateRoutineItem(it.id, { endTime: e.target.value })}
-                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                    className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
                                   />
                                 </div>
                               </>
@@ -1104,7 +1096,7 @@ export default function HealthPage() {
                               <button
                                 type="button"
                                 onClick={() => deleteRoutineItem(it.id)}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
                               >
                                 Delete
                               </button>
@@ -1119,22 +1111,19 @@ export default function HealthPage() {
           </div>
 
           {/* Card 2: Intake planner */}
-          <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden">
-            <div
-              className="px-6 py-5 border-b border-slate-200"
-              style={{ background: 'linear-gradient(90deg, rgba(99,102,241,0.10) 0%, rgba(236,72,153,0.10) 50%, rgba(16,185,129,0.10) 100%)' }}
-            >
+          <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
               <div className="flex items-end justify-between gap-4 flex-wrap">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] font-extrabold text-slate-600">Health • Intake</p>
-                  <h2 className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Drinks, food & medicines</h2>
-                  <p className="mt-1 text-sm text-slate-600">Herbal drink, tea/coffee, meals, medicines, sleeping drink… fully editable.</p>
+                  <p className="text-xs font-semibold text-swar-text-secondary">Drinks + food + medicines</p>
+                  <h2 className="mt-1 text-xl sm:text-2xl font-bold text-swar-text">Intake planner</h2>
+                  <p className="mt-1 text-sm text-swar-text-secondary">Herbal drink, tea/coffee, meals, medicines, sleeping drink… fully editable.</p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={addCustomSection}
-                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+                    className="rounded-lg bg-swar-primary px-4 py-2 text-sm font-semibold text-white hover:bg-swar-primary/90 transition"
                   >
                     + Add Section
                   </button>
@@ -1142,7 +1131,7 @@ export default function HealthPage() {
               </div>
             </div>
 
-            <div className="px-6 py-6 space-y-4">
+            <div className="px-4 sm:px-6 py-5 space-y-4">
               {(intakeSections || []).map((sec) => (
                 <IntakeSectionEditor
                   key={sec.id}
@@ -1342,6 +1331,7 @@ export default function HealthPage() {
       )}
       </>
       )}
+      </div>
     </div>
   );
 }

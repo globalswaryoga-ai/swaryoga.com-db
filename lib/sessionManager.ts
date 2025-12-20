@@ -1,9 +1,9 @@
-// Session Manager - Handles 2-day login persistence
+// Session Manager - Handles 7-day login persistence
 const SESSION_EXPIRY_KEY = 'sessionExpiry';
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
-const SESSION_DURATION_DAYS = 2;
-const SESSION_DURATION_MS = SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000; // 2 days in milliseconds
+const SESSION_DURATION_DAYS = 7;
+const SESSION_DURATION_MS = SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 export interface SessionData {
   token: string;
@@ -17,14 +17,14 @@ export interface SessionData {
 }
 
 /**
- * Set session with 2-day expiry
+ * Set session with 7-day expiry
  * Call this after successful login
  */
 export const setSession = (sessionData: SessionData): void => {
   if (typeof window === 'undefined') return; // Only run on client
 
   try {
-    // Calculate expiry time (2 days from now)
+    // Calculate expiry time (7 days from now)
     const expiryTime = Date.now() + SESSION_DURATION_MS;
 
     // Store session data
@@ -43,6 +43,28 @@ export const setSession = (sessionData: SessionData): void => {
     }
   } catch (error) {
     console.error('Failed to set session:', error);
+  }
+};
+
+/**
+ * Ensure session has an expiry (some legacy flows set token/user but not sessionExpiry).
+ * This makes "stay logged in for next 7 days" consistent across the app.
+ */
+export const ensureSessionExpiry = (): void => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const userStr = localStorage.getItem(USER_KEY);
+    if (!token || !userStr) return;
+
+    const expiryTime = localStorage.getItem(SESSION_EXPIRY_KEY);
+    const parsed = expiryTime ? parseInt(expiryTime) : NaN;
+    if (!expiryTime || Number.isNaN(parsed) || parsed <= 0) {
+      localStorage.setItem(SESSION_EXPIRY_KEY, (Date.now() + SESSION_DURATION_MS).toString());
+    }
+  } catch (error) {
+    console.error('Failed to ensure session expiry:', error);
   }
 };
 
@@ -106,7 +128,7 @@ export const getRemainingSessionTime = (): number => {
 };
 
 /**
- * Extend session by 2 more days
+ * Extend session by 7 more days
  * Useful for keeping user logged in if they're active
  */
 export const extendSession = (): void => {
@@ -130,6 +152,7 @@ export const clearSession = (): void => {
   if (typeof window === 'undefined') return;
 
   try {
+    // Clear unified app session
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(SESSION_EXPIRY_KEY);
@@ -137,6 +160,10 @@ export const clearSession = (): void => {
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userPhone');
     localStorage.removeItem('userCountryCode');
+
+    // Also clear legacy Life Planner keys so website + life-planner remain the same
+    localStorage.removeItem('lifePlannerToken');
+    localStorage.removeItem('lifePlannerUser');
   } catch (error) {
     console.error('Failed to clear session:', error);
   }

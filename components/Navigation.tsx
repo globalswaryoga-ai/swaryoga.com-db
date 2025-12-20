@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Menu, X, ShoppingCart, User, LogOut } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { getStoredCart } from '@/lib/cart';
+import { clearSession } from '@/lib/sessionManager';
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -82,7 +83,8 @@ export default function Navigation() {
   const isActive = (path: string) => pathname === path;
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
+    // Proper logout: clear token/user/expiry + life planner legacy keys.
+    clearSession();
     setUser(null);
     setUserDisplayName('');
     setIsMenuOpen(false);

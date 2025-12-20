@@ -15,6 +15,8 @@ import {
   Calendar,
   NotebookPen,
   Target,
+  Settings,
+  User,
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearSession } from '@/lib/sessionManager';
@@ -53,13 +55,15 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
 
     { href: '/life-planner/dashboard/accounting', label: 'Accounting', icon: Calculator },
     { href: '/life-planner/dashboard/events', label: 'Events', icon: Calendar },
+
+    // Unified profile + settings
+    { href: '/life-planner/profile', label: 'Profile', icon: User },
+    { href: '/life-planner/dashboard/settings', label: 'Settings', icon: Settings },
   ];
 
   const isActive = (href: string) => pathname === href;
 
   const logout = () => {
-    localStorage.removeItem('lifePlannerUser');
-    localStorage.removeItem('lifePlannerToken');
     clearSession();
     router.push('/life-planner/login');
   };

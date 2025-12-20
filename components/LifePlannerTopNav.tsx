@@ -153,8 +153,6 @@ export default function LifePlannerTopNav({
 
   const logout = () => {
     // Life planner uses the same JWT as the rest of the app; clear both the planner keys and the main session.
-    localStorage.removeItem('lifePlannerUser');
-    localStorage.removeItem('lifePlannerToken');
     clearSession();
     router.push('/life-planner/login');
   };

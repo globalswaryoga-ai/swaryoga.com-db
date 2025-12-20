@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import LifePlannerSidebar from '@/components/LifePlannerSidebar';
 import LifePlannerTopNav from '@/components/LifePlannerTopNav';
+import { ensureSessionExpiry, extendSession } from '@/lib/sessionManager';
 
 export default function LifePlannerDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -26,6 +27,9 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
 
     const effectiveToken = plannerToken || appToken;
 
+    // Mirror sessions BOTH ways so website-profile and life-planner profile are always the same.
+    // 1) App -> Life Planner (existing behavior)
+
     // If user has a normal app session, mirror it into Life Planner keys for backward compatibility.
     // This allows existing life-planner storage code (which reads lifePlannerToken/lifePlannerUser) to work.
     if (!plannerToken && appToken) {
@@ -44,6 +48,23 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
       }
     }
 
+    // 2) Life Planner -> App (helps "without login" open LP and keeps header/profile consistent)
+    if (!appToken && plannerToken) {
+      localStorage.setItem('token', plannerToken);
+    }
+
+    if (!appUserRaw && plannerSessionRaw) {
+      try {
+        const plannerUser = JSON.parse(plannerSessionRaw);
+        const email = typeof plannerUser?.email === 'string' ? plannerUser.email : '';
+        if (email) {
+          localStorage.setItem('user', JSON.stringify({ email, name: email.split('@')[0] || 'User' }));
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     const effectiveSession = localStorage.getItem('lifePlannerUser') || plannerSessionRaw;
 
     if (!effectiveSession || !effectiveToken) {
@@ -51,6 +72,10 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
       router.push('/life-planner/login');
       return;
     }
+
+    // Ensure the unified session has an expiry and refresh it on activity.
+    ensureSessionExpiry();
+    extendSession();
 
     setIsAuthenticated(true);
   }, [router]);
