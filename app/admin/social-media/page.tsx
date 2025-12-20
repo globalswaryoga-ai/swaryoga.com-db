@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Link as LinkIcon, Mail, TrendingUp, Calendar, FileText, Image, Play, Tag } from 'lucide-react';
+import { Trash2, Link as LinkIcon, Calendar, Image, Play, X } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 
 interface SocialAccount {
@@ -23,15 +23,21 @@ interface SocialPost {
   _id: string;
   content: {
     text: string;
-    images?: Array<{ url: string }>;
-    videos?: Array<{ url: string }>;
+    images?: Array<{ url: string; caption?: string; altText?: string }>;
+    videos?: Array<{ url: string; title?: string; thumbnail?: string; duration?: number }>;
   };
   platforms: string[];
   status: 'draft' | 'scheduled' | 'published' | 'failed';
   scheduledFor?: string;
   publishedAt?: string;
+  failureReason?: string;
   createdAt: string;
 }
+
+type UploadedMedia = {
+  url: string;
+  name?: string;
+};
 
 const platformConfig = {
   facebook: { color: 'from-blue-600 to-blue-700', icon: '👍' },
@@ -49,9 +55,24 @@ export default function SocialMediaAdmin() {
   const [loadError, setLoadError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'accounts' | 'posts' | 'analytics'>('accounts');
   const [newPostText, setNewPostText] = useState('');
+  const [newPostImages, setNewPostImages] = useState<UploadedMedia[]>([]);
+  const [newPostVideos, setNewPostVideos] = useState<UploadedMedia[]>([]);
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [newVideoUrl, setNewVideoUrl] = useState('');
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [uploadError, setUploadError] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [scheduledDate, setScheduledDate] = useState('');
   const [postLoading, setPostLoading] = useState(false);
+
+  const [publishLoadingId, setPublishLoadingId] = useState<string | null>(null);
+  const [publishMessage, setPublishMessage] = useState<string>('');
+
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string>('');
+  const [syncResults, setSyncResults] = useState<
+    Array<{ accountMongoId: string; platform: string; accountId: string; ok: boolean; followers?: number; error?: string }>
+  >([]);
 
   const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs = 15000) => {
     const controller = new AbortController();
@@ -127,6 +148,96 @@ export default function SocialMediaAdmin() {
     }
   };
 
+  const handleSyncAnalytics = async () => {
+    setSyncLoading(true);
+    setSyncMessage('');
+    try {
+      const response = await fetch('/api/admin/social-media/analytics/sync', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem('adminToken');
+        setToken('');
+        return;
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to sync analytics');
+      }
+
+      const nextAccounts = payload?.data?.accounts as SocialAccount[] | undefined;
+      const nextResults = payload?.data?.results as typeof syncResults | undefined;
+
+      if (Array.isArray(nextAccounts)) setAccounts(nextAccounts);
+      if (Array.isArray(nextResults)) setSyncResults(nextResults);
+
+      setSyncMessage('✅ Synced follower counts (where supported).');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sync failed';
+      setSyncMessage(`❌ ${message}`);
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const uploadToBlob = async (file: File): Promise<UploadedMedia> => {
+    setUploadError('');
+    setUploadingCount((c) => c + 1);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+
+      const response = await fetch('/api/admin/uploads/blob', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: form,
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Upload failed');
+      }
+
+      const url = payload?.data?.url as string | undefined;
+      if (!url) {
+        throw new Error('Upload failed: missing url');
+      }
+
+      return { url, name: file.name };
+    } finally {
+      setUploadingCount((c) => Math.max(0, c - 1));
+    }
+  };
+
+  const addImageUrl = () => {
+    const url = newImageUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      setUploadError('Please enter a valid image URL starting with http(s)://');
+      return;
+    }
+    setNewPostImages((prev) => [...prev, { url }]);
+    setNewImageUrl('');
+  };
+
+  const addVideoUrl = () => {
+    const url = newVideoUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      setUploadError('Please enter a valid video URL starting with http(s)://');
+      return;
+    }
+    setNewPostVideos((prev) => [...prev, { url }]);
+    setNewVideoUrl('');
+  };
+
   const handleCreatePost = async () => {
     if (!newPostText.trim() || selectedPlatforms.length === 0) {
       alert('Please add text and select at least one platform');
@@ -142,7 +253,11 @@ export default function SocialMediaAdmin() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          content: { text: newPostText },
+          content: {
+            text: newPostText,
+            images: newPostImages.map((img) => ({ url: img.url })),
+            videos: newPostVideos.map((vid) => ({ url: vid.url })),
+          },
           platforms: selectedPlatforms,
           status: scheduledDate ? 'scheduled' : 'draft',
           scheduledFor: scheduledDate || null,
@@ -153,6 +268,10 @@ export default function SocialMediaAdmin() {
         setNewPostText('');
         setSelectedPlatforms([]);
         setScheduledDate('');
+        setNewPostImages([]);
+        setNewPostVideos([]);
+        setNewImageUrl('');
+        setNewVideoUrl('');
         alert('Post created successfully!');
         fetchPosts(token);
       } else {
@@ -163,6 +282,47 @@ export default function SocialMediaAdmin() {
       alert('Error creating post');
     } finally {
       setPostLoading(false);
+    }
+  };
+
+  const handlePublishPost = async (postId: string) => {
+    if (!postId) return;
+
+    setPublishLoadingId(postId);
+    setPublishMessage('');
+    try {
+      const response = await fetch(`/api/admin/social-media/posts/${postId}/publish`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem('adminToken');
+        setToken('');
+        return;
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to publish');
+      }
+
+      const results = payload?.data?.results as Array<{ platform: string; ok: boolean; error?: string }> | undefined;
+      const failed = Array.isArray(results) ? results.filter((r) => !r.ok) : [];
+      if (failed.length > 0) {
+        setPublishMessage(`⚠️ Published partially. Some platforms failed: ${failed.map((f) => f.platform).join(', ')}`);
+      } else {
+        setPublishMessage('✅ Published successfully.');
+      }
+
+      await fetchPosts(token);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Publish failed';
+      setPublishMessage(`❌ ${message}`);
+    } finally {
+      setPublishLoadingId(null);
     }
   };
 
@@ -276,8 +436,8 @@ export default function SocialMediaAdmin() {
                       </p>
                       <button
                         onClick={() => {
-                          // This will be replaced with OAuth integration
-                          alert(`Redirect to ${platform} OAuth flow`);
+                          // Use the setup screen to connect/manage credentials.
+                          window.location.href = `/admin/social-media-setup?platform=${platform}`;
                         }}
                         className="w-full bg-white text-gray-900 font-bold py-2 rounded-lg hover:bg-gray-100 transition"
                       >
@@ -350,6 +510,14 @@ export default function SocialMediaAdmin() {
               <div className="bg-slate-800 rounded-lg p-8 border border-slate-700">
                 <h2 className="text-2xl font-bold text-white mb-6">Create New Post</h2>
 
+                <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 text-amber-100 text-sm">
+                  <p className="font-semibold mb-1">Important:</p>
+                  <p className="text-amber-100/90">
+                    You can now publish to <span className="font-semibold">Facebook Pages</span> and <span className="font-semibold">Instagram (image posts)</span> using the “Publish now” button after saving.
+                    X/LinkedIn/YouTube publishing needs additional official API setup and is not enabled yet.
+                  </p>
+                </div>
+
                 {/* Text Input */}
                 <div className="mb-6">
                   <label className="block text-slate-300 font-semibold mb-3">Post Content</label>
@@ -359,7 +527,162 @@ export default function SocialMediaAdmin() {
                     placeholder="What's on your mind?"
                     className="w-full bg-slate-700 text-white p-4 rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none resize-none h-32"
                   />
-                  <p className="text-slate-400 text-sm mt-2">{newPostText.length}/500 characters</p>
+                  <p className="text-slate-400 text-sm mt-2">{newPostText.length} characters</p>
+                </div>
+
+                {/* Media */}
+                <div className="mb-6">
+                  <label className="block text-slate-300 font-semibold mb-3">Media (Optional)</label>
+
+                  {uploadError && (
+                    <div className="mb-3 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2 text-red-200 text-sm">
+                      {uploadError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="bg-slate-900/40 border border-slate-700 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3 text-white font-semibold">
+                        <Image size={18} /> Images
+                      </div>
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+
+                          try {
+                            for (const file of files) {
+                              const uploaded = await uploadToBlob(file);
+                              setNewPostImages((prev) => [...prev, uploaded]);
+                            }
+                          } catch (err) {
+                            const message = err instanceof Error ? err.message : 'Upload failed';
+                            setUploadError(message);
+                          } finally {
+                            // allow selecting same file again
+                            e.currentTarget.value = '';
+                          }
+                        }}
+                        className="block w-full text-slate-300 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+                      />
+
+                      <div className="flex gap-2 mt-3">
+                        <input
+                          value={newImageUrl}
+                          onChange={(e) => setNewImageUrl(e.target.value)}
+                          placeholder="Or paste image URL"
+                          className="flex-1 bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={addImageUrl}
+                          className="bg-slate-700 hover:bg-slate-600 text-white font-semibold px-4 rounded-lg"
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {newPostImages.length > 0 && (
+                        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {newPostImages.map((img, idx) => (
+                            <div key={`${img.url}-${idx}`} className="relative rounded-lg overflow-hidden border border-slate-700 bg-slate-950">
+                              <img src={img.url} alt={img.name || 'uploaded image'} className="w-full h-24 object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setNewPostImages((prev) => prev.filter((_, i) => i !== idx))}
+                                className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
+                                title="Remove"
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-900/40 border border-slate-700 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3 text-white font-semibold">
+                        <Play size={18} /> Videos
+                      </div>
+
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+
+                          try {
+                            const uploaded = await uploadToBlob(file);
+                            setNewPostVideos((prev) => [...prev, uploaded]);
+                          } catch (err) {
+                            const message = err instanceof Error ? err.message : 'Upload failed';
+                            setUploadError(message);
+                          } finally {
+                            e.currentTarget.value = '';
+                          }
+                        }}
+                        className="block w-full text-slate-300 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-700 file:text-white hover:file:bg-slate-600"
+                      />
+                      <p className="text-slate-400 text-xs mt-2">
+                        Tip: server uploads are limited in size. For larger videos, paste a YouTube/Drive URL below.
+                      </p>
+
+                      <div className="flex gap-2 mt-3">
+                        <input
+                          value={newVideoUrl}
+                          onChange={(e) => setNewVideoUrl(e.target.value)}
+                          placeholder="Or paste video URL (YouTube, Drive, etc.)"
+                          className="flex-1 bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={addVideoUrl}
+                          className="bg-slate-700 hover:bg-slate-600 text-white font-semibold px-4 rounded-lg"
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {newPostVideos.length > 0 && (
+                        <div className="mt-4 space-y-3">
+                          {newPostVideos.map((vid, idx) => (
+                            <div key={`${vid.url}-${idx}`} className="relative rounded-lg overflow-hidden border border-slate-700 bg-slate-950 p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <a
+                                  href={vid.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-emerald-300 hover:text-emerald-200 text-sm break-all"
+                                >
+                                  {vid.name || vid.url}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewPostVideos((prev) => prev.filter((_, i) => i !== idx))}
+                                  className="bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
+                                  title="Remove"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {(uploadingCount > 0 || postLoading) && (
+                    <p className="text-slate-400 text-sm mt-3">
+                      {uploadingCount > 0 ? `Uploading… (${uploadingCount})` : ''}
+                    </p>
+                  )}
                 </div>
 
                 {/* Platform Selection */}
@@ -413,16 +736,30 @@ export default function SocialMediaAdmin() {
                 {/* Submit */}
                 <button
                   onClick={handleCreatePost}
-                  disabled={postLoading}
+                  disabled={postLoading || uploadingCount > 0}
                   className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-3 rounded-lg transition disabled:opacity-50"
                 >
-                  {postLoading ? 'Creating...' : 'Create & Post'}
+                  {postLoading ? 'Saving...' : scheduledDate ? 'Save Scheduled Post' : 'Save Draft Post'}
                 </button>
               </div>
 
               {/* Posts List */}
               <div>
                 <h2 className="text-2xl font-bold text-white mb-6">Recent Posts</h2>
+
+                {publishMessage && (
+                  <div
+                    className={`mb-4 rounded-lg px-4 py-3 text-sm border ${publishMessage.startsWith('✅')
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                      : publishMessage.startsWith('⚠️')
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                        : 'bg-red-500/10 border-red-500/30 text-red-200'
+                    }`}
+                  >
+                    {publishMessage}
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   {posts.map(post => (
                     <div
@@ -432,6 +769,34 @@ export default function SocialMediaAdmin() {
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <p className="text-white mb-3">{post.content.text}</p>
+
+                          {post.content.images && post.content.images.length > 0 && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                              {post.content.images.map((img, idx) => (
+                                <div key={`${img.url}-${idx}`} className="rounded-lg overflow-hidden border border-slate-700 bg-slate-950">
+                                  <img src={img.url} alt={img.altText || 'post image'} className="w-full h-24 object-cover" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {post.content.videos && post.content.videos.length > 0 && (
+                            <div className="space-y-2 mb-3">
+                              {post.content.videos.map((vid, idx) => (
+                                <a
+                                  key={`${vid.url}-${idx}`}
+                                  href={vid.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-2 text-emerald-300 hover:text-emerald-200 text-sm break-all"
+                                >
+                                  <Play size={16} />
+                                  {vid.title || vid.url}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+
                           <div className="flex flex-wrap gap-2 mb-3">
                             {post.platforms.map(platform => (
                               <span
@@ -457,11 +822,39 @@ export default function SocialMediaAdmin() {
                           {post.status}
                         </span>
                       </div>
-                      <p className="text-slate-400 text-sm">
-                        {post.status === 'scheduled'
-                          ? `Scheduled for: ${new Date(post.scheduledFor || '').toLocaleString()}`
-                          : `Created: ${new Date(post.createdAt).toLocaleString()}`}
-                      </p>
+
+                      {(post.status === 'draft' || post.status === 'scheduled' || post.status === 'failed') && (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-slate-400 text-sm">
+                            {post.status === 'scheduled'
+                              ? `Scheduled for: ${new Date(post.scheduledFor || '').toLocaleString()}`
+                              : post.status === 'published'
+                                ? `Published: ${new Date(post.publishedAt || '').toLocaleString()}`
+                                : `Created: ${new Date(post.createdAt).toLocaleString()}`}
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() => handlePublishPost(post._id)}
+                            disabled={publishLoadingId === post._id}
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg transition"
+                          >
+                            {publishLoadingId === post._id ? 'Publishing…' : 'Publish now'}
+                          </button>
+                        </div>
+                      )}
+
+                      {post.status === 'published' && (
+                        <p className="text-slate-400 text-sm">
+                          Published: {post.publishedAt ? new Date(post.publishedAt).toLocaleString() : '—'}
+                        </p>
+                      )}
+
+                      {post.status === 'failed' && post.failureReason && (
+                        <div className="mt-3 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-200 text-xs whitespace-pre-wrap break-words">
+                          {post.failureReason}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -471,26 +864,73 @@ export default function SocialMediaAdmin() {
 
           {/* Analytics Tab */}
           {activeTab === 'analytics' && (
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-6">Analytics Coming Soon</h2>
+            <div className="space-y-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Account Analytics</h2>
+                  <p className="text-slate-400">
+                    Shows follower counts stored in SwarYoga. Use “Sync now” to refresh from supported platform APIs.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleSyncAnalytics}
+                  disabled={syncLoading}
+                  className="bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white font-bold px-5 py-3 rounded-lg transition"
+                >
+                  {syncLoading ? 'Syncing…' : 'Sync now'}
+                </button>
+              </div>
+
+              {syncMessage && (
+                <div className={`rounded-lg px-4 py-3 text-sm border ${syncMessage.startsWith('✅') ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-red-500/10 border-red-500/30 text-red-200'}`}>
+                  {syncMessage}
+                </div>
+              )}
+
+              {syncResults.length > 0 && (
+                <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                  <h3 className="text-white font-bold mb-3">Last Sync Results</h3>
+                  <div className="space-y-2">
+                    {syncResults.map((r, idx) => (
+                      <div key={`${r.accountMongoId}-${idx}`} className="flex items-start justify-between gap-4 text-sm">
+                        <div className="text-slate-200">
+                          <span className="font-semibold capitalize">{r.platform}</span>
+                          <span className="text-slate-400"> · {r.accountId || 'no accountId'}</span>
+                        </div>
+                        <div className={r.ok ? 'text-emerald-300' : 'text-amber-200'}>
+                          {r.ok ? `OK (followers: ${r.followers ?? 0})` : r.error || 'Not synced'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {accounts.map(account => (
-                  <div
-                    key={account._id}
-                    className="bg-slate-800 rounded-lg p-6 border border-slate-700"
-                  >
+                  <div key={account._id} className="bg-slate-800 rounded-lg p-6 border border-slate-700">
                     <div className="flex items-center gap-3 mb-4">
                       <span className="text-2xl">{platformConfig[account.platform].icon}</span>
-                      <h3 className="text-white font-bold capitalize">{account.platform}</h3>
+                      <div>
+                        <h3 className="text-white font-bold capitalize">{account.platform}</h3>
+                        <p className="text-slate-400 text-xs">@{account.accountHandle}</p>
+                      </div>
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <p className="text-slate-400 text-sm">Total Followers</p>
+                        <p className="text-slate-400 text-sm">Followers</p>
                         <p className="text-white text-2xl font-bold">{account.metadata.followers || 0}</p>
                       </div>
                       <div>
-                        <p className="text-slate-400 text-sm">Total Posts</p>
+                        <p className="text-slate-400 text-sm">Posts</p>
                         <p className="text-white text-2xl font-bold">{account.metadata.postsCount || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 text-sm">Last Synced</p>
+                        <p className="text-slate-200 text-sm">
+                          {account.metadata.lastSyncedAt ? new Date(account.metadata.lastSyncedAt).toLocaleString() : '—'}
+                        </p>
                       </div>
                     </div>
                   </div>

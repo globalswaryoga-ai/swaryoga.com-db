@@ -17,10 +17,10 @@ build
 .vscode
 .env*.local
 *.tsbuildinfo
-api/
-server/
-models/
-bolt/
+/api/
+/server/
+/models/
+/bolt/
 
 # Local-only / experimental
 lib/payments/payu-v2.ts

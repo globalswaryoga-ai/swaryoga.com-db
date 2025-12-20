@@ -51,6 +51,47 @@ const WORKSHOP_CATEGORIES = [
   }
 ];
 
+type ApiWorkshopSchedule = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  registrationCloseDate?: string;
+  time: string;
+  mode: string;
+  language: string;
+  location?: string | null;
+  slots: number;
+  duration?: string;
+  price: number;
+};
+
+type ApiWorkshopItem = {
+  id: string;
+  name: string;
+  schedules: ApiWorkshopSchedule[];
+};
+
+type ApiWorkshopsListResponse = {
+  message: string;
+  data: ApiWorkshopItem[];
+};
+
+function toDateSafe(isoDate: string | undefined | null): Date | null {
+  if (!isoDate) return null;
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function getNextUpcomingStartDateIso(schedules: ApiWorkshopSchedule[] | undefined, now: Date): string | null {
+  if (!schedules || schedules.length === 0) return null;
+  const upcoming = schedules
+    .map((s) => ({ s, d: toDateSafe(s.startDate) }))
+    .filter((x): x is { s: ApiWorkshopSchedule; d: Date } => !!x.d)
+    .filter((x) => x.d.getTime() >= now.getTime())
+    .sort((a, b) => a.d.getTime() - b.d.getTime());
+  return upcoming.length ? upcoming[0].s.startDate : null;
+}
+
 function WorkshopsPageInner() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -67,12 +108,14 @@ function WorkshopsPageInner() {
     workshop: false,
     mode: false,
     language: false,
-    currency: false
+    currency: false,
   });
-  
   const searchParams = useSearchParams();
   const queryString = searchParams?.toString() ?? '';
   const totalWorkshops = workshopCatalog.length;
+  const activeWorkshopLabel = selectedWorkshop
+    ? workshopCatalog.find((workshop) => workshop.slug === selectedWorkshop)?.name
+    : null;
 
   const selectedCategoryName = selectedCategory
     ? (WORKSHOP_CATEGORIES.find((c) => c.id === selectedCategory)?.name ?? selectedCategory)

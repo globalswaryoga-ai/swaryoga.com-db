@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, Copy, Check, Home, ArrowLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AdminSidebar from '@/components/AdminSidebar';
 
 const platforms = {
@@ -10,7 +10,7 @@ const platforms = {
     icon: '👍',
     name: 'Facebook',
     color: 'from-blue-600 to-blue-700',
-    fields: ['accountName', 'accountHandle', 'accessToken', 'refreshToken'],
+    fields: ['accountName', 'accountHandle', 'accountId', 'accessToken'],
     instructions: [
       '1. Go to https://developers.facebook.com',
       '2. Create or select your app',
@@ -18,29 +18,30 @@ const platforms = {
       '4. Copy the App ID and App Secret',
       '5. Go to Tools → Access Token Generator',
       '6. Select your Page and generate Page Access Token',
-      '7. Paste the token below'
+      '7. Copy your Page ID (numeric) and paste it below',
+      '8. Paste the token below'
     ]
   },
   youtube: {
     icon: '▶️',
     name: 'YouTube',
     color: 'from-red-600 to-red-700',
-    fields: ['accountName', 'accountHandle', 'accessToken', 'refreshToken'],
+    fields: ['accountName', 'accountHandle', 'accountId', 'accessToken'],
     instructions: [
       '1. Go to https://console.cloud.google.com',
-      '2. Create a new project',
-      '3. Search for "YouTube Data API v3" and enable it',
-      '4. Go to Credentials',
-      '5. Create OAuth 2.0 Client ID (Desktop application)',
-      '6. Download the JSON credentials',
-      '7. Paste your access token below'
+      '2. Create/select a project',
+      '3. Enable “YouTube Data API v3”',
+      '4. (Recommended for follower sync) Go to Credentials → Create API key',
+      '5. Copy your Channel ID (usually looks like UC...) and paste it as Account/Channel ID',
+      '6. Paste API key as Access Token (starts with AIza...)',
+      '7. (Optional) If you want video upload later, you will need OAuth instead of API key'
     ]
   },
   x: {
     icon: '𝕏',
     name: 'X (Twitter)',
     color: 'from-black to-gray-800',
-    fields: ['accountName', 'accountHandle', 'accessToken', 'refreshToken'],
+    fields: ['accountName', 'accountHandle', 'accessToken'],
     instructions: [
       '1. Go to https://developer.twitter.com/en/portal/dashboard',
       '2. Create an app',
@@ -54,7 +55,7 @@ const platforms = {
     icon: '💼',
     name: 'LinkedIn',
     color: 'from-blue-700 to-blue-800',
-    fields: ['accountName', 'accountHandle', 'accessToken', 'refreshToken'],
+    fields: ['accountName', 'accountHandle', 'accountId', 'accessToken'],
     instructions: [
       '1. Go to https://www.linkedin.com/developers',
       '2. Create an app',
@@ -69,7 +70,7 @@ const platforms = {
     icon: '📸',
     name: 'Instagram',
     color: 'from-pink-500 to-purple-600',
-    fields: ['accountName', 'accountHandle', 'accountEmail', 'accessToken'],
+    fields: ['accountName', 'accountHandle', 'accountId', 'accountEmail', 'accessToken'],
     instructions: [
       '1. Go to https://developers.facebook.com',
       '2. Create a Facebook App',
@@ -84,6 +85,7 @@ const platforms = {
 
 export default function SocialMediaSetup() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [token, setToken] = useState<string>('');
   const [tokenChecked, setTokenChecked] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string>('facebook');
@@ -92,6 +94,7 @@ export default function SocialMediaSetup() {
   const [formData, setFormData] = useState({
     accountName: '',
     accountHandle: '',
+    accountId: '',
     accountEmail: '',
     accessToken: '',
     refreshToken: '',
@@ -103,6 +106,14 @@ export default function SocialMediaSetup() {
     if (storedToken) setToken(storedToken);
     setTokenChecked(true);
   }, []);
+
+  useEffect(() => {
+    const platform = searchParams.get('platform');
+    if (platform && Object.prototype.hasOwnProperty.call(platforms, platform)) {
+      setSelectedPlatform(platform);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -132,6 +143,7 @@ export default function SocialMediaSetup() {
           platform: selectedPlatform,
           accountName: formData.accountName,
           accountHandle: formData.accountHandle,
+          accountId: formData.accountId || undefined,
           accountEmail: formData.accountEmail || undefined,
           accessToken: formData.accessToken,
           refreshToken: formData.refreshToken || undefined,
@@ -143,6 +155,7 @@ export default function SocialMediaSetup() {
         setFormData({
           accountName: '',
           accountHandle: '',
+          accountId: '',
           accountEmail: '',
           accessToken: '',
           refreshToken: '',
@@ -304,6 +317,34 @@ export default function SocialMediaSetup() {
                       className="w-full bg-slate-700 text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none"
                     />
                     <p className="text-slate-400 text-sm mt-1">Your username on this platform</p>
+                  </div>
+
+                  {/* Account/Page ID */}
+                  <div>
+                    <label className="block text-white font-semibold mb-2">
+                      Account / Page ID{platforms[selectedPlatform as keyof typeof platforms].fields.includes('accountId') ? ' *' : ''}
+                    </label>
+                    <input
+                      type="text"
+                      name="accountId"
+                      placeholder={
+                        selectedPlatform === 'facebook'
+                          ? 'Facebook Page ID (numeric)'
+                          : selectedPlatform === 'instagram'
+                          ? 'Instagram Business Account ID'
+                          : selectedPlatform === 'youtube'
+                          ? 'YouTube Channel ID'
+                          : selectedPlatform === 'linkedin'
+                          ? 'LinkedIn Organization/Page ID'
+                          : 'Account/Page ID'
+                      }
+                      value={formData.accountId}
+                      onChange={handleInputChange}
+                      className="w-full bg-slate-700 text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-emerald-500 focus:outline-none"
+                    />
+                    <p className="text-slate-400 text-sm mt-1">
+                      Needed to sync follower counts and to publish posts via official APIs.
+                    </p>
                   </div>
 
                   {/* Account Email (Instagram only) */}
