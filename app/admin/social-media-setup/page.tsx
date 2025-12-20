@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Plus, Copy, Check, Home, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AdminSidebar from '@/components/AdminSidebar';
@@ -83,7 +83,7 @@ const platforms = {
   }
 };
 
-export default function SocialMediaSetup() {
+function SocialMediaSetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [token, setToken] = useState<string>('');
@@ -420,5 +420,13 @@ export default function SocialMediaSetup() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SocialMediaSetup() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><p>Loading...</p></div>}>
+      <SocialMediaSetupContent />
+    </Suspense>
   );
 }
