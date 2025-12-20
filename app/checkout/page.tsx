@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   const processingRef = useRef(false);
   const [showNepalQR, setShowNepalQR] = useState(false);
   const [error, setError] = useState('');
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState<number>(0);
 
   const [formData, setFormData] = useState<OrderData>({
     firstName: '',
@@ -68,6 +69,21 @@ export default function CheckoutPage() {
     setIsLoading(false);
   }, [router]);
 
+  // Client-side cooldown to prevent rapid retry loops that trigger PayU throttling.
+  useEffect(() => {
+    const key = 'payuCooldownUntilMs';
+
+    const tick = () => {
+      const until = Number(localStorage.getItem(key) || '0');
+      const remainingMs = Math.max(0, until - Date.now());
+      setCooldownSecondsLeft(Math.ceil(remainingMs / 1000));
+    };
+
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, []);
+
   // Calculate pricing
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const PLATFORM_FEE_PERCENT = 0.033; // 3.3%
@@ -106,6 +122,14 @@ export default function CheckoutPage() {
   const handlePayment = async (country: PaymentCountry) => {
     // Prevent double-clicks / event bubbling from triggering multiple initiations.
     if (processingRef.current || isProcessing) return;
+
+    // Prevent rapid retries (PayU can show “Too many requests”).
+    const cooldownUntil = Number(localStorage.getItem('payuCooldownUntilMs') || '0');
+    if (cooldownUntil > Date.now()) {
+      const seconds = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      setError(`Please wait ${seconds} seconds before trying again.`);
+      return;
+    }
 
     if (!validateForm()) return;
 
@@ -163,8 +187,17 @@ export default function CheckoutPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfterSec = Number(data?.retryAfterSec || response.headers.get('Retry-After') || 60);
+          const until = Date.now() + Math.max(1, retryAfterSec) * 1000;
+          localStorage.setItem('payuCooldownUntilMs', String(until));
+          throw new Error(data.error || `Too many attempts. Please wait ${retryAfterSec} seconds.`);
+        }
         throw new Error(data.error || 'Payment initiation failed');
       }
+
+      // Once we’ve initiated, enforce a 60-second cooldown to avoid PayU throttling.
+      localStorage.setItem('payuCooldownUntilMs', String(Date.now() + 60_000));
 
       // Store order ID
       localStorage.setItem('orderId', data.orderId);
@@ -375,15 +408,21 @@ export default function CheckoutPage() {
           <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8">
             <h3 className="text-xl font-bold text-swar-text mb-6">Payment Method</h3>
 
+            {cooldownSecondsLeft > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-amber-800 text-sm">
+                PayU is temporarily limiting requests. Please wait <span className="font-semibold">{cooldownSecondsLeft}s</span> and try again.
+              </div>
+            )}
+
             {/* Payment Options */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
               {/* India Payment */}
               <button
                 type="button"
                 onClick={() => handlePayment('india')}
-                disabled={isProcessing}
+                disabled={isProcessing || cooldownSecondsLeft > 0}
                 className={`p-6 rounded-lg border-2 transition-all text-left ${
-                  isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
+                  isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
                 } border-swar-border`}
               >
                 <div className="text-3xl mb-3">🇮🇳</div>
@@ -391,10 +430,10 @@ export default function CheckoutPage() {
                 <p className="text-xs text-swar-text-secondary mb-3">Pay via PayU</p>
                 <div
                   className={`w-full text-center bg-swar-primary text-white py-2 rounded font-semibold transition-colors ${
-                    isProcessing ? 'opacity-50' : 'hover:bg-swar-primary-hover'
+                    isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50' : 'hover:bg-swar-primary-hover'
                   }`}
                 >
-                  {isProcessing ? 'Processing...' : 'Pay Now'}
+                  {isProcessing ? 'Processing...' : cooldownSecondsLeft > 0 ? `Wait ${cooldownSecondsLeft}s` : 'Pay Now'}
                 </div>
               </button>
 
@@ -402,9 +441,9 @@ export default function CheckoutPage() {
               <button
                 type="button"
                 onClick={() => handlePayment('international')}
-                disabled={isProcessing}
+                disabled={isProcessing || cooldownSecondsLeft > 0}
                 className={`p-6 rounded-lg border-2 transition-all text-left ${
-                  isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
+                  isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
                 } border-swar-border`}
               >
                 <div className="text-3xl mb-3">🌍</div>
@@ -412,10 +451,10 @@ export default function CheckoutPage() {
                 <p className="text-xs text-swar-text-secondary mb-3">All Countries</p>
                 <div
                   className={`w-full text-center bg-swar-primary text-white py-2 rounded font-semibold transition-colors ${
-                    isProcessing ? 'opacity-50' : 'hover:bg-swar-primary-hover'
+                    isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50' : 'hover:bg-swar-primary-hover'
                   }`}
                 >
-                  {isProcessing ? 'Processing...' : 'Pay Now'}
+                  {isProcessing ? 'Processing...' : cooldownSecondsLeft > 0 ? `Wait ${cooldownSecondsLeft}s` : 'Pay Now'}
                 </div>
               </button>
 

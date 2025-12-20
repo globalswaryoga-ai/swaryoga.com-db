@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import { Plus, Check, Trash2 } from 'lucide-react';
 
-interface DailyTodo {
+type WorkshopCategory = 'self' | 'family' | 'workStudy' | 'parents' | 'friendsRelatives' | 'social';
+
+interface WorkshopTask {
   id: string;
-  category: 'self' | 'family' | 'business' | 'parents' | 'friends' | 'service';
-  title: string;
-  completed: boolean;
-  date: string;
+  category: WorkshopCategory;
+  text: string;
 }
 
 interface RoutineItem {
@@ -28,9 +28,13 @@ interface SadhanaItem {
 
 export default function DailyViewPage() {
   const [today] = useState(new Date().toISOString().split('T')[0]);
-  const [businessType, setBusinessType] = useState<'business' | 'work' | 'study' | 'home'>('business');
-  
-  const [todos, setTodos] = useState<DailyTodo[]>([]);
+
+  const [workshopTasks, setWorkshopTasks] = useState<WorkshopTask[]>([]);
+  const [newWorkshopTask, setNewWorkshopTask] = useState('');
+  const [selectedWorkshopCategory, setSelectedWorkshopCategory] = useState<WorkshopCategory>('workStudy');
+  const [workshopError, setWorkshopError] = useState<string>('');
+  const [heroImgSrc, setHeroImgSrc] = useState('/images/swar-yoga-hero.jpg');
+
   const [routine, setRoutine] = useState<RoutineItem[]>([
     { id: '1', name: 'Pranayama', target: '2 times 5 mins', completed: false },
     { id: '2', name: 'Meditation', target: '1 time 15 mins', completed: false },
@@ -42,34 +46,41 @@ export default function DailyViewPage() {
     { id: '2', name: 'Meditation', frequency: '1 time', duration: '15 minutes', completed: false },
     { id: '3', name: 'Water', frequency: 'Daily', duration: '3 liter', completed: false },
   ]);
-  
-  const [newTodo, setNewTodo] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<DailyTodo['category']>('self');
+
   const [vision, setVision] = useState<any[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
 
-  const categories = [
-    { id: 'self', label: 'My Self', color: 'bg-blue-100 text-blue-700' },
-    { id: 'family', label: 'My Family', color: 'bg-pink-100 text-pink-700' },
-    { id: 'business', label: `My ${businessType.charAt(0).toUpperCase() + businessType.slice(1)}`, color: 'bg-green-100 text-green-700' },
-    { id: 'parents', label: 'My Parents', color: 'bg-yellow-100 text-yellow-700' },
-    { id: 'friends', label: 'My Friends', color: 'bg-purple-100 text-purple-700' },
-    { id: 'service', label: 'Social Service', color: 'bg-orange-100 text-orange-700' },
+  const workshopCategories: Array<{ id: WorkshopCategory; label: string; quota: number }> = [
+    { id: 'self', label: 'Self', quota: 1 },
+    { id: 'family', label: 'Family', quota: 1 },
+    { id: 'workStudy', label: 'Work / Study', quota: 6 },
+    { id: 'parents', label: 'Parents', quota: 1 },
+    { id: 'friendsRelatives', label: 'Friends & Relatives', quota: 1 },
+    { id: 'social', label: 'Social', quota: 1 },
   ];
 
+  const workshopTotalLimit = 10;
+
   useEffect(() => {
-    loadTodos();
+    loadWorkshopTasks();
     loadRoutine();
     loadSadhana();
     loadVisionGoalsTasks();
-  }, []);
+  }, [today]);
 
-  const loadTodos = () => {
-    const stored = localStorage.getItem('dailyTodos');
+  const getWorkshopStorageKey = () => `dailyWorkshopPlannerTasks:${today}`;
+
+  const loadWorkshopTasks = () => {
+    const stored = localStorage.getItem(getWorkshopStorageKey());
     if (stored) {
-      setTodos(JSON.parse(stored));
+      setWorkshopTasks(JSON.parse(stored));
     }
+  };
+
+  const persistWorkshopTasks = (updated: WorkshopTask[]) => {
+    setWorkshopTasks(updated);
+    localStorage.setItem(getWorkshopStorageKey(), JSON.stringify(updated));
   };
 
   const loadRoutine = () => {
@@ -96,33 +107,42 @@ export default function DailyViewPage() {
     if (storedTasks) setTasks(JSON.parse(storedTasks));
   };
 
-  const addTodo = () => {
-    if (!newTodo.trim()) return;
-    
-    const todo: DailyTodo = {
+  const addWorkshopTask = () => {
+    const text = newWorkshopTask.trim();
+    if (!text) return;
+
+    setWorkshopError('');
+
+    if (workshopTasks.length >= workshopTotalLimit) {
+      setWorkshopError(`Daily task limit reached (${workshopTotalLimit}).`);
+      return;
+    }
+
+    const categoryQuota = workshopCategories.find(c => c.id === selectedWorkshopCategory)?.quota ?? 999;
+    const categoryCount = workshopTasks.filter(t => t.category === selectedWorkshopCategory).length;
+    if (categoryCount >= categoryQuota) {
+      setWorkshopError(`Limit reached for ${workshopCategories.find(c => c.id === selectedWorkshopCategory)?.label ?? 'this category'}.`);
+      return;
+    }
+
+    const task: WorkshopTask = {
       id: Date.now().toString(),
-      category: selectedCategory,
-      title: newTodo,
-      completed: false,
-      date: today,
+      category: selectedWorkshopCategory,
+      text,
     };
-    
-    const updated = [...todos, todo];
-    setTodos(updated);
-    localStorage.setItem('dailyTodos', JSON.stringify(updated));
-    setNewTodo('');
+
+    persistWorkshopTasks([...workshopTasks, task]);
+    setNewWorkshopTask('');
   };
 
-  const toggleTodo = (id: string) => {
-    const updated = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
-    setTodos(updated);
-    localStorage.setItem('dailyTodos', JSON.stringify(updated));
+  const deleteWorkshopTask = (id: string) => {
+    persistWorkshopTasks(workshopTasks.filter(t => t.id !== id));
   };
 
-  const deleteTodo = (id: string) => {
-    const updated = todos.filter(t => t.id !== id);
-    setTodos(updated);
-    localStorage.setItem('dailyTodos', JSON.stringify(updated));
+  const updateWorkshopTask = (id: string, nextText: string) => {
+    const text = nextText.trim();
+    if (!text) return;
+    persistWorkshopTasks(workshopTasks.map(t => (t.id === id ? { ...t, text } : t)));
   };
 
   const toggleRoutine = (id: string) => {
@@ -159,105 +179,115 @@ export default function DailyViewPage() {
       {/* Top 3 Cards with Professional Headers */}
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         
-        {/* Card 1: My Today */}
+        {/* Card 1: Daily Workshop Planner */}
         <div className="rounded-2xl sm:rounded-3xl border border-swar-border bg-white overflow-hidden hover:shadow-md transition flex flex-col">
-          {/* Header with Color Box */}
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-blue-100 font-bold">Today</p>
-              <h2 className="text-lg sm:text-xl font-bold text-white mt-1">My Today</h2>
+          <div className="relative">
+            <img
+              src={heroImgSrc}
+              alt="Swar Yoga"
+              className="w-full h-40 sm:h-44 object-cover"
+              onError={() => setHeroImgSrc('/images/default-diamond.jpg')}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/25 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/80 font-bold">Daily Workshop Planner</p>
+              <h2 className="text-lg sm:text-xl font-bold text-white mt-1">Total Daily Works: {workshopTotalLimit}</h2>
+              <p className="text-xs text-white/85 mt-1">You’ve added {workshopTasks.length}/{workshopTotalLimit}</p>
             </div>
-            <button
-              onClick={addTodo}
-              className="rounded-full bg-white text-blue-600 p-2.5 hover:bg-blue-50 transition font-bold flex-shrink-0 shadow-md"
-              title="Add new task"
-            >
-              <Plus size={20} />
-            </button>
           </div>
-          
+
           <div className="p-4 sm:p-6 flex flex-col flex-grow">
-            {/* Business Type Selector */}
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-swar-text-secondary mb-2">Category:</label>
-              <select
-                value={businessType}
-                onChange={(e) => setBusinessType(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="business">Business</option>
-                <option value="work">Work</option>
-                <option value="study">Study</option>
-                <option value="home">Home</option>
-              </select>
-            </div>
-
-            {/* Categories */}
-            <div className="space-y-3 mb-4 flex-grow max-h-64 overflow-y-auto">
-              {categories.map(cat => {
-                const catTodos = todos.filter(t => t.category === cat.id);
-                return (
-                  <div key={cat.id} className="border-l-4 border-blue-400 pl-3">
-                    <h3 className="text-xs font-semibold text-swar-text mb-2">{cat.label}</h3>
-                    <div className="space-y-1.5">
-                      {catTodos.map(todo => (
-                        <div key={todo.id} className="flex items-center gap-2 group">
-                          <button
-                            onClick={() => toggleTodo(todo.id)}
-                            className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition ${
-                              todo.completed
-                                ? 'bg-green-500 border-green-500'
-                                : 'border-gray-300 hover:border-blue-500'
-                            }`}
-                          >
-                            {todo.completed && <Check size={14} className="text-white" />}
-                          </button>
-                          <span className={`text-xs sm:text-sm flex-grow ${todo.completed ? 'line-through text-gray-400' : 'text-swar-text'}`}>
-                            {todo.title}
-                          </span>
-                          <button
-                            onClick={() => deleteTodo(todo.id)}
-                            className="opacity-0 group-hover:opacity-100 transition p-1 hover:bg-red-50 rounded text-red-600"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Add Todo Input */}
-            <div className="border-t border-swar-border pt-3 mt-auto">
-              <div className="flex gap-2 mb-2">
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value as any)}
-                  className="flex-1 px-2 py-2 text-xs rounded border border-swar-border focus:outline-none focus:ring-2 focus:ring-blue-500"
+            {/* Add Task */}
+            <div className="space-y-2">
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  type="text"
+                  value={newWorkshopTask}
+                  onChange={(e) => {
+                    setWorkshopError('');
+                    setNewWorkshopTask(e.target.value);
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && addWorkshopTask()}
+                  placeholder="Add your daily work..."
+                  className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={addWorkshopTask}
+                  className="w-full sm:w-auto bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition text-sm font-semibold flex items-center justify-center gap-2"
+                  title="Add"
                 >
-                  {categories.map(cat => (
+                  <Plus size={16} />
+                  Add
+                </button>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto] items-center">
+                <select
+                  value={selectedWorkshopCategory}
+                  onChange={(e) => {
+                    setWorkshopError('');
+                    setSelectedWorkshopCategory(e.target.value as WorkshopCategory);
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-swar-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {workshopCategories.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.label}</option>
                   ))}
                 </select>
+                <p className="text-xs text-swar-text-secondary text-right">
+                  Max {workshopTotalLimit} / day
+                </p>
               </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newTodo}
-                  onChange={(e) => setNewTodo(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addTodo()}
-                  placeholder="Add a task..."
-                  className="flex-1 px-3 py-2 text-xs rounded border border-swar-border focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={addTodo}
-                  className="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 transition text-sm font-semibold flex-shrink-0"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
+
+              {workshopError ? (
+                <p className="text-xs text-red-600">{workshopError}</p>
+              ) : null}
+            </div>
+
+            {/* Category sections */}
+            <div className="mt-4 space-y-4 flex-grow max-h-64 overflow-y-auto">
+              {workshopCategories.map(cat => {
+                const catTasks = workshopTasks.filter(t => t.category === cat.id);
+                return (
+                  <div key={cat.id} className="border-l-4 border-blue-400 pl-3">
+                    <h3 className="text-xs font-semibold text-swar-text mb-2">
+                      {cat.label} ({catTasks.length}/{cat.quota})
+                    </h3>
+                    {catTasks.length === 0 ? (
+                      <p className="text-xs text-swar-text-secondary italic">No tasks added</p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {catTasks.map(task => (
+                          <li key={task.id} className="flex items-center gap-2 group">
+                            <span className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500" />
+                            <span
+                              className="text-xs sm:text-sm flex-grow text-swar-text outline-none rounded px-1 -mx-1 focus:bg-blue-50"
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={(e) => updateWorkshopTask(task.id, e.currentTarget.textContent ?? '')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  (e.currentTarget as HTMLElement).blur();
+                                }
+                              }}
+                            >
+                              {task.text}
+                            </span>
+                            <button
+                              onClick={() => deleteWorkshopTask(task.id)}
+                              className="opacity-0 group-hover:opacity-100 transition p-1 hover:bg-red-50 rounded text-red-600"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

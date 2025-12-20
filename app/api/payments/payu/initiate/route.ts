@@ -89,10 +89,11 @@ function sanitizePhone(phone: string): string {
 
 function generatePayUTxnId(): string {
   // Must be unique and <= 25 chars. Use base36 timestamp + short random.
-  // Example: TXN_kg1u2m3p_ab12
+  // PayU txnid is safest as strictly alphanumeric (avoid underscores/special chars).
+  // Example: TXNkg1u2m3pab12
   const ts = Date.now().toString(36);
   const rnd = Math.random().toString(36).slice(2, 6);
-  return `TXN_${ts}_${rnd}`.slice(0, 25);
+  return `TXN${ts}${rnd}`.replace(/[^a-zA-Z0-9]/g, '').slice(0, 25);
 }
 
 // POST endpoint to initiate payment
