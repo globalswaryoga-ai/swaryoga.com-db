@@ -23,6 +23,32 @@ function isSafeRedirectTarget(value: string | null): value is string {
   return /^https?:\/\//i.test(trimmed);
 }
 
+function getClientIp(request: NextRequest): string | null {
+  // Prefer platform-provided headers.
+  // Vercel: x-vercel-forwarded-for
+  // Standard: x-forwarded-for (may be a comma-separated list)
+  // Fallback: x-real-ip / cf-connecting-ip
+  // NextRequest may also expose request.ip in some runtimes.
+  const candidates: Array<string | null | undefined> = [
+    // `request.ip` exists in some Next.js runtimes but isn't in the public type.
+    (request as any).ip,
+    request.headers.get('x-vercel-forwarded-for'),
+    request.headers.get('x-forwarded-for'),
+    request.headers.get('x-real-ip'),
+    request.headers.get('cf-connecting-ip'),
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+    const first = value.split(',')[0]?.trim();
+    if (!first) continue;
+    if (first.toLowerCase() === 'unknown') continue;
+    return first;
+  }
+
+  return null;
+}
+
 interface PaymentRequest {
   amount: number;
   productInfo: string;
@@ -99,16 +125,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Protect PayU from being hit multiple times rapidly (PayU may throttle and show “Too many Requests”).
-    // Enforce 1 initiation per 60s per userId+IP.
-    const forwardedFor = request.headers.get('x-forwarded-for') || '';
-    const ip = forwardedFor.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
-    // PayU may rate limit at the network/merchant level. Use an IP-based key so rapid attempts
-    // from the same network (even with different accounts) are throttled before reaching PayU.
-    const rateKey = `payu-init:${ip}`;
+    // IMPORTANT: never rate-limit globally on a shared/unknown IP (common on serverless).
+    const ip = getClientIp(request);
+    const rateKey = ip ? `payu-init:ip:${ip}` : `payu-init:user:${decoded.userId}`;
 
     const allowed = isRateLimited(rateKey, {
       windowMs: 60_000,
-      max: 1,
+      // Allow a small burst to accommodate user back/refresh, while DB reuse logic prevents new Orders.
+      max: 2,
     });
     if (!allowed) {
       return NextResponse.json(
@@ -163,7 +187,7 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         paymentStatus: 'pending_manual',
         paymentMethod: 'nepal_qr',
-        clientIp: ip,
+        clientIp: ip || undefined,
         clientUserAgent: request.headers.get('user-agent') || '',
         shippingAddress: {
           firstName: sanitizePayUField(body.firstName),
@@ -303,37 +327,11 @@ export async function POST(request: NextRequest) {
     const cooldownMs = 60_000;
     const payMethod = body.country === 'india' ? 'india_payu' : 'international_payu';
     const cutoff = new Date(Date.now() - cooldownMs);
-    type RecentPendingLean = { _id: unknown; createdAt?: unknown };
-    const recentPending = (await Order.findOne({
-      paymentStatus: 'pending',
-      paymentMethod: payMethod,
-      createdAt: { $gte: cutoff },
-      $or: [{ userId: decoded.userId }, { clientIp: ip }],
-    })
-      .select({ _id: 1, createdAt: 1 })
-      .sort({ createdAt: -1 })
-      .lean()) as RecentPendingLean | null;
-
-    if (recentPending?.createdAt) {
-      const createdAt = new Date(recentPending.createdAt as string | number | Date).getTime();
-      const retryAfterSec = Math.max(1, Math.ceil((createdAt + cooldownMs - Date.now()) / 1000));
-      return NextResponse.json(
-        {
-          error: 'Too many payment attempts. Please wait and try again.',
-          retryAfterSec,
-        },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': String(retryAfterSec),
-          },
-        }
-      );
-    }
 
     // Retry hardening: if the user already has a pending order (or same IP initiated one recently),
     // reuse that existing txnid instead of creating a brand new order. This reduces PayU throttling
     // and avoids filling the DB with pending orders when users click again.
+    // NOTE: This runs BEFORE the DB cooldown check so that a retry within 60s can safely reuse.
     const reuseWindowMs = 30 * 60_000; // 30 minutes
     const reuseCutoff = new Date(Date.now() - reuseWindowMs);
     const normalizedEmail = sanitizePayUField(body.email).toLowerCase();
@@ -342,15 +340,33 @@ export async function POST(request: NextRequest) {
       total?: number;
       currency?: string;
       payuTxnId?: string;
-      shippingAddress?: { firstName?: string; lastName?: string; email?: string; phone?: string; address?: string; city?: string; state?: string; zip?: string };
+      shippingAddress?: {
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+        city?: string;
+        state?: string;
+        zip?: string;
+      };
       createdAt?: unknown;
     };
+
+    const reuseOr: Array<Record<string, unknown>> = [{ userId: decoded.userId }];
+    if (ip) reuseOr.push({ clientIp: ip });
+
     const reusable = (await Order.findOne({
       paymentStatus: 'pending',
       paymentMethod: payMethod,
       createdAt: { $gte: reuseCutoff },
-      $or: [{ userId: decoded.userId }, { clientIp: ip }],
-      'shippingAddress.email': { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      $or: reuseOr,
+      'shippingAddress.email': {
+        $regex: new RegExp(
+          `^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+          'i'
+        ),
+      },
     })
       .select({ _id: 1, total: 1, currency: 1, payuTxnId: 1, shippingAddress: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
@@ -375,7 +391,9 @@ export async function POST(request: NextRequest) {
       const failureUrl = typeof body.failureUrl === 'string' ? body.failureUrl : null;
       const successTarget = successUrl && isSafeRedirectTarget(successUrl) ? successUrl : '/payment-successful';
       const failureTarget = failureUrl && isSafeRedirectTarget(failureUrl) ? failureUrl : '/payment-failed';
-      const callbackUrl = `${callbackBase}?success=${encodeURIComponent(successTarget)}&failure=${encodeURIComponent(failureTarget)}`;
+      const callbackUrl = `${callbackBase}?success=${encodeURIComponent(successTarget)}&failure=${encodeURIComponent(
+        failureTarget
+      )}`;
 
       const sa = reusable.shippingAddress || {};
 
@@ -405,6 +423,7 @@ export async function POST(request: NextRequest) {
         email: body.email,
         country: body.country,
         mode: process.env.PAYU_MODE || 'TEST',
+        ip: ip || '(none)',
       });
 
       return NextResponse.json({
@@ -418,6 +437,36 @@ export async function POST(request: NextRequest) {
         },
         reusedPending: true,
       });
+    }
+
+    type RecentPendingLean = { _id: unknown; createdAt?: unknown };
+    const cooldownOr: Array<Record<string, unknown>> = [{ userId: decoded.userId }];
+    if (ip) cooldownOr.push({ clientIp: ip });
+    const recentPending = (await Order.findOne({
+      paymentStatus: 'pending',
+      paymentMethod: payMethod,
+      createdAt: { $gte: cutoff },
+      $or: cooldownOr,
+    })
+      .select({ _id: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .lean()) as RecentPendingLean | null;
+
+    if (recentPending?.createdAt) {
+      const createdAt = new Date(recentPending.createdAt as string | number | Date).getTime();
+      const retryAfterSec = Math.max(1, Math.ceil((createdAt + cooldownMs - Date.now()) / 1000));
+      return NextResponse.json(
+        {
+          error: 'Too many payment attempts. Please wait and try again.',
+          retryAfterSec,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(retryAfterSec),
+          },
+        }
+      );
     }
 
     // Create an Order record so txnid is PayU-safe (<=25 chars) and callback can update it.
@@ -443,7 +492,7 @@ export async function POST(request: NextRequest) {
       paymentStatus: 'pending',
       paymentMethod: payMethod,
       payuTxnId: generatePayUTxnId(),
-      clientIp: ip,
+      clientIp: ip || undefined,
       clientUserAgent: request.headers.get('user-agent') || '',
       shippingAddress: {
         firstName: sanitizePayUField(body.firstName),
