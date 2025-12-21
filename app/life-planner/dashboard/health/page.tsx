@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Clock, Plus } from 'lucide-react';
+import { Clock, Plus, Edit2, Trash2 } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type {
   DayPart,
@@ -19,13 +19,13 @@ import type {
 
 const iso = (d: Date) => d.toISOString().split('T')[0];
 
-const DAY_PARTS: Array<{ key: DayPart; label: string; tint: string }> = [
-  { key: 'early_morning', label: 'Early Morning', tint: 'bg-emerald-50 border-emerald-100' },
-  { key: 'morning', label: 'Morning', tint: 'bg-sky-50 border-sky-100' },
-  { key: 'afternoon', label: 'Afternoon', tint: 'bg-amber-50 border-amber-100' },
-  { key: 'evening', label: 'Evening', tint: 'bg-purple-50 border-purple-100' },
-  { key: 'night', label: 'Night', tint: 'bg-indigo-50 border-indigo-100' },
-  { key: 'midnight', label: 'Midnight', tint: 'bg-slate-50 border-slate-200' },
+const DAY_PARTS: Array<{ key: DayPart; label: string; tint: string; cardTint: string }> = [
+  { key: 'early_morning', label: 'Early Morning', tint: 'bg-emerald-50 border-emerald-200', cardTint: 'bg-emerald-50 border-emerald-100' },
+  { key: 'morning', label: 'Morning', tint: 'bg-sky-50 border-sky-200', cardTint: 'bg-sky-50 border-sky-100' },
+  { key: 'afternoon', label: 'Afternoon', tint: 'bg-amber-50 border-amber-200', cardTint: 'bg-amber-50 border-amber-100' },
+  { key: 'evening', label: 'Evening', tint: 'bg-purple-50 border-purple-200', cardTint: 'bg-purple-50 border-purple-100' },
+  { key: 'night', label: 'Night', tint: 'bg-indigo-50 border-indigo-200', cardTint: 'bg-indigo-50 border-indigo-100' },
+  { key: 'midnight', label: 'Midnight', tint: 'bg-slate-50 border-slate-200', cardTint: 'bg-slate-50 border-slate-100' },
 ];
 
 const FOOD_SUBHEADINGS: string[] = [
@@ -336,6 +336,17 @@ export default function HealthPage() {
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterFrequency, setFilterFrequency] = useState('All');
   const [filterMonth, setFilterMonth] = useState('All');
+
+  // Daily routine form state
+  const [routineFormDayPart, setRoutineFormDayPart] = useState<DayPart>('morning');
+  const [routineFormTitle, setRoutineFormTitle] = useState('');
+  const [routineFormTime, setRoutineFormTime] = useState('09:00');
+
+  // Food plan form state
+  const [foodFormDayPart, setFoodFormDayPart] = useState<DayPart>('morning');
+  const [foodFormTitle, setFoodFormTitle] = useState('');
+  const [foodFormTime, setFoodFormTime] = useState('09:00');
+  const [foodFormSubheading, setFoodFormSubheading] = useState('Breakfast');
 
   // Categories management
   const [categories, setCategories] = useState<string[]>(['exercise', 'meditation', 'nutrition', 'sleep', 'other']);
@@ -1034,11 +1045,12 @@ export default function HealthPage() {
       
       {/* Daily routine + Food plan (two cards) */}
       {activeTab === 'daily' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Date selector */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div>
-                <p className="text-xs font-bold text-swar-text-secondary">Select day</p>
+                <p className="text-xs font-bold text-swar-text-secondary">Select date</p>
                 <div className="flex items-center gap-3 flex-wrap">
                   <input
                     type="date"
@@ -1046,7 +1058,7 @@ export default function HealthPage() {
                     onChange={(e) => setActiveDate(e.target.value)}
                     className="rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
                   />
-                  <span className="text-xs text-swar-text-secondary">Tick your routine & food plan items below.</span>
+                  <span className="text-xs text-swar-text-secondary">Track your daily routine & food plan</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1065,218 +1077,252 @@ export default function HealthPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Card 1: Daily routine */}
-            <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-                <div>
-                  <p className="text-xs font-semibold text-swar-text-secondary">Daily routine</p>
-                  <h2 className="mt-1 text-xl sm:text-2xl font-bold text-swar-text">My Routine</h2>
-                  <p className="mt-1 text-sm text-swar-text-secondary">Early Morning → Midnight. Add title + time and tick when done.</p>
+            {/* ===== CARD 1: DAILY ROUTINE ===== */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+              {/* Card Header */}
+              <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-sky-50 to-emerald-50">
+                <h2 className="text-2xl font-bold text-swar-text">Daily Routine</h2>
+                <p className="mt-1 text-xs text-swar-text-secondary">Add routines for each time period</p>
+              </div>
+
+              {/* Add Form */}
+              <div className="px-6 py-5 border-b border-gray-100 bg-gray-50">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-bold text-swar-text mb-2">Select heading</label>
+                    <select
+                      value={routineFormDayPart}
+                      onChange={(e) => setRoutineFormDayPart(e.target.value as DayPart)}
+                      className="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-swar-text focus:border-sky-400 focus:outline-none"
+                    >
+                      {DAY_PARTS.map((part) => (
+                        <option key={part.key} value={part.key}>
+                          {part.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-swar-text mb-2">Title</label>
+                    <input
+                      type="text"
+                      value={routineFormTitle}
+                      onChange={(e) => setRoutineFormTitle(e.target.value)}
+                      placeholder="What you want to do..."
+                      className="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-swar-text placeholder-gray-400 focus:border-sky-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-swar-text mb-2">Time</label>
+                    <input
+                      type="time"
+                      value={routineFormTime}
+                      onChange={(e) => setRoutineFormTime(e.target.value)}
+                      className="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-swar-text focus:border-sky-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addRoutineItemToDayPart(routineFormDayPart);
+                      setRoutineFormTitle('');
+                      setRoutineFormTime('');
+                    }}
+                    className="w-full rounded-lg bg-sky-600 px-4 py-2.5 font-bold text-white hover:bg-sky-700 transition flex items-center justify-center gap-2"
+                  >
+                    <Plus className="h-5 w-5" />
+                    Add Routine
+                  </button>
                 </div>
               </div>
 
-              <div className="px-4 sm:px-6 py-5 space-y-3">
+              {/* Items Display */}
+              <div className="px-6 py-5 space-y-2">
                 {DAY_PARTS.map((part) => {
                   const items = (activePlan?.routines || []).filter((it) => {
                     const inferred = (it as any).dayPart || inferDayPartFromTime(String(it?.time || it?.startTime || ''));
                     return inferred === part.key;
                   });
 
+                  if (items.length === 0) return null;
+
                   return (
-                    <details key={part.key} className={`rounded-xl border ${part.tint} p-4`} open={part.key === 'morning'}>
-                      <summary className="cursor-pointer select-none list-none flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-extrabold text-swar-text">{part.label}</p>
-                          <p className="text-xs text-swar-text-secondary">{items.length} item(s)</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            addRoutineItemToDayPart(part.key);
-                          }}
-                          className="rounded-lg bg-swar-primary px-3 py-2 text-xs font-semibold text-white hover:bg-swar-primary/90 transition"
-                        >
-                          + Add
-                        </button>
-                      </summary>
+                    <div key={part.key}>
+                      <h3 className="text-xs font-extrabold text-swar-text-secondary uppercase tracking-wider mb-2 mt-3">{part.label}</h3>
+                      <div className="space-y-2">
+                        {items.map((it) => (
+                          <div key={it.id} className={`rounded-lg border-2 p-3 flex items-center gap-3 ${part.cardTint}`}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean((it as any).completed)}
+                              onChange={() => updateRoutineItem(it.id, { completed: !Boolean((it as any).completed) })}
+                              className="h-5 w-5 flex-shrink-0 accent-emerald-600 cursor-pointer"
+                              aria-label="Mark complete"
+                            />
 
-                      <div className="mt-4 space-y-2">
-                        {items.length === 0 ? (
-                          <div className="rounded-lg bg-white/60 border border-white/70 p-3">
-                            <p className="text-sm text-swar-text-secondary italic">No items yet.</p>
-                          </div>
-                        ) : (
-                          items.map((it) => (
-                            <div key={it.id} className="rounded-lg border border-white/70 bg-white/70 p-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                                <div className="sm:col-span-1 flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean((it as any).completed)}
-                                    onChange={() => updateRoutineItem(it.id, { completed: !Boolean((it as any).completed) })}
-                                    className="h-5 w-5 accent-emerald-600"
-                                    aria-label="Mark complete"
-                                  />
-                                </div>
-
-                                <div className="sm:col-span-7">
-                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Title</label>
-                                  <input
-                                    type="text"
-                                    value={it.title || ''}
-                                    onChange={(e) =>
-                                      updateRoutineItem(it.id, {
-                                        title: e.target.value,
-                                        dayPart: part.key,
-                                      })
-                                    }
-                                    placeholder="What you want to do"
-                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                                  />
-                                </div>
-
-                                <div className="sm:col-span-2">
-                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Time</label>
-                                  <input
-                                    type="time"
-                                    value={String(it.time || it.startTime || '')}
-                                    onChange={(e) =>
-                                      updateRoutineItem(it.id, {
-                                        time: e.target.value,
-                                        startTime: undefined,
-                                        endTime: undefined,
-                                        dayPart: part.key,
-                                      })
-                                    }
-                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                                  />
-                                </div>
-
-                                <div className="sm:col-span-2 flex justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => deleteRoutineItem(it.id)}
-                                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-semibold truncate ${(it as any).completed ? 'line-through text-gray-400' : 'text-swar-text'}`}>
+                                {it.title}
+                              </p>
+                              <p className="text-xs text-swar-text-secondary">{it.time || it.startTime || '--:--'}</p>
                             </div>
-                          ))
-                        )}
+
+                            <button
+                              type="button"
+                              onClick={() => deleteRoutineItem(it.id)}
+                              className="flex-shrink-0 p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    </details>
+                    </div>
                   );
                 })}
+
+                {(activePlan?.routines || []).length === 0 && (
+                  <div className="text-center py-8 text-swar-text-secondary">
+                    <p className="text-sm italic">No routines added yet. Add one above!</p>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Card 2: Food plan */}
-            <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-                <div>
-                  <p className="text-xs font-semibold text-swar-text-secondary">Food plan</p>
-                  <h2 className="mt-1 text-xl sm:text-2xl font-bold text-swar-text">Food Plan</h2>
-                  <p className="mt-1 text-sm text-swar-text-secondary">Choose a subheading, add title + time, tick when done.</p>
+            {/* ===== CARD 2: FOOD PLAN ===== */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+              {/* Card Header */}
+              <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-purple-50">
+                <h2 className="text-2xl font-bold text-swar-text">Food Plan</h2>
+                <p className="mt-1 text-xs text-swar-text-secondary">Add food items for each time period</p>
+              </div>
+
+              {/* Add Form */}
+              <div className="px-6 py-5 border-b border-gray-100 bg-gray-50">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-bold text-swar-text mb-2">Select heading</label>
+                    <select
+                      value={foodFormDayPart}
+                      onChange={(e) => setFoodFormDayPart(e.target.value as DayPart)}
+                      className="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-swar-text focus:border-amber-400 focus:outline-none"
+                    >
+                      {DAY_PARTS.map((part) => (
+                        <option key={part.key} value={part.key}>
+                          {part.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-swar-text mb-2">Sub heading</label>
+                    <select
+                      value={foodFormSubheading}
+                      onChange={(e) => setFoodFormSubheading(e.target.value)}
+                      className="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-swar-text focus:border-amber-400 focus:outline-none"
+                    >
+                      {FOOD_SUBHEADINGS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-swar-text mb-2">Title</label>
+                    <input
+                      type="text"
+                      value={foodFormTitle}
+                      onChange={(e) => setFoodFormTitle(e.target.value)}
+                      placeholder="What you want to take/eat..."
+                      className="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-swar-text placeholder-gray-400 focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-swar-text mb-2">Time</label>
+                    <input
+                      type="time"
+                      value={foodFormTime}
+                      onChange={(e) => setFoodFormTime(e.target.value)}
+                      className="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-swar-text focus:border-amber-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addFoodPlanItem(foodFormDayPart);
+                      setFoodFormTitle('');
+                      setFoodFormTime('');
+                    }}
+                    className="w-full rounded-lg bg-amber-600 px-4 py-2.5 font-bold text-white hover:bg-amber-700 transition flex items-center justify-center gap-2"
+                  >
+                    <Plus className="h-5 w-5" />
+                    Add Food
+                  </button>
                 </div>
               </div>
 
-              <div className="px-4 sm:px-6 py-5 space-y-3">
+              {/* Items Display */}
+              <div className="px-6 py-5 space-y-2">
                 {DAY_PARTS.map((part) => {
                   const items = (foodPlanItems || []).filter((it) => (it?.dayPart || part.key) === part.key);
+
+                  if (items.length === 0) return null;
+
                   return (
-                    <details key={part.key} className={`rounded-xl border ${part.tint} p-4`} open={part.key === 'morning'}>
-                      <summary className="cursor-pointer select-none list-none flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-extrabold text-swar-text">{part.label}</p>
-                          <p className="text-xs text-swar-text-secondary">{items.length} item(s)</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            addFoodPlanItem(part.key);
-                          }}
-                          className="rounded-lg bg-swar-primary px-3 py-2 text-xs font-semibold text-white hover:bg-swar-primary/90 transition"
-                        >
-                          + Add
-                        </button>
-                      </summary>
+                    <div key={part.key}>
+                      <h3 className="text-xs font-extrabold text-swar-text-secondary uppercase tracking-wider mb-2 mt-3">{part.label}</h3>
+                      <div className="space-y-2">
+                        {items.map((it) => (
+                          <div key={it.id} className={`rounded-lg border-2 p-3 flex items-center gap-3 ${part.cardTint}`}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(it.completed)}
+                              onChange={() => updateFoodPlanItem(it.id, { completed: !Boolean(it.completed) })}
+                              className="h-5 w-5 flex-shrink-0 accent-emerald-600 cursor-pointer"
+                              aria-label="Mark complete"
+                            />
 
-                      <div className="mt-4 space-y-2">
-                        {items.length === 0 ? (
-                          <div className="rounded-lg bg-white/60 border border-white/70 p-3">
-                            <p className="text-sm text-swar-text-secondary italic">No items yet.</p>
-                          </div>
-                        ) : (
-                          items.map((it) => (
-                            <div key={it.id} className="rounded-lg border border-white/70 bg-white/70 p-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                                <div className="sm:col-span-1 flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(it.completed)}
-                                    onChange={() => updateFoodPlanItem(it.id, { completed: !Boolean(it.completed) })}
-                                    className="h-5 w-5 accent-emerald-600"
-                                    aria-label="Mark complete"
-                                  />
-                                </div>
-
-                                <div className="sm:col-span-4">
-                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Sub heading</label>
-                                  <select
-                                    value={it.subheading || FOOD_SUBHEADINGS[0]}
-                                    onChange={(e) => updateFoodPlanItem(it.id, { subheading: e.target.value, dayPart: part.key })}
-                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                                  >
-                                    {FOOD_SUBHEADINGS.map((opt) => (
-                                      <option key={opt} value={opt}>
-                                        {opt}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <div className="sm:col-span-5">
-                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Title</label>
-                                  <input
-                                    type="text"
-                                    value={it.title || ''}
-                                    onChange={(e) => updateFoodPlanItem(it.id, { title: e.target.value, dayPart: part.key })}
-                                    placeholder="What you want to take/eat"
-                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                                  />
-                                </div>
-
-                                <div className="sm:col-span-2">
-                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Time</label>
-                                  <input
-                                    type="time"
-                                    value={String(it.time || '')}
-                                    onChange={(e) => updateFoodPlanItem(it.id, { time: e.target.value, dayPart: part.key })}
-                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                                  />
-                                </div>
-
-                                <div className="sm:col-span-12 flex justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => deleteFoodPlanItem(it.id)}
-                                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <p className={`text-xs font-bold text-swar-text-secondary`}>
+                                  {it.subheading}
+                                </p>
+                                <p className={`text-sm font-semibold truncate ${it.completed ? 'line-through text-gray-400' : 'text-swar-text'}`}>
+                                  {it.title}
+                                </p>
                               </div>
+                              <p className="text-xs text-swar-text-secondary">{it.time || '--:--'}</p>
                             </div>
-                          ))
-                        )}
+
+                            <button
+                              type="button"
+                              onClick={() => deleteFoodPlanItem(it.id)}
+                              className="flex-shrink-0 p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    </details>
+                    </div>
                   );
                 })}
+
+                {(foodPlanItems || []).length === 0 && (
+                  <div className="text-center py-8 text-swar-text-secondary">
+                    <p className="text-sm italic">No food items added yet. Add one above!</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
