@@ -135,6 +135,9 @@ const orderSchema = new mongoose.Schema({
   paymentStatus: { type: String, enum: ['pending', 'completed', 'failed', 'pending_manual'], default: 'pending' },
   seatInventoryAdjusted: { type: Boolean, default: false },
   paymentMethod: { type: String },
+  // Request context (used for anti-throttle and debugging). Optional.
+  clientIp: { type: String, index: true },
+  clientUserAgent: { type: String },
   // PayU requires txnid to be unique and <= 25 chars.
   // We store a dedicated PayU txn id here (separate from Mongo _id).
   payuTxnId: { type: String, index: true },

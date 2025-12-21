@@ -102,7 +102,9 @@ export async function POST(request: NextRequest) {
     // Enforce 1 initiation per 60s per userId+IP.
     const forwardedFor = request.headers.get('x-forwarded-for') || '';
     const ip = forwardedFor.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
-    const rateKey = `${decoded.userId}:${ip}`;
+    // PayU may rate limit at the network/merchant level. Use an IP-based key so rapid attempts
+    // from the same network (even with different accounts) are throttled before reaching PayU.
+    const rateKey = `payu-init:${ip}`;
 
     const allowed = isRateLimited(rateKey, {
       windowMs: 60_000,
@@ -161,6 +163,8 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         paymentStatus: 'pending_manual',
         paymentMethod: 'nepal_qr',
+        clientIp: ip,
+        clientUserAgent: request.headers.get('user-agent') || '',
         shippingAddress: {
           firstName: sanitizePayUField(body.firstName),
           lastName: sanitizePayUField(body.lastName),
@@ -301,10 +305,10 @@ export async function POST(request: NextRequest) {
     const cutoff = new Date(Date.now() - cooldownMs);
     type RecentPendingLean = { _id: unknown; createdAt?: unknown };
     const recentPending = (await Order.findOne({
-      userId: decoded.userId,
       paymentStatus: 'pending',
       paymentMethod: payMethod,
       createdAt: { $gte: cutoff },
+      $or: [{ userId: decoded.userId }, { clientIp: ip }],
     })
       .select({ _id: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
@@ -350,6 +354,8 @@ export async function POST(request: NextRequest) {
       paymentStatus: 'pending',
       paymentMethod: payMethod,
       payuTxnId: generatePayUTxnId(),
+      clientIp: ip,
+      clientUserAgent: request.headers.get('user-agent') || '',
       shippingAddress: {
         firstName: sanitizePayUField(body.firstName),
         lastName: sanitizePayUField(body.lastName),
