@@ -597,17 +597,16 @@ export default function HealthPage() {
   };
 
   const addRoutineItemToDayPart = (dayPart: DayPart) => {
-    const now = new Date();
-    const defaultTime = clampTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+    // Use form values instead of defaults
     const newItem: DailyRoutineItem = {
       id: `dri-${Date.now()}`,
-      title: '',
+      title: routineFormTitle.trim() || 'Untitled',
       notes: '',
       dayPart,
       startDate: activeDate,
       endDate: activeDate,
       frequency: 'once',
-      time: defaultTime || '',
+      time: routineFormTime || '09:00',
       whatToEat: '',
       completed: false,
     };
@@ -616,6 +615,10 @@ export default function HealthPage() {
       ...plan,
       routines: [...(plan.routines || []), newItem],
     }));
+
+    // Reset form
+    setRoutineFormTitle('');
+    setRoutineFormTime('09:00');
   };
 
   const foodPlanItems = useMemo<FoodPlanItem[]>(
@@ -624,14 +627,13 @@ export default function HealthPage() {
   );
 
   const addFoodPlanItem = (dayPart: DayPart) => {
-    const now = new Date();
-    const defaultTime = clampTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+    // Use form values instead of defaults
     const item: FoodPlanItem = {
       id: `fpi-${Date.now()}`,
       dayPart,
-      subheading: FOOD_SUBHEADINGS[0] || 'Gond Pani',
-      title: '',
-      time: defaultTime || '',
+      subheading: foodFormSubheading || FOOD_SUBHEADINGS[0] || 'Gond Pani',
+      title: foodFormTitle.trim() || 'Untitled',
+      time: foodFormTime || '09:00',
       completed: false,
     };
 
@@ -639,6 +641,10 @@ export default function HealthPage() {
       ...plan,
       foodPlanItems: [...(Array.isArray((plan as any).foodPlanItems) ? ((plan as any).foodPlanItems as FoodPlanItem[]) : []), item],
     }));
+
+    // Reset form
+    setFoodFormTitle('');
+    setFoodFormTime('09:00');
   };
 
   const updateFoodPlanItem = (id: string, patch: Partial<FoodPlanItem>) => {
@@ -1126,11 +1132,7 @@ export default function HealthPage() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      addRoutineItemToDayPart(routineFormDayPart);
-                      setRoutineFormTitle('');
-                      setRoutineFormTime('');
-                    }}
+                    onClick={() => addRoutineItemToDayPart(routineFormDayPart)}
                     className="w-full rounded-lg bg-sky-600 px-4 py-2.5 font-bold text-white hover:bg-sky-700 transition flex items-center justify-center gap-2"
                   >
                     <Plus className="h-5 w-5" />
@@ -1257,11 +1259,7 @@ export default function HealthPage() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      addFoodPlanItem(foodFormDayPart);
-                      setFoodFormTitle('');
-                      setFoodFormTime('');
-                    }}
+                    onClick={() => addFoodPlanItem(foodFormDayPart)}
                     className="w-full rounded-lg bg-amber-600 px-4 py-2.5 font-bold text-white hover:bg-amber-700 transition flex items-center justify-center gap-2"
                   >
                     <Plus className="h-5 w-5" />
