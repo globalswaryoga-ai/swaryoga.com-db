@@ -1271,7 +1271,7 @@ export default function HealthPage() {
               {/* Items Display */}
               <div className="px-6 py-5 space-y-2">
                 {DAY_PARTS.map((part) => {
-                  const items = (foodPlanItems || []).filter((it) => (it?.dayPart || part.key) === part.key);
+                  const items = (foodPlanItems || []).filter((it) => it?.dayPart === part.key);
 
                   if (items.length === 0) return null;
 
