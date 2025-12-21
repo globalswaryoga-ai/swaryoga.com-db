@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import SocialLoginButtons from '@/components/SocialLoginButtons';
 import { setSession } from '@/lib/sessionManager';
 
 export const dynamic = 'force-dynamic';
@@ -232,6 +233,32 @@ function SignInInner() {
                 )}
               </button>
             </form>
+
+            {/* Divider */}
+            <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-swar-border"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-swar-text-secondary">Or continue with</span>
+              </div>
+            </div>
+
+            {/* Social Login Buttons */}
+            <div className="mb-8">
+              <SocialLoginButtons
+                onSuccess={(user) => {
+                  // Set token in localStorage and redirect
+                  const token = localStorage.getItem('authToken');
+                  if (token) {
+                    window.location.href = redirectPath && redirectPath !== '/' ? `/${redirectPath}` : '/account';
+                  }
+                }}
+                onError={(error) => {
+                  setErrors(prev => ({ ...prev, general: error }));
+                }}
+              />
+            </div>
 
             {/* Sign Up Link */}
             <div className="mt-8 text-center">
