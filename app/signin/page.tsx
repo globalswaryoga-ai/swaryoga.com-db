@@ -234,25 +234,13 @@ function SignInInner() {
               </button>
             </form>
 
-            {/* Divider */}
-            <div className="relative my-8">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-swar-border"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-swar-text-secondary">Or continue with</span>
-              </div>
-            </div>
-
             {/* Social Login Buttons */}
             <div className="mb-8">
               <SocialLoginButtons
                 onSuccess={(user) => {
-                  // Set token in localStorage and redirect
-                  const token = localStorage.getItem('authToken');
-                  if (token) {
-                    window.location.href = redirectPath && redirectPath !== '/' ? `/${redirectPath}` : '/account';
-                  }
+                  // User logged in successfully via social login
+                  // Redirect to the intended path
+                  router.push(redirectPath || '/account');
                 }}
                 onError={(error) => {
                   setErrors(prev => ({ ...prev, general: error }));
