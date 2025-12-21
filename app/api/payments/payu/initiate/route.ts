@@ -130,20 +130,20 @@ export async function POST(request: NextRequest) {
     const rateKey = ip ? `payu-init:ip:${ip}` : `payu-init:user:${decoded.userId}`;
 
     const allowed = isRateLimited(rateKey, {
-      windowMs: 60_000,
-      // Allow a small burst to accommodate user back/refresh, while DB reuse logic prevents new Orders.
-      max: 2,
+      windowMs: 120_000, // 2 minutes - PayU's strict rate limit
+      // PayU allows max 1 request per 2 minutes to avoid "Too many Requests" throttling.
+      max: 1,
     });
     if (!allowed) {
       return NextResponse.json(
         {
-          error: 'Too many payment attempts. Please wait 60 seconds and try again.',
-          retryAfterSec: 60,
+          error: 'Too many payment attempts. Please wait 120 seconds and try again.',
+          retryAfterSec: 120,
         },
         {
           status: 429,
           headers: {
-            'Retry-After': '60',
+            'Retry-After': '120',
           },
         }
       );
@@ -332,11 +332,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Durable throttling: prevent repeated PayU initiations within 60s.
-    // PayU can respond with “Too many Requests” if users retry rapidly; in-memory rate limits
+    // Durable throttling: prevent repeated PayU initiations within 120s.
+    // PayU can respond with "Too many Requests" if users retry rapidly; in-memory rate limits
     // are not reliable on serverless, so we also enforce a DB-backed cooldown.
     await connectDB();
-    const cooldownMs = 60_000;
+    const cooldownMs = 120_000; // 2 minutes - PayU's strict rate limit
     const payMethod = body.country === 'india' ? 'india_payu' : 'international_payu';
     const cutoff = new Date(Date.now() - cooldownMs);
 
