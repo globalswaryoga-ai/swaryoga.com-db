@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -16,19 +16,21 @@ import {
 
 interface SaleRecord {
   _id: string;
-  userId: string;
-  leadId: string;
-  amount: number;
+  userId?: any;
+  leadId?: any;
+  saleAmount: number;
   paymentMode: string;
-  status: string;
-  createdAt: string;
+  saleDate?: string;
+  createdAt?: string;
 }
 
 interface SalesSummary {
   totalSales: number;
-  totalRevenue: number;
-  averageSaleAmount: number;
-  byPaymentMode: Record<string, { count: number; total: number }>;
+  totalTransactions: number;
+  averageSale: number;
+  maxSale: number;
+  minSale: number;
+  targetAchieved: number;
 }
 
 export default function SalesPage() {
@@ -43,9 +45,22 @@ export default function SalesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
     leadId: '',
-    amount: 0,
+    saleAmount: 0,
     paymentMode: 'payu',
   });
+
+  const fetchSalesData = useCallback(async () => {
+    try {
+      const result = await crm.fetch('/api/admin/crm/sales', { params: { view } });
+      if (view === 'summary') {
+        setSummary(result as SalesSummary);
+      } else {
+        setSales(result?.sales || []);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }, [crm, view]);
 
   useEffect(() => {
     if (!token) {
@@ -53,48 +68,22 @@ export default function SalesPage() {
       return;
     }
     fetchSalesData();
-  }, [view, token, router]);
-
-  const fetchSalesData = async () => {
-    try {
-      crm.setLoading(true);
-      const response = await fetch(`/api/admin/crm/sales?view=${view}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch sales');
-
-      const data = await response.json();
-      if (data.success) {
-        if (view === 'summary') {
-          setSummary(data.data);
-        } else {
-          setSales(data.data.sales);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      crm.setLoading(false);
-    }
-  };
+  }, [token, router, fetchSalesData]);
 
   const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/admin/crm/sales', {
+      await crm.fetch('/api/admin/crm/sales', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+        body: {
+          leadId: formData.leadId || undefined,
+          saleAmount: formData.saleAmount,
+          paymentMode: formData.paymentMode,
         },
-        body: JSON.stringify(formData),
       });
 
-      if (!response.ok) throw new Error('Failed to create sale');
-
       setShowCreateModal(false);
-      setFormData({ leadId: '', amount: 0, paymentMode: 'payu' });
+      setFormData({ leadId: '', saleAmount: 0, paymentMode: 'payu' });
       fetchSalesData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create sale');
@@ -104,12 +93,10 @@ export default function SalesPage() {
   const handleDeleteSale = async (saleId: string) => {
     if (!confirm('Delete this sale record?')) return;
     try {
-      const response = await fetch(`/api/admin/crm/sales?saleId=${saleId}`, {
+      await crm.fetch('/api/admin/crm/sales', {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        params: { saleId },
       });
-
-      if (!response.ok) throw new Error('Failed to delete sale');
       fetchSalesData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
@@ -117,10 +104,18 @@ export default function SalesPage() {
   };
 
   const columns = [
-    { key: 'leadId', label: 'Lead ID', render: (id: string) => id?.slice(-6) || 'N/A' },
-    { key: 'amount', label: 'Amount', render: (amt: number) => `₹${amt?.toLocaleString() || 0}` },
+    {
+      key: 'leadId',
+      label: 'Lead',
+      render: (lead: any) => (typeof lead === 'string' ? lead.slice(-6) : (lead?._id || 'N/A').slice?.(-6) || 'N/A'),
+    },
+    { key: 'saleAmount', label: 'Amount', render: (amt: number) => `₹${amt?.toLocaleString() || 0}` },
     { key: 'paymentMode', label: 'Payment', render: (mode: string) => mode.charAt(0).toUpperCase() + mode.slice(1) },
-    { key: 'createdAt', label: 'Date', render: (date: string) => new Date(date).toLocaleDateString() },
+    {
+      key: 'saleDate',
+      label: 'Date',
+      render: (date: string) => (date ? new Date(date).toLocaleDateString() : '-'),
+    },
     {
       key: 'actions',
       label: 'Actions',
@@ -152,7 +147,7 @@ export default function SalesPage() {
         />
 
         {/* Error Alert */}
-        {error && <AlertBox type="error" message={error} onDismiss={() => setError(null)} />}
+        {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
 
         {/* View Selector */}
         <div className="flex gap-2 flex-wrap">
@@ -181,31 +176,28 @@ export default function SalesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                   label="Total Sales"
-                  value={summary.totalSales.toString()}
+                  value={summary.totalTransactions.toString()}
                   icon="📊"
                   color="purple"
                 />
                 <StatCard
                   label="Total Revenue"
-                  value={`₹${summary.totalRevenue.toLocaleString()}`}
+                  value={`₹${summary.totalSales.toLocaleString()}`}
                   icon="💰"
                   color="green"
                 />
                 <StatCard
                   label="Average Sale"
-                  value={`₹${summary.averageSaleAmount.toLocaleString()}`}
+                  value={`₹${summary.averageSale.toLocaleString()}`}
                   icon="📈"
                   color="blue"
                 />
                 <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
-                  <div className="text-white font-semibold mb-4 text-sm">Payment Methods</div>
+                  <div className="text-white font-semibold mb-4 text-sm">Summary</div>
                   <div className="space-y-2">
-                    {Object.entries(summary.byPaymentMode).map(([method, data]) => (
-                      <div key={method} className="flex justify-between text-purple-200 text-xs">
-                        <span className="capitalize">{method}</span>
-                        <span>{data.count} sales</span>
-                      </div>
-                    ))}
+                    <div className="flex justify-between text-purple-200 text-xs"><span>Max Sale</span><span>₹{summary.maxSale.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-purple-200 text-xs"><span>Min Sale</span><span>₹{summary.minSale.toLocaleString()}</span></div>
+                    <div className="flex justify-between text-purple-200 text-xs"><span>Target Achieved</span><span>{summary.targetAchieved}</span></div>
                   </div>
                 </div>
               </div>
@@ -238,10 +230,9 @@ export default function SalesPage() {
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-purple-200 text-sm mb-2">Lead ID *</label>
+              <label className="block text-purple-200 text-sm mb-2">Lead ID (optional)</label>
               <input
                 type="text"
-                required
                 value={formData.leadId}
                 onChange={(e) => setFormData({ ...formData, leadId: e.target.value })}
                 className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
@@ -253,8 +244,8 @@ export default function SalesPage() {
               <input
                 type="number"
                 required
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+                value={formData.saleAmount}
+                onChange={(e) => setFormData({ ...formData, saleAmount: Number(e.target.value) })}
                 className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
                 placeholder="5000"
               />
@@ -267,8 +258,10 @@ export default function SalesPage() {
                 className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
               >
                 <option value="payu">PayU</option>
-                <option value="qr_code">QR Code</option>
-                <option value="manual">Manual</option>
+                <option value="card">Card</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cash">Cash</option>
+                <option value="other">Other</option>
               </select>
             </div>
           </div>

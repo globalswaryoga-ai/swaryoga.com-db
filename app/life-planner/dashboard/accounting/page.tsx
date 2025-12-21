@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Edit,
@@ -75,14 +75,14 @@ export default function LifePlannerAccountingPage() {
   const [reportMonth, setReportMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [generatingReport, setGeneratingReport] = useState(false);
 
-  const getAuthHeaders = (): Record<string, string> => {
+  const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
     const token = typeof window !== 'undefined' ? localStorage.getItem('lifePlannerToken') : null;
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
     return headers;
-  };
+  }, []);
 
   // Form states
   const [accountForm, setAccountForm] = useState({
@@ -116,11 +116,7 @@ export default function LifePlannerAccountingPage() {
     status: 'active' as Investment['status']
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
@@ -155,7 +151,11 @@ export default function LifePlannerAccountingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const calculateStats = (txns: Transaction[] = transactions) => {
     const totalIncome = txns.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);

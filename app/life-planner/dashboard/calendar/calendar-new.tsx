@@ -53,6 +53,33 @@ interface CalendarDay {
   isCurrentMonth: boolean;
 }
 
+const TYPE_META: Record<CalendarItemType, { label: string; icon: CalendarItem['icon']; colorClass: string }> = {
+  vision: { label: 'Vision', icon: 'target', colorClass: 'bg-[var(--dot-vision)]' },
+  actionPlan: { label: 'Action Plan', icon: 'flag', colorClass: 'bg-[var(--dot-action)]' },
+  goal: { label: 'Goal', icon: 'trophy', colorClass: 'bg-[var(--line-goal)]' },
+  task: { label: 'Task', icon: 'check', colorClass: 'bg-[var(--line-task)]' },
+  todo: { label: 'Todo', icon: 'todo', colorClass: 'bg-[var(--dot-todo)]' },
+  reminder: { label: 'Reminder', icon: 'bell', colorClass: 'bg-[var(--dot-reminder)]' },
+  word: { label: 'Word', icon: 'book', colorClass: 'bg-[var(--dot-word)]' },
+  event: { label: 'Event', icon: 'calendar', colorClass: 'bg-[var(--line-event)]' },
+};
+
+const CUSTOM_EVENT_STORAGE_KEY = 'swar-life-planner-calendar-events';
+
+const normalizeISO = (value: string | undefined | null): string => {
+  if (!value) return '';
+  // Accept YYYY-MM-DD or ISO timestamps
+  return value.length >= 10 ? value.slice(0, 10) : value;
+};
+
+const parseISO = (iso: string): Date => new Date(`${iso}T00:00:00`);
+
+const isValidISO = (iso: string): boolean => {
+  if (!iso) return false;
+  const d = parseISO(iso);
+  return !Number.isNaN(d.getTime());
+};
+
 export default function EnhancedCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [items, setItems] = useState<CalendarItem[]>([]);
@@ -94,33 +121,6 @@ export default function EnhancedCalendar() {
     calendar: CalendarIcon,
     briefcase: Briefcase,
     cake: Cake,
-  };
-
-  const TYPE_META: Record<CalendarItemType, { label: string; icon: CalendarItem['icon']; colorClass: string }> = {
-    vision: { label: 'Vision', icon: 'target', colorClass: 'bg-[var(--dot-vision)]' },
-    actionPlan: { label: 'Action Plan', icon: 'flag', colorClass: 'bg-[var(--dot-action)]' },
-    goal: { label: 'Goal', icon: 'trophy', colorClass: 'bg-[var(--line-goal)]' },
-    task: { label: 'Task', icon: 'check', colorClass: 'bg-[var(--line-task)]' },
-    todo: { label: 'Todo', icon: 'todo', colorClass: 'bg-[var(--dot-todo)]' },
-    reminder: { label: 'Reminder', icon: 'bell', colorClass: 'bg-[var(--dot-reminder)]' },
-    word: { label: 'Word', icon: 'book', colorClass: 'bg-[var(--dot-word)]' },
-    event: { label: 'Event', icon: 'calendar', colorClass: 'bg-[var(--line-event)]' },
-  };
-
-  const CUSTOM_EVENT_STORAGE_KEY = 'swar-life-planner-calendar-events';
-
-  const normalizeISO = (value: string | undefined | null): string => {
-    if (!value) return '';
-    // Accept YYYY-MM-DD or ISO timestamps
-    return value.length >= 10 ? value.slice(0, 10) : value;
-  };
-
-  const parseISO = (iso: string): Date => new Date(`${iso}T00:00:00`);
-
-  const isValidISO = (iso: string): boolean => {
-    if (!iso) return false;
-    const d = parseISO(iso);
-    return !Number.isNaN(d.getTime());
   };
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
@@ -89,15 +89,15 @@ export default function UserProfile() {
   const [sendingChat, setSendingChat] = useState(false);
   const [downloadingReceipt, setDownloadingReceipt] = useState<string | null>(null);
 
-  const getUnifiedToken = () => {
+  const getUnifiedToken = useCallback(() => {
     return localStorage.getItem('token') || localStorage.getItem('lifePlannerToken') || '';
-  };
+  }, []);
 
-  const getUnifiedUserRaw = () => {
+  const getUnifiedUserRaw = useCallback(() => {
     return localStorage.getItem('user') || localStorage.getItem('lifePlannerUser') || '';
-  };
+  }, []);
 
-  const safeUserFromStorage = (parsed: any): UserData | null => {
+  const safeUserFromStorage = useCallback((parsed: any): UserData | null => {
     const email = typeof parsed?.email === 'string' ? parsed.email : '';
     if (!email) return null;
     const name = typeof parsed?.name === 'string' && parsed.name.trim() ? parsed.name : email.split('@')[0] || 'User';
@@ -116,7 +116,7 @@ export default function UserProfile() {
       countryCode: typeof parsed?.countryCode === 'string' ? parsed.countryCode : undefined,
       profileImage: typeof parsed?.profileImage === 'string' ? parsed.profileImage : undefined,
     };
-  };
+  }, []);
 
   const downloadReceipt = async (orderId: string) => {
     try {
@@ -553,7 +553,7 @@ export default function UserProfile() {
   };
 
   // Fetch fresh user data and related info
-  const fetchUserData = async (token: string) => {
+  const fetchUserData = useCallback(async (token: string) => {
     if (!token) {
       console.warn('No token available for fetchUserData');
       return;
@@ -600,9 +600,9 @@ export default function UserProfile() {
         }
       }
     }
-  };
+  }, [getUnifiedUserRaw, safeUserFromStorage]);
 
-  const fetchMessages = async (token: string) => {
+  const fetchMessages = useCallback(async (token: string) => {
     if (!token) {
       console.warn('No token available for fetchMessages');
       return;
@@ -638,9 +638,9 @@ export default function UserProfile() {
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
-  };
+  }, [getUnifiedUserRaw]);
 
-  const fetchOrders = async (token: string) => {
+  const fetchOrders = useCallback(async (token: string) => {
     if (!token) {
       console.warn('No token available for fetchOrders');
       return;
@@ -659,7 +659,7 @@ export default function UserProfile() {
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const token = getUnifiedToken();
@@ -689,7 +689,7 @@ export default function UserProfile() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, getUnifiedToken, getUnifiedUserRaw, safeUserFromStorage, fetchUserData, fetchMessages, fetchOrders]);
 
   const handleLogout = () => {
     clearSession();

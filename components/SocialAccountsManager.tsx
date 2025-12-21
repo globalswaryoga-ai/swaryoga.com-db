@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 interface SocialAccount {
   _id: string;
@@ -24,11 +24,7 @@ export default function SocialAccountsManager({ token }: AccountManagerProps) {
   const [platform, setPlatform] = useState('facebook');
   const [isConnecting, setIsConnecting] = useState(false);
 
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  async function fetchAccounts() {
+  const fetchAccounts = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/social/accounts', {
@@ -43,7 +39,11 @@ export default function SocialAccountsManager({ token }: AccountManagerProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [token]);
+
+  useEffect(() => {
+    fetchAccounts();
+  }, [fetchAccounts]);
 
   async function handleConnect() {
     // In production, this would use OAuth redirect

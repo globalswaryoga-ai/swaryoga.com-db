@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -12,11 +12,11 @@ import {
 
 interface Template {
   _id: string;
-  name: string;
-  category: string;
-  content: string;
-  variables: string[];
-  status: 'draft' | 'approved' | 'rejected';
+  templateName: string;
+  category: 'MARKETING' | 'OTP' | 'TRANSACTIONAL' | 'ACCOUNT_UPDATE' | string;
+  language?: string;
+  templateContent: string;
+  status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'disabled';
   createdAt: string;
   updatedAt: string;
 }
@@ -28,18 +28,35 @@ export default function TemplatesPage() {
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'approved' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | Template['status']>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    category: 'message',
-    content: '',
+    templateName: '',
+    category: 'MARKETING',
+    templateContent: '',
   });
   const [page, setPage] = useState(1);
   const [totalTemplates, setTotalTemplates] = useState(0);
 
   const pageSize = 20;
+
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const result = await crm.fetch('/api/admin/crm/templates', {
+        params: {
+          limit: pageSize,
+          skip: (page - 1) * pageSize,
+          status: statusFilter === 'all' ? undefined : statusFilter,
+        },
+      });
+
+      setTemplates(result?.templates || []);
+      setTotalTemplates(result?.total || 0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }, [crm, page, pageSize, statusFilter]);
 
   useEffect(() => {
     if (!token) {
@@ -47,115 +64,74 @@ export default function TemplatesPage() {
       return;
     }
     fetchTemplates();
-  }, [page, statusFilter, token, router]);
-
-  const fetchTemplates = async () => {
-    try {
-      crm.setLoading(true);
-      const params = new URLSearchParams({
-        limit: pageSize.toString(),
-        skip: ((page - 1) * pageSize).toString(),
-      });
-
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-
-      const response = await fetch(`/api/admin/crm/templates?${params}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch templates');
-
-      const data = await response.json();
-      if (data.success) {
-        setTemplates(data.data.templates);
-        setTotalTemplates(data.data.total);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      crm.setLoading(false);
-    }
-  };
+  }, [token, router, fetchTemplates]);
 
   const handleCreateTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/admin/crm/templates', {
+      await crm.fetch('/api/admin/crm/templates', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+        body: {
+          templateName: formData.templateName,
+          category: formData.category,
+          templateContent: formData.templateContent,
+          status: 'draft',
         },
-        body: JSON.stringify(formData),
       });
 
-      if (!response.ok) throw new Error('Failed to create template');
-
       setShowCreateModal(false);
-      setFormData({ name: '', category: 'message', content: '' });
+      setFormData({ templateName: '', category: 'MARKETING', templateContent: '' });
       setPage(1);
       fetchTemplates();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create template');
+      setError(err instanceof Error ? err.message : 'Failed to create template');
     }
   };
 
   const handleApproveTemplate = async (templateId: string) => {
     try {
-      const response = await fetch(`/api/admin/crm/templates/${templateId}`, {
+      await crm.fetch('/api/admin/crm/templates', {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'approved' }),
+        body: { templateId, action: 'approve' },
       });
-
-      if (!response.ok) throw new Error('Failed to approve template');
       fetchTemplates();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to approve');
+      setError(err instanceof Error ? err.message : 'Failed to approve');
     }
   };
 
   const handleRejectTemplate = async (templateId: string) => {
     try {
-      const response = await fetch(`/api/admin/crm/templates/${templateId}`, {
+      await crm.fetch('/api/admin/crm/templates', {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'rejected' }),
+        body: { templateId, action: 'reject', rejectionReason: 'Rejected from CRM UI' },
       });
-
-      if (!response.ok) throw new Error('Failed to reject template');
       fetchTemplates();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to reject');
+      setError(err instanceof Error ? err.message : 'Failed to reject');
     }
   };
 
   const handleDeleteTemplate = async (templateId: string) => {
     if (!confirm('Delete this template?')) return;
     try {
-      const response = await fetch(`/api/admin/crm/templates/${templateId}`, {
+      await crm.fetch('/api/admin/crm/templates', {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        params: { templateId },
       });
-
-      if (!response.ok) throw new Error('Failed to delete template');
       fetchTemplates();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete');
+      setError(err instanceof Error ? err.message : 'Failed to delete');
     }
   };
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       draft: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/30',
+      pending_approval: 'bg-blue-500/20 text-blue-200 border-blue-500/30',
       approved: 'bg-green-500/20 text-green-200 border-green-500/30',
       rejected: 'bg-red-500/20 text-red-200 border-red-500/30',
+      disabled: 'bg-slate-500/20 text-slate-200 border-slate-500/30',
     };
     return colors[status] || colors.draft;
   };
@@ -163,8 +139,10 @@ export default function TemplatesPage() {
   const getStatusIcon = (status: string) => {
     const icons: Record<string, string> = {
       draft: '✏️',
+      pending_approval: '⏳',
       approved: '✅',
       rejected: '❌',
+      disabled: '⛔',
     };
     return icons[status] || '📄';
   };
@@ -194,7 +172,7 @@ export default function TemplatesPage() {
         <div>
           <label className="block text-purple-200 text-sm mb-2">Filter by Status</label>
           <div className="flex gap-2 flex-wrap">
-            {(['all', 'draft', 'approved', 'rejected'] as const).map((status) => (
+            {(['all', 'draft', 'pending_approval', 'approved', 'rejected', 'disabled'] as const).map((status) => (
               <button
                 key={status}
                 onClick={() => {
@@ -217,7 +195,7 @@ export default function TemplatesPage() {
         {crm.loading ? (
           <LoadingSpinner />
         ) : error ? (
-          <AlertBox type="error" message={error} />
+          <AlertBox type="error" message={error} onClose={() => setError(null)} />
         ) : (
           <div className="space-y-6">
             {/* Templates Grid */}
@@ -228,7 +206,7 @@ export default function TemplatesPage() {
                 </div>
               ) : (
                 templates.map((template) => {
-                  const variables = extractVariables(template.content);
+                  const variables = extractVariables(template.templateContent);
                   return (
                     <div
                       key={template._id}
@@ -236,7 +214,7 @@ export default function TemplatesPage() {
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div>
-                          <h3 className="text-white font-semibold text-lg">{template.name}</h3>
+                          <h3 className="text-white font-semibold text-lg">{template.templateName}</h3>
                           <p className="text-purple-300 text-sm capitalize">{template.category}</p>
                         </div>
                         <span className={`px-3 py-1 rounded-lg text-sm font-medium border inline-flex items-center gap-2 ${getStatusColor(template.status)}`}>
@@ -247,7 +225,7 @@ export default function TemplatesPage() {
 
                       {/* Content Preview */}
                       <div className="bg-slate-700/50 rounded-lg p-4 mb-4 max-h-24 overflow-hidden">
-                        <p className="text-purple-200 text-sm line-clamp-4">{template.content}</p>
+                        <p className="text-purple-200 text-sm line-clamp-4">{template.templateContent}</p>
                       </div>
 
                       {/* Variables */}
@@ -281,7 +259,7 @@ export default function TemplatesPage() {
                         >
                           View
                         </button>
-                        {template.status === 'draft' && (
+                        {(template.status === 'draft' || template.status === 'pending_approval') && (
                           <>
                             <button
                               onClick={() => handleApproveTemplate(template._id)}
@@ -339,7 +317,7 @@ export default function TemplatesPage() {
         {selectedTemplate && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
             <div className="bg-slate-800 rounded-xl border border-purple-500/50 p-8 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-              <h2 className="text-2xl font-bold text-white mb-6">{selectedTemplate.name}</h2>
+              <h2 className="text-2xl font-bold text-white mb-6">{selectedTemplate.templateName}</h2>
 
               <div className="space-y-4 mb-6">
                 <div>
@@ -355,14 +333,14 @@ export default function TemplatesPage() {
                 <div>
                   <label className="block text-purple-300 text-sm mb-1">Content</label>
                   <div className="bg-slate-700/50 rounded-lg p-4 text-purple-200 whitespace-pre-wrap font-mono text-sm">
-                    {selectedTemplate.content}
+                    {selectedTemplate.templateContent}
                   </div>
                 </div>
-                {extractVariables(selectedTemplate.content).length > 0 && (
+                {extractVariables(selectedTemplate.templateContent).length > 0 && (
                   <div>
                     <label className="block text-purple-300 text-sm mb-1">Variables</label>
                     <div className="flex gap-2 flex-wrap">
-                      {extractVariables(selectedTemplate.content).map((v) => (
+                      {extractVariables(selectedTemplate.templateContent).map((v) => (
                         <span
                           key={v}
                           className="px-3 py-1 bg-purple-500/20 text-purple-200 rounded-lg border border-purple-500/30 text-sm"
@@ -376,7 +354,7 @@ export default function TemplatesPage() {
               </div>
 
               <div className="flex gap-3">
-                {selectedTemplate.status === 'draft' && (
+                {(selectedTemplate.status === 'draft' || selectedTemplate.status === 'pending_approval') && (
                   <>
                     <button
                       onClick={() => {
@@ -420,8 +398,8 @@ export default function TemplatesPage() {
                   <input
                     type="text"
                     required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.templateName}
+                    onChange={(e) => setFormData({ ...formData, templateName: e.target.value })}
                     className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
                     placeholder="e.g., Welcome Message"
                   />
@@ -433,10 +411,10 @@ export default function TemplatesPage() {
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
                   >
-                    <option value="message">Message</option>
-                    <option value="notification">Notification</option>
-                    <option value="reminder">Reminder</option>
-                    <option value="promotional">Promotional</option>
+                    <option value="MARKETING">Marketing</option>
+                    <option value="TRANSACTIONAL">Transactional</option>
+                    <option value="OTP">OTP</option>
+                    <option value="ACCOUNT_UPDATE">Account Update</option>
                   </select>
                 </div>
                 <div>
@@ -444,14 +422,14 @@ export default function TemplatesPage() {
                   <div className="text-purple-300 text-xs mb-2">Use {`{variableName}`} for variables</div>
                   <textarea
                     required
-                    value={formData.content}
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    value={formData.templateContent}
+                    onChange={(e) => setFormData({ ...formData, templateContent: e.target.value })}
                     rows={6}
                     maxLength={1000}
                     className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 resize-none font-mono"
                     placeholder={`Hi {name}, welcome to our community!\n\nYour account is ready.`}
                   />
-                  <div className="text-purple-300 text-xs mt-1">{formData.content.length}/1000</div>
+                  <div className="text-purple-300 text-xs mt-1">{formData.templateContent.length}/1000</div>
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button

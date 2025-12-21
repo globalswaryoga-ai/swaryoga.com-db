@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trash2, Link as LinkIcon, Calendar, Image, Play, X, Plus } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 
@@ -77,7 +77,7 @@ export default function SocialMediaAdmin() {
     Array<{ accountMongoId: string; platform: string; accountId: string; ok: boolean; followers?: number; error?: string }>
   >([]);
 
-  const fetchWithTimeout = async (url: string, init: RequestInit = {}, timeoutMs = 15000) => {
+  const fetchWithTimeout = useCallback(async (url: string, init: RequestInit = {}, timeoutMs = 15000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -85,23 +85,9 @@ export default function SocialMediaAdmin() {
     } finally {
       clearTimeout(id);
     }
-  };
-
-  useEffect(() => {
-    const storedToken = localStorage.getItem('adminToken');
-
-    if (storedToken) {
-      setToken(storedToken);
-      fetchAccounts(storedToken);
-      fetchPosts(storedToken);
-      return;
-    }
-
-    // No token available; stop loading so we can show a prompt.
-    setLoading(false);
   }, []);
 
-  const fetchAccounts = async (authToken: string) => {
+  const fetchAccounts = useCallback(async (authToken: string) => {
     try {
       setLoading(true);
       setLoadError('');
@@ -128,9 +114,9 @@ export default function SocialMediaAdmin() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchWithTimeout]);
 
-  const fetchPosts = async (authToken: string) => {
+  const fetchPosts = useCallback(async (authToken: string) => {
     try {
       const response = await fetchWithTimeout('/api/admin/social-media/posts', {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -149,7 +135,21 @@ export default function SocialMediaAdmin() {
     } catch (error) {
       console.error('Error fetching posts:', error);
     }
-  };
+  }, [fetchWithTimeout]);
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem('adminToken');
+
+    if (storedToken) {
+      setToken(storedToken);
+      fetchAccounts(storedToken);
+      fetchPosts(storedToken);
+      return;
+    }
+
+    // No token available; stop loading so we can show a prompt.
+    setLoading(false);
+  }, [fetchAccounts, fetchPosts]);
 
   const handleSyncAnalytics = async () => {
     setSyncLoading(true);

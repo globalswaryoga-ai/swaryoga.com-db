@@ -76,8 +76,10 @@ export const maskCredential = (credential: string): string => {
   return `${credential.substring(0, 4)}...${credential.substring(credential.length - 4)}`;
 };
 
-export default {
+const encryptionUtils = {
   encryptCredential,
   decryptCredential,
   maskCredential,
 };
+
+export default encryptionUtils;

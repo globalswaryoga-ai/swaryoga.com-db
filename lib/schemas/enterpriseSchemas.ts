@@ -91,8 +91,26 @@ WhatsAppMessageSchema.index({ direction: 1, sentAt: -1 });
 // ============================================================================
 const UserConsentSchema = new mongoose.Schema(
   {
-    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, unique: true },
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: false, index: true },
     phoneNumber: { type: String, required: true, unique: true, index: true },
+
+    // Channel-specific consent (used by admin CRM consent APIs + tests)
+    channel: {
+      type: String,
+      enum: ['whatsapp', 'sms', 'email'],
+      default: 'whatsapp',
+      index: true,
+    },
+
+    // Canonical status for APIs/tests (underscore format)
+    status: {
+      type: String,
+      enum: ['opted_in', 'opted_out', 'pending'],
+      default: 'pending',
+      index: true,
+    },
+
+    // Legacy status (hyphen format) kept for backward compatibility
     consentStatus: {
       type: String,
       enum: ['opted-in', 'opted-out', 'pending'],
@@ -116,6 +134,7 @@ const UserConsentSchema = new mongoose.Schema(
   { timestamps: true, collection: 'user_consents' }
 );
 
+UserConsentSchema.index({ phoneNumber: 1, status: 1, channel: 1 });
 UserConsentSchema.index({ phoneNumber: 1, consentStatus: 1 });
 
 // ============================================================================
@@ -404,9 +423,11 @@ AnalyticsEventSchema.index({ userId: 1, eventType: 1, createdAt: -1 });
 // ============================================================================
 const SalesReportSchema = new mongoose.Schema(
   {
-    saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true },
+    // Optional for manual CRM entries where no Order exists yet
+    saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: false },
+    // Optional because admin JWTs may not map to a User document
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false, index: true },
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: false },
     saleAmount: { type: Number, required: true },
     currency: { type: String, default: 'INR' },
     paymentMode: {

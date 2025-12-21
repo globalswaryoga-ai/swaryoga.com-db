@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import mongoose from 'mongoose';
 
 /**
  * WhatsApp message templates management
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
-    const status = url.searchParams.get('status'); // pending, approved, rejected
+    const status = url.searchParams.get('status'); // draft, pending_approval, approved, rejected, disabled
     const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
@@ -62,27 +63,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { templateName, category, headerText, bodyText, footerText, buttons } = body;
+    const {
+      templateName,
+      category,
+      language,
+      templateContent,
+      bodyText,
+      content,
+      headerFormat,
+      headerContent,
+      footerText,
+      variables,
+      status,
+    } = body;
 
-    if (!templateName || !category || !bodyText) {
+    const resolvedTemplateContent = templateContent || bodyText || content;
+
+    if (!templateName || !category || !resolvedTemplateContent) {
       return NextResponse.json(
-        { error: 'Missing: templateName, category, bodyText' },
+        { error: 'Missing: templateName, category, templateContent' },
         { status: 400 }
       );
     }
 
     await connectDB();
 
+    const allowedStatuses = ['draft', 'pending_approval', 'approved', 'rejected', 'disabled'];
+    const safeStatus = allowedStatuses.includes(status) ? status : 'draft';
+
     const template = await WhatsAppTemplate.create({
       templateName,
       category,
-      headerText,
-      bodyText,
-      footerText,
-      buttons: buttons || [],
-      status: 'pending',
+      language: language || 'en',
+      templateContent: resolvedTemplateContent,
+      headerFormat: headerFormat || undefined,
+      headerContent: headerContent || undefined,
+      footerText: footerText || undefined,
+      variables: Array.isArray(variables) ? variables : [],
+      status: safeStatus,
       createdBy: decoded.userId,
-      createdAt: new Date(),
     });
 
     return NextResponse.json({ success: true, data: template }, { status: 201 });
@@ -111,12 +130,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing: templateId' }, { status: 400 });
     }
 
+    if (!mongoose.Types.ObjectId.isValid(String(templateId))) {
+      return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
+    }
+
     await connectDB();
 
     if (action === 'approve') {
       const template = await WhatsAppTemplate.findByIdAndUpdate(
         templateId,
-        { $set: { status: 'approved', approvedAt: new Date(), approvedBy: decoded.userId } },
+        { $set: { status: 'approved', approvedBy: decoded.userId, approvalDate: new Date() } },
         { new: true }
       );
       if (!template) {
@@ -130,8 +153,7 @@ export async function PUT(request: NextRequest) {
           $set: {
             status: 'rejected',
             rejectionReason: updates.rejectionReason || 'No reason provided',
-            rejectedBy: decoded.userId,
-            rejectedAt: new Date(),
+            rejectionDate: new Date(),
           },
         },
         { new: true }
@@ -171,6 +193,10 @@ export async function DELETE(request: NextRequest) {
 
     if (!templateId) {
       return NextResponse.json({ error: 'templateId parameter required' }, { status: 400 });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(templateId)) {
+      return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
     }
 
     await connectDB();

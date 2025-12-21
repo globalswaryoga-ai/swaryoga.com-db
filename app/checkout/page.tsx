@@ -13,6 +13,16 @@ export const dynamic = 'force-dynamic';
 
 type PaymentCountry = 'india' | 'international' | 'nepal';
 
+type CashfreeInitResponse = {
+  success: boolean;
+  method: 'cashfree';
+  orderId: string;
+  cashfreeOrderId: string;
+  paymentSessionId: string;
+  env: 'sandbox' | 'production';
+  sdkUrl: string;
+};
+
 interface OrderData {
   firstName: string;
   lastName: string;
@@ -29,6 +39,8 @@ export default function CheckoutPage() {
   const processingRef = useRef(false);
   const [showNepalQR, setShowNepalQR] = useState(false);
   const [error, setError] = useState('');
+
+  const cashfreeSdkPromiseRef = useRef<Promise<void> | null>(null);
 
   const [formData, setFormData] = useState<OrderData>({
     firstName: '',
@@ -151,8 +163,8 @@ export default function CheckoutPage() {
         })),
       };
 
-      // Call payment initiation API
-      const response = await fetch('/api/payments/payu/initiate', {
+      // Call payment initiation API (Cashfree)
+      const response = await fetch('/api/payments/cashfree/initiate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -161,30 +173,52 @@ export default function CheckoutPage() {
         body: JSON.stringify(orderData),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as Partial<CashfreeInitResponse> & { error?: string };
 
       if (!response.ok) {
         throw new Error(data.error || 'Payment initiation failed');
       }
 
       // Store order ID
+      if (!data.orderId || !data.paymentSessionId) {
+        throw new Error('Cashfree payment session not available');
+      }
       localStorage.setItem('orderId', data.orderId);
 
-      // Redirect to PayU form (submit hidden form)
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = data.paymentUrl || 'https://secure.payu.in/_payment';
+      const sdkUrl = data.sdkUrl || 'https://sdk.cashfree.com/js/v3/cashfree.js';
 
-      Object.entries(data.params || {}).forEach(([key, value]) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = String(value);
-        form.appendChild(input);
-      });
+      // Load Cashfree JS SDK once
+      if (!cashfreeSdkPromiseRef.current) {
+        cashfreeSdkPromiseRef.current = new Promise<void>((resolve, reject) => {
+          if (typeof window !== 'undefined' && window.Cashfree) {
+            resolve();
+            return;
+          }
 
-      document.body.appendChild(form);
-      form.submit();
+          const existing = document.querySelector(`script[src="${sdkUrl}"]`);
+          if (existing) {
+            existing.addEventListener('load', () => resolve());
+            existing.addEventListener('error', () => reject(new Error('Failed to load Cashfree SDK')));
+            return;
+          }
+
+          const script = document.createElement('script');
+          script.src = sdkUrl;
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load Cashfree SDK'));
+          document.body.appendChild(script);
+        });
+      }
+
+      await cashfreeSdkPromiseRef.current;
+
+      if (!window.Cashfree) {
+        throw new Error('Cashfree SDK not available');
+      }
+
+      const cashfree = window.Cashfree({ mode: data.env === 'production' ? 'production' : 'sandbox' });
+      await cashfree.checkout({ paymentSessionId: data.paymentSessionId, redirectTarget: '_self' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Payment processing failed';
       setError(message);
@@ -374,43 +408,32 @@ export default function CheckoutPage() {
 
           {/* Payment Method Selection */}
           <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8">
-            <h3 className="text-xl font-bold text-swar-text mb-6">Payment Method</h3>
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <h3 className="text-xl font-bold text-swar-text">Payment Method</h3>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold whitespace-nowrap">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                Cashfree Connected
+              </div>
+            </div>
 
             {/* Payment Options */}
             <div className="space-y-4 mb-8">
-              {/* India Payment - Dual Options */}
+              {/* India Payment */}
               <div className="border-2 border-swar-border rounded-lg p-4">
                 <h3 className="text-sm font-bold text-swar-text mb-3">🇮🇳 India Payment</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* PayU Option */}
-                  <button
-                    type="button"
-                    onClick={() => handlePayment('india')}
-                    disabled={isProcessing}
-                    className={`p-4 rounded-lg border-2 transition-all text-center font-semibold ${
-                      isProcessing ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-sky-300 hover:border-sky-500 hover:bg-sky-50'
-                    }`}
-                  >
-                    <p className="text-sm mb-2">💳 PayU</p>
-                    <p className="text-xs text-swar-text-secondary">Card/UPI</p>
-                  </button>
-
-                  {/* QR Option */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowNepalQR(true);
-                      setIsProcessing(false);
-                    }}
-                    disabled={isProcessing}
-                    className={`p-4 rounded-lg border-2 transition-all text-center font-semibold ${
-                      isProcessing ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50'
-                    }`}
-                  >
-                    <p className="text-sm mb-2">📱 QR Code</p>
-                    <p className="text-xs text-swar-text-secondary">Bank Transfer</p>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handlePayment('india')}
+                  disabled={isProcessing}
+                  className={`w-full p-4 rounded-lg border-2 transition-all text-center font-semibold ${
+                    isProcessing
+                      ? 'opacity-50 cursor-not-allowed border-gray-200'
+                      : 'border-sky-300 hover:border-sky-500 hover:bg-sky-50'
+                  }`}
+                >
+                  <p className="text-sm mb-2">💳 Cashfree</p>
+                  <p className="text-xs text-swar-text-secondary">UPI / Cards / NetBanking</p>
+                </button>
               </div>
 
               {/* International Payment */}
@@ -425,7 +448,7 @@ export default function CheckoutPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-bold text-swar-text mb-1">🌍 International</h4>
-                    <p className="text-xs text-swar-text-secondary">PayU - All Countries</p>
+                    <p className="text-xs text-swar-text-secondary">Cashfree Checkout</p>
                   </div>
                   <div
                     className={`bg-swar-primary text-white px-6 py-2 rounded font-semibold transition-colors ${

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FileText, Plus, Trash2 } from 'lucide-react';
 import NoteEditor from './NoteEditor';
 
@@ -36,11 +36,7 @@ export default function NotesWidget({ visionId, token }: NotesWidgetProps) {
   const [showEditor, setShowEditor] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState(false);
 
-  useEffect(() => {
-    fetchNotes();
-  }, [visionId]);
-
-  const fetchNotes = async () => {
+  const fetchNotes = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/notes?visionId=${visionId}&limit=5`, {
@@ -56,7 +52,11 @@ export default function NotesWidget({ visionId, token }: NotesWidgetProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, visionId]);
+
+  useEffect(() => {
+    fetchNotes();
+  }, [fetchNotes]);
 
   const handleDeleteNote = async (id: string) => {
     if (!confirm('Delete this note?')) return;

@@ -38,7 +38,12 @@ export async function GET(request: NextRequest) {
       if (startDate) filter.saleDate.$gte = new Date(startDate);
       if (endDate) filter.saleDate.$lte = new Date(endDate);
     }
-    if (userId) filter.userId = new mongoose.Types.ObjectId(userId);
+    if (userId) {
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+      }
+      filter.userId = new mongoose.Types.ObjectId(userId);
+    }
     if (paymentMode) filter.paymentMode = paymentMode;
 
     if (view === 'list') {
@@ -140,25 +145,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { userId, leadId, saleAmount, paymentMode } = body;
+    const { userId, leadId, saleAmount, paymentMode, saleId } = body;
 
-    if (!userId || !saleAmount) {
-      return NextResponse.json({ error: 'Missing: userId, saleAmount' }, { status: 400 });
+    if (saleAmount === undefined || saleAmount === null || saleAmount === '') {
+      return NextResponse.json({ error: 'Missing: saleAmount' }, { status: 400 });
     }
 
     await connectDB();
 
+    if (userId && !mongoose.Types.ObjectId.isValid(String(userId))) {
+      return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
+    }
+    if (leadId && !mongoose.Types.ObjectId.isValid(String(leadId))) {
+      return NextResponse.json({ error: 'Invalid leadId' }, { status: 400 });
+    }
+    if (saleId && !mongoose.Types.ObjectId.isValid(String(saleId))) {
+      return NextResponse.json({ error: 'Invalid saleId' }, { status: 400 });
+    }
+
+    const safePaymentMode = ['payu', 'card', 'bank_transfer', 'cash', 'other'].includes(paymentMode)
+      ? paymentMode
+      : 'payu';
+
     const sale = await SalesReport.create({
-      userId,
-      leadId,
+      saleId: saleId || undefined,
+      userId: userId || (decoded?.userId as any) || undefined,
+      leadId: leadId || undefined,
       saleAmount: Number(saleAmount),
-      paymentMode: paymentMode || 'online',
+      paymentMode: safePaymentMode,
       saleDate: new Date(),
-      conversionPath: body.conversionPath || 'direct',
-      daysToConversion: body.daysToConversion || 0,
-      touchpointCount: body.touchpointCount || 1,
+      funnelStage: body.funnelStage || undefined,
+      conversionPath: Array.isArray(body.conversionPath) ? body.conversionPath : undefined,
+      daysToConversion: body.daysToConversion || undefined,
+      touchpointCount: body.touchpointCount || undefined,
       targetAchieved: Boolean(body.targetAchieved) || false,
-      reportedBy: decoded.userId,
+      reportedBy: decoded?.userId as any,
+      metadata: body.metadata || undefined,
     });
 
     return NextResponse.json({ success: true, data: sale }, { status: 201 });
@@ -185,6 +207,10 @@ export async function PUT(request: NextRequest) {
 
     if (!saleId) {
       return NextResponse.json({ error: 'Missing: saleId' }, { status: 400 });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(String(saleId))) {
+      return NextResponse.json({ error: 'Invalid saleId' }, { status: 400 });
     }
 
     await connectDB();
@@ -215,6 +241,10 @@ export async function DELETE(request: NextRequest) {
 
     if (!saleId) {
       return NextResponse.json({ error: 'saleId parameter required' }, { status: 400 });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(saleId)) {
+      return NextResponse.json({ error: 'Invalid saleId' }, { status: 400 });
     }
 
     await connectDB();

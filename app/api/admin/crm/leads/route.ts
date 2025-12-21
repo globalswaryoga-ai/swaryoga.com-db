@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     const name = body?.name ? String(body.name).trim() : undefined;
-    const email = body?.email ? String(body.email).trim() : undefined;
+    const email = body?.email ? String(body.email).trim().toLowerCase() : undefined;
     const status = body?.status ? String(body.status).trim() : undefined;
     const labels = Array.isArray(body?.labels) ? body.labels.map((x: any) => String(x)) : undefined;
     const source = body?.source ? String(body.source).trim() : undefined;

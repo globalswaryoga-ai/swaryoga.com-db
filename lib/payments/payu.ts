@@ -8,6 +8,19 @@ import crypto from 'crypto';
 export const PAYU_MERCHANT_KEY = (process.env.PAYU_MERCHANT_KEY || '').trim();
 export const PAYU_MERCHANT_SALT = (process.env.PAYU_MERCHANT_SALT || '').trim();
 
+export interface PayUParams {
+  key: string;
+  txnid: string;
+  amount: string;
+  productinfo: string;
+  firstname: string;
+  email: string;
+  phone?: string;
+  surl: string;
+  furl: string;
+  [key: string]: string | undefined;
+}
+
 const rawPayuMode = (process.env.PAYU_MODE || 'TEST').trim().toUpperCase();
 const isProductionMode = ['PRODUCTION', 'PROD', 'LIVE', 'ONLINE'].some(token => 
   rawPayuMode.includes(token)

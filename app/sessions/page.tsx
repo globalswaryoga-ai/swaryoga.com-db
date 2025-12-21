@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import SessionCard from '@/components/SessionCard';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -35,11 +35,7 @@ export default function SessionLibrary() {
 
   const limit = 12;
 
-  useEffect(() => {
-    fetchSessions();
-  }, [category, level, search, page]);
-
-  async function fetchSessions() {
+  const fetchSessions = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -65,7 +61,11 @@ export default function SessionLibrary() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [category, level, limit, page, search]);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
   function handlePurchase(sessionId: string) {
     // Will redirect to purchase flow - implemented next

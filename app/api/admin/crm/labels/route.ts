@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import mongoose from 'mongoose';
 
 /**
  * Label management for CRM leads
@@ -65,8 +66,17 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
+    const objectIds = (leadIds as any[])
+      .map((id) => String(id))
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    if (objectIds.length === 0) {
+      return NextResponse.json({ error: 'No valid lead IDs provided' }, { status: 400 });
+    }
+
     const result = await Lead.updateMany(
-      { _id: { $in: leadIds } },
+      { _id: { $in: objectIds } },
       { $addToSet: { labels: label }, $set: { updatedAt: new Date() } }
     );
 

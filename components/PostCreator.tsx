@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface SocialAccount {
@@ -38,11 +38,7 @@ export default function PostCreator({ token, onSuccess }: PostCreatorProps) {
     { id: 'community', name: 'Community', icon: '👥' },
   ];
 
-  useEffect(() => {
-    fetchAccounts();
-  }, []);
-
-  async function fetchAccounts() {
+  const fetchAccounts = useCallback(async () => {
     try {
       const response = await fetch('/api/social/accounts', {
         headers: { 'Authorization': `Bearer ${token}` },
@@ -54,7 +50,11 @@ export default function PostCreator({ token, onSuccess }: PostCreatorProps) {
     } catch (err) {
       console.error('Error fetching accounts:', err);
     }
-  }
+  }, [token]);
+
+  useEffect(() => {
+    fetchAccounts();
+  }, [fetchAccounts]);
 
   function togglePlatform(platformId: string) {
     setSelectedPlatforms((prev) =>

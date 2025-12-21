@@ -57,6 +57,23 @@ function getNextUpcomingStartDateIso(schedules: ApiWorkshopSchedule[] | undefine
   return upcoming.length ? upcoming[0].s.startDate : null;
 }
 
+function getStartingPrice(schedules: ApiWorkshopSchedule[] | undefined): number | null {
+  if (!schedules || schedules.length === 0) return null;
+  const prices = schedules
+    .map((s) => Number(s.price))
+    .filter((p) => Number.isFinite(p) && p > 0);
+  if (prices.length === 0) return null;
+  return Math.min(...prices);
+}
+
+function formatPrice(amount: number, currency: string | null): string {
+  const c = (currency || 'INR').toUpperCase();
+  if (c === 'INR') return `₹${amount.toLocaleString('en-IN')}`;
+  if (c === 'USD') return `$${amount.toLocaleString('en-US')}`;
+  if (c === 'NPR') return `NPR ${amount.toLocaleString('en-IN')}`;
+  return `${c} ${amount.toLocaleString('en-IN')}`;
+}
+
 function WorkshopsPageInner() {
   const [currentPage, setCurrentPage] = useState(1);
   const workshopsPerPage = 18;
@@ -438,6 +455,18 @@ function WorkshopsPageInner() {
                     <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2">
                       {workshop.description}
                     </p>
+
+                    {(() => {
+                      const startingPrice = getStartingPrice(schedulesByWorkshopId[workshop.slug]);
+                      return (
+                        <div className="flex items-center justify-between mb-3 sm:mb-4 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs sm:text-sm">
+                          <span className="text-gray-600 font-semibold">Starting fee</span>
+                          <span className="text-primary-700 font-bold">
+                            {startingPrice ? formatPrice(startingPrice, selectedPayment) : 'Contact us'}
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     <div className="flex items-center justify-between mb-4 sm:mb-6 py-2 sm:py-3 border-t border-gray-200 text-xs sm:text-sm">
                       <span className="text-gray-500 font-medium">

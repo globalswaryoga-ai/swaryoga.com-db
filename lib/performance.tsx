@@ -1,7 +1,7 @@
 'use client';
 
-import Image from 'next/image';
-import { useState } from 'react';
+import NextImage from 'next/image';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
  * Performance optimized image component with lazy loading
@@ -39,7 +39,7 @@ export function OptimizedImage({
 
   return (
     <div className={`relative ${fill ? 'w-full h-full' : ''} ${className}`}>
-      <Image
+      <NextImage
         src={src}
         alt={alt}
         width={width || (fill ? undefined : 400)}
@@ -73,8 +73,8 @@ export function OptimizedImage({
  * Only loads content when it comes into view
  */
 interface LazyLoadProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
+  children: ReactNode;
+  fallback?: ReactNode;
   className?: string;
   threshold?: number;
 }
@@ -86,9 +86,9 @@ export function LazyLoad({
   threshold = 0.1,
 }: LazyLoadProps) {
   const [isVisible, setIsVisible] = useState(false);
-  const elementRef = React.useRef<HTMLDivElement>(null);
+  const elementRef = useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -120,7 +120,7 @@ export function LazyLoad({
 interface VirtualListProps {
   items: any[];
   itemHeight: number;
-  renderItem: (item: any, index: number) => React.ReactNode;
+  renderItem: (item: any, index: number) => ReactNode;
   containerHeight?: number;
   className?: string;
 }
@@ -165,7 +165,7 @@ export function VirtualList({
  */
 export async function preloadImage(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const img = new Image();
+    const img = new globalThis.Image();
     img.src = src;
     img.onload = () => resolve();
     img.onerror = reject;

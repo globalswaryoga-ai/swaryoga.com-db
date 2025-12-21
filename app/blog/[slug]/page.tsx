@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
@@ -29,7 +29,7 @@ export default function BlogPostPage() {
   const [loading, setLoading] = useState(true);
 
   // Blog posts data with full content
-  const blogPosts: BlogPost[] = [
+  const blogPosts: BlogPost[] = useMemo(() => ([
     {
       id: '1',
       slug: 'sleep-postures-swar-yoga',
@@ -327,13 +327,13 @@ Start with just one technique that resonates with your current health concern. P
       image: 'https://images.postimg.cc/cVDjxyVc/blog-3.jpg',
       category: 'Health',
     },
-  ];
+  ]), []);
 
   useEffect(() => {
     const foundPost = blogPosts.find(p => p.slug === slug);
     setPost(foundPost || null);
     setLoading(false);
-  }, [slug]);
+  }, [slug, blogPosts]);
 
   if (loading) {
     return (

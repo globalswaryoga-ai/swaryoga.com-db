@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const leadId = url.searchParams.get('leadId');
     const phoneNumber = url.searchParams.get('phoneNumber');
-    const status = url.searchParams.get('status'); // sent, delivered, read, failed
+    const status = url.searchParams.get('status'); // queued, sent, delivered, read, failed
     const direction = url.searchParams.get('direction'); // inbound, outbound
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
@@ -33,7 +33,12 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     const filter: any = {};
-    if (leadId) filter.leadId = new mongoose.Types.ObjectId(leadId);
+    if (leadId) {
+      if (!mongoose.Types.ObjectId.isValid(leadId)) {
+        return NextResponse.json({ error: 'Invalid leadId' }, { status: 400 });
+      }
+      filter.leadId = new mongoose.Types.ObjectId(leadId);
+    }
     if (phoneNumber) filter.phoneNumber = phoneNumber;
     if (status) filter.status = status;
     if (direction) filter.direction = direction;
@@ -82,6 +87,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing: leadId, phoneNumber, messageContent' }, { status: 400 });
     }
 
+    if (!mongoose.Types.ObjectId.isValid(String(leadId))) {
+      return NextResponse.json({ error: 'Invalid leadId' }, { status: 400 });
+    }
+
     await connectDB();
 
     // Verify lead exists
@@ -97,7 +106,7 @@ export async function POST(request: NextRequest) {
       messageContent,
       direction: 'outbound',
       messageType: messageType || 'text',
-      status: 'pending',
+      status: 'queued',
       sentBy: decoded.userId,
       sentAt: new Date(),
       templateId: templateId || undefined,
@@ -133,6 +142,10 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing: messageId' }, { status: 400 });
     }
 
+    if (!mongoose.Types.ObjectId.isValid(String(messageId))) {
+      return NextResponse.json({ error: 'Invalid messageId' }, { status: 400 });
+    }
+
     await connectDB();
 
     if (action === 'markAsRead') {
@@ -149,7 +162,7 @@ export async function PUT(request: NextRequest) {
       const message = await WhatsAppMessage.findByIdAndUpdate(
         messageId,
         {
-          $set: { status: 'pending', retryAt: new Date() },
+          $set: { status: 'queued', nextRetryAt: new Date() },
           $inc: { retryCount: 1 },
         },
         { new: true }
@@ -189,6 +202,10 @@ export async function DELETE(request: NextRequest) {
 
     if (!messageId) {
       return NextResponse.json({ error: 'messageId parameter required' }, { status: 400 });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return NextResponse.json({ error: 'Invalid messageId' }, { status: 400 });
     }
 
     await connectDB();

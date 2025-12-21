@@ -23,36 +23,26 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const dateFilter: any = {};
-    if (startDate) dateFilter.$gte = new Date(startDate);
-    if (endDate) dateFilter.$lte = new Date(endDate);
+    const dateRange: any = {};
+    if (startDate) dateRange.$gte = new Date(startDate);
+    if (endDate) dateRange.$lte = new Date(endDate);
+
+    const hasDateRange = Object.keys(dateRange).length > 0;
 
     let analytics: any = {};
 
     if (view === 'overview' || view === 'all') {
       // Get summary metrics
-      const [totalLeads, leadsByStatus, totalSales, totalMessages, avgResponseTime] = await Promise.all([
+      const [totalLeads, leadsByStatus, totalSales, totalMessages] = await Promise.all([
         Lead.countDocuments(),
         Lead.aggregate([
           { $group: { _id: '$status', count: { $sum: 1 } } },
           { $sort: { _id: 1 } },
         ]),
-        SalesReport.countDocuments(),
-        WhatsAppMessage.countDocuments({ direction: 'inbound' }),
-        WhatsAppMessage.aggregate([
-          {
-            $match: {
-              direction: 'inbound',
-              createdAt: Object.keys(dateFilter).length > 0 ? dateFilter : { $exists: true },
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              avgTime: { $avg: '$responseTime' },
-            },
-          },
-        ]),
+        SalesReport.countDocuments(hasDateRange ? { saleDate: dateRange } : {}),
+        WhatsAppMessage.countDocuments(
+          hasDateRange ? { sentAt: dateRange } : {}
+        ),
       ]);
 
       analytics.overview = {
@@ -62,7 +52,8 @@ export async function GET(request: NextRequest) {
         ),
         totalSales,
         totalMessages,
-        avgResponseTime: avgResponseTime[0]?.avgTime || 0,
+        // Response-time tracking is not currently stored on WhatsAppMessage.
+        avgResponseTime: 0,
       };
     }
 
@@ -75,7 +66,7 @@ export async function GET(request: NextRequest) {
           { $sort: { count: -1 } },
         ]),
         Lead.aggregate([
-          { $group: { _id: '$stage', count: { $sum: 1 } } },
+          { $group: { _id: '$status', count: { $sum: 1 } } },
           { $sort: { _id: 1 } },
         ]),
         Lead.countDocuments({
@@ -96,28 +87,26 @@ export async function GET(request: NextRequest) {
 
     if (view === 'sales' || view === 'all') {
       // Sales analytics
-      const matchStage = startDate || endDate ? { $match: { createdAt: dateFilter } } : { $match: {} };
+      const matchStage = hasDateRange ? { $match: { saleDate: dateRange } } : { $match: {} };
 
       const [totalSales, totalRevenue, avgSaleAmount, salesByPaymentMode, topPerformers] = await Promise.all([
-        SalesReport.countDocuments(
-          startDate || endDate ? { createdAt: dateFilter } : {}
-        ),
+        SalesReport.countDocuments(hasDateRange ? { saleDate: dateRange } : {}),
         SalesReport.aggregate([
           matchStage,
-          { $group: { _id: null, total: { $sum: '$amount' } } },
+          { $group: { _id: null, total: { $sum: '$saleAmount' } } },
         ]),
         SalesReport.aggregate([
           matchStage,
-          { $group: { _id: null, avg: { $avg: '$amount' } } },
+          { $group: { _id: null, avg: { $avg: '$saleAmount' } } },
         ]),
         SalesReport.aggregate([
           matchStage,
-          { $group: { _id: '$paymentMode', count: { $sum: 1 }, total: { $sum: '$amount' } } },
+          { $group: { _id: '$paymentMode', count: { $sum: 1 }, total: { $sum: '$saleAmount' } } },
           { $sort: { total: -1 } },
         ]),
         SalesReport.aggregate([
           matchStage,
-          { $group: { _id: '$userId', count: { $sum: 1 }, total: { $sum: '$amount' } } },
+          { $group: { _id: '$userId', count: { $sum: 1 }, total: { $sum: '$saleAmount' } } },
           { $sort: { total: -1 } },
           { $limit: 5 },
         ]),
@@ -143,19 +132,17 @@ export async function GET(request: NextRequest) {
 
     if (view === 'messages' || view === 'all') {
       // Message analytics
-      const matchStage = startDate || endDate ? { $match: { createdAt: dateFilter } } : { $match: {} };
+      const matchStage = hasDateRange ? { $match: { sentAt: dateRange } } : { $match: {} };
 
       const [totalMessages, inboundCount, outboundCount, byStatus, avgRetryCount] = await Promise.all([
-        WhatsAppMessage.countDocuments(
-          startDate || endDate ? { createdAt: dateFilter } : {}
-        ),
+        WhatsAppMessage.countDocuments(hasDateRange ? { sentAt: dateRange } : {}),
         WhatsAppMessage.countDocuments({
           direction: 'inbound',
-          ...(startDate || endDate ? { createdAt: dateFilter } : {}),
+          ...(hasDateRange ? { sentAt: dateRange } : {}),
         }),
         WhatsAppMessage.countDocuments({
           direction: 'outbound',
-          ...(startDate || endDate ? { createdAt: dateFilter } : {}),
+          ...(hasDateRange ? { sentAt: dateRange } : {}),
         }),
         WhatsAppMessage.aggregate([
           matchStage,
@@ -218,7 +205,7 @@ export async function GET(request: NextRequest) {
       const [leadsPerDay, salesPerDay, messagesPerDay] = await Promise.all([
         Lead.aggregate([
           {
-            $match: startDate || endDate ? { createdAt: dateFilter } : {},
+            $match: hasDateRange ? { createdAt: dateRange } : {},
           },
           {
             $group: {
@@ -233,15 +220,15 @@ export async function GET(request: NextRequest) {
         ]),
         SalesReport.aggregate([
           {
-            $match: startDate || endDate ? { createdAt: dateFilter } : {},
+            $match: hasDateRange ? { saleDate: dateRange } : {},
           },
           {
             $group: {
               _id: {
-                $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+                $dateToString: { format: '%Y-%m-%d', date: '$saleDate' },
               },
               count: { $sum: 1 },
-              total: { $sum: '$amount' },
+              total: { $sum: '$saleAmount' },
             },
           },
           { $sort: { _id: 1 } },
@@ -251,13 +238,13 @@ export async function GET(request: NextRequest) {
           {
             $match: {
               direction: 'outbound',
-              ...(startDate || endDate ? { createdAt: dateFilter } : {}),
+              ...(hasDateRange ? { sentAt: dateRange } : {}),
             },
           },
           {
             $group: {
               _id: {
-                $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+                $dateToString: { format: '%Y-%m-%d', date: '$sentAt' },
               },
               count: { $sum: 1 },
             },

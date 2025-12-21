@@ -186,7 +186,7 @@ export function AnimatedItem({
  * Animated button with hover/tap effects
  */
 interface AnimatedButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  extends React.ComponentPropsWithoutRef<typeof motion.button> {
   children: React.ReactNode;
 }
 

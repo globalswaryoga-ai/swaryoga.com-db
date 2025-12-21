@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     // Redirect user to success/failure page
     const redirectUrl = new URL(request.url);
     if (status === 'success') {
-      redirectUrl.pathname = '/payment-success';
+      redirectUrl.pathname = '/payment-successful';
       redirectUrl.searchParams.set('orderId', order._id.toString());
     } else {
       redirectUrl.pathname = '/payment-failed';
@@ -101,4 +101,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     message: 'PayU callback endpoint - POST only',
   });
+}
+
+export async function HEAD() {
+  return new NextResponse(null, { status: 200 });
 }

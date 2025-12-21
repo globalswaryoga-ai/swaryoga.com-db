@@ -45,9 +45,9 @@ export default function Footer() {
     { name: 'Free Resources', href: '#' },
     { name: 'Success Stories', href: '#' },
     { name: 'FAQ', href: '#' },
-    { name: 'Terms & Conditions', href: '#' },
-    { name: 'Privacy Policy', href: '#' },
-    { name: 'Refund Policy', href: '#' }
+    { name: 'Terms & Conditions', href: '/terms' },
+    { name: 'Privacy Policy', href: '/privacy' },
+    { name: 'Refunds & Cancellations', href: '/refunds-and-cancellations' }
   ];
 
   const socialLinks = [

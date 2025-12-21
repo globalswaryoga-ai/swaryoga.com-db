@@ -141,6 +141,13 @@ const orderSchema = new mongoose.Schema({
   // PayU requires txnid to be unique and <= 25 chars.
   // We store a dedicated PayU txn id here (separate from Mongo _id).
   payuTxnId: { type: String, index: true },
+
+  // Cashfree identifiers (optional)
+  cashfreeOrderId: { type: String, index: true },
+  cashfreePaymentSessionId: { type: String },
+  cashfreePaymentId: { type: String },
+  cashfreeOrderStatus: { type: String },
+
   transactionId: { type: String },
   failureReason: { type: String },
   shippingAddress: {

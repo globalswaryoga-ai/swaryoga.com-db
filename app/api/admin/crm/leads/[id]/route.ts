@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import mongoose from 'mongoose';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -9,6 +10,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+      return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
     }
 
     await connectDB();
@@ -29,6 +34,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+      return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
     }
 
     const body = await request.json().catch(() => null);
@@ -63,6 +72,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+      return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
     }
 
     await connectDB();

@@ -84,7 +84,7 @@ async function runLeadsTests() {
   console.log('\n📋 LEADS API TESTS');
   console.log('='.repeat(50));
 
-  let testLeadId: string;
+  let testLeadId: string | undefined;
 
   await test('GET /leads - Fetch leads with pagination', async () => {
     const { status, data } = await apiCall('/leads?limit=10&skip=0');
@@ -117,14 +117,14 @@ async function runLeadsTests() {
     await test(`PATCH /leads/${testLeadId} - Update lead`, async () => {
       const { status, data } = await apiCall(`/leads/${testLeadId}`, 'PATCH', {
         status: 'prospect',
-        tags: ['interested', 'qualified'],
+        labels: ['interested', 'qualified'],
       });
       assertEquals(status, 200, 'Status should be 200');
       assertEquals(data.data.status, 'prospect', 'Status should be updated');
     });
 
     await test('GET /leads - Search leads', async () => {
-      const { status, data } = await apiCall('/leads?search=test');
+      const { status, data } = await apiCall('/leads?q=test');
       assertEquals(status, 200, 'Status should be 200');
       assert(Array.isArray(data.data.leads), 'Should return leads array');
     });
@@ -252,7 +252,7 @@ async function runMessagesTests() {
   console.log('\n💬 MESSAGES API TESTS');
   console.log('='.repeat(50));
 
-  let testMessageId: string;
+  let testMessageId: string | undefined;
 
   await test('GET /messages - Fetch messages', async () => {
     const { status, data } = await apiCall('/messages?limit=10');
@@ -264,11 +264,14 @@ async function runMessagesTests() {
   await test('POST /messages - Send message', async () => {
     const { status: getStatus, data: getData } = await apiCall('/leads?limit=1');
     if (getData.data.leads.length > 0) {
-      const leadId = getData.data.leads[0]._id;
+      const lead = getData.data.leads[0];
+      const leadId = lead._id;
+      const phoneNumber = lead.phoneNumber;
       const { status, data } = await apiCall('/messages', 'POST', {
         leadId,
-        message: 'Test message ' + Date.now(),
-        type: 'text',
+        phoneNumber,
+        messageContent: 'Test message ' + Date.now(),
+        messageType: 'text',
       });
       assertEquals(status, 201, 'Status should be 201');
       assert(data.data._id, 'Should return message with _id');
@@ -316,7 +319,7 @@ async function runSalesTests() {
   console.log('\n💰 SALES API TESTS');
   console.log('='.repeat(50));
 
-  let testSaleId: string;
+  let testSaleId: string | undefined;
 
   await test('GET /sales - Fetch sales (list view)', async () => {
     const { status, data } = await apiCall('/sales?view=list&limit=10');
@@ -349,10 +352,9 @@ async function runSalesTests() {
       const leadId = getData.data.leads[0]._id;
       const { status, data } = await apiCall('/sales', 'POST', {
         leadId,
-        amount: 5000,
+        saleAmount: 5000,
         paymentMode: 'payu',
       });
-      // May fail if no userId, but should return proper error
       assert(status === 201 || status === 400, 'Should return 201 or 400');
       if (status === 201) {
         testSaleId = data.data._id;
@@ -364,7 +366,7 @@ async function runSalesTests() {
     await test(`PUT /sales - Update sale`, async () => {
       const { status, data } = await apiCall('/sales', 'PUT', {
         saleId: testSaleId,
-        amount: 5500,
+        saleAmount: 5500,
       });
       assertEquals(status, 200, 'Status should be 200');
     });
@@ -385,7 +387,7 @@ async function runTemplatesTests() {
   console.log('\n📝 TEMPLATES API TESTS');
   console.log('='.repeat(50));
 
-  let testTemplateId: string;
+  let testTemplateId: string | undefined;
 
   await test('GET /templates - Fetch templates', async () => {
     const { status, data } = await apiCall('/templates?limit=10');
@@ -437,7 +439,7 @@ async function runConsentTests() {
   console.log('\n✅ CONSENT API TESTS');
   console.log('='.repeat(50));
 
-  let testConsentId: string;
+  let testConsentId: string | undefined;
 
   await test('GET /consent - Fetch consent records', async () => {
     const { status, data } = await apiCall('/consent?limit=10');

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Eye, Trash2, Plus } from 'lucide-react';
 import { Task, Vision, VisionCategory, VISION_CATEGORIES } from '@/lib/types/lifePlanner';
 import { getDefaultCategoryImage } from '@/lib/visionCategoryImages';
@@ -84,22 +84,23 @@ const TaskModal: React.FC<TaskModalProps> = ({
   const formState = externalFormState || localFormState;
   const setFormState = externalSetFormState || setLocalFormState;
 
-  const normalizeHead = (value: unknown): string => {
+  const normalizeHead = useCallback((value: unknown): string => {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
     const canonical = VISION_CATEGORIES.find((c) => c.toLowerCase() === raw.toLowerCase());
     return canonical || raw;
-  };
+  }, []);
 
-  const visionOptionsForHead =
-    externalVisionOptionsForHead ||
-    ((head: string) => {
+  const defaultVisionOptionsForHead = useCallback(
+    (head: string) => {
       const h = normalizeHead(head);
       return visions.filter((v) => normalizeHead((v as any).category) === h);
-    });
-  const goalOptionsForVision =
-    externalGoalOptionsForVision ||
-    ((visionId: string) => {
+    },
+    [normalizeHead, visions]
+  );
+
+  const defaultGoalOptionsForVision = useCallback(
+    (visionId: string) => {
       const selectedVision = visions.find((v) => v.id === visionId);
       const selectedVisionTitle = (selectedVision?.title || '').trim().toLowerCase();
       const embeddedGoalIds = new Set(
@@ -116,7 +117,12 @@ const TaskModal: React.FC<TaskModalProps> = ({
         if (g?.id && embeddedGoalIds.has(String(g.id))) return true;
         return false;
       });
-    });
+    },
+    [goals, visions]
+  );
+
+  const visionOptionsForHead = externalVisionOptionsForHead ?? defaultVisionOptionsForHead;
+  const goalOptionsForVision = externalGoalOptionsForVision ?? defaultGoalOptionsForVision;
 
   const handleHeadChange = (head: string) => {
     setFormError('');

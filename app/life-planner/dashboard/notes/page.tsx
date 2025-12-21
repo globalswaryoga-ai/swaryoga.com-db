@@ -65,60 +65,54 @@ export default function NotesPage() {
       setLoading(false);
       return;
     }
+
     setToken(storedToken);
-    fetchNotes(storedToken);
+
+    (async () => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({
+          limit: '100',
+        });
+
+        const res = await fetch(`/api/notes?${params}`, {
+          headers: { Authorization: `Bearer ${storedToken}` },
+        });
+
+        if (!res.ok) throw new Error('Failed to fetch notes');
+
+        const data = await res.json();
+        setNotes(data.data);
+        setError('');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load notes');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  const fetchNotes = async (authToken: string) => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        limit: '100',
-      });
-
-      if (search) params.append('search', search);
-      if (selectedMood) params.append('mood', selectedMood);
-      if (selectedTag) params.append('tag', selectedTag);
-
-      const res = await fetch(`/api/notes?${params}`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-
-      if (!res.ok) throw new Error('Failed to fetch notes');
-
-      const data = await res.json();
-      setNotes(data.data);
-      setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notes');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = (notesData: Note[]) => {
-    let filtered = notesData;
+  useEffect(() => {
+    let filtered = notes;
 
     if (search) {
-      filtered = filtered.filter(n =>
-        String(n.title || '').toLowerCase().includes(search.toLowerCase()) ||
-        String(n.content || '').toLowerCase().includes(search.toLowerCase())
+      const q = search.toLowerCase();
+      filtered = filtered.filter(
+        (n) =>
+          String(n.title || '').toLowerCase().includes(q) ||
+          String(n.content || '').toLowerCase().includes(q)
       );
     }
 
     if (selectedMood) {
-      filtered = filtered.filter(n => n.mood === selectedMood);
+      filtered = filtered.filter((n) => n.mood === selectedMood);
     }
 
     if (selectedTag) {
-      filtered = filtered.filter(n => n.tags.includes(selectedTag));
+      filtered = filtered.filter((n) => n.tags.includes(selectedTag));
     }
 
     setFilteredNotes(filtered);
-  };
-
-  useEffect(() => {
-    applyFilters(notes);
   }, [notes, search, selectedMood, selectedTag]);
 
   const handleSaveNote = async (noteData: any) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -24,9 +24,17 @@ interface Lead {
   phoneNumber: string;
   status: 'lead' | 'prospect' | 'customer' | 'inactive';
   source: string;
-  tags: string[];
+  labels: string[];
   createdAt: string;
 }
+
+type LeadFormValues = {
+  name: string;
+  email: string;
+  phoneNumber: string;
+  source: Lead['source'] | string;
+  status: Lead['status'];
+};
 
 export default function LeadsPage() {
   const router = useRouter();
@@ -34,13 +42,6 @@ export default function LeadsPage() {
   const crm = useCRM({ token });
   const search = useSearch();
   const modal = useModal();
-  const form = useForm({
-    name: '',
-    email: '',
-    phoneNumber: '',
-    source: 'website',
-    status: 'lead',
-  });
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
@@ -48,59 +49,57 @@ export default function LeadsPage() {
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchLeads = useCallback(async () => {
+    const params: Record<string, any> = { limit, skip };
+    if (search.query) params.q = search.query;
+
+    const result = await crm.fetch('/api/admin/crm/leads', { params });
+    // API returns { leads, total, limit, skip }
+    setLeads(result?.leads || []);
+    setTotal(result?.total || 0);
+  }, [crm, limit, skip, search.query]);
+
+  const handleCreateLead = async (values: LeadFormValues) => {
+    try {
+      await crm.fetch('/api/admin/crm/leads', {
+        method: 'POST',
+        body: {
+          name: values.name,
+          email: values.email,
+          phoneNumber: values.phoneNumber,
+          source: values.source,
+          status: values.status,
+        },
+      });
+
+      modal.close();
+      form.resetForm();
+      setSkip(0);
+      await fetchLeads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create lead');
+    }
+  };
+
+  const form = useForm<LeadFormValues>({
+    initialValues: {
+      name: '',
+      email: '',
+      phoneNumber: '',
+      source: 'website',
+      status: 'lead',
+    },
+    onSubmit: handleCreateLead,
+    onError: (err) => setError(err.message),
+  });
+
   useEffect(() => {
     if (!token) {
       router.push('/admin/login');
       return;
     }
     fetchLeads();
-  }, [search.query, skip, token, router]);
-
-  const fetchLeads = async () => {
-    try {
-      crm.setLoading(true);
-      let url = `/api/admin/crm/leads?limit=${limit}&skip=${skip}`;
-      if (search.query) url += `&search=${encodeURIComponent(search.query)}`;
-
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch leads');
-
-      const data = await response.json();
-      if (data.success) {
-        setLeads(data.data.leads);
-        setTotal(data.data.total);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      crm.setLoading(false);
-    }
-  };
-
-  const handleCreateLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('/api/admin/crm/leads', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(form.formData),
-      });
-
-      if (!response.ok) throw new Error('Failed to create lead');
-
-      modal.close();
-      form.reset();
-      setSkip(0);
-      fetchLeads();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create lead');
-    }
-  };
+  }, [token, router, fetchLeads]);
 
   const handleDeleteLead = async (leadId: string) => {
     if (!confirm('Are you sure you want to delete this lead?')) return;
@@ -200,7 +199,7 @@ export default function LeadsPage() {
         />
 
         {/* Error Alert */}
-        {error && <AlertBox type="error" message={error} onDismiss={() => setError(null)} />}
+        {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
 
         {/* Toolbar with Search */}
         <Toolbar
@@ -257,7 +256,7 @@ export default function LeadsPage() {
         <FormModal
           isOpen={true}
           onClose={modal.close}
-          onSubmit={handleCreateLead}
+          onSubmit={form.handleSubmit}
           title="Create New Lead"
           submitLabel="Create Lead"
           cancelLabel="Cancel"
@@ -268,8 +267,9 @@ export default function LeadsPage() {
               <input
                 type="text"
                 required
-                value={form.formData.name}
-                onChange={(e) => form.setField('name', e.target.value)}
+                name="name"
+                value={form.values.name}
+                onChange={form.handleChange}
                 className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white placeholder-purple-300 focus:outline-none focus:border-purple-500"
                 placeholder="Lead name"
               />
@@ -279,8 +279,9 @@ export default function LeadsPage() {
               <input
                 type="email"
                 required
-                value={form.formData.email}
-                onChange={(e) => form.setField('email', e.target.value)}
+                name="email"
+                value={form.values.email}
+                onChange={form.handleChange}
                 className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white placeholder-purple-300 focus:outline-none focus:border-purple-500"
                 placeholder="email@example.com"
               />
@@ -290,8 +291,9 @@ export default function LeadsPage() {
               <input
                 type="tel"
                 required
-                value={form.formData.phoneNumber}
-                onChange={(e) => form.setField('phoneNumber', e.target.value)}
+                name="phoneNumber"
+                value={form.values.phoneNumber}
+                onChange={form.handleChange}
                 className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white placeholder-purple-300 focus:outline-none focus:border-purple-500"
                 placeholder="+919876543210"
               />
@@ -299,8 +301,9 @@ export default function LeadsPage() {
             <div>
               <label className="block text-purple-200 text-sm mb-2">Source</label>
               <select
-                value={form.formData.source}
-                onChange={(e) => form.setField('source', e.target.value)}
+                name="source"
+                value={form.values.source}
+                onChange={form.handleChange}
                 className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
               >
                 <option value="website">Website</option>

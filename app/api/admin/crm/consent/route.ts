@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { UserConsent } from '@/lib/schemas/enterpriseSchemas';
+import mongoose from 'mongoose';
 
 /**
  * User consent management for WhatsApp/SMS communications
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { phoneNumber, channel, status, consentMethod } = body;
+    const { phoneNumber, channel, status, consentMethod, leadId } = body;
 
     if (!phoneNumber || !channel) {
       return NextResponse.json({ error: 'Missing: phoneNumber, channel' }, { status: 400 });
@@ -96,7 +97,13 @@ export async function POST(request: NextRequest) {
     const existing = await UserConsent.findOne({ phoneNumber, channel });
 
     if (existing) {
+      if (leadId) existing.leadId = leadId;
       existing.status = status || existing.status;
+      existing.consentStatus = (status || existing.status) === 'opted_in'
+        ? 'opted-in'
+        : (status || existing.status) === 'opted_out'
+          ? 'opted-out'
+          : 'pending';
       if (status === 'opted_in') {
         existing.consentDate = new Date();
         existing.consentMethod = consentMethod || existing.consentMethod;
@@ -113,6 +120,8 @@ export async function POST(request: NextRequest) {
       phoneNumber,
       channel,
       status: status || 'pending',
+      consentStatus: status === 'opted_in' ? 'opted-in' : status === 'opted_out' ? 'opted-out' : 'pending',
+      leadId: leadId || undefined,
       consentDate: status === 'opted_in' ? new Date() : undefined,
       consentMethod: consentMethod || (status === 'opted_in' ? 'manual' : undefined),
       optOutDate: status === 'opted_out' ? new Date() : undefined,
@@ -147,6 +156,10 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing: consentId' }, { status: 400 });
     }
 
+    if (!mongoose.Types.ObjectId.isValid(String(consentId))) {
+      return NextResponse.json({ error: 'Invalid consentId' }, { status: 400 });
+    }
+
     await connectDB();
 
     if (action === 'opt-in') {
@@ -155,6 +168,7 @@ export async function PUT(request: NextRequest) {
         {
           $set: {
             status: 'opted_in',
+            consentStatus: 'opted-in',
             consentDate: new Date(),
             consentMethod: body.consentMethod || 'manual',
             updatedAt: new Date(),
@@ -173,6 +187,7 @@ export async function PUT(request: NextRequest) {
         {
           $set: {
             status: 'opted_out',
+            consentStatus: 'opted-out',
             optOutDate: new Date(),
             optOutKeyword: body.optOutKeyword || 'STOP',
             updatedAt: new Date(),
@@ -195,6 +210,7 @@ export async function PUT(request: NextRequest) {
           );
         }
         updateData.status = status;
+        updateData.consentStatus = status === 'opted_in' ? 'opted-in' : status === 'opted_out' ? 'opted-out' : 'pending';
       }
 
       const consent = await UserConsent.findByIdAndUpdate(
@@ -226,6 +242,10 @@ export async function DELETE(request: NextRequest) {
 
     if (!consentId) {
       return NextResponse.json({ error: 'consentId parameter required' }, { status: 400 });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(consentId)) {
+      return NextResponse.json({ error: 'Invalid consentId' }, { status: 400 });
     }
 
     await connectDB();

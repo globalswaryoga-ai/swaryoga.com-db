@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -49,16 +49,10 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'overview' | 'leads' | 'sales' | 'messages' | 'conversion' | 'trends'>('overview');
 
-  useEffect(() => {
-    if (!token) {
-      router.push('/admin/login');
-      return;
-    }
-    fetchAnalytics();
-  }, [view, token, router]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
+      if (!token) return;
+
       const response = await fetch(`/api/admin/crm/analytics?view=${view}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -72,7 +66,15 @@ export default function AnalyticsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
-  };
+  }, [token, view]);
+
+  useEffect(() => {
+    if (!token) {
+      router.push('/admin/login');
+      return;
+    }
+    fetchAnalytics();
+  }, [token, router, fetchAnalytics]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">

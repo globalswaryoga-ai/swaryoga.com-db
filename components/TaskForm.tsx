@@ -87,7 +87,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, go
     };
 
     onSubmit(taskData);
-  }, [formData, initialData, onSubmit, goals]);
+  }, [formData, initialData, onSubmit]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">

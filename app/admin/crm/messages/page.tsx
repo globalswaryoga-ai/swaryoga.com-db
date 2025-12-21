@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -12,13 +12,18 @@ import {
   AlertBox,
 } from '@/components/admin/crm';
 
+type PopulatedLead = { _id: string; name?: string; phoneNumber?: string };
+
 interface Message {
   _id: string;
-  leadId: string;
-  userId: string;
-  message: string;
+  leadId: string | PopulatedLead;
+  phoneNumber: string;
+  messageContent: string;
+  messageType?: 'text' | 'template' | 'media' | 'interactive';
   direction: 'inbound' | 'outbound';
-  status: 'pending' | 'sent' | 'delivered' | 'failed' | 'read';
+  status: 'queued' | 'sent' | 'delivered' | 'failed' | 'read';
+  failureReason?: string;
+  sentAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -32,16 +37,35 @@ export default function MessagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showSendModal, setShowSendModal] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'sent' | 'delivered' | 'failed' | 'read'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'queued' | 'sent' | 'delivered' | 'failed' | 'read'>('all');
   const [directionFilter, setDirectionFilter] = useState<'all' | 'inbound' | 'outbound'>('all');
   const [formData, setFormData] = useState({
     leadId: '',
-    message: '',
+    phoneNumber: '',
+    messageContent: '',
   });
   const [page, setPage] = useState(1);
   const [totalMessages, setTotalMessages] = useState(0);
 
   const pageSize = 20;
+
+  const fetchMessages = useCallback(async () => {
+    try {
+      const result = await crm.fetch('/api/admin/crm/messages', {
+        params: {
+          limit: pageSize,
+          skip: (page - 1) * pageSize,
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          direction: directionFilter === 'all' ? undefined : directionFilter,
+        },
+      });
+
+      setMessages(result?.messages || []);
+      setTotalMessages(result?.total || 0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }, [crm, directionFilter, page, pageSize, statusFilter]);
 
   useEffect(() => {
     if (!token) {
@@ -49,98 +73,64 @@ export default function MessagesPage() {
       return;
     }
     fetchMessages();
-  }, [page, statusFilter, directionFilter, token, router]);
-
-  const fetchMessages = async () => {
-    try {
-      crm.setLoading(true);
-      const params = new URLSearchParams({
-        limit: pageSize.toString(),
-        skip: ((page - 1) * pageSize).toString(),
-      });
-
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      if (directionFilter !== 'all') params.append('direction', directionFilter);
-
-      const response = await fetch(`/api/admin/crm/messages?${params}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch messages');
-
-      const data = await response.json();
-      if (data.success) {
-        setMessages(data.data.messages);
-        setTotalMessages(data.data.total);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      crm.setLoading(false);
-    }
-  };
+  }, [token, router, fetchMessages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/admin/crm/messages', {
+      await crm.fetch('/api/admin/crm/messages', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+        body: {
+          leadId: formData.leadId,
+          phoneNumber: formData.phoneNumber,
+          messageContent: formData.messageContent,
+          messageType: 'text',
         },
-        body: JSON.stringify(formData),
       });
 
-      if (!response.ok) throw new Error('Failed to send message');
-
       setShowSendModal(false);
-      setFormData({ leadId: '', message: '' });
+      setFormData({ leadId: '', phoneNumber: '', messageContent: '' });
       setPage(1);
       fetchMessages();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to send message');
+      setError(err instanceof Error ? err.message : 'Failed to send message');
     }
   };
 
   const handleRetryMessage = async (messageId: string) => {
     try {
-      const response = await fetch(`/api/admin/crm/messages/${messageId}`, {
+      await crm.fetch('/api/admin/crm/messages', {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` },
+        body: { messageId, action: 'retry' },
       });
-
-      if (!response.ok) throw new Error('Failed to retry message');
       fetchMessages();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to retry');
+      setError(err instanceof Error ? err.message : 'Failed to retry');
     }
   };
 
   const handleDeleteMessage = async (messageId: string) => {
     if (!confirm('Delete this message?')) return;
     try {
-      const response = await fetch(`/api/admin/crm/messages/${messageId}`, {
+      await crm.fetch('/api/admin/crm/messages', {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        params: { messageId },
       });
-
-      if (!response.ok) throw new Error('Failed to delete message');
       fetchMessages();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete');
+      setError(err instanceof Error ? err.message : 'Failed to delete');
     }
   };
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      pending: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/30',
+      queued: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/30',
       sent: 'bg-blue-500/20 text-blue-200 border-blue-500/30',
       delivered: 'bg-purple-500/20 text-purple-200 border-purple-500/30',
       failed: 'bg-red-500/20 text-red-200 border-red-500/30',
       read: 'bg-green-500/20 text-green-200 border-green-500/30',
     };
-    return colors[status] || colors.pending;
+    return colors[status] || colors.queued;
   };
 
   const getDirectionIcon = (direction: string) => {
@@ -156,10 +146,11 @@ export default function MessagesPage() {
     {
       key: 'leadId',
       label: 'Lead',
-      render: (id: string) => id?.slice(-6) || 'N/A',
+      render: (lead: string | PopulatedLead) =>
+        typeof lead === 'string' ? lead.slice(-6) : lead?._id?.slice(-6) || 'N/A',
     },
     {
-      key: 'message',
+      key: 'messageContent',
       label: 'Message',
       render: (msg: string) => <div className="line-clamp-2">{msg}</div>,
     },
@@ -173,9 +164,9 @@ export default function MessagesPage() {
       ),
     },
     {
-      key: 'createdAt',
+      key: 'sentAt',
       label: 'Date',
-      render: (date: string) => new Date(date).toLocaleDateString(),
+      render: (date: string) => (date ? new Date(date).toLocaleDateString() : '-'),
     },
     {
       key: 'actions',
@@ -230,7 +221,7 @@ export default function MessagesPage() {
               className="w-full bg-slate-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
             >
               <option value="all">All Status</option>
-              <option value="pending">Pending</option>
+              <option value="queued">Queued</option>
               <option value="sent">Sent</option>
               <option value="delivered">Delivered</option>
               <option value="failed">Failed</option>
@@ -258,7 +249,7 @@ export default function MessagesPage() {
         {crm.loading ? (
           <LoadingSpinner />
         ) : error ? (
-          <AlertBox type="error" message={error} />
+          <AlertBox type="error" message={error} onClose={() => setError(null)} />
         ) : (
           <div className="space-y-6">
             {/* Data Table */}
@@ -306,7 +297,11 @@ export default function MessagesPage() {
                 </div>
                 <div>
                   <label className="block text-purple-300 text-sm mb-1">Lead ID</label>
-                  <div className="text-white font-mono">{selectedMessage.leadId}</div>
+                  <div className="text-white font-mono">
+                    {typeof selectedMessage.leadId === 'string'
+                      ? selectedMessage.leadId
+                      : selectedMessage.leadId?._id}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-purple-300 text-sm mb-1">Status</label>
@@ -317,9 +312,15 @@ export default function MessagesPage() {
                 <div>
                   <label className="block text-purple-300 text-sm mb-1">Message</label>
                   <div className="bg-slate-700/50 rounded-lg p-4 text-purple-200 whitespace-pre-wrap">
-                    {selectedMessage.message}
+                    {selectedMessage.messageContent}
                   </div>
                 </div>
+                {selectedMessage.failureReason && (
+                  <div>
+                    <label className="block text-purple-300 text-sm mb-1">Failure Reason</label>
+                    <div className="text-red-200 text-sm">{selectedMessage.failureReason}</div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-purple-300 text-sm mb-1">Created</label>
@@ -368,18 +369,53 @@ export default function MessagesPage() {
         <FormModal
           isOpen={showSendModal}
           title="Send Message"
-          fields={[
-            { name: 'leadId', label: 'Lead ID', type: 'text', required: true },
-            { name: 'message', label: 'Message', type: 'textarea', required: true, maxLength: 1000 },
-          ]}
-          formData={formData}
-          onFormDataChange={setFormData}
           onSubmit={handleSendMessage}
+          submitLabel="Send"
+          cancelLabel="Cancel"
           onClose={() => {
             setShowSendModal(false);
-            setFormData({ leadId: '', message: '' });
+            setFormData({ leadId: '', phoneNumber: '', messageContent: '' });
           }}
-        />
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Lead ID *</label>
+              <input
+                type="text"
+                required
+                value={formData.leadId}
+                onChange={(e) => setFormData({ ...formData, leadId: e.target.value })}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                placeholder="Mongo Lead ID"
+              />
+            </div>
+
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Phone Number *</label>
+              <input
+                type="text"
+                required
+                value={formData.phoneNumber}
+                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                placeholder="91XXXXXXXXXX"
+              />
+            </div>
+
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Message *</label>
+              <textarea
+                required
+                rows={5}
+                maxLength={1000}
+                value={formData.messageContent}
+                onChange={(e) => setFormData({ ...formData, messageContent: e.target.value })}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                placeholder="Type your message..."
+              />
+            </div>
+          </div>
+        </FormModal>
       </div>
     </div>
   );
