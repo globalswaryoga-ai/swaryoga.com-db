@@ -8,7 +8,6 @@ import {
 } from '@/lib/payments/payu';
 import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { isRateLimited } from '@/lib/rateLimit';
 import { getRequestBaseUrl } from '@/lib/requestBaseUrl';
 
 function getBaseUrl(request: NextRequest): string {
@@ -124,31 +123,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Protect PayU from being hit multiple times rapidly (PayU may throttle and show “Too many Requests”).
-    // IMPORTANT: never rate-limit globally on a shared/unknown IP (common on serverless).
-    const ip = getClientIp(request);
-    const rateKey = ip ? `payu-init:ip:${ip}` : `payu-init:user:${decoded.userId}`;
-
-    const allowed = isRateLimited(rateKey, {
-      windowMs: 120_000, // 2 minutes - PayU's strict rate limit
-      // PayU allows max 1 request per 2 minutes to avoid "Too many Requests" throttling.
-      max: 1,
-    });
-    if (!allowed) {
-      return NextResponse.json(
-        {
-          error: 'Too many payment attempts. Please wait 120 seconds and try again.',
-          retryAfterSec: 120,
-        },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': '120',
-          },
-        }
-      );
-    }
-
+    // Rate limiting removed - PayU account verified as working
     const body: PaymentRequest = await request.json();
 
     // Validate country parameter
