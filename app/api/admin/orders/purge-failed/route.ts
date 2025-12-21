@@ -5,6 +5,14 @@ import { isAdminAuthorized } from '@/lib/adminAuth';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeEmail(value: unknown): string {
+  return String(value || '').trim().toLowerCase();
+}
+
 function getDaysParam(request: NextRequest, key: string): number | null {
   const url = new URL(request.url);
   const raw = url.searchParams.get(key);
@@ -27,6 +35,7 @@ function computeBeforeDate(days: number | null): Date | null {
  * Query params:
  *  - olderThanDays: number (optional)
  *  - paymentMethod: string (optional)
+ *  - email: string (optional; matches shippingAddress.email)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -37,6 +46,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const olderThanDays = getDaysParam(request, 'olderThanDays');
     const paymentMethod = url.searchParams.get('paymentMethod') || undefined;
+    const email = normalizeEmail(url.searchParams.get('email')) || undefined;
     const before = computeBeforeDate(olderThanDays);
 
     await connectDB();
@@ -47,6 +57,9 @@ export async function GET(request: NextRequest) {
 
     if (paymentMethod) filter.paymentMethod = paymentMethod;
     if (before) filter.createdAt = { $lt: before };
+    if (email) {
+      filter['shippingAddress.email'] = { $regex: new RegExp(`^${escapeRegExp(email)}$`, 'i') };
+    }
 
     const count = await Order.countDocuments(filter);
 
@@ -56,6 +69,7 @@ export async function GET(request: NextRequest) {
         paymentStatus: 'failed',
         paymentMethod: paymentMethod || null,
         olderThanDays: olderThanDays ?? null,
+        email: email || null,
       },
       count,
     });
@@ -73,7 +87,8 @@ export async function GET(request: NextRequest) {
  *  {
  *    "confirm": "DELETE_FAILED_ORDERS",
  *    "olderThanDays"?: number,
- *    "paymentMethod"?: string
+ *    "paymentMethod"?: string,
+ *    "email"?: string
  *  }
  */
 export async function POST(request: NextRequest) {
@@ -86,6 +101,7 @@ export async function POST(request: NextRequest) {
       confirm?: string;
       olderThanDays?: number;
       paymentMethod?: string;
+      email?: string;
     };
 
     if (!body || body.confirm !== 'DELETE_FAILED_ORDERS') {
@@ -100,6 +116,7 @@ export async function POST(request: NextRequest) {
 
     const olderThanDays = Number.isFinite(Number(body.olderThanDays)) ? Number(body.olderThanDays) : null;
     const before = computeBeforeDate(olderThanDays);
+    const email = normalizeEmail(body.email) || undefined;
 
     await connectDB();
 
@@ -109,6 +126,9 @@ export async function POST(request: NextRequest) {
 
     if (body.paymentMethod) filter.paymentMethod = body.paymentMethod;
     if (before) filter.createdAt = { $lt: before };
+    if (email) {
+      filter['shippingAddress.email'] = { $regex: new RegExp(`^${escapeRegExp(email)}$`, 'i') };
+    }
 
     const result = await Order.deleteMany(filter);
 
