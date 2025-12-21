@@ -415,67 +415,86 @@ export default function CheckoutPage() {
             )}
 
             {/* Payment Options */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              {/* India Payment */}
-              <button
-                type="button"
-                onClick={() => handlePayment('india')}
-                disabled={isProcessing || cooldownSecondsLeft > 0}
-                className={`p-6 rounded-lg border-2 transition-all text-left ${
-                  isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
-                } border-swar-border`}
-              >
-                <div className="text-3xl mb-3">🇮🇳</div>
-                <h4 className="font-bold text-swar-text mb-1">India</h4>
-                <p className="text-xs text-swar-text-secondary mb-3">Pay via PayU</p>
-                <div
-                  className={`w-full text-center bg-swar-primary text-white py-2 rounded font-semibold transition-colors ${
-                    isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50' : 'hover:bg-swar-primary-hover'
-                  }`}
-                >
-                  {isProcessing ? 'Processing...' : cooldownSecondsLeft > 0 ? `Wait ${cooldownSecondsLeft}s` : 'Pay Now'}
+            <div className="space-y-4 mb-8">
+              {/* India Payment - Dual Options */}
+              <div className="border-2 border-swar-border rounded-lg p-4">
+                <h3 className="text-sm font-bold text-swar-text mb-3">🇮🇳 India Payment</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* PayU Option */}
+                  <button
+                    type="button"
+                    onClick={() => handlePayment('india')}
+                    disabled={isProcessing || cooldownSecondsLeft > 0}
+                    className={`p-4 rounded-lg border-2 transition-all text-center font-semibold ${
+                      isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-sky-300 hover:border-sky-500 hover:bg-sky-50'
+                    }`}
+                  >
+                    <p className="text-sm mb-2">💳 PayU</p>
+                    <p className="text-xs text-swar-text-secondary">Card/UPI</p>
+                  </button>
+
+                  {/* QR Option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNepalQR(true);
+                      setIsProcessing(false);
+                    }}
+                    disabled={isProcessing}
+                    className={`p-4 rounded-lg border-2 transition-all text-center font-semibold ${
+                      isProcessing ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <p className="text-sm mb-2">📱 QR Code</p>
+                    <p className="text-xs text-swar-text-secondary">Bank Transfer</p>
+                  </button>
                 </div>
-              </button>
+              </div>
 
               {/* International Payment */}
               <button
                 type="button"
                 onClick={() => handlePayment('international')}
                 disabled={isProcessing || cooldownSecondsLeft > 0}
-                className={`p-6 rounded-lg border-2 transition-all text-left ${
+                className={`w-full p-6 rounded-lg border-2 transition-all text-left ${
                   isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
                 } border-swar-border`}
               >
-                <div className="text-3xl mb-3">🌍</div>
-                <h4 className="font-bold text-swar-text mb-1">International</h4>
-                <p className="text-xs text-swar-text-secondary mb-3">All Countries</p>
-                <div
-                  className={`w-full text-center bg-swar-primary text-white py-2 rounded font-semibold transition-colors ${
-                    isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50' : 'hover:bg-swar-primary-hover'
-                  }`}
-                >
-                  {isProcessing ? 'Processing...' : cooldownSecondsLeft > 0 ? `Wait ${cooldownSecondsLeft}s` : 'Pay Now'}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-swar-text mb-1">🌍 International</h4>
+                    <p className="text-xs text-swar-text-secondary">PayU - All Countries</p>
+                  </div>
+                  <div
+                    className={`bg-swar-primary text-white px-6 py-2 rounded font-semibold transition-colors ${
+                      isProcessing || cooldownSecondsLeft > 0 ? 'opacity-50' : 'hover:bg-swar-primary-hover'
+                    }`}
+                  >
+                    {isProcessing ? 'Processing...' : cooldownSecondsLeft > 0 ? `Wait ${cooldownSecondsLeft}s` : 'Pay Now'}
+                  </div>
                 </div>
               </button>
 
               {/* Nepal QR */}
               <button
                 type="button"
-                onClick={() => handlePayment('nepal')}
+                onClick={() => {
+                  setShowNepalQR(true);
+                  setIsProcessing(false);
+                }}
                 disabled={isProcessing}
-                className={`p-6 rounded-lg border-2 transition-all text-left ${
+                className={`w-full p-6 rounded-lg border-2 transition-all text-left ${
                   isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
                 } border-swar-border`}
               >
-                <div className="text-3xl mb-3">🇳🇵</div>
-                <h4 className="font-bold text-swar-text mb-1">Nepal</h4>
-                <p className="text-xs text-swar-text-secondary mb-3">QR Code</p>
-                <div
-                  className={`w-full text-center bg-swar-primary text-white py-2 rounded font-semibold transition-colors ${
-                    isProcessing ? 'opacity-50' : 'hover:bg-swar-primary-hover'
-                  }`}
-                >
-                  {isProcessing ? 'Processing...' : 'Show QR'}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-swar-text mb-1">🇳🇵 Nepal</h4>
+                    <p className="text-xs text-swar-text-secondary">QR Code Payment</p>
+                  </div>
+                  <div className="bg-swar-primary text-white px-6 py-2 rounded font-semibold">
+                    Show QR
+                  </div>
                 </div>
               </button>
             </div>
