@@ -382,3 +382,4 @@ async function publishToCommunity(post: any, account: any): Promise<string> {
   // Create post in Swar Yoga private community
   // This is an internal endpoint, so we just generate an ID
   return `com_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+}
