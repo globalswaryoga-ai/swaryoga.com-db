@@ -8,6 +8,7 @@ import {
   getPayUPaymentUrl,
 } from '@/lib/payments/payu';
 
+// Clean payment initiation - no rate limiting
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication
