@@ -35,6 +35,12 @@ export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [adminUser, setAdminUser] = useState('');
+  const [purgeEmail, setPurgeEmail] = useState('swarsakshi9999@gmail.com');
+  const [purgeOlderThanDays, setPurgeOlderThanDays] = useState<string>('');
+  const [purgePaymentMethod, setPurgePaymentMethod] = useState<string>('');
+  const [purgePreviewCount, setPurgePreviewCount] = useState<number | null>(null);
+  const [purgeBusy, setPurgeBusy] = useState(false);
+  const [purgeMsg, setPurgeMsg] = useState<string>('');
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     totalUsers: 0,
     totalSignins: 0,
@@ -94,6 +100,108 @@ export default function AdminDashboard() {
     router.push('/admin/login');
   };
 
+  const getAdminToken = () => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('adminToken') || '';
+  };
+
+  const buildPurgeQuery = () => {
+    const params = new URLSearchParams();
+    const email = purgeEmail.trim();
+    if (email) params.set('email', email);
+
+    const days = purgeOlderThanDays.trim();
+    if (days) params.set('olderThanDays', days);
+
+    const method = purgePaymentMethod.trim();
+    if (method) params.set('paymentMethod', method);
+
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  };
+
+  const previewPurge = async () => {
+    const token = getAdminToken();
+    if (!token) {
+      setPurgeMsg('Admin token missing. Please login again.');
+      return;
+    }
+
+    setPurgeBusy(true);
+    setPurgeMsg('');
+    setPurgePreviewCount(null);
+    try {
+      const response = await fetch(`/api/admin/orders/purge-failed${buildPurgeQuery()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to preview');
+      }
+
+      setPurgePreviewCount(typeof data?.count === 'number' ? data.count : null);
+      setPurgeMsg('Preview loaded.');
+    } catch (err) {
+      setPurgeMsg(err instanceof Error ? err.message : 'Failed to preview');
+    } finally {
+      setPurgeBusy(false);
+    }
+  };
+
+  const runPurge = async () => {
+    const token = getAdminToken();
+    if (!token) {
+      setPurgeMsg('Admin token missing. Please login again.');
+      return;
+    }
+
+    const email = purgeEmail.trim();
+    if (!email) {
+      setPurgeMsg('Please enter an email to purge.');
+      return;
+    }
+
+    const ok = window.confirm(
+      `Delete FAILED orders for\n${email}\n\nThis will permanently delete only paymentStatus="failed" orders. Continue?`
+    );
+    if (!ok) return;
+
+    setPurgeBusy(true);
+    setPurgeMsg('');
+    try {
+      const body: Record<string, unknown> = {
+        confirm: 'DELETE_FAILED_ORDERS',
+        email,
+      };
+      const days = purgeOlderThanDays.trim();
+      if (days) body.olderThanDays = Number(days);
+      const method = purgePaymentMethod.trim();
+      if (method) body.paymentMethod = method;
+
+      const response = await fetch('/api/admin/orders/purge-failed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to delete');
+      }
+
+      setPurgeMsg(`Deleted ${data?.deletedCount ?? 0} failed orders.`);
+      setPurgePreviewCount(null);
+    } catch (err) {
+      setPurgeMsg(err instanceof Error ? err.message : 'Failed to delete');
+    } finally {
+      setPurgeBusy(false);
+    }
+  };
+
   if (!isAuthenticated) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -126,6 +234,74 @@ export default function AdminDashboard() {
               <div className="text-right">
                 <p className="text-sm text-swar-text-secondary">Welcome back</p>
                 <p className="font-semibold text-swar-text capitalize">{adminUser}</p>
+              </div>
+
+              {/* Maintenance: Purge Failed Orders */}
+              <div className="mt-8 bg-white rounded-lg shadow p-6">
+                <h2 className="text-xl font-bold text-swar-text mb-2">Maintenance: Purge Failed Orders</h2>
+                <p className="text-sm text-swar-text-secondary mb-4">
+                  Use this to delete only <span className="font-semibold">failed</span> payment records for a user.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Email</label>
+                    <input
+                      value={purgeEmail}
+                      onChange={(e) => setPurgeEmail(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2"
+                      placeholder="user@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Older than (days)</label>
+                    <input
+                      value={purgeOlderThanDays}
+                      onChange={(e) => setPurgeOlderThanDays(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2"
+                      placeholder="(optional)"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Payment method</label>
+                    <input
+                      value={purgePaymentMethod}
+                      onChange={(e) => setPurgePaymentMethod(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2"
+                      placeholder="india_payu (optional)"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3 items-center">
+                  <button
+                    type="button"
+                    onClick={previewPurge}
+                    disabled={purgeBusy}
+                    className={`px-4 py-2 rounded-lg border border-swar-border bg-white ${purgeBusy ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'}`}
+                  >
+                    Preview
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runPurge}
+                    disabled={purgeBusy}
+                    className={`px-4 py-2 rounded-lg bg-red-600 text-white font-semibold ${purgeBusy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-700'}`}
+                  >
+                    Delete Failed Orders
+                  </button>
+
+                  {purgePreviewCount != null && (
+                    <div className="text-sm text-swar-text-secondary">
+                      Matching failed orders: <span className="font-bold text-swar-text">{purgePreviewCount}</span>
+                    </div>
+                  )}
+
+                  {purgeMsg && (
+                    <div className="text-sm text-swar-text-secondary">{purgeMsg}</div>
+                  )}
+                </div>
               </div>
               <Link
                 href="/"
