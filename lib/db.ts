@@ -131,7 +131,8 @@ const orderSchema = new mongoose.Schema({
   ],
   total: { type: Number, required: true },
   status: { type: String, default: 'pending' },
-  paymentStatus: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  // Keep this in sync with payment flows (PayU + Nepal manual).
+  paymentStatus: { type: String, enum: ['pending', 'completed', 'failed', 'pending_manual'], default: 'pending' },
   seatInventoryAdjusted: { type: Boolean, default: false },
   paymentMethod: { type: String },
   // PayU requires txnid to be unique and <= 25 chars.
