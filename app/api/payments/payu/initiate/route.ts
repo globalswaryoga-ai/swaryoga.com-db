@@ -331,6 +331,95 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Retry hardening: if the user already has a pending order (or same IP initiated one recently),
+    // reuse that existing txnid instead of creating a brand new order. This reduces PayU throttling
+    // and avoids filling the DB with pending orders when users click again.
+    const reuseWindowMs = 30 * 60_000; // 30 minutes
+    const reuseCutoff = new Date(Date.now() - reuseWindowMs);
+    const normalizedEmail = sanitizePayUField(body.email).toLowerCase();
+    type ReusableOrderLean = {
+      _id: unknown;
+      total?: number;
+      currency?: string;
+      payuTxnId?: string;
+      shippingAddress?: { firstName?: string; lastName?: string; email?: string; phone?: string; address?: string; city?: string; state?: string; zip?: string };
+      createdAt?: unknown;
+    };
+    const reusable = (await Order.findOne({
+      paymentStatus: 'pending',
+      paymentMethod: payMethod,
+      createdAt: { $gte: reuseCutoff },
+      $or: [{ userId: decoded.userId }, { clientIp: ip }],
+      'shippingAddress.email': { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+    })
+      .select({ _id: 1, total: 1, currency: 1, payuTxnId: 1, shippingAddress: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .lean()) as ReusableOrderLean | null;
+
+    const reusableTotal = Number(reusable?.total);
+    const totalCloseEnough = Number.isFinite(reusableTotal) && Math.abs(reusableTotal - totalAmount) < 0.01;
+
+    if (reusable && totalCloseEnough) {
+      const orderId = String(reusable._id);
+
+      let txnid = String(reusable.payuTxnId || '').trim();
+      if (!txnid) {
+        txnid = generatePayUTxnId();
+        await Order.updateOne({ _id: reusable._id }, { $set: { payuTxnId: txnid, updatedAt: new Date() } });
+      }
+
+      const baseUrl = getBaseUrl(request) || 'http://localhost:3000';
+      const callbackBase = `${baseUrl}/api/payments/payu/callback`;
+
+      const successUrl = typeof body.successUrl === 'string' ? body.successUrl : null;
+      const failureUrl = typeof body.failureUrl === 'string' ? body.failureUrl : null;
+      const successTarget = successUrl && isSafeRedirectTarget(successUrl) ? successUrl : '/payment-successful';
+      const failureTarget = failureUrl && isSafeRedirectTarget(failureUrl) ? failureUrl : '/payment-failed';
+      const callbackUrl = `${callbackBase}?success=${encodeURIComponent(successTarget)}&failure=${encodeURIComponent(failureTarget)}`;
+
+      const sa = reusable.shippingAddress || {};
+
+      const payuParams: PayUParams & { service_provider: string } = {
+        key: PAYU_MERCHANT_KEY,
+        txnid,
+        amount: totalAmount.toFixed(2),
+        productinfo: sanitizePayUField(body.productInfo),
+        firstname: sanitizePayUField(sa.firstName || body.firstName),
+        email: sanitizePayUField(sa.email || body.email),
+        phone: sanitizePhone(String(sa.phone || body.phone || '')),
+        address1: sanitizePayUField(sa.address || body.address || ''),
+        city: sanitizePayUField(sa.city || body.city),
+        state: sanitizePayUField(sa.state || body.state || ''),
+        zipcode: sanitizePayUField(sa.zip || body.zip || ''),
+        surl: callbackUrl,
+        furl: callbackUrl,
+        service_provider: 'payu_paisa',
+      };
+
+      const hash = generatePayUHash(payuParams);
+
+      console.log('PayU payment re-initiated (reused pending txn):', {
+        orderId,
+        txnid,
+        amount: totalAmount,
+        email: body.email,
+        country: body.country,
+        mode: process.env.PAYU_MODE || 'TEST',
+      });
+
+      return NextResponse.json({
+        success: true,
+        orderId,
+        country: body.country,
+        paymentUrl: getPayUPaymentUrl(),
+        params: {
+          ...payuParams,
+          hash,
+        },
+        reusedPending: true,
+      });
+    }
+
     // Create an Order record so txnid is PayU-safe (<=25 chars) and callback can update it.
     // Mongoose ObjectId string length is 24.
     const order = new Order({
