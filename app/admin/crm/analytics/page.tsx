@@ -59,7 +59,6 @@ export default function AnalyticsPage() {
 
   const fetchAnalytics = async () => {
     try {
-      crm.setLoading(true);
       const response = await fetch(`/api/admin/crm/analytics?view=${view}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -72,8 +71,6 @@ export default function AnalyticsPage() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      crm.setLoading(false);
     }
   };
 
@@ -83,7 +80,7 @@ export default function AnalyticsPage() {
         <PageHeader title="Analytics & Insights" />
 
         {/* Error Alert */}
-        {error && <AlertBox type="error" message={error} onDismiss={() => setError(null)} />}
+        {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
 
         {/* View Tabs */}
         <div className="flex gap-2 flex-wrap">
@@ -112,7 +109,7 @@ export default function AnalyticsPage() {
                 <StatCard label="Total Leads" value={analytics.overview.totalLeads.toString()} icon="📊" color="blue" />
                 <StatCard label="Total Sales" value={analytics.overview.totalSales.toString()} icon="💰" color="green" />
                 <StatCard label="Messages" value={analytics.overview.totalMessages.toString()} icon="💬" color="purple" />
-                <StatCard label="Conversion" value={`${analytics.overview.conversionRate.toFixed(1)}%`} icon="📈" color="orange" />
+                <StatCard label="Conversion" value={`${analytics.overview.conversionRate.toFixed(1)}%`} icon="📈" color="yellow" />
               </div>
             )}
 
@@ -141,8 +138,8 @@ export default function AnalyticsPage() {
             {view === 'sales' && analytics.sales && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard label="Total Sales" value={analytics.sales.totalSales.toString()} icon="💰" color="green" />
-                <StatCard label="Total Revenue" value={`₹${analytics.sales.totalRevenue.toLocaleString()}`} icon="💵" color="emerald" />
-                <StatCard label="Avg. Sale" value={`₹${Math.round(analytics.sales.averageSaleAmount).toLocaleString()}`} icon="📊" color="cyan" />
+                <StatCard label="Total Revenue" value={`₹${analytics.sales.totalRevenue.toLocaleString()}`} icon="💵" color="green" />
+                <StatCard label="Avg. Sale" value={`₹${Math.round(analytics.sales.averageSaleAmount).toLocaleString()}`} icon="📊" color="blue" />
                 <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
                   <div className="text-white font-semibold mb-3 text-sm">Payment Methods</div>
                   <div className="space-y-2">
