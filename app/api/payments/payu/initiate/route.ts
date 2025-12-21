@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       total: amountNum,
       currency: 'INR',
       status: 'pending',
-      paymentStatus: 'initiated',
+      paymentStatus: 'pending',
       paymentMethod: 'payu',
       payuTxnId: txnid,
       shippingAddress: {
