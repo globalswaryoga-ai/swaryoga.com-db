@@ -123,7 +123,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Rate limiting removed - PayU account verified as working
+    // Protect PayU from being hit multiple times rapidly (PayU may throttle and show “Too many Requests”).
+    // IMPORTANT: never rate-limit globally on a shared/unknown IP (common on serverless).
+    const ip = getClientIp(request);
+    const rateKey = ip ? `payu-init:ip:${ip}` : `payu-init:user:${decoded.userId}`;
+
+    const allowed = isRateLimited(rateKey, {
+      windowMs: 120_000, // 2 minutes - PayU's strict rate limit
+      // PayU allows max 1 request per 2 minutes to avoid "Too many Requests" throttling.
+      max: 1,
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many payment attempts. Please wait 120 seconds and try again.',
+          retryAfterSec: 120,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': '120',
+          },
+        }
+      );
+    }
+
     const body: PaymentRequest = await request.json();
 
     // Validate country parameter
@@ -307,11 +331,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Durable throttling: prevent repeated PayU initiations within 10s.
-    // Only prevents accidental double-clicks; allows user retries after 10 seconds
-    // FIXED: Dec 21, 2025 - Reduced from 120s to 10s
+    // Durable throttling: prevent repeated PayU initiations within 120s.
+    // PayU can respond with "Too many Requests" if users retry rapidly; in-memory rate limits
+    // are not reliable on serverless, so we also enforce a DB-backed cooldown.
     await connectDB();
-    const cooldownMs = 10_000; // 10 seconds - prevent accidental duplicates only
+    const cooldownMs = 120_000; // 2 minutes - PayU's strict rate limit
     const payMethod = body.country === 'india' ? 'india_payu' : 'international_payu';
     const cutoff = new Date(Date.now() - cooldownMs);
 
