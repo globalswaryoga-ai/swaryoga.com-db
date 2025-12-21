@@ -77,6 +77,8 @@ export default function SalesPage() {
     } finally {
       crm.setLoading(false);
     }
+  };
+
   const handleCreateSale = async (e: React.FormEvent) => {
     e.preventDefault();
     try {

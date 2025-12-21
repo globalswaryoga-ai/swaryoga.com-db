@@ -20,19 +20,7 @@ const sizeClasses = {
   xl: 'max-w-2xl',
 };
 
-/**
- * Reusable Modal component
- *
- * @example
- * <Modal
- *   isOpen={modalOpen}
- *   onClose={() => setModalOpen(false)}
- *   title="Add Item"
- *   footer={<button onClick={handleSubmit}>Save</button>}
- * >
- *   <form>{/* form content */}</form>
- * </Modal>
- */
+// Reusable Modal component
 export function Modal({
   isOpen,
   onClose,
@@ -47,7 +35,6 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       {backdrop && (
         <div
           className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -55,9 +42,7 @@ export function Modal({
         />
       )}
 
-      {/* Modal */}
       <div className={`relative bg-slate-900 rounded-lg shadow-xl w-full mx-4 ${sizeClasses[size]}`}>
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
           <h2 className="text-xl font-bold text-white">{title}</h2>
           {closeButton && (
@@ -70,10 +55,8 @@ export function Modal({
           )}
         </div>
 
-        {/* Body */}
         <div className="px-6 py-4">{children}</div>
 
-        {/* Footer */}
         {footer && (
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-700 bg-slate-800/50">
             {footer}
@@ -84,16 +67,15 @@ export function Modal({
   );
 }
 
-/**
- * Modal with form layout
- */
+// Modal with form layout
 export function FormModal({
   isOpen,
   onClose,
   title,
   children,
   onSubmit,
-  submitText = 'Save',
+  submitLabel = 'Save',
+  cancelLabel = 'Cancel',
   loading = false,
   size = 'md',
 }: {
@@ -101,8 +83,9 @@ export function FormModal({
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  onSubmit: () => void | Promise<void>;
-  submitText?: string;
+  onSubmit: (e: React.FormEvent) => void | Promise<void>;
+  submitLabel?: string;
+  cancelLabel?: string;
   loading?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
@@ -118,26 +101,24 @@ export function FormModal({
             onClick={onClose}
             className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600 transition-colors"
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
-            onClick={onSubmit}
+            onClick={(e) => onSubmit(e as any)}
             disabled={loading}
             className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Saving...' : submitText}
+            {loading ? 'Saving...' : submitLabel}
           </button>
         </>
       }
     >
-      {children}
+      <form onSubmit={onSubmit}>{children}</form>
     </Modal>
   );
 }
 
-/**
- * Confirmation Modal
- */
+// Confirmation Modal
 export function ConfirmModal({
   isOpen,
   onClose,
