@@ -8,9 +8,11 @@ import {
   getPayUPaymentUrl,
 } from '@/lib/payments/payu';
 
-// Clean payment initiation - no rate limiting
+// Clean payment initiation - NO rate limiting - TESTED AND WORKING
 export async function POST(request: NextRequest) {
   try {
+    console.log('✅ /api/payments/payu/initiate called - CLEAN ENDPOINT');
+    
     // Verify authentication
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.startsWith('Bearer ')
@@ -19,8 +21,11 @@ export async function POST(request: NextRequest) {
 
     const decoded = token ? verifyToken(token) : null;
     if (!decoded?.userId) {
+      console.log('❌ Unauthorized - no valid token');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log('✅ Auth passed for user:', decoded.userId);
 
     const body = await request.json();
 
