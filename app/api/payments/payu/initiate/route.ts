@@ -221,14 +221,26 @@ export async function POST(request: NextRequest) {
 
     // For India and International: Calculate with 3.3% fee and process with PayU
     const subtotal = Number(body.amount);
-    const chargeAmount = subtotal * 0.033;
-    const totalAmount = subtotal + chargeAmount;
+    
+    // Validate amount format BEFORE any calculation
+    if (!Number.isFinite(subtotal) || subtotal <= 0) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid amount',
+          details: `Amount must be a positive number. Received: ${body.amount} (parsed as: ${subtotal})`
+        },
+        { status: 400 }
+      );
+    }
 
+    const chargeAmount = subtotal * 0.033;
+    const totalAmount = Math.round((subtotal + chargeAmount) * 100) / 100; // Ensure 2 decimals
+    
     // Validate required fields (per PayU best practices)
     const validationErrors: string[] = [];
     
-    if (!Number.isFinite(subtotal) || subtotal <= 0) {
-      validationErrors.push(`amount: ${subtotal} (must be > 0)`);
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      validationErrors.push(`calculated amount: ${totalAmount} (must be > 0)`);
     }
     if (!body.productInfo || body.productInfo.trim() === '') {
       validationErrors.push('productInfo: empty or missing');
