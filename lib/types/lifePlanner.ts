@@ -204,6 +204,9 @@ export interface HealthRoutine {
   updatedAt: string;
 }
 
+// Health planner day parts (used for grouping routines / food plan)
+export type DayPart = 'early_morning' | 'morning' | 'afternoon' | 'evening' | 'night' | 'midnight';
+
 export type MealItem = {
   id: string;
   name: string;
@@ -224,6 +227,8 @@ export type DailyRoutineItem = {
   id: string;
   title: string;
   notes?: string;
+  // Grouping label for the Health daily planner UI
+  dayPart?: DayPart;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   // Frequency/mode requested on Health page
@@ -234,6 +239,8 @@ export type DailyRoutineItem = {
   startTime?: string; // HH:mm
   endTime?: string; // HH:mm
   whatToEat?: string;
+  // Checkbox completion for this day plan item
+  completed?: boolean;
 };
 
 export type HealthIntakeItem = {
@@ -244,6 +251,7 @@ export type HealthIntakeItem = {
   startTime?: string; // HH:mm
   endTime?: string; // HH:mm
   notes?: string;
+  completed?: boolean;
 };
 
 export type HealthIntakeSection = {
@@ -252,10 +260,21 @@ export type HealthIntakeSection = {
   items: HealthIntakeItem[];
 };
 
+export type FoodPlanItem = {
+  id: string;
+  dayPart: DayPart;
+  subheading: string;
+  title: string;
+  time?: string; // HH:mm
+  completed?: boolean;
+};
+
 export type DailyHealthPlan = {
   id: string;
   date: string; // YYYY-MM-DD (the day this plan is for)
   routines: DailyRoutineItem[];
+  // New (2025-12): Food plan items grouped by dayPart + subheading
+  foodPlanItems?: FoodPlanItem[];
   // Back-compat: previous version stored only breakfast/lunch/dinner
   meals: DailyMeals;
   // New: flexible sections (herbal drink, tea/coffee, breakfast/lunch/snacks/dinner, medicines, sleeping drink, etc.)

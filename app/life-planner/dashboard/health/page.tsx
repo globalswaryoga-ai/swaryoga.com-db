@@ -1,12 +1,16 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Clock, Plus } from 'lucide-react';
 import { lifePlannerStorage } from '@/lib/lifePlannerMongoStorage';
 import type {
+  DayPart,
   DailyHealthPlan,
   DailyMeals,
   DailyRoutineItem,
+  FoodPlanItem,
   HealthIntakeItem,
   HealthIntakeSection,
   HealthRoutine,
@@ -14,6 +18,47 @@ import type {
 } from '@/lib/types/lifePlanner';
 
 const iso = (d: Date) => d.toISOString().split('T')[0];
+
+const DAY_PARTS: Array<{ key: DayPart; label: string; tint: string }> = [
+  { key: 'early_morning', label: 'Early Morning', tint: 'bg-emerald-50 border-emerald-100' },
+  { key: 'morning', label: 'Morning', tint: 'bg-sky-50 border-sky-100' },
+  { key: 'afternoon', label: 'Afternoon', tint: 'bg-amber-50 border-amber-100' },
+  { key: 'evening', label: 'Evening', tint: 'bg-purple-50 border-purple-100' },
+  { key: 'night', label: 'Night', tint: 'bg-indigo-50 border-indigo-100' },
+  { key: 'midnight', label: 'Midnight', tint: 'bg-slate-50 border-slate-200' },
+];
+
+const FOOD_SUBHEADINGS: string[] = [
+  'Gond Pani',
+  'Herbal soaked water',
+  'Normal water',
+  'Tea/Coffee/Green',
+  'Breakfast',
+  'Lunch',
+  'Snacks',
+  'Dinner',
+  'Before Sleep',
+];
+
+function hourFromHHMM(value: string | undefined): number | null {
+  if (!value) return null;
+  const m = String(value).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  if (!Number.isFinite(hh)) return null;
+  return Math.max(0, Math.min(23, hh));
+}
+
+function inferDayPartFromTime(time: string | undefined): DayPart {
+  const hh = hourFromHHMM(time);
+  if (hh == null) return 'morning';
+  if (hh >= 0 && hh <= 3) return 'midnight';
+  if (hh >= 4 && hh <= 7) return 'early_morning';
+  if (hh >= 8 && hh <= 11) return 'morning';
+  if (hh >= 12 && hh <= 15) return 'afternoon';
+  if (hh >= 16 && hh <= 19) return 'evening';
+  return 'night';
+}
 
 function createEmptyMealSection(): MealSection {
   return { time: '', items: [{ id: '1', name: '' }] };
@@ -33,6 +78,7 @@ function createNewDailyPlan(date: string): DailyHealthPlan {
     id: `dhp-${Date.now()}`,
     date,
     routines: [],
+    foodPlanItems: [],
     meals: createEmptyMeals(),
     intakeSections: createDefaultIntakeSections(date),
     createdAt: now,
@@ -271,6 +317,7 @@ function IntakeSectionEditor({
 }
 
 export default function HealthPage() {
+  const searchParams = useSearchParams();
   const [routines, setRoutines] = useState<HealthRoutine[]>([]);
   const [dailyPlans, setDailyPlans] = useState<DailyHealthPlan[]>([]);
   const [activeDate, setActiveDate] = useState<string>(() => iso(new Date()));
@@ -313,9 +360,55 @@ export default function HealthPage() {
     try {
       const saved = await lifePlannerStorage.getDailyHealthPlans();
       const list = Array.isArray(saved) ? (saved as DailyHealthPlan[]) : [];
+
+      const normalized = list.map((p) => {
+        const routines = Array.isArray(p?.routines) ? p.routines : [];
+        const nextRoutines = routines.map((it) => {
+          const time = String(it?.time || it?.startTime || '');
+          return {
+            ...it,
+            dayPart: (it as any).dayPart || inferDayPartFromTime(time),
+            completed: typeof (it as any).completed === 'boolean' ? (it as any).completed : false,
+          } as DailyRoutineItem;
+        });
+
+        const food = Array.isArray((p as any)?.foodPlanItems) ? ((p as any).foodPlanItems as FoodPlanItem[]) : [];
+        const nextFood = food.map((it) => {
+          const dayPart = (it as any)?.dayPart || inferDayPartFromTime((it as any)?.time);
+          const subheading = String((it as any)?.subheading || FOOD_SUBHEADINGS[0] || '');
+          const title = String((it as any)?.title || '');
+          return {
+            ...it,
+            dayPart,
+            subheading,
+            title,
+            completed: typeof (it as any).completed === 'boolean' ? (it as any).completed : false,
+          } as FoodPlanItem;
+        });
+
+        // Intake section items: default completed=false so checkboxes can be added later safely.
+        const intakeSections = Array.isArray(p?.intakeSections)
+          ? p.intakeSections.map((sec) => ({
+              ...sec,
+              items: Array.isArray(sec?.items)
+                ? sec.items.map((x) => ({
+                    ...x,
+                    completed: typeof (x as any).completed === 'boolean' ? (x as any).completed : false,
+                  }))
+                : sec.items,
+            }))
+          : p?.intakeSections;
+
+        return {
+          ...p,
+          routines: nextRoutines,
+          foodPlanItems: nextFood,
+          intakeSections,
+        } as DailyHealthPlan;
+      });
       // Ensure current date has a plan even after refresh
-      const exists = !!activeDate && list.some((p) => p?.date === activeDate);
-      setDailyPlans(exists || !activeDate ? list : [...list, createNewDailyPlan(activeDate)]);
+      const exists = !!activeDate && normalized.some((p) => p?.date === activeDate);
+      setDailyPlans(exists || !activeDate ? normalized : [...normalized, createNewDailyPlan(activeDate)]);
     } catch (e) {
       console.error('Error loading daily health plans:', e);
     } finally {
@@ -356,6 +449,15 @@ export default function HealthPage() {
     loadRoutines();
     loadDailyPlans();
   }, [loadRoutines, loadDailyPlans]);
+
+  // Deep-link support: /health?date=YYYY-MM-DD
+  useEffect(() => {
+    const qp = searchParams?.get('date');
+    if (!qp) return;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(qp)) {
+      setActiveDate(qp);
+    }
+  }, [searchParams]);
 
   // Save to MongoDB whenever routines change
   useEffect(() => {
@@ -480,6 +582,69 @@ export default function HealthPage() {
     updatePlanForDate(activeDate, (plan) => ({
       ...plan,
       routines: (plan.routines || []).filter((it) => it.id !== id),
+    }));
+  };
+
+  const addRoutineItemToDayPart = (dayPart: DayPart) => {
+    const now = new Date();
+    const defaultTime = clampTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+    const newItem: DailyRoutineItem = {
+      id: `dri-${Date.now()}`,
+      title: '',
+      notes: '',
+      dayPart,
+      startDate: activeDate,
+      endDate: activeDate,
+      frequency: 'once',
+      time: defaultTime || '',
+      whatToEat: '',
+      completed: false,
+    };
+
+    updatePlanForDate(activeDate, (plan) => ({
+      ...plan,
+      routines: [...(plan.routines || []), newItem],
+    }));
+  };
+
+  const foodPlanItems = useMemo<FoodPlanItem[]>(
+    () => (Array.isArray((activePlan as any)?.foodPlanItems) ? (((activePlan as any).foodPlanItems as FoodPlanItem[]) || []) : []),
+    [activePlan]
+  );
+
+  const addFoodPlanItem = (dayPart: DayPart) => {
+    const now = new Date();
+    const defaultTime = clampTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+    const item: FoodPlanItem = {
+      id: `fpi-${Date.now()}`,
+      dayPart,
+      subheading: FOOD_SUBHEADINGS[0] || 'Gond Pani',
+      title: '',
+      time: defaultTime || '',
+      completed: false,
+    };
+
+    updatePlanForDate(activeDate, (plan) => ({
+      ...plan,
+      foodPlanItems: [...(Array.isArray((plan as any).foodPlanItems) ? ((plan as any).foodPlanItems as FoodPlanItem[]) : []), item],
+    }));
+  };
+
+  const updateFoodPlanItem = (id: string, patch: Partial<FoodPlanItem>) => {
+    updatePlanForDate(activeDate, (plan) => ({
+      ...plan,
+      foodPlanItems: (Array.isArray((plan as any).foodPlanItems) ? ((plan as any).foodPlanItems as FoodPlanItem[]) : []).map((it) =>
+        it.id === id ? { ...it, ...patch } : it
+      ),
+    }));
+  };
+
+  const deleteFoodPlanItem = (id: string) => {
+    updatePlanForDate(activeDate, (plan) => ({
+      ...plan,
+      foodPlanItems: (Array.isArray((plan as any).foodPlanItems) ? ((plan as any).foodPlanItems as FoodPlanItem[]) : []).filter(
+        (it) => it.id !== id
+      ),
     }));
   };
 
@@ -701,39 +866,46 @@ export default function HealthPage() {
           </div>
         )}
 
-        {/* Header + tabs (Journal-style) */}
-        <div className="mb-2">
-          <div className="flex items-end justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">💪 Health Planner</h1>
-              <p className="text-swar-text-secondary">Build your daily routine + track drinks, food & medicines. Save “Often” presets for 1-tap add.</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('daily')}
-                className={
-                  'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
-                  (activeTab === 'daily'
-                    ? 'bg-swar-primary text-white border-swar-primary'
-                    : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
-                }
-              >
-                Daily Plan
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('routines')}
-                className={
-                  'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
-                  (activeTab === 'routines'
-                    ? 'bg-swar-primary text-white border-swar-primary'
-                    : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
-                }
-              >
-                Routines
-              </button>
-            </div>
+        {/* Header (Diamond-style) */}
+        <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-swar-text mb-2">Health Planner</h1>
+            <p className="text-swar-text-secondary">Daily routine + food plan checklist. Track progress month-wise using the watch icon.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/life-planner/dashboard/health-month"
+              className="h-11 w-11 rounded-full border border-gray-200 bg-white shadow-sm hover:shadow-md transition flex items-center justify-center"
+              title="Monthly progress"
+              aria-label="Monthly progress"
+            >
+              <Clock className="h-5 w-5 text-swar-text" />
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('daily')}
+              className={
+                'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
+                (activeTab === 'daily'
+                  ? 'bg-swar-primary text-white border-swar-primary'
+                  : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
+              }
+            >
+              Daily Plan
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('routines')}
+              className={
+                'px-4 py-2 rounded-lg font-semibold transition border-2 ' +
+                (activeTab === 'routines'
+                  ? 'bg-swar-primary text-white border-swar-primary'
+                  : 'bg-white text-swar-text border-gray-200 hover:border-swar-primary')
+              }
+            >
+              Routines
+            </button>
           </div>
         </div>
 
@@ -860,294 +1032,252 @@ export default function HealthPage() {
         </div>
       )}
       
-      {/* Daily routine + meals */}
+      {/* Daily routine + Food plan (two cards) */}
       {activeTab === 'daily' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Card 1: My 24 hours daily routines */}
-          <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-              <div className="flex items-end justify-between gap-4 flex-wrap">
-                <div>
-                  <p className="text-xs font-semibold text-swar-text-secondary">Daily routines</p>
-                  <h2 className="mt-1 text-xl sm:text-2xl font-bold text-swar-text">My 24 hours daily routines</h2>
-                  <p className="mt-1 text-sm text-swar-text-secondary">Add items with time + once/daily/custom slot.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-swar-text mb-1">Date</label>
-                    <input
-                      type="date"
-                      value={activeDate}
-                      onChange={(e) => setActiveDate(e.target.value)}
-                      className="rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-swar-text focus:border-swar-primary focus:outline-none"
-                    />
-                  </div>
-
-                  {/* Often dropdown buttons */}
-                  <div className="mt-5">
-                    <details ref={oftenDetailsRef} className="relative">
-                      <summary className="cursor-pointer select-none rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-swar-text hover:border-swar-primary transition [&::-webkit-details-marker]:hidden">
-                        Often ▾
-                      </summary>
-
-                      <div className="absolute right-0 mt-2 w-[320px] max-w-[90vw] rounded-xl border border-gray-200 bg-white shadow-xl p-2 z-30">
-                        <div className="flex items-center justify-between gap-2 px-2 pb-2">
-                          <div className="text-xs font-semibold text-swar-text-secondary">Select and add quickly</div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              closeOftenDropdown();
-                              openCreate();
-                            }}
-                            className="rounded-lg bg-swar-primary px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-swar-primary/90 transition"
-                          >
-                            + New
-                          </button>
-                        </div>
-
-                        <div className="max-h-72 overflow-auto">
-                          {routines.length === 0 ? (
-                            <div className="px-2 py-3 text-sm text-swar-text-secondary">No Often items yet. Click “New”.</div>
-                          ) : (
-                            routines
-                              .slice()
-                              .sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')))
-                              .map((r) => (
-                                <div
-                                  key={r.id}
-                                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-swar-bg"
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => addOftenToDayFrom(r)}
-                                    className="min-w-0 text-left text-sm font-semibold text-swar-text hover:underline"
-                                    title="Add to today"
-                                  >
-                                    {r.title || 'Untitled'}
-                                    <div className="text-xs text-swar-text-secondary">
-                                      {(r.dailyFrequency || 'daily')}{r.time ? ` • ${r.time}` : r.startTime ? ` • ${r.startTime}-${r.endTime || ''}` : ''}
-                                    </div>
-                                  </button>
-
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        closeOftenDropdown();
-                                        openEdit(r);
-                                      }}
-                                      className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-swar-text hover:border-swar-primary transition"
-                                    >
-                                      Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        closeOftenDropdown();
-                                        deleteRoutine(r.id);
-                                      }}
-                                      className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
-                                    >
-                                      Delete
-                                    </button>
-                                  </div>
-                                </div>
-                              ))
-                          )}
-                        </div>
-                      </div>
-                    </details>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => addRoutineItem(new Date().getHours())}
-                    className="mt-5 inline-flex items-center gap-2 rounded-lg bg-swar-primary px-4 py-2 text-sm font-semibold text-white hover:bg-swar-primary/90 transition"
-                  >
-                    <Plus className="h-5 w-5" /> Add
-                  </button>
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-xs font-bold text-swar-text-secondary">Select day</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="date"
+                    value={activeDate}
+                    onChange={(e) => setActiveDate(e.target.value)}
+                    className="rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  />
+                  <span className="text-xs text-swar-text-secondary">Tick your routine & food plan items below.</span>
                 </div>
               </div>
-
-              <div className="mt-4 flex gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => {
-                    updatePlanForDate(activeDate, (plan) => {
-                      if ((plan.routines || []).length > 0) {
-                        alert('You already have routines for this date.');
-                        return plan;
-                      }
-                      const template: DailyRoutineItem[] = Array.from({ length: 24 }).map((_, h) => ({
-                        id: `dri-${Date.now()}-${h}`,
-                        title: '',
-                        notes: '',
-                        startDate: activeDate,
-                        endDate: activeDate,
-                        frequency: 'daily',
-                        startTime: formatHour(h),
-                        endTime: formatHour((h + 1) % 24),
-                      }));
-                      return { ...plan, routines: template };
-                    });
-                  }}
-                  className="rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-swar-text hover:border-swar-primary transition"
-                >
-                  Create 24 hours
-                </button>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     loadDailyPlans();
                     if (activeDate) ensurePlanExists(activeDate);
                   }}
-                  className="rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-swar-text hover:border-swar-primary transition"
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-swar-text hover:border-swar-primary transition"
                 >
                   Refresh
                 </button>
               </div>
             </div>
-
-            <div className="px-4 sm:px-6 py-5">
-              {(activePlan?.routines || []).length === 0 ? (
-                <div className="rounded-lg border border-gray-200 bg-swar-bg p-5">
-                  <p className="text-sm text-swar-text-secondary italic">No routines yet. Click “Create 24 hours” or “Add”.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {(activePlan?.routines || [])
-                    .slice()
-                    .sort((a, b) =>
-                      (clampTime(a.startTime || a.time || '') || '99:99').localeCompare(
-                        clampTime(b.startTime || b.time || '') || '99:99'
-                      )
-                    )
-                    .map((it) => {
-                      const freq = it.frequency || 'daily';
-                      const isCustom = freq === 'custom';
-                      return (
-                        <div key={it.id} className="rounded-xl border border-gray-200 bg-white p-4">
-                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-                            <div className="lg:col-span-6">
-                              <label className="block text-xs font-bold text-swar-text mb-1">Title</label>
-                              <input
-                                type="text"
-                                value={it.title || ''}
-                                onChange={(e) => updateRoutineItem(it.id, { title: e.target.value })}
-                                placeholder="e.g. Yoga / Walk / Office / Meditation"
-                                className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
-                              />
-                            </div>
-
-                            <div className="lg:col-span-3">
-                              <label className="block text-xs font-bold text-swar-text mb-1">Frequency</label>
-                              <select
-                                value={freq}
-                                onChange={(e) => {
-                                  const next = e.target.value as any;
-                                  if (next === 'custom') {
-                                    updateRoutineItem(it.id, { frequency: next, time: '', startTime: it.startTime || formatHour(new Date().getHours()), endTime: it.endTime || formatHour((new Date().getHours() + 1) % 24) });
-                                  } else {
-                                    updateRoutineItem(it.id, { frequency: next, time: it.time || it.startTime || '', startTime: undefined, endTime: undefined });
-                                  }
-                                }}
-                                className="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
-                              >
-                                <option value="once">Once</option>
-                                <option value="daily">Daily</option>
-                                <option value="custom">Custom time slot</option>
-                              </select>
-                            </div>
-
-                            {!isCustom ? (
-                              <div className="lg:col-span-2">
-                                <label className="block text-xs font-bold text-swar-text mb-1">Time</label>
-                                <input
-                                  type="time"
-                                  value={it.time || ''}
-                                  onChange={(e) => updateRoutineItem(it.id, { time: e.target.value })}
-                                  className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
-                                />
-                              </div>
-                            ) : (
-                              <>
-                                <div className="lg:col-span-2">
-                                  <label className="block text-xs font-bold text-swar-text mb-1">Start</label>
-                                  <input
-                                    type="time"
-                                    value={it.startTime || ''}
-                                    onChange={(e) => updateRoutineItem(it.id, { startTime: e.target.value })}
-                                    className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
-                                  />
-                                </div>
-                                <div className="lg:col-span-1">
-                                  <label className="block text-xs font-bold text-swar-text mb-1">End</label>
-                                  <input
-                                    type="time"
-                                    value={it.endTime || ''}
-                                    onChange={(e) => updateRoutineItem(it.id, { endTime: e.target.value })}
-                                    className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-swar-text focus:border-swar-primary focus:outline-none"
-                                  />
-                                </div>
-                              </>
-                            )}
-
-                            <div className="lg:col-span-12 flex justify-end">
-                              <button
-                                type="button"
-                                onClick={() => deleteRoutineItem(it.id)}
-                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Card 2: Intake planner */}
-          <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-              <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Card 1: Daily routine */}
+            <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
                 <div>
-                  <p className="text-xs font-semibold text-swar-text-secondary">Drinks + food + medicines</p>
-                  <h2 className="mt-1 text-xl sm:text-2xl font-bold text-swar-text">Intake planner</h2>
-                  <p className="mt-1 text-sm text-swar-text-secondary">Herbal drink, tea/coffee, meals, medicines, sleeping drink… fully editable.</p>
+                  <p className="text-xs font-semibold text-swar-text-secondary">Daily routine</p>
+                  <h2 className="mt-1 text-xl sm:text-2xl font-bold text-swar-text">My Routine</h2>
+                  <p className="mt-1 text-sm text-swar-text-secondary">Early Morning → Midnight. Add title + time and tick when done.</p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={addCustomSection}
-                    className="rounded-lg bg-swar-primary px-4 py-2 text-sm font-semibold text-white hover:bg-swar-primary/90 transition"
-                  >
-                    + Add Section
-                  </button>
-                </div>
+              </div>
+
+              <div className="px-4 sm:px-6 py-5 space-y-3">
+                {DAY_PARTS.map((part) => {
+                  const items = (activePlan?.routines || []).filter((it) => {
+                    const inferred = (it as any).dayPart || inferDayPartFromTime(String(it?.time || it?.startTime || ''));
+                    return inferred === part.key;
+                  });
+
+                  return (
+                    <details key={part.key} className={`rounded-xl border ${part.tint} p-4`} open={part.key === 'morning'}>
+                      <summary className="cursor-pointer select-none list-none flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-extrabold text-swar-text">{part.label}</p>
+                          <p className="text-xs text-swar-text-secondary">{items.length} item(s)</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            addRoutineItemToDayPart(part.key);
+                          }}
+                          className="rounded-lg bg-swar-primary px-3 py-2 text-xs font-semibold text-white hover:bg-swar-primary/90 transition"
+                        >
+                          + Add
+                        </button>
+                      </summary>
+
+                      <div className="mt-4 space-y-2">
+                        {items.length === 0 ? (
+                          <div className="rounded-lg bg-white/60 border border-white/70 p-3">
+                            <p className="text-sm text-swar-text-secondary italic">No items yet.</p>
+                          </div>
+                        ) : (
+                          items.map((it) => (
+                            <div key={it.id} className="rounded-lg border border-white/70 bg-white/70 p-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                                <div className="sm:col-span-1 flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean((it as any).completed)}
+                                    onChange={() => updateRoutineItem(it.id, { completed: !Boolean((it as any).completed) })}
+                                    className="h-5 w-5 accent-emerald-600"
+                                    aria-label="Mark complete"
+                                  />
+                                </div>
+
+                                <div className="sm:col-span-7">
+                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Title</label>
+                                  <input
+                                    type="text"
+                                    value={it.title || ''}
+                                    onChange={(e) =>
+                                      updateRoutineItem(it.id, {
+                                        title: e.target.value,
+                                        dayPart: part.key,
+                                      })
+                                    }
+                                    placeholder="What you want to do"
+                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                  />
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Time</label>
+                                  <input
+                                    type="time"
+                                    value={String(it.time || it.startTime || '')}
+                                    onChange={(e) =>
+                                      updateRoutineItem(it.id, {
+                                        time: e.target.value,
+                                        startTime: undefined,
+                                        endTime: undefined,
+                                        dayPart: part.key,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                  />
+                                </div>
+
+                                <div className="sm:col-span-2 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteRoutineItem(it.id)}
+                                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </details>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="px-4 sm:px-6 py-5 space-y-4">
-              {(intakeSections || []).map((sec) => (
-                <IntakeSectionEditor
-                  key={sec.id}
-                  section={sec}
-                  onChange={(next) => {
-                    const list = (intakeSections || []).map((s) => (s.id === sec.id ? next : s));
-                    updateIntakeSections(list);
-                  }}
-                  onDeleteSection={() => {
-                    const ok = confirm(`Delete section "${sec.title}"?`);
-                    if (!ok) return;
-                    const list = (intakeSections || []).filter((s) => s.id !== sec.id);
-                    updateIntakeSections(list);
-                  }}
-                />
-              ))}
+            {/* Card 2: Food plan */}
+            <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
+                <div>
+                  <p className="text-xs font-semibold text-swar-text-secondary">Food plan</p>
+                  <h2 className="mt-1 text-xl sm:text-2xl font-bold text-swar-text">Food Plan</h2>
+                  <p className="mt-1 text-sm text-swar-text-secondary">Choose a subheading, add title + time, tick when done.</p>
+                </div>
+              </div>
+
+              <div className="px-4 sm:px-6 py-5 space-y-3">
+                {DAY_PARTS.map((part) => {
+                  const items = (foodPlanItems || []).filter((it) => (it?.dayPart || part.key) === part.key);
+                  return (
+                    <details key={part.key} className={`rounded-xl border ${part.tint} p-4`} open={part.key === 'morning'}>
+                      <summary className="cursor-pointer select-none list-none flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-extrabold text-swar-text">{part.label}</p>
+                          <p className="text-xs text-swar-text-secondary">{items.length} item(s)</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            addFoodPlanItem(part.key);
+                          }}
+                          className="rounded-lg bg-swar-primary px-3 py-2 text-xs font-semibold text-white hover:bg-swar-primary/90 transition"
+                        >
+                          + Add
+                        </button>
+                      </summary>
+
+                      <div className="mt-4 space-y-2">
+                        {items.length === 0 ? (
+                          <div className="rounded-lg bg-white/60 border border-white/70 p-3">
+                            <p className="text-sm text-swar-text-secondary italic">No items yet.</p>
+                          </div>
+                        ) : (
+                          items.map((it) => (
+                            <div key={it.id} className="rounded-lg border border-white/70 bg-white/70 p-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                                <div className="sm:col-span-1 flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(it.completed)}
+                                    onChange={() => updateFoodPlanItem(it.id, { completed: !Boolean(it.completed) })}
+                                    className="h-5 w-5 accent-emerald-600"
+                                    aria-label="Mark complete"
+                                  />
+                                </div>
+
+                                <div className="sm:col-span-4">
+                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Sub heading</label>
+                                  <select
+                                    value={it.subheading || FOOD_SUBHEADINGS[0]}
+                                    onChange={(e) => updateFoodPlanItem(it.id, { subheading: e.target.value, dayPart: part.key })}
+                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                  >
+                                    {FOOD_SUBHEADINGS.map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div className="sm:col-span-5">
+                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Title</label>
+                                  <input
+                                    type="text"
+                                    value={it.title || ''}
+                                    onChange={(e) => updateFoodPlanItem(it.id, { title: e.target.value, dayPart: part.key })}
+                                    placeholder="What you want to take/eat"
+                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                  />
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                  <label className="block text-[11px] font-bold text-swar-text mb-1">Time</label>
+                                  <input
+                                    type="time"
+                                    value={String(it.time || '')}
+                                    onChange={(e) => updateFoodPlanItem(it.id, { time: e.target.value, dayPart: part.key })}
+                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-swar-text focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                                  />
+                                </div>
+
+                                <div className="sm:col-span-12 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteFoodPlanItem(it.id)}
+                                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
