@@ -41,6 +41,12 @@ export default function AdminDashboard() {
   const [purgePreviewCount, setPurgePreviewCount] = useState<number | null>(null);
   const [purgeBusy, setPurgeBusy] = useState(false);
   const [purgeMsg, setPurgeMsg] = useState<string>('');
+  const [expireEmail, setExpireEmail] = useState('swarsakshi9999@gmail.com');
+  const [expireOlderThanMinutes, setExpireOlderThanMinutes] = useState<string>('60');
+  const [expirePaymentMethod, setExpirePaymentMethod] = useState<string>('');
+  const [expirePreviewCount, setExpirePreviewCount] = useState<number | null>(null);
+  const [expireBusy, setExpireBusy] = useState(false);
+  const [expireMsg, setExpireMsg] = useState<string>('');
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     totalUsers: 0,
     totalSignins: 0,
@@ -114,6 +120,21 @@ export default function AdminDashboard() {
     if (days) params.set('olderThanDays', days);
 
     const method = purgePaymentMethod.trim();
+    if (method) params.set('paymentMethod', method);
+
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  };
+
+  const buildExpireQuery = () => {
+    const params = new URLSearchParams();
+    const email = expireEmail.trim();
+    if (email) params.set('email', email);
+
+    const minutes = expireOlderThanMinutes.trim();
+    if (minutes) params.set('olderThanMinutes', minutes);
+
+    const method = expirePaymentMethod.trim();
     if (method) params.set('paymentMethod', method);
 
     const qs = params.toString();
@@ -202,6 +223,93 @@ export default function AdminDashboard() {
     }
   };
 
+  const previewExpire = async () => {
+    const token = getAdminToken();
+    if (!token) {
+      setExpireMsg('Admin token missing. Please login again.');
+      return;
+    }
+
+    setExpireBusy(true);
+    setExpireMsg('');
+    setExpirePreviewCount(null);
+    try {
+      const response = await fetch(`/api/admin/orders/expire-pending${buildExpireQuery()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to preview');
+      }
+
+      setExpirePreviewCount(typeof data?.count === 'number' ? data.count : null);
+      setExpireMsg('Preview loaded.');
+    } catch (err) {
+      setExpireMsg(err instanceof Error ? err.message : 'Failed to preview');
+    } finally {
+      setExpireBusy(false);
+    }
+  };
+
+  const runExpire = async () => {
+    const token = getAdminToken();
+    if (!token) {
+      setExpireMsg('Admin token missing. Please login again.');
+      return;
+    }
+
+    const email = expireEmail.trim();
+    if (!email) {
+      setExpireMsg('Please enter an email to expire pending orders.');
+      return;
+    }
+
+    const minutes = Number(expireOlderThanMinutes);
+    if (!Number.isFinite(minutes) || minutes < 30) {
+      setExpireMsg('olderThanMinutes must be a number and at least 30.');
+      return;
+    }
+
+    const ok = window.confirm(
+      `Mark PENDING orders as FAILED (expired) for\n${email}\n\nThreshold: older than ${minutes} minutes\n\nThis does NOT delete orders; it only marks them as failed so they stop showing as pending. Continue?`
+    );
+    if (!ok) return;
+
+    setExpireBusy(true);
+    setExpireMsg('');
+    try {
+      const body: Record<string, unknown> = {
+        confirm: 'EXPIRE_PENDING_ORDERS',
+        email,
+        olderThanMinutes: minutes,
+      };
+      const method = expirePaymentMethod.trim();
+      if (method) body.paymentMethod = method;
+
+      const response = await fetch('/api/admin/orders/expire-pending', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to expire');
+      }
+
+      setExpireMsg(`Expired (marked failed): ${data?.modifiedCount ?? 0} orders.`);
+      setExpirePreviewCount(null);
+    } catch (err) {
+      setExpireMsg(err instanceof Error ? err.message : 'Failed to expire');
+    } finally {
+      setExpireBusy(false);
+    }
+  };
+
   if (!isAuthenticated) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -235,74 +343,6 @@ export default function AdminDashboard() {
                 <p className="text-sm text-swar-text-secondary">Welcome back</p>
                 <p className="font-semibold text-swar-text capitalize">{adminUser}</p>
               </div>
-
-              {/* Maintenance: Purge Failed Orders */}
-              <div className="mt-8 bg-white rounded-lg shadow p-6">
-                <h2 className="text-xl font-bold text-swar-text mb-2">Maintenance: Purge Failed Orders</h2>
-                <p className="text-sm text-swar-text-secondary mb-4">
-                  Use this to delete only <span className="font-semibold">failed</span> payment records for a user.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Email</label>
-                    <input
-                      value={purgeEmail}
-                      onChange={(e) => setPurgeEmail(e.target.value)}
-                      className="w-full border border-swar-border rounded-lg px-3 py-2"
-                      placeholder="user@example.com"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Older than (days)</label>
-                    <input
-                      value={purgeOlderThanDays}
-                      onChange={(e) => setPurgeOlderThanDays(e.target.value)}
-                      className="w-full border border-swar-border rounded-lg px-3 py-2"
-                      placeholder="(optional)"
-                      inputMode="numeric"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Payment method</label>
-                    <input
-                      value={purgePaymentMethod}
-                      onChange={(e) => setPurgePaymentMethod(e.target.value)}
-                      className="w-full border border-swar-border rounded-lg px-3 py-2"
-                      placeholder="india_payu (optional)"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3 items-center">
-                  <button
-                    type="button"
-                    onClick={previewPurge}
-                    disabled={purgeBusy}
-                    className={`px-4 py-2 rounded-lg border border-swar-border bg-white ${purgeBusy ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'}`}
-                  >
-                    Preview
-                  </button>
-                  <button
-                    type="button"
-                    onClick={runPurge}
-                    disabled={purgeBusy}
-                    className={`px-4 py-2 rounded-lg bg-red-600 text-white font-semibold ${purgeBusy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-700'}`}
-                  >
-                    Delete Failed Orders
-                  </button>
-
-                  {purgePreviewCount != null && (
-                    <div className="text-sm text-swar-text-secondary">
-                      Matching failed orders: <span className="font-bold text-swar-text">{purgePreviewCount}</span>
-                    </div>
-                  )}
-
-                  {purgeMsg && (
-                    <div className="text-sm text-swar-text-secondary">{purgeMsg}</div>
-                  )}
-                </div>
-              </div>
               <Link
                 href="/"
                 className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
@@ -335,6 +375,142 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <>
+              {/* Maintenance tools */}
+              <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Purge Failed Orders */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h2 className="text-xl font-bold text-swar-text mb-2">Maintenance: Purge Failed Orders</h2>
+                  <p className="text-sm text-swar-text-secondary mb-4">
+                    Permanently deletes only <span className="font-semibold">failed</span> orders.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Email</label>
+                      <input
+                        value={purgeEmail}
+                        onChange={(e) => setPurgeEmail(e.target.value)}
+                        className="w-full border border-swar-border rounded-lg px-3 py-2"
+                        placeholder="user@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Older than (days)</label>
+                      <input
+                        value={purgeOlderThanDays}
+                        onChange={(e) => setPurgeOlderThanDays(e.target.value)}
+                        className="w-full border border-swar-border rounded-lg px-3 py-2"
+                        placeholder="(optional)"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Payment method</label>
+                      <input
+                        value={purgePaymentMethod}
+                        onChange={(e) => setPurgePaymentMethod(e.target.value)}
+                        className="w-full border border-swar-border rounded-lg px-3 py-2"
+                        placeholder="india_payu (optional)"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3 items-center">
+                    <button
+                      type="button"
+                      onClick={previewPurge}
+                      disabled={purgeBusy}
+                      className={`px-4 py-2 rounded-lg border border-swar-border bg-white ${purgeBusy ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'}`}
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={runPurge}
+                      disabled={purgeBusy}
+                      className={`px-4 py-2 rounded-lg bg-red-600 text-white font-semibold ${purgeBusy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-700'}`}
+                    >
+                      Delete Failed Orders
+                    </button>
+
+                    {purgePreviewCount != null && (
+                      <div className="text-sm text-swar-text-secondary">
+                        Matching failed orders: <span className="font-bold text-swar-text">{purgePreviewCount}</span>
+                      </div>
+                    )}
+
+                    {purgeMsg && <div className="text-sm text-swar-text-secondary">{purgeMsg}</div>}
+                  </div>
+                </div>
+
+                {/* Expire Pending Orders */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h2 className="text-xl font-bold text-swar-text mb-2">Maintenance: Expire Stale Pending Orders</h2>
+                  <p className="text-sm text-swar-text-secondary mb-4">
+                    Marks old <span className="font-semibold">pending</span> orders as <span className="font-semibold">failed</span> (expired). This is safe for cleanup because it does not delete records.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Email</label>
+                      <input
+                        value={expireEmail}
+                        onChange={(e) => setExpireEmail(e.target.value)}
+                        className="w-full border border-swar-border rounded-lg px-3 py-2"
+                        placeholder="user@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Older than (minutes)</label>
+                      <input
+                        value={expireOlderThanMinutes}
+                        onChange={(e) => setExpireOlderThanMinutes(e.target.value)}
+                        className="w-full border border-swar-border rounded-lg px-3 py-2"
+                        placeholder="60"
+                        inputMode="numeric"
+                      />
+                      <p className="mt-1 text-xs text-swar-text-secondary">Minimum: 30</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-swar-text-secondary mb-1">Payment method</label>
+                      <input
+                        value={expirePaymentMethod}
+                        onChange={(e) => setExpirePaymentMethod(e.target.value)}
+                        className="w-full border border-swar-border rounded-lg px-3 py-2"
+                        placeholder="india_payu (optional)"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3 items-center">
+                    <button
+                      type="button"
+                      onClick={previewExpire}
+                      disabled={expireBusy}
+                      className={`px-4 py-2 rounded-lg border border-swar-border bg-white ${expireBusy ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'}`}
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={runExpire}
+                      disabled={expireBusy}
+                      className={`px-4 py-2 rounded-lg bg-orange-600 text-white font-semibold ${expireBusy ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-700'}`}
+                    >
+                      Expire Pending Orders
+                    </button>
+
+                    {expirePreviewCount != null && (
+                      <div className="text-sm text-swar-text-secondary">
+                        Matching pending orders: <span className="font-bold text-swar-text">{expirePreviewCount}</span>
+                      </div>
+                    )}
+
+                    {expireMsg && <div className="text-sm text-swar-text-secondary">{expireMsg}</div>}
+                  </div>
+                </div>
+              </div>
+
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {/* Total Users */}
