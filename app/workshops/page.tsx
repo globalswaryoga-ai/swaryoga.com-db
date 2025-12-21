@@ -59,7 +59,7 @@ function getNextUpcomingStartDateIso(schedules: ApiWorkshopSchedule[] | undefine
 
 function WorkshopsPageInner() {
   const [currentPage, setCurrentPage] = useState(1);
-  const workshopsPerPage = 3;
+  const workshopsPerPage = 18;
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
