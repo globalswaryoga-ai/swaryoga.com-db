@@ -307,11 +307,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Durable throttling: prevent repeated PayU initiations within 120s.
-    // PayU can respond with "Too many Requests" if users retry rapidly; in-memory rate limits
-    // are not reliable on serverless, so we also enforce a DB-backed cooldown.
+    // Durable throttling: prevent repeated PayU initiations within 10s.
+    // Only prevents accidental double-clicks; allows user retries after 10 seconds
     await connectDB();
-    const cooldownMs = 120_000; // 2 minutes - PayU's strict rate limit
+    const cooldownMs = 10_000; // 10 seconds - prevent accidental duplicates only
     const payMethod = body.country === 'india' ? 'india_payu' : 'international_payu';
     const cutoff = new Date(Date.now() - cooldownMs);
 
