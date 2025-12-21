@@ -19,3 +19,4 @@ api/**
 
 # Don't ignore .env.local - Vercel needs it
 # but set env vars in Vercel dashboard instead
+# Vercel rebuild trigger
