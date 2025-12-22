@@ -1,3 +1,10 @@
+/**
+ * @fileoverview PayU Payment Initiation Endpoint
+ * @author Swar Yoga Team
+ * @copyright 2025 Global Swar Yoga AI - All Rights Reserved
+ * @protected This code is protected under intellectual property laws
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';

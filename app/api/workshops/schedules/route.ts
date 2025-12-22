@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Workshop Schedule Management API
+ * @author Swar Yoga Team
+ * @copyright 2025 Global Swar Yoga AI - All Rights Reserved
+ * @protected This code is protected under intellectual property laws
+ */
+
 // Public API endpoint to get workshop schedules (published only)
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, WorkshopSchedule } from '@/lib/db';

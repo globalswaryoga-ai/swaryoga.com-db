@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Life Planner Budget Planning Component
+ * @author Swar Yoga Team
+ * @copyright 2025 Global Swar Yoga AI - All Rights Reserved
+ * @protected This code is protected under intellectual property laws
+ */
+
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
