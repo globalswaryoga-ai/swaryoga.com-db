@@ -22,6 +22,8 @@ interface Message {
   messageType?: 'text' | 'template' | 'media' | 'interactive';
   direction: 'inbound' | 'outbound';
   status: 'queued' | 'sent' | 'delivered' | 'failed' | 'read';
+  isRead?: boolean;
+  isArchived?: boolean;
   failureReason?: string;
   sentAt?: string;
   createdAt: string;
@@ -37,8 +39,10 @@ export default function MessagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showSendModal, setShowSendModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'queued' | 'sent' | 'delivered' | 'failed' | 'read'>('all');
   const [directionFilter, setDirectionFilter] = useState<'all' | 'inbound' | 'outbound'>('all');
+  const [readFilter, setReadFilter] = useState<'all' | 'read' | 'unread'>('all');
   const [formData, setFormData] = useState({
     leadId: '',
     phoneNumber: '',
@@ -48,6 +52,18 @@ export default function MessagesPage() {
   const [totalMessages, setTotalMessages] = useState(0);
 
   const pageSize = 20;
+
+  // Filter messages based on search query
+  const filteredMessages = messages.filter((msg) => {
+    const leadName = typeof msg.leadId === 'string' ? '' : msg.leadId?.name || '';
+    const phone = msg.phoneNumber || '';
+    const query = searchQuery.toLowerCase();
+    
+    return (
+      leadName.toLowerCase().includes(query) ||
+      phone.includes(query)
+    );
+  });
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -122,6 +138,42 @@ export default function MessagesPage() {
     }
   };
 
+  const handleMarkAsRead = async (messageId: string) => {
+    try {
+      await crm.fetch('/api/admin/crm/messages', {
+        method: 'PUT',
+        body: { messageId, action: 'mark-read' },
+      });
+      fetchMessages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark as read');
+    }
+  };
+
+  const handleMarkAsUnread = async (messageId: string) => {
+    try {
+      await crm.fetch('/api/admin/crm/messages', {
+        method: 'PUT',
+        body: { messageId, action: 'mark-unread' },
+      });
+      fetchMessages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark as unread');
+    }
+  };
+
+  const handleArchiveMessage = async (messageId: string) => {
+    try {
+      await crm.fetch('/api/admin/crm/messages', {
+        method: 'PUT',
+        body: { messageId, action: 'archive' },
+      });
+      fetchMessages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to archive');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       queued: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/30',
@@ -172,21 +224,54 @@ export default function MessagesPage() {
       key: 'actions',
       label: 'Actions',
       render: (_: any, msg: Message) => (
-        <div className="flex gap-2">
+        <div className="flex gap-1 flex-wrap">
           <button
             onClick={() => setSelectedMessage(msg)}
-            className="px-3 py-1 bg-blue-500/20 text-blue-200 rounded-lg text-sm hover:bg-blue-500/30 transition-colors"
+            className="px-2 py-1 bg-blue-500/20 text-blue-200 rounded text-xs hover:bg-blue-500/30 transition-colors"
+            title="View details"
           >
             View
           </button>
           {msg.status === 'failed' && (
             <button
               onClick={() => handleRetryMessage(msg._id)}
-              className="px-3 py-1 bg-yellow-500/20 text-yellow-200 rounded text-xs hover:bg-yellow-500/30 transition-colors"
+              className="px-2 py-1 bg-yellow-500/20 text-yellow-200 rounded text-xs hover:bg-yellow-500/30 transition-colors"
+              title="Retry failed message"
             >
               Retry
             </button>
           )}
+          {!msg.isRead ? (
+            <button
+              onClick={() => handleMarkAsRead(msg._id)}
+              className="px-2 py-1 bg-green-500/20 text-green-200 rounded text-xs hover:bg-green-500/30 transition-colors"
+              title="Mark as read"
+            >
+              ✓ Read
+            </button>
+          ) : (
+            <button
+              onClick={() => handleMarkAsUnread(msg._id)}
+              className="px-2 py-1 bg-gray-500/20 text-gray-200 rounded text-xs hover:bg-gray-500/30 transition-colors"
+              title="Mark as unread"
+            >
+              Unread
+            </button>
+          )}
+          <button
+            onClick={() => handleArchiveMessage(msg._id)}
+            className="px-2 py-1 bg-purple-500/20 text-purple-200 rounded text-xs hover:bg-purple-500/30 transition-colors"
+            title="Archive message"
+          >
+            📁 Archive
+          </button>
+          <button
+            onClick={() => handleDeleteMessage(msg._id)}
+            className="px-2 py-1 bg-red-500/20 text-red-200 rounded text-xs hover:bg-red-500/30 transition-colors"
+            title="Delete message"
+          >
+            🗑️
+          </button>
         </div>
       ),
     },
@@ -209,7 +294,24 @@ export default function MessagesPage() {
         />
 
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
+          {/* Search Bar */}
+          <div>
+            <label className="block text-purple-200 text-sm mb-2">🔍 Search by Name / Mobile / Email</label>
+            <input
+              type="text"
+              placeholder="Enter name, phone number, or email..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+              className="w-full bg-slate-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 placeholder-purple-300/50"
+            />
+          </div>
+
+          {/* Filter Selects */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-purple-200 text-sm mb-2">Filter by Status</label>
             <select
@@ -243,6 +345,21 @@ export default function MessagesPage() {
               <option value="outbound">Outbound (Sent)</option>
             </select>
           </div>
+          <div>
+            <label className="block text-purple-200 text-sm mb-2">Filter by Read Status</label>
+            <select
+              value={readFilter}
+              onChange={(e) => {
+                setReadFilter(e.target.value as any);
+                setPage(1);
+              }}
+              className="w-full bg-slate-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+            >
+              <option value="all">All Messages</option>
+              <option value="read">Read</option>
+              <option value="unread">Unread</option>
+            </select>
+          </div>
         </div>
 
         {/* Content */}
@@ -255,7 +372,7 @@ export default function MessagesPage() {
             {/* Data Table */}
             <DataTable
               columns={columns}
-              data={messages}
+              data={filteredMessages}
               emptyMessage="No messages found"
             />
 
@@ -345,6 +462,37 @@ export default function MessagesPage() {
                     Retry Message
                   </button>
                 )}
+                {!selectedMessage.isRead && (
+                  <button
+                    onClick={() => {
+                      handleMarkAsRead(selectedMessage._id);
+                      setSelectedMessage(null);
+                    }}
+                    className="flex-1 px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-200 rounded-lg transition-colors"
+                  >
+                    ✓ Mark as Read
+                  </button>
+                )}
+                {selectedMessage.isRead && (
+                  <button
+                    onClick={() => {
+                      handleMarkAsUnread(selectedMessage._id);
+                      setSelectedMessage(null);
+                    }}
+                    className="flex-1 px-4 py-2 bg-gray-500/20 hover:bg-gray-500/30 text-gray-200 rounded-lg transition-colors"
+                  >
+                    Mark as Unread
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    handleArchiveMessage(selectedMessage._id);
+                    setSelectedMessage(null);
+                  }}
+                  className="flex-1 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 rounded-lg transition-colors"
+                >
+                  📁 Archive
+                </button>
                 <button
                   onClick={() => {
                     handleDeleteMessage(selectedMessage._id);
