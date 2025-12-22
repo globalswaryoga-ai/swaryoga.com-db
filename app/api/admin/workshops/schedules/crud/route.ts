@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 
 const toDateOrUndefined = (value: unknown): Date | undefined => {
   if (!value) return undefined;
+  if (typeof value === 'string' && value.trim() === '') return undefined;
   const d = value instanceof Date ? value : new Date(String(value));
   return Number.isNaN(d.getTime()) ? undefined : d;
 };
@@ -69,6 +70,15 @@ export async function POST(request: NextRequest) {
       publishedAt: body.status === 'published' ? new Date() : undefined,
     });
 
+    const docObj = doc.toObject();
+    console.log('[POST] Created schedule:', {
+      id: String(doc._id),
+      workshopName: docObj.workshopName,
+      language: docObj.language,
+      mode: docObj.mode,
+      allKeys: Object.keys(docObj),
+    });
+
     return NextResponse.json(
       {
         success: true,
@@ -80,6 +90,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
+    console.error('[POST /api/admin/workshops/schedules/crud]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -99,24 +110,23 @@ export async function PUT(request: NextRequest) {
 
     await connectDB();
 
-    const nextUpdates: Record<string, any> = { ...updates };
-    if (Object.prototype.hasOwnProperty.call(nextUpdates, 'startDate')) {
-      nextUpdates.startDate = toDateOrUndefined(nextUpdates.startDate);
-    }
-    if (Object.prototype.hasOwnProperty.call(nextUpdates, 'endDate')) {
-      nextUpdates.endDate = toDateOrUndefined(nextUpdates.endDate);
-    }
-    if (Object.prototype.hasOwnProperty.call(nextUpdates, 'registrationCloseDate')) {
-      nextUpdates.registrationCloseDate = toDateOrUndefined(nextUpdates.registrationCloseDate);
-    }
-    if (Object.prototype.hasOwnProperty.call(nextUpdates, 'registration_close_date')) {
-      nextUpdates.registrationCloseDate = toDateOrUndefined(nextUpdates.registration_close_date);
-      delete nextUpdates.registration_close_date;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(nextUpdates, 'slots') && !Object.prototype.hasOwnProperty.call(nextUpdates, 'seatsTotal')) {
-      nextUpdates.seatsTotal = Number(nextUpdates.slots);
-      delete nextUpdates.slots;
+    const nextUpdates: Record<string, any> = {};
+    
+    // Only include fields that are explicitly provided in the request
+    for (const [key, value] of Object.entries(updates)) {
+      if (key === 'startDate') {
+        nextUpdates.startDate = toDateOrUndefined(value);
+      } else if (key === 'endDate') {
+        nextUpdates.endDate = toDateOrUndefined(value);
+      } else if (key === 'registrationCloseDate') {
+        nextUpdates.registrationCloseDate = toDateOrUndefined(value);
+      } else if (key === 'registration_close_date') {
+        nextUpdates.registrationCloseDate = toDateOrUndefined(value);
+      } else if (key === 'slots') {
+        nextUpdates.seatsTotal = Number(value);
+      } else {
+        nextUpdates[key] = value;
+      }
     }
 
     if (typeof nextUpdates.status === 'string') {
@@ -137,6 +147,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { id: String(updated._id), ...updated.toObject() } });
   } catch (err) {
+    console.error('[PUT /api/admin/workshops/schedules/crud]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -163,6 +174,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    console.error('[DELETE /api/admin/workshops/schedules/crud]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

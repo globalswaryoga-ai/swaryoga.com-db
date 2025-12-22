@@ -34,8 +34,11 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    console.log('[GET /api/admin/workshops/schedules] Query:', query, 'Found:', schedules.length);
+
     return NextResponse.json({ success: true, data: schedules });
   } catch (err) {
+    console.error('[GET /api/admin/workshops/schedules]', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

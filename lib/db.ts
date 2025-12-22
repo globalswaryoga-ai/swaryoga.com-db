@@ -482,6 +482,12 @@ const workshopScheduleSchema = new mongoose.Schema(
       default: 'morning',
       index: true,
     },
+    language: {
+      type: String,
+      enum: ['Hindi', 'English', 'Marathi'],
+      default: 'Hindi',
+      index: true,
+    },
     startDate: { type: Date, required: false, index: true },
     endDate: { type: Date, required: false },
     days: { type: String, default: '' },
