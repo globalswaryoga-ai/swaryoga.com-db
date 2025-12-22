@@ -271,12 +271,66 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* Register Now Section with Blinking Buttons */}
+      <section className="py-16 sm:py-20 bg-gradient-to-b from-white to-swar-bg safe-area-left safe-area-right">
+        <div className="container mx-auto px-4 sm:px-6 text-center">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif text-[#2A5654] mb-4 sm:mb-6">Ready to Start?</h2>
+          <p className="text-swar-text-secondary max-w-3xl mx-auto mb-12 sm:mb-16 text-sm sm:text-base leading-relaxed">
+            Join our community and discover the transformative power of yoga
+          </p>
+          
+          <style>{`
+            @keyframes blinkAnimation {
+              0%, 49% { opacity: 1; }
+              50%, 100% { opacity: 0.5; }
+            }
+            .blink-button {
+              animation: blinkAnimation 1.5s infinite;
+            }
+          `}</style>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 max-w-5xl mx-auto">
+            <Link
+              href="/registernow"
+              className="blink-button bg-gradient-to-br from-swar-primary to-swar-primary-hover text-white px-6 sm:px-8 py-4 sm:py-5 rounded-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 touch-target font-bold text-lg sm:text-xl flex items-center justify-center group"
+            >
+              <span>Register Now</span>
+              <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6 transform group-hover:translate-x-1 transition-transform" />
+            </Link>
+            
+            <Link
+              href="/registernow"
+              className="blink-button bg-gradient-to-br from-swar-primary to-swar-primary-hover text-white px-6 sm:px-8 py-4 sm:py-5 rounded-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 touch-target font-bold text-lg sm:text-xl flex items-center justify-center group"
+            >
+              <span>Register Now</span>
+              <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6 transform group-hover:translate-x-1 transition-transform" />
+            </Link>
+            
+            <Link
+              href="/registernow"
+              className="blink-button bg-gradient-to-br from-swar-primary to-swar-primary-hover text-white px-6 sm:px-8 py-4 sm:py-5 rounded-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 touch-target font-bold text-lg sm:text-xl flex items-center justify-center group"
+            >
+              <span>Register Now</span>
+              <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6 transform group-hover:translate-x-1 transition-transform" />
+            </Link>
+            
+            <Link
+              href="/registernow"
+              className="blink-button bg-gradient-to-br from-swar-primary to-swar-primary-hover text-white px-6 sm:px-8 py-4 sm:py-5 rounded-lg transition-all duration-300 hover:shadow-2xl hover:scale-105 touch-target font-bold text-lg sm:text-xl flex items-center justify-center group"
+            >
+              <span>Register Now</span>
+              <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6 transform group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-12 sm:py-16 bg-swar-primary text-white safe-area-left safe-area-right">
         <div className="container mx-auto px-4 sm:px-6 text-center">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif mb-4 sm:mb-6">Begin Your Yoga Journey Today</h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif mb-4 sm:mb-6">Browse All Our Offerings</h2>
           <p className="text-base sm:text-lg md:text-xl text-swar-primary-light max-w-3xl mx-auto mb-6 sm:mb-8 leading-relaxed">
-            Join our community and discover the transformative power of yoga. Whether you're a beginner or an experienced practitioner, we have classes and workshops for every level.
+            Explore our complete range of workshops, classes, and retreat programs designed for every level.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

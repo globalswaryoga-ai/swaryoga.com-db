@@ -280,14 +280,25 @@ export default function WorkshopDetail() {
 
   const RegisterNowButton = ({ label = 'Register Now' }: { label?: string }) => {
     return (
-      <button
-        type="button"
-        onClick={handleRegisterNow}
-        className="inline-flex items-center justify-center gap-2 rounded-lg bg-swar-primary px-6 py-3 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-swar-primary-hover hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] group"
-      >
-        {label}
-        <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
-      </button>
+      <>
+        <style>{`
+          @keyframes blinkAnimation {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0.5; }
+          }
+          .blink-register-btn {
+            animation: blinkAnimation 1.5s infinite;
+          }
+        `}</style>
+        <button
+          type="button"
+          onClick={handleRegisterNow}
+          className="blink-register-btn inline-flex items-center justify-center gap-2 rounded-lg bg-swar-primary px-6 py-3 font-semibold text-white shadow-sm transition-all duration-200 hover:bg-swar-primary-hover hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] group"
+        >
+          {label}
+          <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
+        </button>
+      </>
     );
   };
 
@@ -501,12 +512,7 @@ export default function WorkshopDetail() {
 
             {/* Section 3: 5 small blocks */}
             <section className="mb-12 sm:mb-16" aria-label="Quick workshop details">
-              <div className="flex items-center justify-between gap-4 mb-5">
-                <h2 className="text-2xl sm:text-3xl font-bold text-swar-text">Quick Details</h2>
-                <div className="hidden sm:block">
-                  <RegisterNowButton />
-                </div>
-              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-5">Quick Details</h2>
 
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -543,7 +549,6 @@ export default function WorkshopDetail() {
               </div>
 
               <div className="mt-5 sm:hidden">
-                <RegisterNowButton />
               </div>
             </section>
 
@@ -590,7 +595,6 @@ export default function WorkshopDetail() {
                 />
               </div>
               <div className="mt-5 sm:hidden">
-                <RegisterNowButton />
               </div>
             </section>
 
@@ -613,9 +617,6 @@ export default function WorkshopDetail() {
                 </article>
               ))}
             </ScrollCarousel>
-            <div className="mb-12 sm:mb-16 -mt-6">
-              <RegisterNowButton />
-            </div>
 
             {/* Section 7: Workshop benefits (6 bullets) */}
             <section className="mb-12 sm:mb-16" aria-label="Workshop benefits">
@@ -648,9 +649,7 @@ export default function WorkshopDetail() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-6">
-                  <RegisterNowButton />
-                </div>
+
               </div>
             </section>
 
@@ -672,9 +671,6 @@ export default function WorkshopDetail() {
                 </article>
               ))}
             </ScrollCarousel>
-            <div className="mb-12 sm:mb-16 -mt-6">
-              <RegisterNowButton />
-            </div>
 
             {/* Section 10: Testimonial videos (3 movable if more) */}
             <ScrollCarousel
@@ -695,9 +691,6 @@ export default function WorkshopDetail() {
                 </article>
               ))}
             </ScrollCarousel>
-            <div className="mb-2">
-              <RegisterNowButton />
-            </div>
           </div>
         </section>
       </main>
