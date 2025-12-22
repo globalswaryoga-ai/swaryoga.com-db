@@ -127,6 +127,8 @@ export default function AdminWorkshopSchedulesPage() {
     const [selectedLanguage, setSelectedLanguage] = useState<LanguageKey>('Hindi');
     const [selectedCategory, setSelectedCategory] = useState<string>('Health');
     const [selectedWorkshopSlug, setSelectedWorkshopSlug] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
 
     const [allSchedules, setAllSchedules] = useState<AdminSchedule[]>([]);
     const [loading, setLoading] = useState(false);
@@ -227,6 +229,32 @@ export default function AdminWorkshopSchedulesPage() {
     const draftSchedules = useMemo(() => {
       return schedulesForWorkshopAndMode.filter((s) => (s.status || 'draft') !== 'published');
     }, [schedulesForWorkshopAndMode]);
+
+    const filteredSchedules = useMemo(() => {
+      let filtered = schedulesForWorkshopAndMode;
+
+      // Apply search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        filtered = filtered.filter((s) => {
+          const workshopName = (s.workshopName || '').toLowerCase();
+          const time = (s.time || '').toLowerCase();
+          const location = (s.location || '').toLowerCase();
+          return (
+            workshopName.includes(query) ||
+            time.includes(query) ||
+            location.includes(query)
+          );
+        });
+      }
+
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        filtered = filtered.filter((s) => (s.status || 'draft') === statusFilter);
+      }
+
+      return filtered;
+    }, [schedulesForWorkshopAndMode, searchQuery, statusFilter]);
 
     const sixMonthBlocks = useMemo(() => {
       if (!selectedWorkshopSlug) return [] as Array<{ label: string; dateText: string; available: boolean }>;
@@ -794,6 +822,26 @@ export default function AdminWorkshopSchedulesPage() {
                           </div>
                         </div>
 
+                        {/* Search and Filter Section */}
+                        <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                          <input
+                            type="text"
+                            placeholder="Search by workshop, time, or location..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="flex-1 rounded-lg border border-swar-border bg-white px-4 py-2 text-sm font-semibold text-swar-text placeholder-swar-text-secondary"
+                          />
+                          <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value as 'all' | 'draft' | 'published')}
+                            className="rounded-lg border border-swar-border bg-white px-4 py-2 text-sm font-semibold text-swar-text min-w-fit"
+                          >
+                            <option value="all">All Statuses</option>
+                            <option value="draft">Draft Only</option>
+                            <option value="published">Published Only</option>
+                          </select>
+                        </div>
+
                         <div className="rounded-xl border border-swar-border bg-white overflow-hidden">
                           <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
@@ -931,14 +979,14 @@ export default function AdminWorkshopSchedulesPage() {
                                   </tr>
                                 )}
 
-                                {schedulesForWorkshopAndMode.length === 0 && !creating ? (
+                                {filteredSchedules.length === 0 && !creating ? (
                                   <tr>
                                     <td colSpan={9} className="px-4 py-8 text-center text-swar-text-secondary">
                                       No schedules found for this workshop + mode + language.
                                     </td>
                                   </tr>
                                 ) : (
-                                  schedulesForWorkshopAndMode.map((s) => {
+                                  filteredSchedules.map((s) => {
                                     const published = (s.status || 'draft') === 'published';
                                     const timeText = s.time || [s.startTime, s.endTime].filter(Boolean).join(' - ') || '';
                                     const feesText = `₹${Number(s.price || 0).toLocaleString('en-IN')} ${String(
