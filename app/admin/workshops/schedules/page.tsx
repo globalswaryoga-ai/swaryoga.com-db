@@ -326,6 +326,7 @@ export default function AdminWorkshopSchedulesPage() {
         price: '0',
         currency: 'INR',
         location: '',
+        language: selectedLanguage,
         allCurrencies: false,
       });
     };
