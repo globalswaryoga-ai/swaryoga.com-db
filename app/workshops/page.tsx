@@ -696,8 +696,8 @@ function WorkshopsPageInner() {
                             </div>
                           </div>
 
-                          {/* Slots Info - Light Red Box */}
-                          <div className="bg-red-200 text-red-800 px-3 py-2 rounded-lg mb-2 text-center">
+                          {/* Slots Info - Black Text Only */}
+                          <div className="text-black px-3 py-2 rounded-lg mb-2 text-center">
                             <span className="font-semibold text-xs sm:text-sm">
                               Slots: {totalSlots} Available
                             </span>
