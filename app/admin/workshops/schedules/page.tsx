@@ -381,7 +381,14 @@ export default function AdminWorkshopSchedulesPage() {
             body: JSON.stringify(payload),
           });
 
-          const json = await res.json().catch(() => null);
+          let json: any;
+          try {
+            json = await res.json();
+          } catch {
+            const text = await res.text();
+            json = { error: `Server error: ${text.substring(0, 200)}` };
+          }
+          
           if (!res.ok) {
             throw new Error(json?.error ? `${currency}: ${json.error}` : `${currency}: Failed to create`);
           }
@@ -429,7 +436,14 @@ export default function AdminWorkshopSchedulesPage() {
           body: JSON.stringify(payload),
         });
 
-        const json = await res.json().catch(() => null);
+        let json: any;
+        try {
+          json = await res.json();
+        } catch {
+          const text = await res.text();
+          json = { error: `Server error: ${text.substring(0, 200)}` };
+        }
+        
         if (!res.ok) throw new Error(json?.error || 'Failed to save');
 
         await loadAllSchedules(adminToken);
