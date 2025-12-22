@@ -17,6 +17,7 @@ type DbSchedule = {
   workshopSlug: string;
   workshopName?: string;
   mode: ModeKey;
+  language?: string;
   batch?: string;
   startDate?: string | null;
   endDate?: string | null;
@@ -156,6 +157,7 @@ function RegisterNowDashboardPageInner() {
     return allSchedules
       .filter((s) => s.workshopSlug === selectedWorkshopSlug)
       .filter((s) => s.mode === selectedMode)
+      .filter((s) => !s.language || s.language === selectedLanguage)
       .slice()
       .sort((a, b) => {
         const ams = a.startDate ? Date.parse(String(a.startDate)) : NaN;
@@ -165,7 +167,7 @@ function RegisterNowDashboardPageInner() {
         if (Number.isNaN(bms)) return -1;
         return ams - bms;
       });
-  }, [allSchedules, selectedWorkshopSlug, selectedMode]);
+  }, [allSchedules, selectedWorkshopSlug, selectedMode, selectedLanguage]);
 
   // Keep a valid selected schedule id when workshop/mode changes.
   useEffect(() => {

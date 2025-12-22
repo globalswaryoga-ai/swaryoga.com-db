@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const workshopSlug = (searchParams.get('workshopSlug') || searchParams.get('workshopId') || '').trim();
     const mode = (searchParams.get('mode') || '').trim().toLowerCase();
+    const language = (searchParams.get('language') || '').trim();
 
     await connectDB();
 
@@ -24,6 +25,10 @@ export async function GET(request: NextRequest) {
       query.mode = mode;
     }
 
+    if (language) {
+      query.language = language;
+    }
+
     const docs = await WorkshopSchedule.find(query)
       .sort({ startDate: 1 })
       .select({
@@ -31,6 +36,7 @@ export async function GET(request: NextRequest) {
         workshopSlug: 1,
         workshopName: 1,
         mode: 1,
+        language: 1,
         batch: 1,
         startDate: 1,
         endDate: 1,
