@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "Swar Yoga e-commerce website",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev & node scripts/health-check.js",
+    "dev:no-check": "next dev",
+    "health-check": "node scripts/health-check.js",
     "build": "next build",
     "vercel-build": "next build",
     "vercel-start": "next start",
