@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import { Community } from '@/models/Community';
-import { connectDB } from '@/lib/db';
+import { connectDB, Community } from '@/lib/db';
 import mongoose from 'mongoose';
 
 export function getUserIdFromRequest(request: NextRequest): string | null {

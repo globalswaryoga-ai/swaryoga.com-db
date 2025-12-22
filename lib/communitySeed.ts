@@ -1,5 +1,4 @@
-import { connectDB } from '@/lib/db';
-import { Community } from '@/models/Community';
+import { connectDB, Community } from '@/lib/db';
 
 export const DEFAULT_COMMUNITY_NAMES = ['Swar Yoga Sadhak', 'Swar Yoga New Sadhak'] as const;
 

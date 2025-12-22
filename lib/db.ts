@@ -240,6 +240,47 @@ const offerSchema = new mongoose.Schema({
 
 export const Offer = mongoose.models.Offer || mongoose.model('Offer', offerSchema);
 
+// Community Schema (for community module)
+// NOTE: Per repo convention, all models live in this file.
+const communitySchema = new mongoose.Schema({
+  name: { type: String, required: true, index: true },
+  description: { type: String, default: '' },
+  // Store user ids as strings (JWT userId is typically a stringified ObjectId)
+  members: { type: [String], default: [] },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+communitySchema.index({ name: 1 }, { unique: true });
+
+export const Community = mongoose.models.Community || mongoose.model('Community', communitySchema);
+
+// Community Post Schema
+const communityCommentSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true },
+    text: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const communityPostSchema = new mongoose.Schema({
+  communityId: { type: String, required: true, index: true },
+  userId: { type: String, required: true, index: true },
+  content: { type: String, required: true },
+  images: { type: [String], default: [] },
+  likes: { type: [String], default: [] },
+  comments: { type: [communityCommentSchema], default: [] },
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+communityPostSchema.index({ communityId: 1, createdAt: -1 });
+
+export const CommunityPost =
+  mongoose.models.CommunityPost || mongoose.model('CommunityPost', communityPostSchema);
+
 // Account Schema (for accounting)
 const accountSchema = new mongoose.Schema({
   ownerType: { type: String, enum: ['user', 'admin'], required: true, index: true },

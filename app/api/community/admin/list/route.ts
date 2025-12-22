@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { isAdminAuthorized } from '@/lib/adminAuth';
-import { Community } from '@/models/Community';
+import { Community } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
