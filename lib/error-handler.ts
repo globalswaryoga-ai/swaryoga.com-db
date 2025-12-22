@@ -4,11 +4,12 @@
  */
 
 import { NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 
 // Optional Sentry integration - install @sentry/nextjs if needed
 let Sentry: any = null;
 try {
-  Sentry = require('@sentry/nextjs');
+  import('@sentry/nextjs').then(m => { Sentry = m; }).catch(() => {});
 } catch (e) {
   // Sentry not installed
 }

@@ -285,8 +285,10 @@ export const escapeSqlString = (input: string): string => {
 /**
  * CSRF token validation utility
  */
+import { randomBytes } from 'crypto';
+
 export const generateCsrfToken = (): string => {
-  return require('crypto').randomBytes(32).toString('hex');
+  return randomBytes(32).toString('hex');
 };
 
 export const validateCsrfToken = (provided: string, stored: string): boolean => {
