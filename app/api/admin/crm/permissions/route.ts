@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import {
+  verifyAdminAccess,
+  parsePagination,
+  handleCrmError,
+  formatCrmSuccess,
+  buildMetadata,
+  isValidObjectId,
+  toObjectId,
+} from '@/lib/crm-handlers';
 import { Permission } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
@@ -46,19 +54,26 @@ const DEFAULT_ROLES = {
   viewer: ['view_leads', 'view_sales', 'view_messages', 'view_analytics'],
 };
 
+const getRoleModel = () =>
+  mongoose.model(
+    'Role',
+    new mongoose.Schema({
+      name: { type: String, required: true, unique: true },
+      displayName: String,
+      description: String,
+      permissions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Permission' }],
+      isDefault: Boolean,
+      createdAt: { type: Date, default: Date.now },
+    })
+  );
+
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const url = new URL(request.url);
-    const type = url.searchParams.get('type'); // 'roles', 'permissions', or 'all'
+    const type = url.searchParams.get('type');
     const roleId = url.searchParams.get('roleId');
-    const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
-    const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
+    const { limit, skip } = parsePagination(request);
 
     await connectDB();
 
@@ -70,105 +85,61 @@ export async function GET(request: NextRequest) {
         .skip(skip)
         .limit(limit)
         .lean();
-      const totalPermissions = await Permission.countDocuments();
-      response.permissions = { items: permissions, total: totalPermissions };
+      const total = await Permission.countDocuments();
+      response.permissions = { items: permissions, total };
     }
 
     if (!type || type === 'roles' || type === 'all') {
-      // Get Role collection (using mongoose.models.Role if it exists)
-      const RoleModel =
-        mongoose.models.Role ||
-        mongoose.model(
-          'Role',
-          new mongoose.Schema({
-            name: { type: String, required: true, unique: true },
-            displayName: String,
-            description: String,
-            permissions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Permission' }],
-            isDefault: Boolean,
-            createdAt: { type: Date, default: Date.now },
-          })
-        );
+      const RoleModel = mongoose.models.Role || getRoleModel();
+      let query = RoleModel.find();
+      if (roleId) query = query.where('_id').equals(roleId);
 
-      let rolesQuery = RoleModel.find();
-
-      if (roleId) {
-        rolesQuery = rolesQuery.where('_id').equals(roleId);
-      }
-
-      const roles = await rolesQuery
+      const items = await query
         .populate('permissions')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean();
-      const totalRoles = await RoleModel.countDocuments();
-
-      response.roles = { items: roles, total: totalRoles };
+      const total = await RoleModel.countDocuments();
+      response.roles = { items, total };
     }
 
-    // Include default roles templates
     response.defaultRoles = Object.entries(DEFAULT_ROLES).map(([name, perms]) => ({
       name,
       permissions: perms,
     }));
 
-    return NextResponse.json({ success: true, data: response }, { status: 200 });
+    const meta = buildMetadata(skip, limit, response.permissions?.total || 0);
+    return formatCrmSuccess(response, meta);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch permissions/roles';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'GET permissions');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) throw new Error('Invalid JSON body');
 
     const { resourceType, name, displayName, description, permissionIds } = body;
+
+    if (!name || !displayName) {
+      throw new Error('Missing: name, displayName');
+    }
 
     await connectDB();
 
     if (resourceType === 'permission') {
-      if (!name || !displayName) {
-        return NextResponse.json({ error: 'Missing: name, displayName' }, { status: 400 });
-      }
-
       const permission = await Permission.create({
         name,
         displayName,
         description: description || '',
         createdAt: new Date(),
       });
-
-      return NextResponse.json({ success: true, data: permission }, { status: 201 });
+      return formatCrmSuccess({ permission }, {});
     } else if (resourceType === 'role') {
-      if (!name || !displayName) {
-        return NextResponse.json({ error: 'Missing: name, displayName' }, { status: 400 });
-      }
-
-      const RoleModel =
-        mongoose.models.Role ||
-        mongoose.model(
-          'Role',
-          new mongoose.Schema({
-            name: { type: String, required: true, unique: true },
-            displayName: String,
-            description: String,
-            permissions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Permission' }],
-            isDefault: Boolean,
-            createdAt: { type: Date, default: Date.now },
-          })
-        );
-
+      const RoleModel = mongoose.models.Role || getRoleModel();
       const role = await RoleModel.create({
         name,
         displayName,
@@ -177,37 +148,24 @@ export async function POST(request: NextRequest) {
         isDefault: false,
         createdAt: new Date(),
       });
-
-      const populatedRole = await role.populate('permissions');
-
-      return NextResponse.json({ success: true, data: populatedRole }, { status: 201 });
+      const populated = await role.populate('permissions');
+      return formatCrmSuccess({ role: populated }, {});
     } else {
-      return NextResponse.json({ error: 'Invalid resourceType: must be permission or role' }, { status: 400 });
+      throw new Error('Invalid resourceType: must be permission or role');
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create permission/role';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'POST permissions');
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) throw new Error('Invalid JSON body');
 
     const { resourceType, id, name, displayName, description, permissionIds } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: 'Missing: id' }, { status: 400 });
-    }
+    if (!id) throw new Error('Missing: id');
 
     await connectDB();
 
@@ -224,27 +182,10 @@ export async function PUT(request: NextRequest) {
         },
         { new: true }
       );
-
-      if (!permission) {
-        return NextResponse.json({ error: 'Permission not found' }, { status: 404 });
-      }
-
-      return NextResponse.json({ success: true, data: permission }, { status: 200 });
+      if (!permission) throw new Error('Permission not found');
+      return formatCrmSuccess({ permission }, {});
     } else if (resourceType === 'role') {
-      const RoleModel =
-        mongoose.models.Role ||
-        mongoose.model(
-          'Role',
-          new mongoose.Schema({
-            name: { type: String, required: true, unique: true },
-            displayName: String,
-            description: String,
-            permissions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Permission' }],
-            isDefault: Boolean,
-            createdAt: { type: Date, default: Date.now },
-          })
-        );
-
+      const RoleModel = mongoose.models.Role || getRoleModel();
       const updateData: any = {};
       if (name) updateData.name = name;
       if (displayName) updateData.displayName = displayName;
@@ -255,70 +196,40 @@ export async function PUT(request: NextRequest) {
       const role = await RoleModel.findByIdAndUpdate(id, { $set: updateData }, { new: true }).populate(
         'permissions'
       );
-
-      if (!role) {
-        return NextResponse.json({ error: 'Role not found' }, { status: 404 });
-      }
-
-      return NextResponse.json({ success: true, data: role }, { status: 200 });
+      if (!role) throw new Error('Role not found');
+      return formatCrmSuccess({ role }, {});
     } else {
-      return NextResponse.json({ error: 'Invalid resourceType: must be permission or role' }, { status: 400 });
+      throw new Error('Invalid resourceType: must be permission or role');
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update permission/role';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'PUT permissions');
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const url = new URL(request.url);
-    const resourceType = url.searchParams.get('resourceType'); // permission or role
+    const resourceType = url.searchParams.get('resourceType');
     const id = url.searchParams.get('id');
 
-    if (!id || !resourceType) {
-      return NextResponse.json({ error: 'Missing: id, resourceType' }, { status: 400 });
-    }
+    if (!id || !resourceType) throw new Error('Missing: id, resourceType');
 
     await connectDB();
 
     if (resourceType === 'permission') {
       const result = await Permission.findByIdAndDelete(id);
-      if (!result) {
-        return NextResponse.json({ error: 'Permission not found' }, { status: 404 });
-      }
-      return NextResponse.json({ success: true, data: { deleted: true } }, { status: 200 });
+      if (!result) throw new Error('Permission not found');
+      return formatCrmSuccess({ deleted: true }, {});
     } else if (resourceType === 'role') {
-      const RoleModel =
-        mongoose.models.Role ||
-        mongoose.model(
-          'Role',
-          new mongoose.Schema({
-            name: { type: String, required: true, unique: true },
-            displayName: String,
-            description: String,
-            permissions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Permission' }],
-            isDefault: Boolean,
-            createdAt: { type: Date, default: Date.now },
-          })
-        );
-
+      const RoleModel = mongoose.models.Role || getRoleModel();
       const result = await RoleModel.findByIdAndDelete(id);
-      if (!result) {
-        return NextResponse.json({ error: 'Role not found' }, { status: 404 });
-      }
-      return NextResponse.json({ success: true, data: { deleted: true } }, { status: 200 });
+      if (!result) throw new Error('Role not found');
+      return formatCrmSuccess({ deleted: true }, {});
     } else {
-      return NextResponse.json({ error: 'Invalid resourceType: must be permission or role' }, { status: 400 });
+      throw new Error('Invalid resourceType: must be permission or role');
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete permission/role';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'DELETE permissions');
   }
 }
