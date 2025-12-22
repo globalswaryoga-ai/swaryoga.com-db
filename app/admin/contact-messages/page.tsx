@@ -28,6 +28,7 @@ export default function ContactMessages() {
   const [replyMessage, setReplyMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const adminToken = localStorage.getItem('adminToken');
@@ -153,36 +154,42 @@ export default function ContactMessages() {
     );
   });
 
-  // Mark all filtered messages as read
+  // Mark all selected messages as read
   const handleMarkAllRead = () => {
-    if (!confirm('Mark all messages as read?')) return;
+    if (selectedIds.size === 0) return;
+    if (!confirm('Mark selected messages as read?')) return;
     setMessages(messages.map(msg => 
-      filteredMessages.includes(msg) ? { ...msg, isRead: true } : msg
+      selectedIds.has(msg._id) ? { ...msg, isRead: true } : msg
     ));
+    setSelectedIds(new Set());
   };
 
-  // Mark all filtered messages as unread
+  // Mark all selected messages as unread
   const handleMarkAllUnread = () => {
-    if (!confirm('Mark all messages as unread?')) return;
+    if (selectedIds.size === 0) return;
+    if (!confirm('Mark selected messages as unread?')) return;
     setMessages(messages.map(msg => 
-      filteredMessages.includes(msg) ? { ...msg, isRead: false } : msg
+      selectedIds.has(msg._id) ? { ...msg, isRead: false } : msg
     ));
+    setSelectedIds(new Set());
   };
 
-  // Delete all filtered messages
+  // Delete all selected messages
   const handleDeleteAll = async () => {
-    if (!confirm(`Delete all ${filteredMessages.length} messages? This cannot be undone.`)) return;
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} message(s)? This cannot be undone.`)) return;
     try {
       const adminToken = localStorage.getItem('adminToken');
-      for (const msg of filteredMessages) {
-        await fetch(`/api/admin/contacts/${msg._id}`, {
+      for (const id of selectedIds) {
+        await fetch(`/api/admin/contacts/${id}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${adminToken}`,
           },
         });
       }
-      setMessages(messages.filter(m => !filteredMessages.includes(m)));
+      setMessages(messages.filter(m => !selectedIds.has(m._id)));
+      setSelectedIds(new Set());
       setSelectedMessage(null);
       alert('Messages deleted successfully!');
     } catch (err) {
@@ -191,17 +198,39 @@ export default function ContactMessages() {
     }
   };
 
-  // Archive all filtered messages
+  // Archive all selected messages
   const handleArchiveAll = async () => {
-    if (!confirm(`Archive all ${filteredMessages.length} messages?`)) return;
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Archive ${selectedIds.size} message(s)?`)) return;
     try {
       setMessages(messages.map(msg => 
-        filteredMessages.includes(msg) ? { ...msg, status: 'archived' } : msg
+        selectedIds.has(msg._id) ? { ...msg, status: 'archived' } : msg
       ));
+      setSelectedIds(new Set());
       setSelectedMessage(null);
       alert('Messages archived successfully!');
     } catch (err) {
       console.error('Error archiving messages:', err);
+    }
+  };
+
+  // Toggle selection of a message
+  const toggleSelectMessage = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  // Select/deselect all filtered messages
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredMessages.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredMessages.map(m => m._id)));
     }
   };
 
@@ -269,7 +298,20 @@ export default function ContactMessages() {
               <div className="w-80 bg-white rounded-lg shadow overflow-hidden flex flex-col">
                 {/* Header with Title */}
                 <div className="bg-swar-primary-light px-4 py-3 border-b border-swar-border">
-                  <p className="text-sm font-semibold text-swar-text">Messages ({filteredMessages.length})</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-swar-text">Messages ({filteredMessages.length})</p>
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size > 0 && selectedIds.size === filteredMessages.length}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 rounded border-swar-border"
+                      />
+                      <span className="text-xs font-semibold text-swar-text">
+                        {selectedIds.size > 0 ? `${selectedIds.size}` : 'All'}
+                      </span>
+                    </label>
+                  </div>
                 </div>
 
                 {/* Search Box */}
@@ -285,6 +327,11 @@ export default function ContactMessages() {
 
                 {/* Action Buttons */}
                 <div className="px-4 py-3 border-b border-swar-border bg-gray-50 flex flex-col gap-2">
+                  {selectedIds.size > 0 && (
+                    <div className="text-xs font-semibold text-swar-text bg-blue-50 px-2 py-1 rounded-lg">
+                      {selectedIds.size} message(s) selected
+                    </div>
+                  )}
                   <div className="flex gap-2 flex-wrap">
                     <select
                       onChange={(e) => {
@@ -292,27 +339,28 @@ export default function ContactMessages() {
                         else if (e.target.value === 'unread') handleMarkAllUnread();
                         e.target.value = '';
                       }}
-                      className="flex-1 px-2 py-1 border border-swar-border rounded-lg text-xs font-semibold text-swar-text bg-white focus:outline-none"
+                      disabled={selectedIds.size === 0}
+                      className="flex-1 px-2 py-1 border border-swar-border rounded-lg text-xs font-semibold text-swar-text bg-white focus:outline-none disabled:opacity-50"
                     >
-                      <option value="">Mark All...</option>
-                      <option value="read">Mark All Read</option>
-                      <option value="unread">Mark All Unread</option>
+                      <option value="">Mark Selected...</option>
+                      <option value="read">Mark Read</option>
+                      <option value="unread">Mark Unread</option>
                     </select>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={handleArchiveAll}
-                      disabled={filteredMessages.length === 0}
+                      disabled={selectedIds.size === 0}
                       className="flex-1 px-2 py-1 bg-yellow-100 text-yellow-900 rounded-lg text-xs font-semibold hover:bg-yellow-200 disabled:opacity-50 transition-colors"
                     >
-                      Archive All
+                      Archive ({selectedIds.size})
                     </button>
                     <button
                       onClick={handleDeleteAll}
-                      disabled={filteredMessages.length === 0}
+                      disabled={selectedIds.size === 0}
                       className="flex-1 px-2 py-1 bg-red-100 text-red-900 rounded-lg text-xs font-semibold hover:bg-red-200 disabled:opacity-50 transition-colors"
                     >
-                      Delete All
+                      Delete ({selectedIds.size})
                     </button>
                   </div>
                 </div>
@@ -327,23 +375,35 @@ export default function ContactMessages() {
                       <button
                         key={msg._id}
                         onClick={() => handleViewMessage(msg)}
-                      className={`w-full text-left px-4 py-3 border-b border-swar-border transition-colors ${
-                        selectedMessage?._id === msg._id
-                          ? 'bg-blue-50 border-l-4 border-l-swar-primary'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-swar-text truncate">{msg.name}</p>
-                          <p className="text-xs text-swar-text-secondary truncate">{msg.subject}</p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {new Date(msg.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        {!msg.isRead && (
-                          <div className="ml-2 w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1"></div>
-                        )}
+                        className={`w-full text-left px-4 py-3 border-b border-swar-border transition-colors ${
+                          selectedMessage?._id === msg._id
+                            ? 'bg-blue-50 border-l-4 border-l-swar-primary'
+                            : selectedIds.has(msg._id)
+                            ? 'bg-blue-100'
+                            : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(msg._id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleSelectMessage(msg._id);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 rounded border-swar-border flex-shrink-0 mt-1"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-swar-text truncate">{msg.name}</p>
+                            <p className="text-xs text-swar-text-secondary truncate">{msg.subject}</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {new Date(msg.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          {!msg.isRead && (
+                            <div className="ml-2 w-3 h-3 bg-blue-600 rounded-full flex-shrink-0 mt-1"></div>
+                          )}
                       </div>
                     </button>
                     ))
