@@ -299,6 +299,38 @@ const investmentSchema = new mongoose.Schema({
 investmentSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
 
 export const Investment = mongoose.models.Investment || mongoose.model('Investment', investmentSchema);
+
+// Budget Plan Schema (for accounting / life planner)
+// Stores targets and 100% allocation buckets to compare with actual transactions.
+const budgetAllocationSchema = new mongoose.Schema(
+  {
+    key: { type: String, required: true },
+    label: { type: String, required: true },
+    // Percentage of base income (0..100). Sum of all allocations should be 100.
+    percent: { type: Number, required: true, min: 0, max: 100 },
+    // "profit" means we compare against (income - outflow). All other buckets compare against outflow by category.
+    kind: { type: String, enum: ['expense', 'profit'], default: 'expense' },
+  },
+  { _id: false }
+);
+
+const budgetPlanSchema = new mongoose.Schema({
+  ownerType: { type: String, enum: ['user', 'admin'], required: true, index: true },
+  ownerId: { type: String, required: true, index: true },
+  year: { type: Number, required: true, index: true },
+  currency: { type: String, default: 'INR' },
+  incomeTargetYearly: { type: Number, default: 0 },
+  incomeTargetMonthly: { type: Number, default: 0 },
+  incomeTargetWeekly: { type: Number, default: 0 },
+  allocations: { type: [budgetAllocationSchema], default: [] },
+  notes: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+budgetPlanSchema.index({ ownerType: 1, ownerId: 1, year: 1 }, { unique: true });
+
+export const BudgetPlan = mongoose.models.BudgetPlan || mongoose.model('BudgetPlan', budgetPlanSchema);
 // Resort Booking Schema
 const resortBookingSchema = new mongoose.Schema({
   userId: { type: String, required: true },

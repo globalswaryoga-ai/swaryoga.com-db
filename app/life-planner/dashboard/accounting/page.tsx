@@ -18,6 +18,7 @@ import {
   Target
 } from 'lucide-react';
 import { filterTransactionsByDateRange, getReportPeriodRange, type ReportPeriodKey } from '@/lib/accountingReportPeriod';
+import MyBudgetPanel from '@/components/life-planner/MyBudgetPanel';
 
 interface Account {
   id: string;
@@ -59,7 +60,7 @@ interface Investment {
 }
 
 export default function LifePlannerAccountingPage() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'accounts' | 'transactions' | 'investments' | 'reports'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'accounts' | 'transactions' | 'investments' | 'reports' | 'budget'>('dashboard');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [investments, setInvestments] = useState<Investment[]>([]);
@@ -488,6 +489,7 @@ export default function LifePlannerAccountingPage() {
                 { id: 'accounts', label: 'Accounts', icon: Building },
                 { id: 'transactions', label: 'Transactions', icon: DollarSign },
                 { id: 'investments', label: 'Investments', icon: Target },
+                { id: 'budget', label: 'Budget', icon: PieChart },
                 { id: 'reports', label: 'Reports', icon: FileText }
               ].map((tab) => (
                 <button
@@ -506,6 +508,13 @@ export default function LifePlannerAccountingPage() {
             </nav>
           </div>
         </div>
+
+        {/* Budget Tab */}
+        {activeTab === 'budget' && (
+          <div>
+            <MyBudgetPanel hideTitle />
+          </div>
+        )}
 
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
