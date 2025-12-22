@@ -27,6 +27,7 @@ export default function ContactMessages() {
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const adminToken = localStorage.getItem('adminToken');
@@ -142,6 +143,68 @@ export default function ContactMessages() {
     }
   };
 
+  // Filter messages by search query
+  const filteredMessages = messages.filter((msg) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      msg.name.toLowerCase().includes(query) ||
+      msg.email.toLowerCase().includes(query) ||
+      (msg.phone && msg.phone.includes(query))
+    );
+  });
+
+  // Mark all filtered messages as read
+  const handleMarkAllRead = () => {
+    if (!confirm('Mark all messages as read?')) return;
+    setMessages(messages.map(msg => 
+      filteredMessages.includes(msg) ? { ...msg, isRead: true } : msg
+    ));
+  };
+
+  // Mark all filtered messages as unread
+  const handleMarkAllUnread = () => {
+    if (!confirm('Mark all messages as unread?')) return;
+    setMessages(messages.map(msg => 
+      filteredMessages.includes(msg) ? { ...msg, isRead: false } : msg
+    ));
+  };
+
+  // Delete all filtered messages
+  const handleDeleteAll = async () => {
+    if (!confirm(`Delete all ${filteredMessages.length} messages? This cannot be undone.`)) return;
+    try {
+      const adminToken = localStorage.getItem('adminToken');
+      for (const msg of filteredMessages) {
+        await fetch(`/api/admin/contacts/${msg._id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+          },
+        });
+      }
+      setMessages(messages.filter(m => !filteredMessages.includes(m)));
+      setSelectedMessage(null);
+      alert('Messages deleted successfully!');
+    } catch (err) {
+      console.error('Error deleting messages:', err);
+      alert('Error deleting messages');
+    }
+  };
+
+  // Archive all filtered messages
+  const handleArchiveAll = async () => {
+    if (!confirm(`Archive all ${filteredMessages.length} messages?`)) return;
+    try {
+      setMessages(messages.map(msg => 
+        filteredMessages.includes(msg) ? { ...msg, status: 'archived' } : msg
+      ));
+      setSelectedMessage(null);
+      alert('Messages archived successfully!');
+    } catch (err) {
+      console.error('Error archiving messages:', err);
+    }
+  };
+
   if (!isAuthenticated) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -204,15 +267,66 @@ export default function ContactMessages() {
             <>
               {/* Messages List - Left Column */}
               <div className="w-80 bg-white rounded-lg shadow overflow-hidden flex flex-col">
+                {/* Header with Title */}
                 <div className="bg-swar-primary-light px-4 py-3 border-b border-swar-border">
-                  <p className="text-sm font-semibold text-swar-text">Messages ({messages.length})</p>
+                  <p className="text-sm font-semibold text-swar-text">Messages ({filteredMessages.length})</p>
+                </div>
+
+                {/* Search Box */}
+                <div className="px-4 py-3 border-b border-swar-border">
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or mobile..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm text-swar-text placeholder-swar-text-secondary focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="px-4 py-3 border-b border-swar-border bg-gray-50 flex flex-col gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value === 'read') handleMarkAllRead();
+                        else if (e.target.value === 'unread') handleMarkAllUnread();
+                        e.target.value = '';
+                      }}
+                      className="flex-1 px-2 py-1 border border-swar-border rounded-lg text-xs font-semibold text-swar-text bg-white focus:outline-none"
+                    >
+                      <option value="">Mark All...</option>
+                      <option value="read">Mark All Read</option>
+                      <option value="unread">Mark All Unread</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleArchiveAll}
+                      disabled={filteredMessages.length === 0}
+                      className="flex-1 px-2 py-1 bg-yellow-100 text-yellow-900 rounded-lg text-xs font-semibold hover:bg-yellow-200 disabled:opacity-50 transition-colors"
+                    >
+                      Archive All
+                    </button>
+                    <button
+                      onClick={handleDeleteAll}
+                      disabled={filteredMessages.length === 0}
+                      className="flex-1 px-2 py-1 bg-red-100 text-red-900 rounded-lg text-xs font-semibold hover:bg-red-200 disabled:opacity-50 transition-colors"
+                    >
+                      Delete All
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto">
-                  {messages.map((msg) => (
-                    <button
-                      key={msg._id}
-                      onClick={() => handleViewMessage(msg)}
+                  {filteredMessages.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-swar-text-secondary text-sm">
+                      No messages found
+                    </div>
+                  ) : (
+                    filteredMessages.map((msg) => (
+                      <button
+                        key={msg._id}
+                        onClick={() => handleViewMessage(msg)}
                       className={`w-full text-left px-4 py-3 border-b border-swar-border transition-colors ${
                         selectedMessage?._id === msg._id
                           ? 'bg-blue-50 border-l-4 border-l-swar-primary'
@@ -232,7 +346,8 @@ export default function ContactMessages() {
                         )}
                       </div>
                     </button>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 <div className="bg-swar-bg border-t border-swar-border px-4 py-3">
