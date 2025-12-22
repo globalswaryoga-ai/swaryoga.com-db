@@ -14,7 +14,6 @@ interface ContactMessage {
   message: string;
   status?: string;
   isRead: boolean;
-  isArchived?: boolean;
   createdAt: string;
 }
 
@@ -28,8 +27,6 @@ export default function ContactMessages() {
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [readFilter, setReadFilter] = useState<'all' | 'read' | 'unread'>('all');
 
   useEffect(() => {
     const adminToken = localStorage.getItem('adminToken');
@@ -145,61 +142,6 @@ export default function ContactMessages() {
     }
   };
 
-  const handleArchiveMessage = async (id: string) => {
-    try {
-      setMessages(messages.map(msg => 
-        msg._id === id ? { ...msg, isArchived: true } : msg
-      ));
-      if (selectedMessage?._id === id) {
-        setSelectedMessage(null);
-      }
-    } catch (err) {
-      console.error('Error archiving message:', err);
-    }
-  };
-
-  const handleDeleteMessage = async (id: string) => {
-    if (!confirm('Delete this message?')) return;
-    try {
-      const adminToken = localStorage.getItem('adminToken');
-      const response = await fetch(`/api/admin/contacts/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${adminToken}`,
-        },
-      });
-
-      if (response.ok) {
-        setMessages(messages.filter(msg => msg._id !== id));
-        if (selectedMessage?._id === id) {
-          setSelectedMessage(null);
-        }
-      } else {
-        alert('Failed to delete message');
-      }
-    } catch (err) {
-      console.error('Error deleting message:', err);
-      alert('Error deleting message');
-    }
-  };
-
-  // Filter messages based on search and read status
-  const filteredMessages = messages.filter((msg) => {
-    const query = searchQuery.toLowerCase();
-    const matchesSearch = 
-      msg.name.toLowerCase().includes(query) ||
-      msg.email.toLowerCase().includes(query) ||
-      (msg.phone && msg.phone.includes(query)) ||
-      msg.subject.toLowerCase().includes(query);
-    
-    const matchesReadFilter = 
-      readFilter === 'all' || 
-      (readFilter === 'read' && msg.isRead) ||
-      (readFilter === 'unread' && !msg.isRead);
-    
-    return matchesSearch && matchesReadFilter && !msg.isArchived;
-  });
-
   if (!isAuthenticated) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
@@ -261,33 +203,13 @@ export default function ContactMessages() {
           ) : (
             <>
               {/* Messages List - Left Column */}
-              <div className="w-96 bg-white rounded-lg shadow overflow-hidden flex flex-col">
+              <div className="w-80 bg-white rounded-lg shadow overflow-hidden flex flex-col">
                 <div className="bg-swar-primary-light px-4 py-3 border-b border-swar-border">
-                  <p className="text-sm font-semibold text-swar-text mb-3">Messages ({filteredMessages.length})</p>
-                  
-                  {/* Search Bar */}
-                  <input
-                    type="text"
-                    placeholder="🔍 Search by name, email, phone..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm mb-3 focus:outline-none focus:border-swar-primary"
-                  />
-                  
-                  {/* Read Status Filter */}
-                  <select
-                    value={readFilter}
-                    onChange={(e) => setReadFilter(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-swar-border rounded-lg text-sm focus:outline-none focus:border-swar-primary"
-                  >
-                    <option value="all">All Messages</option>
-                    <option value="unread">Unread Only</option>
-                    <option value="read">Read Only</option>
-                  </select>
+                  <p className="text-sm font-semibold text-swar-text">Messages ({messages.length})</p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto">
-                  {filteredMessages.map((msg) => (
+                  {messages.map((msg) => (
                     <button
                       key={msg._id}
                       onClick={() => handleViewMessage(msg)}
@@ -383,11 +305,11 @@ export default function ContactMessages() {
                         />
                       </div>
 
-                      <div className="flex gap-2 flex-wrap">
+                      <div className="flex gap-2">
                         <button
                           type="submit"
                           disabled={submitting || !replyMessage.trim()}
-                          className="flex-1 min-w-[120px] bg-swar-primary text-white px-4 py-2 rounded-lg hover:bg-swar-primary disabled:bg-gray-400 transition-colors font-medium text-sm"
+                          className="flex-1 bg-swar-primary text-white px-4 py-2 rounded-lg hover:bg-swar-primary disabled:bg-gray-400 transition-colors font-medium text-sm"
                         >
                           {submitting ? 'Sending...' : 'Send Reply'}
                         </button>
@@ -395,25 +317,11 @@ export default function ContactMessages() {
                           <button
                             type="button"
                             onClick={() => handleMarkAsRead(selectedMessage._id)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
                           >
-                            ✓ Mark Read
+                            Mark as Read
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => handleArchiveMessage(selectedMessage._id)}
-                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm"
-                        >
-                          📁 Archive
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMessage(selectedMessage._id)}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
-                        >
-                          🗑️ Delete
-                        </button>
                       </div>
                     </form>
                   </div>
