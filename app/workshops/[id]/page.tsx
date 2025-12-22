@@ -509,6 +509,23 @@ export default function WorkshopDetail() {
               </div>
             </section>
 
+            {/* About Workshop Section - 8 lines description */}
+            <section className="mb-12 sm:mb-16" aria-label="About workshop">
+              <div className="bg-gradient-to-r from-primary-50 to-white rounded-xl border border-gray-100 shadow-sm p-6 sm:p-8">
+                <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-6">About This Workshop</h2>
+                <div className="space-y-3 text-sm sm:text-base text-swar-text leading-relaxed">
+                  <p>This comprehensive {workshop.name} program is designed to provide deep insights into the ancient science of Swar Yoga and conscious breathing techniques.</p>
+                  <p>Participants will learn practical methods to align their inner vibrations with universal rhythms, leading to enhanced physical health, mental clarity, and spiritual growth.</p>
+                  <p>The workshop focuses on building foundational knowledge through structured practices that can be integrated into daily life for lasting transformation.</p>
+                  <p>Expert guidance from Yogacharya Mohan Kalburgi ensures that each participant receives authentic teaching rooted in traditional yoga wisdom.</p>
+                  <p>Through interactive sessions and hands-on practice, you will discover the power of breath awareness and its profound impact on your nervous system.</p>
+                  <p>The program includes personalized techniques tailored to different experience levels, from beginners to advanced practitioners.</p>
+                  <p>Participants will gain access to recordings, notes, and follow-up sessions for continued learning and practice after the workshop concludes.</p>
+                  <p>Join a community of dedicated practitioners committed to self-discovery and holistic wellness through the transformative science of Swar Yoga.</p>
+                </div>
+              </div>
+            </section>
+
             {/* Section 3: 5 small blocks */}
             <section className="mb-12 sm:mb-16" aria-label="Quick workshop details">
               <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-5">Quick Details</h2>
