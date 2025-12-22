@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
       workshopSlug: String(doc.workshopSlug || ''),
       workshopName: String(doc.workshopName || ''),
       mode: doc.mode,
+      language: doc.language,
       batch: doc.batch,
       startDate: doc.startDate,
       endDate: doc.endDate,
