@@ -22,24 +22,17 @@ import mongoose from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const url = new URL(request.url);
-    const view = url.searchParams.get('view') || 'list'; // list, summary, daily, monthly
+    const view = url.searchParams.get('view') || 'list';
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
     const userId = url.searchParams.get('userId');
     const paymentMode = url.searchParams.get('paymentMode');
-    const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 500);
-    const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
+    const { limit, skip } = parsePagination(request);
 
     await connectDB();
 
-    // Build filter
     const filter: any = {};
     if (startDate || endDate) {
       filter.saleDate = {};
@@ -47,10 +40,8 @@ export async function GET(request: NextRequest) {
       if (endDate) filter.saleDate.$lte = new Date(endDate);
     }
     if (userId) {
-      if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
-      }
-      filter.userId = new mongoose.Types.ObjectId(userId);
+      if (!isValidObjectId(userId)) throw new Error('Invalid userId');
+      filter.userId = toObjectId(userId);
     }
     if (paymentMode) filter.paymentMode = paymentMode;
 
@@ -62,15 +53,10 @@ export async function GET(request: NextRequest) {
         .populate('userId', 'name email')
         .populate('leadId', 'phoneNumber name')
         .lean();
-
       const total = await SalesReport.countDocuments(filter);
-
-      return NextResponse.json(
-        { success: true, data: { sales, total, limit, skip } },
-        { status: 200 }
-      );
+      const meta = buildMetadata(skip, limit, total);
+      return formatCrmSuccess({ sales }, meta);
     } else if (view === 'summary') {
-      // Aggregate sales summary
       const summary = await SalesReport.aggregate([
         { $match: filter },
         {
@@ -85,91 +71,43 @@ export async function GET(request: NextRequest) {
           },
         },
       ]);
-
-      return NextResponse.json(
-        {
-          success: true,
-          data: summary[0] || {
-            totalSales: 0,
-            totalTransactions: 0,
-            averageSale: 0,
-            maxSale: 0,
-            minSale: 0,
-            targetAchieved: 0,
-          },
-        },
-        { status: 200 }
-      );
+      return formatCrmSuccess({ summary: summary[0] || {} }, {});
     } else if (view === 'daily') {
-      // Daily sales breakdown
       const daily = await SalesReport.aggregate([
         { $match: filter },
-        {
-          $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$saleDate' } },
-            totalSales: { $sum: '$saleAmount' },
-            transactionCount: { $sum: 1 },
-          },
-        },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$saleDate' } }, totalSales: { $sum: '$saleAmount' }, count: { $sum: 1 } } },
         { $sort: { _id: -1 } },
         { $limit: 30 },
       ]);
-
-      return NextResponse.json({ success: true, data: { daily } }, { status: 200 });
+      return formatCrmSuccess({ daily }, {});
     } else if (view === 'monthly') {
-      // Monthly sales breakdown
       const monthly = await SalesReport.aggregate([
         { $match: filter },
-        {
-          $group: {
-            _id: { $dateToString: { format: '%Y-%m', date: '$saleDate' } },
-            totalSales: { $sum: '$saleAmount' },
-            transactionCount: { $sum: 1 },
-          },
-        },
+        { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$saleDate' } }, totalSales: { $sum: '$saleAmount' }, count: { $sum: 1 } } },
         { $sort: { _id: -1 } },
       ]);
-
-      return NextResponse.json({ success: true, data: { monthly } }, { status: 200 });
+      return formatCrmSuccess({ monthly }, {});
     }
-
-    return NextResponse.json({ error: 'Invalid view parameter' }, { status: 400 });
+    throw new Error('Invalid view parameter');
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch sales reports';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'GET sales');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    const userId = verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) throw new Error('Invalid JSON body');
 
-    const { userId, leadId, saleAmount, paymentMode, saleId } = body;
-
-    if (saleAmount === undefined || saleAmount === null || saleAmount === '') {
-      return NextResponse.json({ error: 'Missing: saleAmount' }, { status: 400 });
-    }
+    const { saleAmount, paymentMode, leadId, saleId, funnelStage, conversionPath, daysToConversion, touchpointCount, targetAchieved, metadata } = body;
+    if (!saleAmount) throw new Error('Missing: saleAmount');
 
     await connectDB();
 
-    if (userId && !mongoose.Types.ObjectId.isValid(String(userId))) {
-      return NextResponse.json({ error: 'Invalid userId' }, { status: 400 });
-    }
-    if (leadId && !mongoose.Types.ObjectId.isValid(String(leadId))) {
-      return NextResponse.json({ error: 'Invalid leadId' }, { status: 400 });
-    }
-    if (saleId && !mongoose.Types.ObjectId.isValid(String(saleId))) {
-      return NextResponse.json({ error: 'Invalid saleId' }, { status: 400 });
-    }
+    if (userId && !isValidObjectId(userId)) throw new Error('Invalid userId');
+    if (leadId && !isValidObjectId(leadId)) throw new Error('Invalid leadId');
+    if (saleId && !isValidObjectId(saleId)) throw new Error('Invalid saleId');
 
     const safePaymentMode = ['payu', 'card', 'bank_transfer', 'cash', 'other'].includes(paymentMode)
       ? paymentMode
@@ -177,95 +115,58 @@ export async function POST(request: NextRequest) {
 
     const sale = await SalesReport.create({
       saleId: saleId || undefined,
-      userId: userId || (decoded?.userId as any) || undefined,
-      leadId: leadId || undefined,
+      userId: userId || undefined,
+      leadId: leadId ? toObjectId(leadId) : undefined,
       saleAmount: Number(saleAmount),
       paymentMode: safePaymentMode,
       saleDate: new Date(),
-      funnelStage: body.funnelStage || undefined,
-      conversionPath: Array.isArray(body.conversionPath) ? body.conversionPath : undefined,
-      daysToConversion: body.daysToConversion || undefined,
-      touchpointCount: body.touchpointCount || undefined,
-      targetAchieved: Boolean(body.targetAchieved) || false,
-      reportedBy: decoded?.userId as any,
-      metadata: body.metadata || undefined,
+      funnelStage: funnelStage || undefined,
+      conversionPath: Array.isArray(conversionPath) ? conversionPath : undefined,
+      daysToConversion: daysToConversion || undefined,
+      touchpointCount: touchpointCount || undefined,
+      targetAchieved: Boolean(targetAchieved) || false,
+      reportedBy: userId,
+      metadata: metadata || undefined,
     });
 
-    return NextResponse.json({ success: true, data: sale }, { status: 201 });
+    return formatCrmSuccess({ sale }, {});
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create sale record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'POST sales');
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) throw new Error('Invalid JSON body');
 
     const { saleId, ...updates } = body;
-
-    if (!saleId) {
-      return NextResponse.json({ error: 'Missing: saleId' }, { status: 400 });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(String(saleId))) {
-      return NextResponse.json({ error: 'Invalid saleId' }, { status: 400 });
-    }
+    if (!saleId) throw new Error('Missing: saleId');
+    if (!isValidObjectId(saleId)) throw new Error('Invalid saleId');
 
     await connectDB();
-
     const sale = await SalesReport.findByIdAndUpdate(saleId, { $set: updates }, { new: true });
-
-    if (!sale) {
-      return NextResponse.json({ error: 'Sale record not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, data: sale }, { status: 200 });
+    if (!sale) throw new Error('Sale record not found');
+    return formatCrmSuccess({ sale }, {});
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update sale record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'PUT sales');
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const url = new URL(request.url);
     const saleId = url.searchParams.get('saleId');
-
-    if (!saleId) {
-      return NextResponse.json({ error: 'saleId parameter required' }, { status: 400 });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(saleId)) {
-      return NextResponse.json({ error: 'Invalid saleId' }, { status: 400 });
-    }
+    if (!saleId) throw new Error('saleId parameter required');
+    if (!isValidObjectId(saleId)) throw new Error('Invalid saleId');
 
     await connectDB();
-
     const result = await SalesReport.findByIdAndDelete(saleId);
-
-    if (!result) {
-      return NextResponse.json({ error: 'Sale record not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, data: { deleted: true } }, { status: 200 });
+    if (!result) throw new Error('Sale record not found');
+    return formatCrmSuccess({ deleted: true }, {});
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete sale record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'DELETE sales');
   }
 }
