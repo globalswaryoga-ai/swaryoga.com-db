@@ -97,7 +97,7 @@ function WorkshopsPageInner() {
   const [selectedWorkshop, setSelectedWorkshop] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [accordionOpen, setAccordionOpen] = useState<Record<'workshop' | 'mode' | 'language' | 'currency' | 'category', boolean>>({
-    category: true,
+    category: false,
     workshop: false,
     mode: false,
     language: false,
