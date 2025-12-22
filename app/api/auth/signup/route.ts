@@ -1,100 +1,104 @@
-import { NextRequest, NextResponse } from 'next/server';
+/**
+ * @fileoverview User Signup Endpoint
+ * @author Swar Yoga Team
+ * @copyright 2025 Global Swar Yoga AI - All Rights Reserved
+ * @protected This code is protected under intellectual property laws
+ */
+
+import { NextRequest } from 'next/server';
 import { connectDB, User } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
+import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
     const body = await request.json();
     const { name, email, phone, countryCode, country, state, gender, age, profession, password } = body;
 
-    // Log received data for debugging
-    console.log('Received signup data:', {
-      name: name ? `✓ ${name.substring(0, 10)}...` : '✗ missing',
-      email: email ? `✓ ${email.substring(0, 10)}...` : '✗ missing',
-      phone: phone ? `✓ ${phone.substring(0, 10)}...` : '✗ missing',
-      countryCode: countryCode ? `✓ ${countryCode}` : '✗ missing',
-      country: country ? `✓ ${country}` : '✗ missing',
-      state: state ? `✓ ${state}` : '✗ missing',
-      gender: gender ? `✓ ${gender}` : '✗ missing',
-      age: age ? `✓ ${age}` : '✗ missing',
-      profession: profession ? `✓ ${profession.substring(0, 10)}...` : '✗ missing',
-      password: password ? '✓ provided' : '✗ missing',
-    });
+    // Validate required fields
+    const required = ['name', 'email', 'phone', 'country', 'state', 'gender', 'age', 'profession', 'password'];
+    const validation = validateRequired(body, required);
+    if (!validation.valid) {
+      return apiError('VALIDATION_ERROR', `Missing fields: ${validation.missing?.join(', ')}`);
+    }
 
-    // Validate input - trim strings and check for empty values
-    const missingFields: string[] = [];
-    if (!name?.trim()) missingFields.push('name');
-    if (!email?.trim()) missingFields.push('email');
-    if (!phone?.trim()) missingFields.push('phone');
-    if (!country?.trim()) missingFields.push('country');
-    if (!state?.trim()) missingFields.push('state');
-    if (!gender?.trim()) missingFields.push('gender');
-    if (!age && age !== 0) missingFields.push('age');  // Allow 0 but not undefined/null
-    if (!profession?.trim()) missingFields.push('profession');
-    if (!password?.trim()) missingFields.push('password');
+    // Connect to database
+    try {
+      await connectDB();
+    } catch (dbError) {
+      logError('signup/connectDB', dbError);
+      return apiError('DATABASE_ERROR', 'Database connection failed');
+    }
 
-    if (missingFields.length > 0) {
-      console.error('Missing fields:', missingFields);
-      return NextResponse.json(
-        { error: `Missing required fields: ${missingFields.join(', ')}` },
-        { status: 400 }
-      );
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return apiError('VALIDATION_ERROR', 'Invalid email format');
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.trim() });
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'Email already registered' },
-        { status: 409 }
-      );
+    try {
+      const existingUser = await User.findOne({ email: email.trim() }).lean();
+      if (existingUser) {
+        return apiError('VALIDATION_ERROR', 'Email already registered');
+      }
+    } catch (checkError) {
+      logError('signup/checkExisting', checkError);
+      return apiError('DATABASE_ERROR', 'Failed to check existing user');
+    }
+
+    // Validate age
+    const ageNumber = typeof age === 'string' ? parseInt(age, 10) : age;
+    if (!Number.isFinite(ageNumber) || ageNumber < 13 || ageNumber > 150) {
+      return apiError('VALIDATION_ERROR', 'Age must be between 13 and 150');
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Convert age safely (handle both string and number)
-    const ageNumber = typeof age === 'string' ? parseInt(age, 10) : age;
-    
-    if (isNaN(ageNumber) || ageNumber < 13 || ageNumber > 150) {
-      return NextResponse.json(
-        { error: 'Age must be a valid number between 13 and 150' },
-        { status: 400 }
-      );
+    let hashedPassword;
+    try {
+      hashedPassword = await bcrypt.hash(password.trim(), 10);
+    } catch (hashError) {
+      logError('signup/hashPassword', hashError);
+      return apiError('SERVER_ERROR', 'Password processing failed');
     }
 
-    // Create new user with all signup data
-    const user = new User({
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      countryCode: countryCode || '+91',
-      country: country.trim(),
-      state: state.trim(),
-      gender: gender.trim(),
-      age: ageNumber,
-      profession: profession.trim(),
-      password: hashedPassword,
-    });
+    // Create new user
+    try {
+      const user = new User({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        countryCode: countryCode || '+91',
+        country: country.trim(),
+        state: state.trim(),
+        gender: gender.trim(),
+        age: ageNumber,
+        profession: profession.trim(),
+        password: hashedPassword,
+      });
 
-    await user.save();
+      await user.save();
 
-    // Generate token
-    const token = generateToken({
-      userId: user._id.toString(),
-      email: user.email,
-    });
+      // Generate token
+      let token;
+      try {
+        token = generateToken({
+          userId: user._id.toString(),
+          email: user.email,
+        });
+      } catch (tokenError) {
+        logError('signup/generateToken', tokenError);
+        return apiError('SERVER_ERROR', 'Token generation failed');
+      }
 
-    return NextResponse.json(
-      { 
-        message: 'User registered successfully', 
-        token, 
-        user: { 
-          id: user._id, 
+      return apiSuccess({
+        message: 'User registered successfully',
+        token,
+        user: {
+          id: user._id,
           profileId: user.profileId,
-          name: user.name, 
+          name: user.name,
           email: user.email,
           phone: user.phone,
           country: user.country,
@@ -102,37 +106,29 @@ export async function POST(request: NextRequest) {
           gender: user.gender,
           age: user.age,
           profession: user.profession,
-          profileImage: user.profileImage
-        } 
-      },
-      { status: 201 }
-    );
-  } catch (error: any) {
-    console.error('Signup error:', error);
-    
-    // Handle MongoDB unique constraint error
-    if (error.code === 11000) {
-      return NextResponse.json(
-        { error: 'Email already registered' },
-        { status: 409 }
-      );
+          profileImage: user.profileImage,
+        },
+      }, 201);
+    } catch (createError: any) {
+      logError('signup/createUser', createError);
+
+      // Handle MongoDB unique constraint error
+      if (createError.code === 11000) {
+        return apiError('VALIDATION_ERROR', 'Email already registered');
+      }
+
+      // Handle validation errors
+      if (createError.name === 'ValidationError') {
+        const messages = Object.values(createError.errors)
+          .map((err: any) => err.message)
+          .join('; ');
+        return apiError('VALIDATION_ERROR', `Validation error: ${messages}`);
+      }
+
+      return apiError('SERVER_ERROR', 'Failed to create user');
     }
-    
-    // Handle validation errors
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors)
-        .map((err: any) => err.message)
-        .join('; ');
-      console.error('Validation error details:', messages);
-      return NextResponse.json(
-        { error: `Validation error: ${messages}` },
-        { status: 400 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    logError('signup/POST', error);
+    return apiError('SERVER_ERROR');
   }
 }
