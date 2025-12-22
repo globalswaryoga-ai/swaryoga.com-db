@@ -74,6 +74,11 @@ const nextConfig = {
       // Registration funnel lives under /registernow and legacy /workshop/:id/registernow.
       // Some older links (or shared URLs) may use the plural form, so redirect to avoid 404s.
       {
+        source: '/workshops/:id/register',
+        destination: '/registernow?workshop=:id',
+        permanent: true,
+      },
+      {
         source: '/workshops/:id/registernow',
         destination: '/workshop/:id/registernow',
         permanent: true,

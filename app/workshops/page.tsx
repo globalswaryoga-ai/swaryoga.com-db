@@ -76,12 +76,14 @@ function formatPrice(amount: number, currency: string | null): string {
 
 function WorkshopsPageInner() {
   const [currentPage, setCurrentPage] = useState(1);
-  const workshopsPerPage = 18;
+  const workshopsPerPage = 3; // Show 3 cards per page
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [selectedWorkshop, setSelectedWorkshop] = useState<string | null>(null);
-  const [accordionOpen, setAccordionOpen] = useState<Record<'workshop' | 'mode' | 'language' | 'currency', boolean>>({
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [accordionOpen, setAccordionOpen] = useState<Record<'workshop' | 'mode' | 'language' | 'currency' | 'category', boolean>>({
+    category: true,
     workshop: true,
     mode: false,
     language: false,
@@ -97,10 +99,11 @@ function WorkshopsPageInner() {
 
   useEffect(() => {
     if (!searchParams) return;
-  setSelectedMode(searchParams.get('mode') || null);
-  setSelectedLanguage(searchParams.get('language') || null);
-  setSelectedPayment(searchParams.get('currency') || null);
-  setSelectedWorkshop(searchParams.get('workshop') || null);
+    setSelectedCategory(searchParams.get('category') || null);
+    setSelectedMode(searchParams.get('mode') || null);
+    setSelectedLanguage(searchParams.get('language') || null);
+    setSelectedPayment(searchParams.get('currency') || null);
+    setSelectedWorkshop(searchParams.get('workshop') || null);
     setCurrentPage(1);
   }, [queryString, searchParams]);
 
@@ -135,7 +138,8 @@ function WorkshopsPageInner() {
     const bNext = getNextUpcomingStartDateIso(schedulesByWorkshopId[b.slug], now);
     const ad = toDateSafe(aNext);
     const bd = toDateSafe(bNext);
-    if (ad && bd) return ad.getTime() - bd.getTime();
+    // Sort by latest date first (descending)
+    if (ad && bd) return bd.getTime() - ad.getTime();
     if (ad && !bd) return -1;
     if (!ad && bd) return 1;
     return 0;
@@ -143,14 +147,16 @@ function WorkshopsPageInner() {
 
   // Filter workshops based on selected filters
   const filteredWorkshops = sortedWorkshops.filter((workshop: WorkshopOverview) => {
+    const categoryMatch = !selectedCategory || workshop.category === selectedCategory;
     const workshopMatch = !selectedWorkshop || workshop.slug === selectedWorkshop;
     const modeMatch = !selectedMode || (workshop.mode && workshop.mode.includes(selectedMode));
     const languageMatch = !selectedLanguage || (workshop.language && workshop.language.includes(selectedLanguage));
     const currencyMatch = !selectedPayment || (workshop.currency && workshop.currency.includes(selectedPayment));
 
-    return workshopMatch && modeMatch && languageMatch && currencyMatch;
+    return categoryMatch && workshopMatch && modeMatch && languageMatch && currencyMatch;
   });
 
+  const categoryOptions = Array.from(new Set(workshopCatalog.map((w) => w.category))).sort((a, b) => a.localeCompare(b));
   const totalPages = Math.ceil(filteredWorkshops.length / workshopsPerPage);
   const startIndex = (currentPage - 1) * workshopsPerPage;
   const endIndex = startIndex + workshopsPerPage;
@@ -218,6 +224,31 @@ function WorkshopsPageInner() {
               <div className="mb-4 sm:mb-6">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-700">Filter Workshops</h3>
                 <p className="text-xs sm:text-sm text-gray-500">Find the perfect workshop for your journey</p>
+              </div>
+
+              {/* Category Filter First */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4 sm:mb-6">
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="px-4 py-3 font-semibold text-gray-800 bg-gray-50">Category</div>
+                  <div className="p-4 bg-white">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Select Category</label>
+                    <select
+                      value={selectedCategory || ''}
+                      onChange={(e) => {
+                        setSelectedCategory(e.target.value || null);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300 touch-target text-sm"
+                    >
+                      <option value="">All Categories</option>
+                      {categoryOptions.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -361,9 +392,10 @@ function WorkshopsPageInner() {
 
               {/* Clear Filters Button */}
               <div className="mt-3 sm:mt-6 flex flex-wrap gap-2">
-                  {(selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) ? (
+                  {(selectedCategory || selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) ? (
                     <button
                       onClick={() => {
+                        setSelectedCategory(null);
                         setSelectedMode(null);
                         setSelectedLanguage(null);
                         setSelectedPayment(null);
@@ -378,10 +410,16 @@ function WorkshopsPageInner() {
                 </div>
 
               {/* Filter Summary */}
-              {(selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) && (
+              {(selectedCategory || selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) && (
                 <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">
                   <p className="text-gray-700 font-semibold mb-2 sm:mb-3 text-sm">Active Filters:</p>
                   <div className="flex flex-wrap gap-2">
+                    {selectedCategory && (
+                      <span className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full font-semibold text-xs sm:text-sm">
+                        🗂️ {selectedCategory}
+                        <button onClick={() => setSelectedCategory(null)} className="hover:text-indigo-900 ml-1">✕</button>
+                      </span>
+                    )}
                     {activeWorkshopLabel && (
                       <span className="inline-flex items-center gap-2 bg-primary-100 text-primary-700 px-3 py-1.5 rounded-full font-semibold text-xs sm:text-sm">
                         📚 {activeWorkshopLabel}
@@ -488,7 +526,7 @@ function WorkshopsPageInner() {
                         <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
                       </Link>
                       <Link
-                        href={`/workshops/${workshop.slug}/register`}
+                        href={`/registernow?workshop=${encodeURIComponent(workshop.slug)}`}
                         className="w-full bg-primary-600 hover:bg-primary-700 active:scale-95 text-white py-2.5 sm:py-3 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 touch-target text-sm sm:text-base"
                       >
                         Register Now
@@ -499,37 +537,25 @@ function WorkshopsPageInner() {
               ))}
             </div>
 
-            {/* Pagination */}
+            {/* Pagination - Prev/Next only (3 per page) */}
             {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2 sm:gap-4 flex-wrap">
+              <div className="flex justify-center items-center gap-3 sm:gap-4 flex-wrap mt-8 sm:mt-12">
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="px-3 sm:px-6 py-2 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-xs sm:text-sm active:scale-95"
+                  className="px-4 sm:px-6 py-2.5 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-sm active:scale-95"
                 >
                   ← Previous
                 </button>
 
-                <div className="flex gap-1 sm:gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold transition-all duration-300 touch-target text-xs sm:text-sm active:scale-95 ${
-                        currentPage === page
-                          ? 'bg-primary-600 text-white shadow-lg'
-                          : 'bg-white border-2 border-gray-300 text-gray-700 hover:border-primary-600'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
+                <div className="text-sm sm:text-base font-semibold text-gray-700 px-4 py-2 rounded-lg bg-gray-50 border border-gray-200">
+                  Page {currentPage} of {totalPages}
                 </div>
 
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-3 sm:px-6 py-2 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-xs sm:text-sm active:scale-95"
+                  className="px-4 sm:px-6 py-2.5 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-sm active:scale-95"
                 >
                   Next →
                 </button>
