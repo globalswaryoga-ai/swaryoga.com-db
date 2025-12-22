@@ -209,7 +209,7 @@ export default function AdminWorkshopSchedulesPage() {
       return allSchedules
         .filter((s) => s.workshopSlug === selectedWorkshopSlug)
         .filter((s) => s.mode === selectedMode)
-        .filter((s) => !s.language || s.language === selectedLanguage)
+        .filter((s) => s.language === selectedLanguage)
         .slice()
         .sort((a, b) => {
           const ams = a.startDate ? Date.parse(String(a.startDate)) : NaN;
