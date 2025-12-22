@@ -489,19 +489,18 @@ export default function WorkshopDetail() {
               </div>
             </section>
 
-            {/* New section: 6–10 lines of information */}
+            {/* New section: Workshop Information as Description */}
             <section className="mb-12 sm:mb-16" aria-label="Workshop information">
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 sm:p-8">
-                <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-4">Workshop Information</h2>
-                <div className="space-y-2 text-sm sm:text-base text-swar-text leading-relaxed">
-                  <p>1) Program: <span className="font-semibold text-swar-text">{workshop.name}</span></p>
-                  <p>2) Duration: <span className="font-semibold text-swar-text">{workshop.duration}</span></p>
-                  <p>3) Start date: <span className="font-semibold text-swar-text">{schedule ? formatDate(schedule.startDate) : 'TBD'}</span></p>
-                  <p>4) Workshop time: <span className="font-semibold text-swar-text">{schedule ? schedule.time : 'TBD'}</span></p>
-                  <p>5) Mode: <span className="font-semibold text-swar-text">{schedule ? String(schedule.mode).toUpperCase() : 'TBD'}</span></p>
-                  <p>6) Language: <span className="font-semibold text-swar-text">{getLanguageLabel()}</span></p>
-                  <p>7) Fees: <span className="font-semibold text-swar-text">{schedule ? `${getCurrencySymbol(schedule.currency)}${Number(schedule.price).toLocaleString('en-IN')} ${String(schedule.currency).toUpperCase()}` : 'TBD'}</span></p>
-                  <p>8) Seats: <span className="font-semibold text-swar-text">{typeof seatsRemaining === 'number' ? `${seatsRemaining} left` : schedule ? `${schedule.seats} total` : 'TBD'}</span></p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-6">Workshop Information</h2>
+                <div className="space-y-3 text-sm sm:text-base text-swar-text leading-relaxed">
+                  <p><span className="font-semibold">Program:</span> {workshop.name}</p>
+                  <p><span className="font-semibold">Duration:</span> {workshop.duration}</p>
+                  <p><span className="font-semibold">Start Date:</span> {schedule ? formatDate(schedule.startDate) : 'TBD'}</p>
+                  <p><span className="font-semibold">Workshop Time:</span> {schedule ? schedule.time : 'TBD'}</p>
+                  <p><span className="font-semibold">Mode:</span> {schedule ? String(schedule.mode).toUpperCase() : 'TBD'}</p>
+                  <p><span className="font-semibold">Language:</span> {getLanguageLabel()}</p>
+                  <p><span className="font-semibold">Fees:</span> {schedule ? `${getCurrencySymbol(schedule.currency)}${Number(schedule.price).toLocaleString('en-IN')} ${String(schedule.currency).toUpperCase()}` : 'TBD'} | <span className="font-semibold">Seats Available:</span> {typeof seatsRemaining === 'number' ? `${seatsRemaining}` : schedule ? `${schedule.seats}` : 'TBD'}</p>
                 </div>
 
                 <div className="mt-8 flex justify-center">
