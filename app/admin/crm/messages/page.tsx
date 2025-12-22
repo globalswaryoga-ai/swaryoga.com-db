@@ -361,6 +361,7 @@ export default function MessagesPage() {
             </select>
           </div>
         </div>
+        </div>
 
         {/* Content */}
         {crm.loading ? (
