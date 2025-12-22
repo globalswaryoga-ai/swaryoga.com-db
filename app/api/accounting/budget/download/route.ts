@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB, BudgetPlan, Transaction } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 const getUserOwner = (request: NextRequest) => {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
