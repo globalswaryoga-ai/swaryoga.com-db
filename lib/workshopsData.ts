@@ -532,3 +532,6 @@ const buildWorkshopDetails = (): Record<string, WorkshopDetail> => {
 export const workshopDetails: Record<string, WorkshopDetail> = buildWorkshopDetails();
 
 export const findWorkshopBySlug = (slug: string) => workshopCatalog.find((workshop) => workshop.slug === slug);
+
+// Export pricing for display on cards (with schedule details)
+export const WORKSHOP_PRICING_DISPLAY = workshopDetails;

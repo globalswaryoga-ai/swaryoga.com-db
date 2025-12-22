@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { connectDB } from '@/lib/db';
+import { connectDB, WorkshopSeatInventory } from '@/lib/db';
 
 // Workshop Registration Schema
 const workshopRegistrationSchema = new mongoose.Schema(
@@ -92,6 +92,21 @@ export async function POST(request: NextRequest) {
       status: 'confirmed',
       paymentStatus: orderId ? 'completed' : 'pending',
     });
+
+    // Decrement seat inventory for this schedule
+    try {
+      await WorkshopSeatInventory.findOneAndUpdate(
+        { workshopSlug: workshopId, scheduleId },
+        { 
+          $inc: { seatsRemaining: -1 },
+          updatedAt: new Date()
+        },
+        { upsert: true }
+      );
+    } catch (seatError) {
+      console.warn('Warning: Could not update seat inventory:', seatError);
+      // Don't fail the registration if seat inventory update fails
+    }
 
     return NextResponse.json(
       {

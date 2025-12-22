@@ -79,3 +79,28 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function GET(request: NextRequest) {
+  try {
+    await connectDB();
+
+    // Fetch all seat inventory records
+    const inventory = await WorkshopSeatInventory.find({})
+      .select({ workshopSlug: 1, scheduleId: 1, seatsTotal: 1, seatsRemaining: 1 })
+      .lean();
+
+    return NextResponse.json(
+      { 
+        success: true, 
+        data: inventory || []
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('Failed to fetch seat inventory:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch seat inventory' },
+      { status: 500 }
+    );
+  }
+}

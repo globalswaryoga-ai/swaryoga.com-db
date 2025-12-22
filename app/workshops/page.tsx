@@ -7,7 +7,7 @@ import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { workshopCatalog, WorkshopOverview } from '@/lib/workshopsData';
+import { workshopCatalog, WorkshopOverview, WORKSHOP_PRICING_DISPLAY } from '@/lib/workshopsData';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +74,20 @@ function formatPrice(amount: number, currency: string | null): string {
   return `${c} ${amount.toLocaleString('en-IN')}`;
 }
 
+function formatDate(isoDate: string): string {
+  if (!isoDate) return 'TBA';
+  try {
+    const date = new Date(isoDate + 'T00:00:00Z');
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(date);
+  } catch {
+    return 'TBA';
+  }
+}
+
 function WorkshopsPageInner() {
   const [currentPage, setCurrentPage] = useState(1);
   const workshopsPerPage = 3; // Show 3 cards per page
@@ -84,7 +98,7 @@ function WorkshopsPageInner() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [accordionOpen, setAccordionOpen] = useState<Record<'workshop' | 'mode' | 'language' | 'currency' | 'category', boolean>>({
     category: true,
-    workshop: true,
+    workshop: false,
     mode: false,
     language: false,
     currency: false,
@@ -109,24 +123,63 @@ function WorkshopsPageInner() {
 
   useEffect(() => {
     let cancelled = false;
-    const fetchSchedules = async () => {
+    
+    const loadSchedulesWithSeats = async () => {
       try {
-        const res = await fetch('/api/workshops/list', { cache: 'no-store' });
-        if (!res.ok) return;
-        const json = (await res.json()) as ApiWorkshopsListResponse;
+        // Build schedulesByWorkshopId from local WORKSHOP_PRICING_DISPLAY
         const nextMap: Record<string, ApiWorkshopSchedule[]> = {};
-        for (const w of json.data || []) {
-          nextMap[w.id] = Array.isArray(w.schedules) ? w.schedules : [];
+        
+        Object.entries(WORKSHOP_PRICING_DISPLAY).forEach(([slug, details]) => {
+          if (details && details.schedules) {
+            nextMap[slug] = details.schedules.map((s) => ({
+              id: s.id,
+              startDate: s.startDate,
+              endDate: s.endDate,
+              registrationCloseDate: s.endDate, // Use end date as registration close
+              time: s.time,
+              mode: s.mode,
+              language: 'English', // Default, can be extended
+              location: s.location || null,
+              slots: s.seats,
+              price: s.price,
+            }));
+          }
+        });
+        
+        // Fetch real-time seat availability from database
+        try {
+          const res = await fetch('/api/workshops/availability', { cache: 'no-store' });
+          if (res.ok) {
+            const seatData = await res.json();
+            if (seatData.data && Array.isArray(seatData.data)) {
+              seatData.data.forEach((seat: any) => {
+                const slug = seat.workshopSlug;
+                if (nextMap[slug]) {
+                  // Update slots with real-time seat remaining
+                  nextMap[slug] = nextMap[slug].map(schedule => 
+                    schedule.id === seat.scheduleId 
+                      ? { ...schedule, slots: Math.max(0, seat.seatsRemaining || schedule.slots) }
+                      : schedule
+                  );
+                }
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('Could not fetch live seat availability:', e);
+          // Continue with default slots if availability fetch fails
         }
+        
         if (!cancelled) {
           setSchedulesByWorkshopId(nextMap);
         }
       } catch (e) {
-        // Silent fail: listing still works without schedule-based ordering
-        console.error('Failed to load workshop schedules:', e);
+        console.error('Error loading schedules:', e);
       }
     };
-    fetchSchedules();
+    
+    loadSchedulesWithSeats();
+    
     return () => {
       cancelled = true;
     };
@@ -219,178 +272,266 @@ function WorkshopsPageInner() {
               </p>
             </div>
 
-            {/* Filters Section - Horizontal Row */}
+            {/* Filters Section - All in One Row */}
             <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8 mb-8 sm:mb-12">
               <div className="mb-4 sm:mb-6">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-700">Filter Workshops</h3>
                 <p className="text-xs sm:text-sm text-gray-500">Find the perfect workshop for your journey</p>
               </div>
 
-              {/* Category Filter First */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4 sm:mb-6">
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="px-4 py-3 font-semibold text-gray-800 bg-gray-50">Category</div>
-                  <div className="p-4 bg-white">
-                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Select Category</label>
-                    <select
-                      value={selectedCategory || ''}
-                      onChange={(e) => {
-                        setSelectedCategory(e.target.value || null);
-                        setCurrentPage(1);
-                      }}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300 touch-target text-sm"
-                    >
-                      <option value="">All Categories</option>
-                      {categoryOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Accordion: Workshop */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+              {/* All Filters in One Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Category Filter */}
+                <div className="border border-gray-200 rounded-lg overflow-visible relative">
                   <button
                     type="button"
-                    onClick={() => setAccordionOpen((p) => ({ ...p, workshop: !p.workshop }))}
+                    onClick={() => {
+                      setAccordionOpen((p) => {
+                        // When opening category, close all other filters
+                        if (!p.category) {
+                          return { category: true, workshop: false, mode: false, language: false, currency: false };
+                        }
+                        return { ...p, category: !p.category };
+                      });
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-3 font-semibold text-gray-800 bg-gray-50 hover:bg-gray-100"
+                  >
+                    <span>Category</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${accordionOpen.category ? 'rotate-180' : ''}`} />
+                  </button>
+                  {accordionOpen.category && (
+                    <div className="absolute top-full left-0 right-0 p-4 bg-white rounded-b-lg max-h-60 overflow-y-auto shadow-lg z-50">
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCategory(null);
+                            setCurrentPage(1);
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-semibold border transition-all text-left ${
+                            !selectedCategory
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                          }`}
+                        >
+                          All Categories
+                        </button>
+                        {categoryOptions.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCategory(c);
+                              setCurrentPage(1);
+                              // Auto-open Workshop filter when category is selected
+                              setAccordionOpen({ category: false, workshop: true, mode: false, language: false, currency: false });
+                            }}
+                            className={`w-full px-3 py-2 rounded-lg text-sm font-semibold border transition-all text-left ${
+                              selectedCategory === c
+                                ? 'bg-green-600 text-white border-green-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                            }`}
+                          >
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Accordion: Workshop */}
+                <div className="border border-gray-200 rounded-lg overflow-visible relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccordionOpen((p) => {
+                        // When opening workshop, close all other filters
+                        if (!p.workshop) {
+                          return { workshop: true, category: false, mode: false, language: false, currency: false };
+                        }
+                        return { ...p, workshop: !p.workshop };
+                      });
+                    }}
                     className="w-full flex items-center justify-between px-4 py-3 font-semibold text-gray-800 bg-gray-50 hover:bg-gray-100"
                   >
                     <span>Workshops</span>
                     <ChevronDown className={`w-4 h-4 transition-transform ${accordionOpen.workshop ? 'rotate-180' : ''}`} />
                   </button>
                   {accordionOpen.workshop && (
-                    <div className="p-4 bg-white">
-                      <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-2">Select Workshop</label>
-                      <select
-                        value={selectedWorkshop || ''}
-                        onChange={(e) => {
-                          setSelectedWorkshop(e.target.value || null);
-                          setCurrentPage(1);
-                        }}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 cursor-pointer hover:border-primary-400 focus:outline-none focus:border-primary-600 transition-all duration-300 touch-target text-sm"
-                      >
-                        <option value="">All Workshops</option>
-                        {workshopFilterOptions.map((option) => (
-                          <option key={option.slug} value={option.slug}>
+                    <div className="absolute top-full left-0 right-0 p-4 bg-white rounded-b-lg max-h-60 overflow-y-auto shadow-lg z-50">
+                      <div className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedWorkshop(null);
+                            setCurrentPage(1);
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-semibold border transition-all text-left ${
+                            !selectedWorkshop
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                          }`}
+                        >
+                          All Workshops
+                        </button>
+                        {workshopFilterOptions
+                          .filter(option => !selectedCategory || workshopCatalog.find(w => w.slug === option.slug && w.category === selectedCategory))
+                          .map((option) => (
+                          <button
+                            key={option.slug}
+                            type="button"
+                            onClick={() => {
+                              setSelectedWorkshop(option.slug);
+                              setCurrentPage(1);
+                              // Auto-open Mode filter when workshop is selected
+                              setAccordionOpen({ category: false, workshop: false, mode: true, language: false, currency: false });
+                            }}
+                            className={`w-full px-3 py-2 rounded-lg text-sm font-semibold border transition-all text-left truncate ${
+                              selectedWorkshop === option.slug
+                                ? 'bg-green-600 text-white border-green-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                            }`}
+                            title={option.name}
+                          >
                             {option.name}
-                          </option>
+                          </button>
                         ))}
-                      </select>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Accordion: Mode */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="border border-gray-200 rounded-lg overflow-visible relative">
                   <button
                     type="button"
-                    onClick={() => setAccordionOpen((p) => ({ ...p, mode: !p.mode }))}
+                    onClick={() => {
+                      setAccordionOpen((p) => {
+                        // When opening mode, close all other filters
+                        if (!p.mode) {
+                          return { mode: true, category: false, workshop: false, language: false, currency: false };
+                        }
+                        return { ...p, mode: !p.mode };
+                      });
+                    }}
                     className="w-full flex items-center justify-between px-4 py-3 font-semibold text-gray-800 bg-gray-50 hover:bg-gray-100"
                   >
                     <span>Mode</span>
                     <ChevronDown className={`w-4 h-4 transition-transform ${accordionOpen.mode ? 'rotate-180' : ''}`} />
                   </button>
                   {accordionOpen.mode && (
-                    <div className="p-4 bg-white">
-                      <div className="flex flex-wrap gap-2">
-                        {['', 'Online', 'Offline', 'Residential', 'Recorded'].map((m) => (
-                          <button
-                            key={m || 'all'}
-                            type="button"
-                            onClick={() => {
-                              setSelectedMode(m || null);
-                              setCurrentPage(1);
-                            }}
-                            className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-all ${
-                              (selectedMode || '') === m
-                                ? 'bg-primary-600 text-white border-primary-600'
-                                : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
-                            }`}
-                          >
-                            {m ? m : 'All Modes'}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="absolute top-full left-0 right-0 p-4 bg-white rounded-b-lg max-h-60 overflow-y-auto shadow-lg z-50 space-y-2">
+                      {['', 'Online', 'Offline', 'Residential', 'Recorded'].map((m) => (
+                        <button
+                          key={m || 'all'}
+                          type="button"
+                          onClick={() => {
+                            setSelectedMode(m || null);
+                            setCurrentPage(1);
+                            // Auto-open Language filter when mode is selected
+                            if (m) {
+                              setAccordionOpen({ category: false, workshop: false, mode: false, language: true, currency: false });
+                            }
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-semibold border transition-all text-left ${
+                            (selectedMode || '') === m
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                          }`}
+                        >
+                          {m ? m : 'All Modes'}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
 
                 {/* Accordion: Language */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="border border-gray-200 rounded-lg overflow-visible relative">
                   <button
                     type="button"
-                    onClick={() => setAccordionOpen((p) => ({ ...p, language: !p.language }))}
+                    onClick={() => {
+                      setAccordionOpen((p) => {
+                        // When opening language, close all other filters
+                        if (!p.language) {
+                          return { language: true, category: false, workshop: false, mode: false, currency: false };
+                        }
+                        return { ...p, language: !p.language };
+                      });
+                    }}
                     className="w-full flex items-center justify-between px-4 py-3 font-semibold text-gray-800 bg-gray-50 hover:bg-gray-100"
                   >
                     <span>Language</span>
                     <ChevronDown className={`w-4 h-4 transition-transform ${accordionOpen.language ? 'rotate-180' : ''}`} />
                   </button>
                   {accordionOpen.language && (
-                    <div className="p-4 bg-white">
-                      <div className="flex flex-wrap gap-2">
-                        {['', 'Hindi', 'English', 'Marathi'].map((l) => (
-                          <button
-                            key={l || 'all'}
-                            type="button"
-                            onClick={() => {
-                              setSelectedLanguage(l || null);
-                              setCurrentPage(1);
-                            }}
-                            className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-all ${
-                              (selectedLanguage || '') === l
-                                ? 'bg-primary-600 text-white border-primary-600'
-                                : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
-                            }`}
-                          >
-                            {l ? l : 'All Languages'}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="absolute top-full left-0 right-0 p-4 bg-white rounded-b-lg max-h-60 overflow-y-auto shadow-lg z-50 space-y-2">
+                      {['', 'Hindi', 'English', 'Marathi'].map((l) => (
+                        <button
+                          key={l || 'all'}
+                          type="button"
+                          onClick={() => {
+                            setSelectedLanguage(l || null);
+                            setCurrentPage(1);
+                            // Auto-open Currency filter when language is selected
+                            if (l) {
+                              setAccordionOpen({ category: false, workshop: false, mode: false, language: false, currency: true });
+                            }
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-semibold border transition-all text-left ${
+                            (selectedLanguage || '') === l
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                          }`}
+                        >
+                          {l ? l : 'All Languages'}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
 
                 {/* Accordion: Currency */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="border border-gray-200 rounded-lg overflow-visible relative">
                   <button
                     type="button"
-                    onClick={() => setAccordionOpen((p) => ({ ...p, currency: !p.currency }))}
+                    onClick={() => {
+                      setAccordionOpen((p) => {
+                        // When opening currency, close all other filters
+                        if (!p.currency) {
+                          return { currency: true, category: false, workshop: false, mode: false, language: false };
+                        }
+                        return { ...p, currency: !p.currency };
+                      });
+                    }}
                     className="w-full flex items-center justify-between px-4 py-3 font-semibold text-gray-800 bg-gray-50 hover:bg-gray-100"
                   >
                     <span>Currency</span>
                     <ChevronDown className={`w-4 h-4 transition-transform ${accordionOpen.currency ? 'rotate-180' : ''}`} />
                   </button>
                   {accordionOpen.currency && (
-                    <div className="p-4 bg-white">
-                      <div className="flex flex-wrap gap-2">
-                        {['', 'INR', 'USD', 'NPR'].map((c) => (
-                          <button
-                            key={c || 'all'}
-                            type="button"
-                            onClick={() => {
-                              setSelectedPayment(c || null);
-                              setCurrentPage(1);
-                            }}
-                            className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-all ${
-                              (selectedPayment || '') === c
-                                ? 'bg-primary-600 text-white border-primary-600'
-                                : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
-                            }`}
-                          >
-                            {c ? c : 'All Currencies'}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="absolute top-full left-0 right-0 p-4 bg-white rounded-b-lg max-h-60 overflow-y-auto shadow-lg z-50 space-y-2">
+                      {['', 'INR', 'USD', 'NPR'].map((c) => (
+                        <button
+                          key={c || 'all'}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPayment(c || null);
+                            setCurrentPage(1);
+                          }}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-semibold border transition-all text-left ${
+                            (selectedPayment || '') === c
+                              ? 'bg-green-600 text-white border-green-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'
+                          }`}
+                        >
+                          {c ? c : 'All Currencies'}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Clear Filters Button */}
               <div className="mt-3 sm:mt-6 flex flex-wrap gap-2">
                   {(selectedCategory || selectedMode || selectedLanguage || selectedPayment || selectedWorkshop) ? (
                     <button
@@ -490,48 +631,86 @@ function WorkshopsPageInner() {
                     <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 mb-1 sm:mb-2 line-clamp-2">
                       {workshop.name}
                     </h3>
+                    <p className="text-gray-800 text-xs sm:text-sm font-bold mb-2 sm:mb-3">
+                      Duration - {workshop.duration}
+                    </p>
                     <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2">
                       {workshop.description}
                     </p>
 
                     {(() => {
-                      const startingPrice = getStartingPrice(schedulesByWorkshopId[workshop.slug]);
+                      const schedules = schedulesByWorkshopId[workshop.slug] || [];
+                      const startingPrice = getStartingPrice(schedules);
+                      const nextSchedule = schedules.length > 0 ? schedules[0] : null;
+                      const nextStartDate = nextSchedule ? formatDate(nextSchedule.startDate) : 'TBA';
+                      const totalSlots = schedules.reduce((sum, s) => sum + (s.slots || 0), 0);
+                      
+                      // Check if admission is open (registration close date > today)
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const registrationCloseDate = nextSchedule?.registrationCloseDate 
+                        ? new Date(nextSchedule.registrationCloseDate + 'T00:00:00Z')
+                        : null;
+                      const isAdmissionOpen = registrationCloseDate ? registrationCloseDate.getTime() >= today.getTime() : true;
+                      
                       return (
-                        <div className="flex items-center justify-between mb-3 sm:mb-4 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs sm:text-sm">
-                          <span className="text-gray-600 font-semibold">Starting fee</span>
-                          <span className="text-primary-700 font-bold">
-                            {startingPrice ? formatPrice(startingPrice, selectedPayment) : 'Contact us'}
-                          </span>
-                        </div>
+                        <>
+                          {/* CTA Buttons */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                            <Link
+                              href={`/workshops/${workshop.slug}`}
+                              className="w-full bg-white border-2 border-primary-600 text-primary-700 hover:bg-primary-50 active:scale-95 py-2 sm:py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-xs sm:text-sm"
+                            >
+                              Learn More
+                              <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
+                            </Link>
+                            <Link
+                              href={`/registernow?workshop=${encodeURIComponent(workshop.slug)}`}
+                              className="w-full bg-primary-600 hover:bg-primary-700 active:scale-95 text-white py-2 sm:py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 touch-target text-xs sm:text-sm"
+                            >
+                              Register Now
+                            </Link>
+                          </div>
+
+                          {/* Fee Box */}
+                          <div className="flex items-center justify-between mb-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs sm:text-sm">
+                            <span className="text-gray-600 font-semibold">Fee</span>
+                            <span className="text-primary-700 font-bold">
+                              {startingPrice ? formatPrice(startingPrice, selectedPayment) : 'Contact us'}
+                            </span>
+                          </div>
+
+                          {/* Date & Admission Row */}
+                          <div className="grid grid-cols-2 gap-2 mb-2">
+                            <div className="px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs">
+                              <span className="text-gray-600 font-semibold">Start</span>
+                              <div className="text-blue-700 font-bold text-xs">{nextStartDate}</div>
+                            </div>
+                            <div className={`px-3 py-2 rounded-lg border text-xs ${isAdmissionOpen ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                              <span className={`font-semibold ${isAdmissionOpen ? 'text-gray-600' : 'text-red-600'}`}>
+                                Admission
+                              </span>
+                              <div className={`font-bold text-xs ${isAdmissionOpen ? 'text-green-700' : 'text-red-700'}`}>
+                                {isAdmissionOpen ? 'Open' : 'Closed'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Slots Info - Light Red Box */}
+                          <div className="bg-red-200 text-red-800 px-3 py-2 rounded-lg mb-2 text-center">
+                            <span className="font-semibold text-xs sm:text-sm">
+                              Slots: {totalSlots} Available
+                            </span>
+                          </div>
+
+
+                        </>
                       );
                     })()}
-
-                    <div className="flex items-center justify-between mb-4 sm:mb-6 py-2 sm:py-3 border-t border-gray-200 text-xs sm:text-sm">
-                      <span className="text-gray-500 font-medium">
-                        📚 {workshop.duration}
-                      </span>
-                    </div>
 
                     {/* Filter Badges Removed - Only shown in batch details */}
 
                     {/* Batches Section Removed - Only shown on detail page */}
-
-                    {/* CTA Buttons */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-auto">
-                      <Link
-                        href={`/workshops/${workshop.slug}`}
-                        className="w-full bg-white border-2 border-primary-600 text-primary-700 hover:bg-primary-50 active:scale-95 py-2.5 sm:py-3 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-sm sm:text-base"
-                      >
-                        Learn More
-                        <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
-                      </Link>
-                      <Link
-                        href={`/registernow?workshop=${encodeURIComponent(workshop.slug)}`}
-                        className="w-full bg-primary-600 hover:bg-primary-700 active:scale-95 text-white py-2.5 sm:py-3 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 touch-target text-sm sm:text-base"
-                      >
-                        Register Now
-                      </Link>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -548,8 +727,21 @@ function WorkshopsPageInner() {
                   ← Previous
                 </button>
 
-                <div className="text-sm sm:text-base font-semibold text-gray-700 px-4 py-2 rounded-lg bg-gray-50 border border-gray-200">
-                  Page {currentPage} of {totalPages}
+                {/* Dot Indicators */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full transition-all duration-300 ${
+                        currentPage === page
+                          ? 'bg-primary-600 scale-125'
+                          : 'bg-gray-300 hover:bg-gray-400'
+                      }`}
+                      title={`Go to page ${page}`}
+                      aria-label={`Page ${page}`}
+                    />
+                  ))}
                 </div>
 
                 <button
