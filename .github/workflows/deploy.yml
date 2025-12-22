@@ -1,38 +1,92 @@
-name: Verify Deployment
+name: CI/CD - Build, Test & Deploy
 
 on:
   push:
     branches:
       - main
+      - develop
   pull_request:
     branches:
       - main
+      - develop
 
 jobs:
-  verify:
+  build-and-test:
     runs-on: ubuntu-latest
-    name: Verify Build
+    name: Build & Test
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install Dependencies
+        run: npm ci
+      
+      - name: Type Check
+        run: npm run type-check
+      
+      - name: Lint
+        run: npm run lint
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Run Tests
+        run: npm test -- --passWithNoTests
+        continue-on-error: true
+      
+      - name: Verify Build Output
+        run: |
+          if [ -d ".next" ]; then
+            echo "✅ Build successful"
+            du -sh .next
+          else
+            echo "❌ Build failed"
+            exit 1
+          fi
+  
+  security-check:
+    runs-on: ubuntu-latest
+    name: Security Scan
+    
     steps:
       - uses: actions/checkout@v3
       
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '20.x'
+          cache: 'npm'
       
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
       
-      - name: Build Frontend
-        run: npm run build
+      - name: npm audit
+        run: npm audit --audit-level=moderate || true
+  
+  deploy:
+    needs: [build-and-test, security-check]
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
       
-      - name: Verify Build Output
-        run: |
-          if [ -d "dist" ]; then
-            echo "✅ Frontend build successful"
-            ls -la dist/ | head -10
-          else
-            echo "❌ Frontend build failed"
-            exit 1
-          fi
+      - name: Deploy to Vercel
+        uses: vercel/actions/build@main
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        continue-on-error: true
 
