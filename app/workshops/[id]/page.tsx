@@ -509,19 +509,16 @@ export default function WorkshopDetail() {
               </div>
             </section>
 
-            {/* About Workshop Section - 8 lines description */}
+            {/* About Workshop Section - 5 lines description */}
             <section className="mb-12 sm:mb-16" aria-label="About workshop">
               <div className="bg-gradient-to-r from-primary-50 to-white rounded-xl border border-gray-100 shadow-sm p-6 sm:p-8">
                 <h2 className="text-2xl sm:text-3xl font-bold text-swar-text mb-6">About This Workshop</h2>
                 <div className="space-y-3 text-sm sm:text-base text-swar-text leading-relaxed">
-                  <p>This comprehensive {workshop.name} program is designed to provide deep insights into the ancient science of Swar Yoga and conscious breathing techniques.</p>
-                  <p>Participants will learn practical methods to align their inner vibrations with universal rhythms, leading to enhanced physical health, mental clarity, and spiritual growth.</p>
-                  <p>The workshop focuses on building foundational knowledge through structured practices that can be integrated into daily life for lasting transformation.</p>
-                  <p>Expert guidance from Yogacharya Mohan Kalburgi ensures that each participant receives authentic teaching rooted in traditional yoga wisdom.</p>
-                  <p>Through interactive sessions and hands-on practice, you will discover the power of breath awareness and its profound impact on your nervous system.</p>
-                  <p>The program includes personalized techniques tailored to different experience levels, from beginners to advanced practitioners.</p>
-                  <p>Participants will gain access to recordings, notes, and follow-up sessions for continued learning and practice after the workshop concludes.</p>
-                  <p>Join a community of dedicated practitioners committed to self-discovery and holistic wellness through the transformative science of Swar Yoga.</p>
+                  <p>This comprehensive {workshop.name} program is designed to provide deep insights into the ancient science of Swar Yoga and conscious breathing techniques that align your inner vibrations with universal rhythms for enhanced physical health, mental clarity, and spiritual growth.</p>
+                  <p>The workshop focuses on building foundational knowledge through structured, practical methods that can be seamlessly integrated into your daily life, whether you are a beginner or an advanced practitioner seeking deeper transformation and self-discovery.</p>
+                  <p>Expert guidance from Yogacharya Mohan Kalburgi ensures authentic teaching rooted in traditional yoga wisdom, combined with interactive sessions and hands-on practice that reveal the profound impact of breath awareness on your nervous system and overall well-being.</p>
+                  <p>Participants benefit from personalized techniques tailored to different experience levels, gaining access to valuable resources including recordings, detailed notes, and follow-up sessions for continued learning and practice beyond the workshop.</p>
+                  <p>Join a vibrant community of dedicated practitioners committed to self-discovery and holistic wellness through the transformative science of Swar Yoga, creating lasting connections and supporting each other on the path to inner harmony and vitality.</p>
                 </div>
               </div>
             </section>
