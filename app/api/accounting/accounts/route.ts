@@ -37,7 +37,7 @@ export async function GET(_request: NextRequest) {
     }
 
     await connectDB();
-    const accounts = await Account.find(owner).sort({ createdAt: -1 });
+    const accounts = await Account.find(owner).sort({ createdAt: -1 }).lean();
 
     return NextResponse.json({
       success: true,

@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const transactions = await Transaction.find(owner).sort({ createdAt: -1 }).limit(100);
+    const transactions = await Transaction.find(owner).sort({ createdAt: -1 }).limit(100).lean();
 
     return NextResponse.json({
       success: true,

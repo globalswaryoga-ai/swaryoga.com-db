@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const plan = await BudgetPlan.findOne({ ...owner, year });
+    const plan = await BudgetPlan.findOne({ ...owner, year }).lean();
 
     return NextResponse.json({
       success: true,
