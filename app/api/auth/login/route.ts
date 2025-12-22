@@ -10,6 +10,7 @@ import { connectDB, User, Signin } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
 import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
+import { createRequestContext, logRequest, logResponse, logApiError, Timer } from '@/lib/logging';
 import bcrypt from 'bcryptjs';
 
 // Rate limiting: 10 login attempts per minute per IP
@@ -19,13 +20,19 @@ const LOGIN_RATE_LIMIT = {
 };
 
 export async function POST(request: NextRequest) {
+  const timer = new Timer();
+  const requestContext = createRequestContext(request);
+  
   try {
+    logRequest(requestContext, 'Login attempt');
+
     // Apply rate limiting
     const clientId = getClientId(request.headers);
     const rateLimitCheck = checkRateLimit(clientId, LOGIN_RATE_LIMIT);
     
     if (!rateLimitCheck.allowed) {
       const retryAfter = Math.ceil((rateLimitCheck.resetTime - Date.now()) / 1000);
+      logApiError(requestContext, 'Rate limit exceeded', 429, { retryAfter });
       return NextResponse.json(
         {
           success: false,
@@ -44,6 +51,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validation = validateRequired(body, ['email', 'password']);
     if (!validation.valid) {
+      logApiError(requestContext, 'Validation failed', 400, { missing: validation.missing });
       return apiError('VALIDATION_ERROR', `Missing required fields: ${validation.missing?.join(', ')}`);
     }
 
@@ -53,6 +61,7 @@ export async function POST(request: NextRequest) {
     try {
       await connectDB();
     } catch (dbError) {
+      logApiError(requestContext, 'Database connection failed', 503);
       logError('login/connectDB', dbError);
       return apiError('DATABASE_ERROR', 'Database connection failed. Please try again later.');
     }
@@ -62,11 +71,13 @@ export async function POST(request: NextRequest) {
     try {
       user = await User.findOne({ email }).lean();
     } catch (findError) {
+      logApiError(requestContext, 'Failed to find user', 503, { email });
       logError('login/findUser', findError, { email });
       return apiError('SERVICE_UNAVAILABLE', 'Authentication service error');
     }
 
     if (!user) {
+      logApiError(requestContext, 'User not found', 401, { email });
       return apiError('AUTHENTICATION_FAILED', 'Invalid email or password');
     }
 
@@ -75,11 +86,13 @@ export async function POST(request: NextRequest) {
     try {
       passwordMatch = await bcrypt.compare(password, user.password);
     } catch (bcryptError) {
+      logApiError(requestContext, 'Password comparison failed', 503);
       logError('login/bcryptCompare', bcryptError);
       return apiError('SERVICE_UNAVAILABLE', 'Authentication service error');
     }
 
     if (!passwordMatch) {
+      logApiError(requestContext, 'Password mismatch', 401, { email });
       return apiError('AUTHENTICATION_FAILED', 'Invalid email or password');
     }
 
@@ -91,6 +104,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
       });
     } catch (tokenError) {
+      logApiError(requestContext, 'Token generation failed', 500);
       logError('login/generateToken', tokenError);
       return apiError('SERVICE_UNAVAILABLE', 'Token generation failed');
     }
@@ -108,6 +122,9 @@ export async function POST(request: NextRequest) {
       logError('login/signinLog', signinError);
       // Don't fail the login if signin logging fails
     }
+
+    logRequest(requestContext, 'Login successful', { email, userId: user._id.toString() });
+    logResponse(requestContext, 200, timer.elapsed(), 'Login completed');
 
     return apiSuccess({
       message: 'Login successful',
@@ -127,6 +144,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    logApiError(requestContext, error instanceof Error ? error : String(error), 500);
     logError('login/POST', error);
     return apiError('SERVER_ERROR');
   }
