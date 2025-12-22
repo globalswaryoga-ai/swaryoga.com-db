@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       workshopSlug,
       workshopName: String(body.workshopName || body.workshop_name || ''),
       mode,
+      language: String(body.language || 'Hindi'),
       batch,
       startDate: toDateOrUndefined(body.startDate),
       endDate: toDateOrUndefined(body.endDate),
