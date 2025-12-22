@@ -71,6 +71,28 @@ const nextConfig = {
         destination: '/workshops/:id',
         permanent: true,
       },
+      // Registration funnel lives under /registernow and legacy /workshop/:id/registernow.
+      // Some older links (or shared URLs) may use the plural form, so redirect to avoid 404s.
+      {
+        source: '/workshops/:id/registernow',
+        destination: '/workshop/:id/registernow',
+        permanent: true,
+      },
+      {
+        source: '/workshops/:id/registernow/cart',
+        destination: '/workshop/:id/registernow/cart',
+        permanent: true,
+      },
+      {
+        source: '/workshops/:id/registernow/cart/checkout',
+        destination: '/workshop/:id/registernow/cart/checkout',
+        permanent: true,
+      },
+      {
+        source: '/workshops/:id/registernow/cart/checkout/payu',
+        destination: '/workshop/:id/registernow/cart/checkout/payu',
+        permanent: true,
+      },
     ];
   },
   eslint: {
