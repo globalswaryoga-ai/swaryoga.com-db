@@ -10,12 +10,15 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Create a valid admin token
+// Create a valid admin token - must match JWT_SECRET from .env
 const adminToken = jwt.sign(
-  { username: 'admin', isAdmin: true },
+  { username: 'admin', isAdmin: true, email: 'admin@swaryoga.com' },
   JWT_SECRET,
   { expiresIn: '1h' }
 );
+
+console.log('🔑 Admin Token Generated');
+console.log(`   JWT_SECRET: ${JWT_SECRET === 'your-secret-key' ? '(using default)' : '(from .env)'}\n`);
 
 const options = {
   hostname: 'localhost',
