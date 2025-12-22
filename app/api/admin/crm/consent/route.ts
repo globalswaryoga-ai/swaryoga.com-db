@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import {
+  verifyAdminAccess,
+  parsePagination,
+  handleCrmError,
+  formatCrmSuccess,
+  buildMetadata,
+  isValidObjectId,
+} from '@/lib/crm-handlers';
 import { UserConsent } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
@@ -14,17 +21,11 @@ import mongoose from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const url = new URL(request.url);
-    const consentStatus = url.searchParams.get('status'); // opted_in, opted_out, pending
-    const channel = url.searchParams.get('channel'); // whatsapp, sms, email
-    const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 500);
-    const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
+    const consentStatus = url.searchParams.get('status');
+    const channel = url.searchParams.get('channel');
+    const { limit, skip } = parsePagination(request);
 
     await connectDB();
 
@@ -37,83 +38,46 @@ export async function GET(request: NextRequest) {
       .skip(skip)
       .limit(limit)
       .lean();
-
     const total = await UserConsent.countDocuments(filter);
 
-    // Calculate stats
     const stats = await UserConsent.aggregate([
       { $match: filter },
-      {
-        $group: {
-          _id: { status: '$status', channel: '$channel' },
-          count: { $sum: 1 },
-        },
-      },
+      { $group: { _id: { status: '$status', channel: '$channel' }, count: { $sum: 1 } } },
     ]);
 
-    return NextResponse.json(
-      { success: true, data: { consents, total, limit, skip, stats } },
-      { status: 200 }
-    );
+    const meta = buildMetadata(skip, limit, total);
+    return formatCrmSuccess({ consents, stats }, meta);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch consent records';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'GET consent');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) throw new Error('Invalid JSON body');
 
     const { phoneNumber, channel, status, consentMethod, leadId } = body;
-
-    if (!phoneNumber || !channel) {
-      return NextResponse.json({ error: 'Missing: phoneNumber, channel' }, { status: 400 });
-    }
-
-    if (!['whatsapp', 'sms', 'email'].includes(channel)) {
-      return NextResponse.json({ error: 'Invalid channel: must be whatsapp, sms, or email' }, { status: 400 });
-    }
-
-    if (status && !['opted_in', 'opted_out', 'pending'].includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status: must be opted_in, opted_out, or pending' },
-        { status: 400 }
-      );
-    }
+    if (!phoneNumber || !channel) throw new Error('Missing: phoneNumber, channel');
+    if (!['whatsapp', 'sms', 'email'].includes(channel)) throw new Error('Invalid channel');
 
     await connectDB();
 
-    // Check if consent already exists
     const existing = await UserConsent.findOne({ phoneNumber, channel });
-
     if (existing) {
-      if (leadId) existing.leadId = leadId;
       existing.status = status || existing.status;
-      existing.consentStatus = (status || existing.status) === 'opted_in'
-        ? 'opted-in'
-        : (status || existing.status) === 'opted_out'
-          ? 'opted-out'
-          : 'pending';
+      existing.consentStatus = status === 'opted_in' ? 'opted-in' : status === 'opted_out' ? 'opted-out' : 'pending';
       if (status === 'opted_in') {
         existing.consentDate = new Date();
         existing.consentMethod = consentMethod || existing.consentMethod;
       } else if (status === 'opted_out') {
         existing.optOutDate = new Date();
-        existing.optOutKeyword = body.optOutKeyword || existing.optOutKeyword || 'STOP';
+        existing.optOutKeyword = body.optOutKeyword || 'STOP';
       }
       existing.updatedAt = new Date();
       await existing.save();
-      return NextResponse.json({ success: true, data: existing }, { status: 200 });
+      return formatCrmSuccess({ consent: existing }, {});
     }
 
     const consent = await UserConsent.create({
@@ -130,35 +94,21 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     });
 
-    return NextResponse.json({ success: true, data: consent }, { status: 201 });
+    return formatCrmSuccess({ consent }, {});
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create consent record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'POST consent');
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) throw new Error('Invalid JSON body');
 
     const { consentId, action, status } = body;
-
-    if (!consentId) {
-      return NextResponse.json({ error: 'Missing: consentId' }, { status: 400 });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(String(consentId))) {
-      return NextResponse.json({ error: 'Invalid consentId' }, { status: 400 });
-    }
+    if (!consentId) throw new Error('Missing: consentId');
+    if (!isValidObjectId(consentId)) throw new Error('Invalid consentId');
 
     await connectDB();
 
@@ -177,10 +127,8 @@ export async function PUT(request: NextRequest) {
         },
         { new: true }
       );
-      if (!consent) {
-        return NextResponse.json({ error: 'Consent record not found' }, { status: 404 });
-      }
-      return NextResponse.json({ success: true, data: consent }, { status: 200 });
+      if (!consent) throw new Error('Consent record not found');
+      return formatCrmSuccess({ consent }, {});
     } else if (action === 'opt-out') {
       const consent = await UserConsent.findByIdAndUpdate(
         consentId,
@@ -195,70 +143,36 @@ export async function PUT(request: NextRequest) {
         },
         { new: true }
       );
-      if (!consent) {
-        return NextResponse.json({ error: 'Consent record not found' }, { status: 404 });
-      }
-      return NextResponse.json({ success: true, data: consent }, { status: 200 });
+      if (!consent) throw new Error('Consent record not found');
+      return formatCrmSuccess({ consent }, {});
     } else {
-      // Generic update
       const updateData: any = { updatedAt: new Date() };
       if (status) {
-        if (!['opted_in', 'opted_out', 'pending'].includes(status)) {
-          return NextResponse.json(
-            { error: 'Invalid status: must be opted_in, opted_out, or pending' },
-            { status: 400 }
-          );
-        }
         updateData.status = status;
         updateData.consentStatus = status === 'opted_in' ? 'opted-in' : status === 'opted_out' ? 'opted-out' : 'pending';
       }
-
-      const consent = await UserConsent.findByIdAndUpdate(
-        consentId,
-        { $set: updateData },
-        { new: true }
-      );
-      if (!consent) {
-        return NextResponse.json({ error: 'Consent record not found' }, { status: 404 });
-      }
-      return NextResponse.json({ success: true, data: consent }, { status: 200 });
+      const consent = await UserConsent.findByIdAndUpdate(consentId, { $set: updateData }, { new: true });
+      if (!consent) throw new Error('Consent record not found');
+      return formatCrmSuccess({ consent }, {});
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update consent record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'PUT consent');
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const url = new URL(request.url);
     const consentId = url.searchParams.get('consentId');
-
-    if (!consentId) {
-      return NextResponse.json({ error: 'consentId parameter required' }, { status: 400 });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(consentId)) {
-      return NextResponse.json({ error: 'Invalid consentId' }, { status: 400 });
-    }
+    if (!consentId) throw new Error('consentId parameter required');
+    if (!isValidObjectId(consentId)) throw new Error('Invalid consentId');
 
     await connectDB();
-
     const result = await UserConsent.findByIdAndDelete(consentId);
-
-    if (!result) {
-      return NextResponse.json({ error: 'Consent record not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, data: { deleted: true } }, { status: 200 });
+    if (!result) throw new Error('Consent record not found');
+    return formatCrmSuccess({ deleted: true }, {});
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete consent record';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'DELETE consent');
   }
 }
