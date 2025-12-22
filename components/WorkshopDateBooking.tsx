@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Calendar, ChevronDown, AlertCircle, ArrowRight } from 'lucide-react';
 
 interface WorkshopDate {
@@ -37,34 +37,52 @@ export default function WorkshopDateBooking({
     message: '',
   });
 
-  // Generate next 6 months of dates if no dates provided
-  const sixMonthDates = useMemo(() => {
+  // Fetch dates from registernow API
+  const [fetchedDates, setFetchedDates] = useState<WorkshopDate[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch(`/api/workshops/schedules?workshopSlug=${encodeURIComponent(workshopSlug)}`, { 
+          cache: 'no-store' 
+        });
+        const json = await res.json().catch(() => null);
+        
+        if (!cancelled && res.ok && json?.data) {
+          const schedules = Array.isArray(json.data) ? json.data : [];
+          const convertedDates: WorkshopDate[] = schedules.map((s: any, idx: number) => ({
+            id: s.id || s._id || `schedule-${idx}`,
+            date: s.startDate ? new Date(s.startDate) : new Date(),
+            mode: s.mode || 'online',
+            language: s.language || 'English',
+            availableSeats: Number(s.seatsTotal) || 20,
+            price: Number(s.price) || 5000,
+            currency: s.currency || 'INR',
+            instructors: s.instructors || ['Guru Ji', 'Yoga Master'],
+          }));
+          if (!cancelled) setFetchedDates(convertedDates);
+        }
+      } catch (e) {
+        console.error('Failed to fetch workshop dates:', e);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [workshopSlug]);
+
+  // Use fetched dates, fallback to provided dates
+  const workshopDates = useMemo(() => {
+    if (fetchedDates.length > 0) return fetchedDates;
     if (availableDates.length > 0) return availableDates;
-
-    const dates: WorkshopDate[] = [];
-    const today = new Date();
-    const sixMonthsLater = new Date(today.getTime() + 180 * 24 * 60 * 60 * 1000);
-
-    // Generate sample dates (first day of each month for next 6 months)
-    for (let i = 0; i < 6; i++) {
-      const date = new Date(today);
-      date.setMonth(date.getMonth() + i);
-      date.setDate(1);
-
-      dates.push({
-        id: `date-${i}`,
-        date,
-        mode: i % 2 === 0 ? 'online' : 'hybrid',
-        language: i % 3 === 0 ? 'hindi' : i % 3 === 1 ? 'english' : 'gujarati',
-        availableSeats: 20 - i * 2,
-        price: 5000,
-        currency: 'INR',
-        instructors: ['Guru Ji', 'Yoga Master'],
-      });
-    }
-
-    return dates;
-  }, [availableDates]);
+    return [];
+  }, [fetchedDates, availableDates]);
 
   const handlePayNow = (date: WorkshopDate) => {
     setSelectedDate(date);
@@ -125,7 +143,12 @@ export default function WorkshopDateBooking({
       </div>
 
       {/* Show Dates if Available */}
-      {sixMonthDates.length > 0 ? (
+      {isLoading ? (
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-6">
+          <h3 className="font-semibold text-blue-900 mb-2">⏳ Loading workshop dates...</h3>
+          <p className="text-sm text-blue-800">Fetching available dates from the registration system</p>
+        </div>
+      ) : workshopDates.length > 0 ? (
         <>
           <div className="mb-6">
             <button
@@ -148,7 +171,7 @@ export default function WorkshopDateBooking({
               showDatePicker ? 'block' : 'hidden'
             }`}
           >
-            {sixMonthDates.map((dateOption) => (
+            {workshopDates.map((dateOption) => (
               <div
                 key={dateOption.id}
                 onClick={() => {
