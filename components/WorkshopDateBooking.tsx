@@ -61,7 +61,7 @@ export default function WorkshopDateBooking({
             availableSeats: Number(s.seatsTotal) || 20,
             price: Number(s.price) || 5000,
             currency: s.currency || 'INR',
-            instructors: s.instructors || ['Guru Ji', 'Yoga Master'],
+            instructors: s.instructors || ['Mohan Kalburgi (Yogacharya)'],
           }));
           if (!cancelled) setFetchedDates(convertedDates);
         }
