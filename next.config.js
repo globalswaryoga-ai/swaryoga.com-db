@@ -62,9 +62,6 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
-  experimental: {
-    optimizeCss: true,
-  },
   async redirects() {
     return [
       {
