@@ -70,6 +70,20 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
   const [report, setReport] = useState<BudgetReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [reportError, setReportError] = useState<string>('');
+  
+  // Dropdown state for allocation section
+  const [showAllocations, setShowAllocations] = useState(false);
+  
+  // Expense budget state
+  const [expenseBudgets, setExpenseBudgets] = useState<Array<{
+    id: string;
+    month: string;
+    particular: string;
+    accountHead: string;
+    type: 'income' | 'expense';
+    amount: number;
+    reality: number;
+  }>>([]);
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
@@ -191,6 +205,42 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseMode, range.startDate, range.endDate, year]);
 
+  // Calculate dashboard statistics
+  const dashboardStats = useMemo(() => {
+    if (!plan || !report) {
+      return {
+        totalIncome: 0,
+        totalExpenses: 0,
+        netProfit: 0,
+        budgetUtilization: 0
+      };
+    }
+
+    // Total income from allocations
+    const totalIncome = plan.incomeTargetYearly;
+
+    // Total expenses from allocations
+    const expenseAllocations = plan.allocations.filter(a => a.kind === 'expense');
+    const totalExpensePercent = sumPercent(expenseAllocations);
+    const totalExpenses = (totalExpensePercent / 100) * totalIncome;
+
+    // Profit allocations
+    const profitAllocations = plan.allocations.filter(a => a.kind === 'profit');
+    const totalProfitPercent = sumPercent(profitAllocations);
+    const totalProfit = (totalProfitPercent / 100) * totalIncome;
+
+    // Budget utilization from actual report
+    const actualTotalOutflow = report?.totals?.outflow || 0;
+    const budgetUtilization = totalExpenses > 0 ? (actualTotalOutflow / totalExpenses) * 100 : 0;
+
+    return {
+      totalIncome,
+      totalExpenses,
+      netProfit: totalProfit,
+      budgetUtilization: Math.round(budgetUtilization)
+    };
+  }, [plan, report]);
+
   if (!mounted) return null;
 
   return (
@@ -201,6 +251,57 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
           <p className="text-swar-text-secondary">Set targets, allocate 100%, and compare budget vs reality</p>
         </div>
       ) : null}
+
+      {/* Dashboard - 4 Summary Blocks */}
+      {plan && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* Total Income Block */}
+          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-md p-6 border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-700 mb-2">Total Income Target</p>
+                <p className="text-3xl font-bold text-green-900">{plan.currency} {dashboardStats.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+                <p className="text-xs text-green-700 mt-1">Yearly target</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Expenses Block */}
+          <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg shadow-md p-6 border border-red-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-red-700 mb-2">Total Expenses Budget</p>
+                <p className="text-3xl font-bold text-red-900">{plan.currency} {dashboardStats.totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+                <p className="text-xs text-red-700 mt-1">Annual allocation</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Net Profit/Savings Block */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-md p-6 border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-700 mb-2">Net Profit/Savings</p>
+                <p className="text-3xl font-bold text-blue-900">{plan.currency} {dashboardStats.netProfit.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+                <p className="text-xs text-blue-700 mt-1">Target profit allocation</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Budget Utilization Block */}
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-md p-6 border border-purple-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-purple-700 mb-2">Budget Utilization</p>
+                <p className={`text-3xl font-bold ${dashboardStats.budgetUtilization > 90 ? 'text-red-900' : dashboardStats.budgetUtilization > 75 ? 'text-orange-900' : 'text-purple-900'}`}>
+                  {dashboardStats.budgetUtilization}%
+                </p>
+                <p className="text-xs text-purple-700 mt-1">Current period</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex flex-wrap gap-2 items-center">
@@ -286,11 +387,31 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
       {/* Allocation */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-lg font-semibold text-swar-text">Expense + Profit Allocation (100%)</h2>
-          <div className="text-sm text-swar-text-secondary">Tip: use the same category names while adding transactions.</div>
+          <button
+            onClick={() => setShowAllocations(!showAllocations)}
+            className="flex items-center gap-2 text-lg font-semibold text-swar-text hover:text-swar-primary transition-colors"
+          >
+            <span>{showAllocations ? '▼' : '▶'}</span>
+            Expense + Profit Allocation (100%)
+          </button>
+          {showAllocations && (
+            <button
+              onClick={() => {
+                if (!plan) return;
+                const newId = `alloc-${Date.now()}`;
+                const next = [...plan.allocations, { key: newId, label: 'New Category', percent: 0, kind: 'expense' as const }];
+                setPlan({ ...plan, allocations: next });
+              }}
+              className="px-4 py-2 bg-swar-primary hover:bg-swar-primary-hover text-white rounded-lg text-sm font-semibold"
+            >
+              + Add Allocation
+            </button>
+          )}
         </div>
 
-        {!plan ? null : (
+        {showAllocations && !plan ? (
+          <div className="text-swar-text-secondary mt-3">Loading…</div>
+        ) : showAllocations && plan ? (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full">
               <thead className="bg-swar-bg">
@@ -299,6 +420,7 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                   <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Key</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Type</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Percent</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -352,6 +474,17 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                         className="w-28 p-2 border border-swar-border rounded-lg text-right"
                       />
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => {
+                          const next = plan.allocations.filter((_, i) => i !== idx);
+                          setPlan({ ...plan, allocations: next });
+                        }}
+                        className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-xs font-semibold"
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -365,22 +498,176 @@ export default function MyBudgetPanel({ hideTitle = false }: { hideTitle?: boole
                   >
                     {allocationTotal.toFixed(2)}%
                   </td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>
           </div>
-        )}
+        ) : null}
 
-        {!plan ? null : (
+        {showAllocations && !plan ? null : (
           <div className="mt-4">
             <label className="block text-sm font-medium text-swar-text mb-1">Notes</label>
             <textarea
-              value={plan.notes || ''}
-              onChange={(e) => setPlan({ ...plan, notes: e.target.value })}
+              value={plan?.notes || ''}
+              onChange={(e) => plan && setPlan({ ...plan, notes: e.target.value })}
               className="w-full p-3 border border-swar-border rounded-lg"
               rows={3}
               placeholder="Write your rules (example: Profit target %, savings rules, etc.)"
             />
+          </div>
+        )}
+      </div>
+
+      {/* Expense Budget */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <h2 className="text-lg font-semibold text-swar-text">Monthly Expense Budget</h2>
+          <button
+            onClick={() => {
+              const newId = `exp-${Date.now()}`;
+              const currentMonth = new Date().toISOString().split('T')[0].slice(0, 7);
+              setExpenseBudgets([
+                ...expenseBudgets,
+                {
+                  id: newId,
+                  month: currentMonth,
+                  particular: '',
+                  accountHead: '',
+                  type: 'expense' as const,
+                  amount: 0,
+                  reality: 0,
+                },
+              ]);
+            }}
+            className="px-4 py-2 bg-swar-primary hover:bg-swar-primary-hover text-white rounded-lg text-sm font-semibold"
+          >
+            + Add Entry
+          </button>
+        </div>
+
+        {expenseBudgets.length === 0 ? (
+          <div className="text-swar-text-secondary text-center py-6">
+            No expense budget entries yet. Click "Add Entry" to create one.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-swar-bg">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Sr. No</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Month</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Particular</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Account Head</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-swar-text-secondary uppercase">Type</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Amount</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-swar-text-secondary uppercase">Reality</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Variance</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-swar-text-secondary uppercase">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {expenseBudgets.map((entry, idx) => {
+                  const variance = entry.reality - entry.amount;
+                  const varianceColor = variance > 0 ? 'text-red-600 bg-red-50' : variance < 0 ? 'text-green-600 bg-green-50' : 'text-gray-600';
+                  return (
+                    <tr key={entry.id}>
+                      <td className="px-4 py-3">{idx + 1}</td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="month"
+                          value={entry.month}
+                          onChange={(e) => {
+                            const next = [...expenseBudgets];
+                            next[idx].month = e.target.value;
+                            setExpenseBudgets(next);
+                          }}
+                          className="w-full p-2 border border-swar-border rounded-lg"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="text"
+                          value={entry.particular}
+                          placeholder="e.g., Rent, Food"
+                          onChange={(e) => {
+                            const next = [...expenseBudgets];
+                            next[idx].particular = e.target.value;
+                            setExpenseBudgets(next);
+                          }}
+                          className="w-full p-2 border border-swar-border rounded-lg"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="text"
+                          value={entry.accountHead}
+                          placeholder="e.g., Housing"
+                          onChange={(e) => {
+                            const next = [...expenseBudgets];
+                            next[idx].accountHead = e.target.value;
+                            setExpenseBudgets(next);
+                          }}
+                          className="w-full p-2 border border-swar-border rounded-lg"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={entry.type}
+                          onChange={(e) => {
+                            const next = [...expenseBudgets];
+                            next[idx].type = e.target.value === 'income' ? 'income' : 'expense';
+                            setExpenseBudgets(next);
+                          }}
+                          className="w-full p-2 border border-swar-border rounded-lg"
+                        >
+                          <option value="expense">Expense</option>
+                          <option value="income">Income</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <input
+                          type="number"
+                          value={entry.amount}
+                          onChange={(e) => {
+                            const next = [...expenseBudgets];
+                            next[idx].amount = Number(e.target.value);
+                            setExpenseBudgets(next);
+                          }}
+                          className="w-24 p-2 border border-swar-border rounded-lg text-right"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <input
+                          type="number"
+                          value={entry.reality}
+                          placeholder="Auto-update"
+                          onChange={(e) => {
+                            const next = [...expenseBudgets];
+                            next[idx].reality = Number(e.target.value);
+                            setExpenseBudgets(next);
+                          }}
+                          className="w-24 p-2 border border-swar-border rounded-lg text-right"
+                        />
+                      </td>
+                      <td className={`px-4 py-3 text-center font-semibold rounded ${varianceColor}`}>
+                        {variance > 0 ? '+' : ''}{variance.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => {
+                            setExpenseBudgets(expenseBudgets.filter((_, i) => i !== idx));
+                          }}
+                          className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-xs font-semibold"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

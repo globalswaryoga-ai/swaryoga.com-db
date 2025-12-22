@@ -75,6 +75,7 @@ export default function LifePlannerAccountingPage() {
   const [reportPeriod, setReportPeriod] = useState<ReportPeriodKey>('yearly');
   const [reportMonth, setReportMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [budgetPlan, setBudgetPlan] = useState<any>(null);
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
@@ -91,7 +92,8 @@ export default function LifePlannerAccountingPage() {
     type: 'bank' as Account['type'],
     accountNumber: '',
     bankName: '',
-    balance: 0
+    balance: 0,
+    budgetAllocationId: null as string | null
   });
 
   const [transactionForm, setTransactionForm] = useState({
@@ -121,10 +123,11 @@ export default function LifePlannerAccountingPage() {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
-      const [accountsRes, transactionsRes, investmentsRes] = await Promise.all([
+      const [accountsRes, transactionsRes, investmentsRes, budgetRes] = await Promise.all([
         fetch('/api/accounting/accounts', { headers }),
         fetch('/api/accounting/transactions', { headers }),
-        fetch('/api/accounting/investments', { headers })
+        fetch('/api/accounting/investments', { headers }),
+        fetch('/api/accounting/budget', { headers })
       ]);
 
       if (accountsRes.ok) {
@@ -146,6 +149,13 @@ export default function LifePlannerAccountingPage() {
         setInvestments(investmentsData.data || []);
       } else {
         console.error('Failed to fetch investments');
+      }
+
+      if (budgetRes.ok) {
+        const budgetData = await budgetRes.json();
+        setBudgetPlan(budgetData.data || null);
+      } else {
+        console.error('Failed to fetch budget plan');
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -399,7 +409,7 @@ export default function LifePlannerAccountingPage() {
   };
 
   const resetAccountForm = () => {
-    setAccountForm({ name: '', type: 'bank', accountNumber: '', bankName: '', balance: 0 });
+    setAccountForm({ name: '', type: 'bank', accountNumber: '', bankName: '', balance: 0, budgetAllocationId: null });
   };
 
   const resetTransactionForm = () => {
@@ -412,7 +422,7 @@ export default function LifePlannerAccountingPage() {
 
   const handleEditAccount = (account: Account) => {
     setEditingAccount(account);
-    setAccountForm({ name: account.name, type: account.type, accountNumber: account.accountNumber || '', bankName: account.bankName || '', balance: account.balance });
+    setAccountForm({ name: account.name, type: account.type, accountNumber: account.accountNumber || '', bankName: account.bankName || '', balance: account.balance, budgetAllocationId: (account as any).budgetAllocationId || null });
     setShowAccountModal(true);
   };
 
@@ -957,6 +967,22 @@ export default function LifePlannerAccountingPage() {
                       className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
                       placeholder="Enter initial balance"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-swar-text mb-1">Link Budget Allocation (Optional)</label>
+                    <p className="text-xs text-swar-text mb-2">Do you have a budget allocation for this account?</p>
+                    <select
+                      value={accountForm.budgetAllocationId || ''}
+                      onChange={(e) => setAccountForm({ ...accountForm, budgetAllocationId: e.target.value || null })}
+                      className="w-full p-3 border border-swar-border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- Skip for now --</option>
+                      {budgetPlan?.allocations && Array.isArray(budgetPlan.allocations) && budgetPlan.allocations.map((alloc: any) => (
+                        <option key={alloc.id} value={alloc.id}>
+                          {alloc.name} ({alloc.percent}%)
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="flex justify-end space-x-3 mt-6">

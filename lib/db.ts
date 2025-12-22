@@ -290,6 +290,7 @@ const accountSchema = new mongoose.Schema({
   accountNumber: { type: String },
   bankName: { type: String },
   balance: { type: Number, required: true, default: 0 },
+  budgetAllocationId: { type: String, default: null }, // Link to budget allocation from MyBudgetPanel
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });

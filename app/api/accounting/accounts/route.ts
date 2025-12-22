@@ -18,6 +18,7 @@ const formatAccountResponse = (account: any) => ({
   accountNumber: account.accountNumber ?? '',
   bankName: account.bankName ?? '',
   balance: account.balance ?? 0,
+  budgetAllocationId: account.budgetAllocationId ?? null,
   created_at: account.createdAt ? account.createdAt.toISOString() : ''
 });
 
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
       accountNumber: body.accountNumber,
       bankName: body.bankName,
       balance: body.balance || 0,
+      budgetAllocationId: body.budgetAllocationId || null,
     });
 
     return NextResponse.json({
@@ -95,6 +97,7 @@ export async function PUT(request: NextRequest) {
         accountNumber: body.accountNumber,
         bankName: body.bankName,
         balance: body.balance,
+        budgetAllocationId: body.budgetAllocationId || null,
         updatedAt: new Date(),
       },
       { new: true }
