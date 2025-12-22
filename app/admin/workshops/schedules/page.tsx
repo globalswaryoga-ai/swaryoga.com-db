@@ -336,7 +336,10 @@ export default function AdminWorkshopSchedulesPage() {
     };
 
     const createSchedule = async () => {
-      if (!adminToken) return;
+      if (!adminToken) {
+        setError('No admin token found. Please log in again.');
+        return;
+      }
       if (!selectedWorkshopSlug) {
         setError('Please select a workshop');
         return;
@@ -372,6 +375,8 @@ export default function AdminWorkshopSchedulesPage() {
         for (const currency of currencies) {
           const payload = { ...basePayload, currency };
 
+          console.log(`[createSchedule] Creating ${currency} schedule:`, payload);
+
           const res = await fetch('/api/admin/workshops/schedules/crud', {
             method: 'POST',
             headers: {
@@ -381,13 +386,18 @@ export default function AdminWorkshopSchedulesPage() {
             body: JSON.stringify(payload),
           });
 
+          console.log(`[createSchedule] ${currency} Response status:`, res.status);
+
           let json: any;
           try {
             json = await res.json();
           } catch {
             const text = await res.text();
+            console.error(`[createSchedule] ${currency} Failed to parse JSON, raw text:`, text);
             json = { error: `Server error: ${text.substring(0, 200)}` };
           }
+          
+          console.log(`[createSchedule] ${currency} Response JSON:`, json);
           
           if (!res.ok) {
             throw new Error(json?.error ? `${currency}: ${json.error}` : `${currency}: Failed to create`);
@@ -406,7 +416,10 @@ export default function AdminWorkshopSchedulesPage() {
     };
 
     const saveSchedule = async (scheduleId: string) => {
-      if (!adminToken) return;
+      if (!adminToken) {
+        setError('No admin token found. Please log in again.');
+        return;
+      }
       try {
         setSavingId(scheduleId);
         setError('');
@@ -427,6 +440,9 @@ export default function AdminWorkshopSchedulesPage() {
           language: editForm.language,
         };
 
+        console.log('[saveSchedule] Payload:', payload);
+        console.log('[saveSchedule] Token:', adminToken.substring(0, 20) + '...');
+
         const res = await fetch('/api/admin/workshops/schedules/crud', {
           method: 'PUT',
           headers: {
@@ -436,15 +452,20 @@ export default function AdminWorkshopSchedulesPage() {
           body: JSON.stringify(payload),
         });
 
+        console.log('[saveSchedule] Response status:', res.status);
+
         let json: any;
         try {
           json = await res.json();
         } catch {
           const text = await res.text();
+          console.error('[saveSchedule] Failed to parse JSON, raw text:', text);
           json = { error: `Server error: ${text.substring(0, 200)}` };
         }
         
-        if (!res.ok) throw new Error(json?.error || 'Failed to save');
+        console.log('[saveSchedule] Response JSON:', json);
+        
+        if (!res.ok) throw new Error(json?.error || `Failed to save (status ${res.status})`);
 
         await loadAllSchedules(adminToken);
         cancelEdit();

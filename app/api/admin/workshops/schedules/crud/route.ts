@@ -18,16 +18,18 @@ const normalizeSlug = (value: unknown) => String(value || '').trim();
 export async function POST(request: NextRequest) {
   try {
     if (!isAdminAuthorized(request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized - invalid or missing admin token' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch((e) => {
+      throw new Error(`Failed to parse request body: ${e.message}`);
+    });
 
     const workshopSlug = normalizeSlug(body.workshopSlug || body.workshop_id);
     const mode = normalizeMode(body.mode);
 
     if (!workshopSlug || !mode) {
-      return NextResponse.json({ error: 'workshopSlug and mode are required' }, { status: 400 });
+      return NextResponse.json({ error: `workshopSlug and mode are required. Got: slugs="${workshopSlug}", mode="${mode}"` }, { status: 400 });
     }
 
     const currency = String(body.currency || 'INR').toUpperCase();
@@ -102,10 +104,12 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     if (!isAdminAuthorized(request)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized - invalid or missing admin token' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json().catch((e) => {
+      throw new Error(`Failed to parse request body: ${e.message}`);
+    });
     const { id, ...updates } = body;
 
     if (!id) {
