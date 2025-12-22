@@ -59,6 +59,12 @@ const nextConfig = {
   reactStrictMode: true,
   // Use SWC minify but disable for Vercel
   swcMinify: false,
+  compress: true,
+  poweredByHeader: false,
+  productionBrowserSourceMaps: false,
+  experimental: {
+    optimizeCss: true,
+  },
   async redirects() {
     return [
       {
