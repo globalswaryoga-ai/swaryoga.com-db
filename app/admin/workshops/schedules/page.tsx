@@ -1104,5 +1104,6 @@ export default function AdminWorkshopSchedulesPage() {
             </div>
           </main>
         </div>
+      </div>
     );
   }
