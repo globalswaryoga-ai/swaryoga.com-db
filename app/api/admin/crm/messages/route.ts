@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import {
+  verifyAdminAccess,
+  parsePagination,
+  buildFilter,
+  handleCrmError,
+  formatCrmSuccess,
+  buildMetadata,
+  isValidObjectId,
+  toObjectId,
+} from '@/lib/crm-handlers';
 import { WhatsAppMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
-import mongoose from 'mongoose';
 
 /**
- * WhatsApp message management
+ * WhatsApp message management - REFACTORED
  * GET: Fetch messages with filtering
  * POST: Send a message
  * PUT: Update message (retry, mark as read)
@@ -14,35 +22,24 @@ import mongoose from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
+    const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
-    const leadId = url.searchParams.get('leadId');
-    const phoneNumber = url.searchParams.get('phoneNumber');
-    const status = url.searchParams.get('status'); // queued, sent, delivered, read, failed
-    const direction = url.searchParams.get('direction'); // inbound, outbound
-    const startDate = url.searchParams.get('startDate');
-    const endDate = url.searchParams.get('endDate');
-    const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
-    const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
     await connectDB();
 
-    const filter: any = {};
-    if (leadId) {
-      if (!mongoose.Types.ObjectId.isValid(leadId)) {
-        return NextResponse.json({ error: 'Invalid leadId' }, { status: 400 });
-      }
-      filter.leadId = new mongoose.Types.ObjectId(leadId);
-    }
-    if (phoneNumber) filter.phoneNumber = phoneNumber;
-    if (status) filter.status = status;
-    if (direction) filter.direction = direction;
+    // Build filter from query parameters
+    const filterParams = {
+      leadId: url.searchParams.get('leadId') || undefined,
+      phoneNumber: url.searchParams.get('phoneNumber') || undefined,
+      status: url.searchParams.get('status') || undefined,
+      direction: url.searchParams.get('direction') || undefined,
+    };
+    const filter: any = buildFilter(filterParams);
 
+    // Add date range filter
+    const startDate = url.searchParams.get('startDate');
+    const endDate = url.searchParams.get('endDate');
     if (startDate || endDate) {
       filter.sentAt = {};
       if (startDate) filter.sentAt.$gte = new Date(startDate);
@@ -57,25 +54,17 @@ export async function GET(request: NextRequest) {
       .lean();
 
     const total = await WhatsAppMessage.countDocuments(filter);
+    const meta = buildMetadata(total, limit, skip);
 
-    return NextResponse.json(
-      { success: true, data: { messages, total, limit, skip } },
-      { status: 200 }
-    );
+    return formatCrmSuccess({ messages, total }, meta);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to fetch messages';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'GET messages');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    const userId = verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -87,7 +76,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing: leadId, phoneNumber, messageContent' }, { status: 400 });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(String(leadId))) {
+    if (!isValidObjectId(String(leadId))) {
       return NextResponse.json({ error: 'Invalid leadId' }, { status: 400 });
     }
 
@@ -107,7 +96,7 @@ export async function POST(request: NextRequest) {
       direction: 'outbound',
       messageType: messageType || 'text',
       status: 'queued',
-      sentBy: decoded.userId,
+      sentBy: userId,
       sentAt: new Date(),
       templateId: templateId || undefined,
       retryCount: 0,
@@ -116,21 +105,15 @@ export async function POST(request: NextRequest) {
     // Update lead's lastMessageAt
     await Lead.updateOne({ _id: leadId }, { $set: { lastMessageAt: new Date() } });
 
-    return NextResponse.json({ success: true, data: message }, { status: 201 });
+    return formatCrmSuccess(message);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to send message';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'POST message');
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -142,7 +125,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing: messageId' }, { status: 400 });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(String(messageId))) {
+    if (!isValidObjectId(String(messageId))) {
       return NextResponse.json({ error: 'Invalid messageId' }, { status: 400 });
     }
 
@@ -157,7 +140,7 @@ export async function PUT(request: NextRequest) {
       if (!message) {
         return NextResponse.json({ error: 'Message not found' }, { status: 404 });
       }
-      return NextResponse.json({ success: true, data: message }, { status: 200 });
+      return formatCrmSuccess(message);
     } else if (action === 'retry') {
       const message = await WhatsAppMessage.findByIdAndUpdate(
         messageId,
@@ -170,7 +153,7 @@ export async function PUT(request: NextRequest) {
       if (!message) {
         return NextResponse.json({ error: 'Message not found' }, { status: 404 });
       }
-      return NextResponse.json({ success: true, data: message }, { status: 200 });
+      return formatCrmSuccess(message);
     } else {
       // Generic update
       const message = await WhatsAppMessage.findByIdAndUpdate(
@@ -181,22 +164,16 @@ export async function PUT(request: NextRequest) {
       if (!message) {
         return NextResponse.json({ error: 'Message not found' }, { status: 404 });
       }
-      return NextResponse.json({ success: true, data: message }, { status: 200 });
+      return formatCrmSuccess(message);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to update message';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'PUT message');
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
-
+    verifyAdminAccess(request);
     const url = new URL(request.url);
     const messageId = url.searchParams.get('messageId');
 
@@ -204,7 +181,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'messageId parameter required' }, { status: 400 });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    if (!isValidObjectId(messageId)) {
       return NextResponse.json({ error: 'Invalid messageId' }, { status: 400 });
     }
 
@@ -216,9 +193,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: { deleted: true } }, { status: 200 });
+    return formatCrmSuccess({ deleted: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to delete message';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'DELETE message');
   }
 }

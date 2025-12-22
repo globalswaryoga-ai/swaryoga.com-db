@@ -9,9 +9,11 @@ import { randomBytes } from 'crypto';
 // Optional Sentry integration - install @sentry/nextjs if needed
 let Sentry: any = null;
 try {
-  import('@sentry/nextjs').then(m => { Sentry = m; }).catch(() => {});
+  // Dynamic import for optional dependency
+  // eslint-disable-next-line global-require, @typescript-eslint/no-require-imports
+  Sentry = require('@sentry/nextjs');
 } catch (e) {
-  // Sentry not installed
+  // Sentry not installed - optional dependency
 }
 
 /**
