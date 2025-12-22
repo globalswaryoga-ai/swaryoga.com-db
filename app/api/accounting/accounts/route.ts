@@ -8,17 +8,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Account } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import type { AuthContext, AccountType } from '@/lib/types';
 
-const getUserOwner = (request: NextRequest) => {
+const getUserOwner = (request: NextRequest): AuthContext | null => {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
   if (!token) return null;
-  const decoded = verifyToken(token || "");
+  const decoded = verifyToken(token || '');
   if (!decoded?.userId) return null;
-  return { ownerType: 'user' as const, ownerId: decoded.userId };
+  return { ownerType: 'user', ownerId: decoded.userId };
 };
 
-const formatAccountResponse = (account: any) => ({
+const formatAccountResponse = (account: any): Record<string, any> => ({
   id: account._id?.toString(),
   name: account.name,
   type: account.type,
@@ -29,7 +30,7 @@ const formatAccountResponse = (account: any) => ({
   created_at: account.createdAt ? account.createdAt.toISOString() : ''
 });
 
-export async function GET(_request: NextRequest) {
+export async function GET(_request: NextRequest): Promise<NextResponse> {
   try {
     const owner = getUserOwner(_request);
     if (!owner) {
@@ -49,7 +50,7 @@ export async function GET(_request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const owner = getUserOwner(request);
     if (!owner) {
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
 
     const account = await Account.create({
       ...owner,
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
     const owner = getUserOwner(request);
     if (!owner) {
@@ -94,7 +95,7 @@ export async function PUT(request: NextRequest) {
     }
 
     await connectDB();
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
 
     const account = await Account.findOneAndUpdate(
       { _id: id, ...owner },
@@ -124,7 +125,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
   try {
     const owner = getUserOwner(request);
     if (!owner) {

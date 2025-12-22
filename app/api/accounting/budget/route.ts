@@ -1,29 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, BudgetPlan } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import type { AuthContext, BudgetAllocation, NormalizedAllocationsResult } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-const getUserOwner = (request: NextRequest) => {
+const getUserOwner = (request: NextRequest): AuthContext | null => {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
   if (!token) return null;
   const decoded = verifyToken(token);
   if (!decoded?.userId) return null;
-  return { ownerType: 'user' as const, ownerId: decoded.userId };
+  return { ownerType: 'user', ownerId: decoded.userId };
 };
 
-const normalizeAllocations = (allocations: any[]): { allocations: any[]; error?: string } => {
+const normalizeAllocations = (allocations: unknown[]): NormalizedAllocationsResult => {
   const list = Array.isArray(allocations) ? allocations : [];
   const normalized = list
     .filter(Boolean)
-    .map((a) => ({
+    .map((a: any): BudgetAllocation => ({
       key: String(a?.key ?? '').trim(),
       label: String(a?.label ?? '').trim(),
       percent: typeof a?.percent === 'number' ? a.percent : Number(a?.percent),
       kind: a?.kind === 'profit' ? 'profit' : 'expense',
     }))
-    .filter((a) => a.key && a.label && Number.isFinite(a.percent));
+    .filter((a): a is BudgetAllocation => !!(a.key && a.label && Number.isFinite(a.percent)));
 
   for (const a of normalized) {
     if (a.percent < 0 || a.percent > 100) {
@@ -46,7 +47,7 @@ const normalizeAllocations = (allocations: any[]): { allocations: any[]; error?:
   return { allocations: normalized };
 };
 
-const defaultBudgetPlan = (year: number) => ({
+const defaultBudgetPlan = (year: number): Record<string, any> => ({
   year,
   currency: 'INR',
   incomeTargetYearly: 0,
@@ -68,7 +69,7 @@ const defaultBudgetPlan = (year: number) => ({
   notes: '',
 });
 
-const formatBudgetPlan = (doc: any) => ({
+const formatBudgetPlan = (doc: any): Record<string, any> => ({
   id: doc?._id?.toString(),
   year: doc?.year,
   currency: doc?.currency ?? 'INR',
