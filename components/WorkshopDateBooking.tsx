@@ -57,7 +57,7 @@ export default function WorkshopDateBooking({
         mode: i % 2 === 0 ? 'online' : 'hybrid',
         language: i % 3 === 0 ? 'hindi' : i % 3 === 1 ? 'english' : 'gujarati',
         availableSeats: 20 - i * 2,
-        price: 5000 + i * 1000,
+        price: 5000,
         currency: 'INR',
         instructors: ['Guru Ji', 'Yoga Master'],
       });
@@ -280,7 +280,7 @@ export default function WorkshopDateBooking({
 
             <button
               type="submit"
-              className="w-full px-6 py-3 bg-swar-600 text-white rounded-lg hover:bg-swar-700 transition font-semibold flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold flex items-center justify-center gap-2"
             >
               ✉️ Send Enquiry
             </button>

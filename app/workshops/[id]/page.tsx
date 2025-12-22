@@ -731,6 +731,15 @@ export default function WorkshopDetail() {
         />
       </section>
 
+      {/* Final Register Now Button */}
+      <section className="bg-white py-12 md:py-16 border-t border-swar-border">
+        <div className="container mx-auto px-4 md:px-6 max-w-6xl text-center">
+          <h2 className="text-2xl md:text-3xl font-bold text-swar-text mb-4">Ready to Transform Your Life?</h2>
+          <p className="text-swar-text-secondary mb-8 max-w-2xl mx-auto">Join thousands of practitioners who have discovered the power of Swar Yoga</p>
+          <RegisterNowButton />
+        </div>
+      </section>
+
       <Footer />
     </>
   );
