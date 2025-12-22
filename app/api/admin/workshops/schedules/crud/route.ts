@@ -90,7 +90,11 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    console.error('[POST /api/admin/workshops/schedules/crud]', err);
+    console.error('[POST /api/admin/workshops/schedules/crud] Error:', {
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -147,7 +151,11 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { id: String(updated._id), ...updated.toObject() } });
   } catch (err) {
-    console.error('[PUT /api/admin/workshops/schedules/crud]', err);
+    console.error('[PUT /api/admin/workshops/schedules/crud] Error:', {
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -174,7 +182,11 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /api/admin/workshops/schedules/crud]', err);
+    console.error('[DELETE /api/admin/workshops/schedules/crud] Error:', {
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      timestamp: new Date().toISOString(),
+    });
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
