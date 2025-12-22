@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import SocialLoginButtons from '@/components/SocialLoginButtons';
-import { Eye, EyeOff } from 'lucide-react';
 import { addCartItem, CartCurrency } from '@/lib/cart';
 import { getCurrencyForLanguage } from '@/lib/paymentLinkHelper';
 import { setSession } from '@/lib/sessionManager';
@@ -16,10 +14,10 @@ export const dynamic = 'force-dynamic';
 function SignUpInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams?.get('redirect') || '/';
-  const workshop = searchParams?.get('workshop') || 'swar-yoga-basic';
-  const mode = searchParams?.get('mode') || 'online';
-  const language = searchParams?.get('language') || 'hindi';
+  const redirectPath = searchParams.get('redirect') || '/';
+  const workshop = searchParams.get('workshop') || 'swar-yoga-basic';
+  const mode = searchParams.get('mode') || 'online';
+  const language = searchParams.get('language') || 'hindi';
 
   const currency = (getCurrencyForLanguage(language) as CartCurrency) || 'INR';
 
@@ -48,7 +46,6 @@ function SignUpInner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
-  const [showTerms, setShowTerms] = useState(false);
 
   // Auto-detect user's country based on geolocation
   useEffect(() => {
@@ -122,10 +119,6 @@ function SignUpInner() {
     'Australian Capital Territory', 'New South Wales', 'Northern Territory', 'Queensland', 'South Australia', 'Tasmania', 'Victoria', 'Western Australia'
   ];
 
-  const nepalProvinces = [
-    'Koshi', 'Madhesh', 'Bagmati', 'Gandaki', 'Lumbini', 'Karnali', 'Sudurpashchim'
-  ];
-
   const getStatesList = (country: string) => {
     switch (country) {
       case 'India':
@@ -136,8 +129,6 @@ function SignUpInner() {
         return canadianProvinces;
       case 'Australia':
         return australianStates;
-      case 'Nepal':
-        return nepalProvinces;
       default:
         return [];
     }
@@ -329,20 +320,20 @@ function SignUpInner() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen bg-gradient-to-br from-yoga-50 to-white pt-24 pb-12">
-        <div className="container mx-auto max-w-2xl px-6">
-          <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12">
+      <main className="min-h-screen flex items-center justify-center px-4 py-8 bg-gradient-to-br from-yoga-50 via-white to-yoga-50">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border border-yoga-100">
             {/* Header */}
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-yoga-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-3xl">👤</span>
               </div>
-              <h1 className="text-4xl font-bold text-swar-accent mb-2">Create Your Account</h1>
-              <p className="text-lg text-swar-text-secondary">
+              <h1 className="text-4xl font-bold text-yoga-700 mb-2">Create Your Account</h1>
+              <p className="text-lg text-gray-600">
                 Join Swar Yoga and start your transformation journey
               </p>
               {redirectPath && redirectPath !== '/' && (
-                <div className="mt-3 text-sm text-swar-primary font-medium">
+                <div className="mt-3 text-sm text-yoga-600 font-medium">
                   Sign up to continue to{' '}
                   {redirectPath === 'account'
                     ? 'your account'
@@ -355,25 +346,11 @@ function SignUpInner() {
               )}
             </div>
 
-            {/* Social Login Buttons */}
-            <div className="mb-8">
-              <SocialLoginButtons
-                onSuccess={(user) => {
-                  // User logged in successfully via social login
-                  // Redirect to the intended path
-                  router.push(redirectPath || '/profile');
-                }}
-                onError={(error) => {
-                  setErrors({ general: error || 'Social login failed' });
-                }}
-              />
-            </div>
-
             {/* Status Messages */}
             {submitStatus === 'success' && (
-              <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-center space-x-3">
-                <span className="text-swar-primary text-xl">✓</span>
-                <span className="text-swar-primary font-medium">
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3">
+                <span className="text-green-600 text-xl">✓</span>
+                <span className="text-green-800 font-medium">
                   Account created successfully! Redirecting...
                 </span>
               </div>
@@ -387,19 +364,16 @@ function SignUpInner() {
             )}
 
             {/* Sign Up Form */}
-            <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Personal Information Section */}
-              <div className="space-y-5 bg-swar-bg rounded-lg p-6 border border-swar-border">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-1 h-6 bg-swar-primary rounded"></div>
-                  <h2 className="text-xl font-bold text-swar-text">Personal Information</h2>
-                </div>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Personal Information */}
+              <div className="space-y-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Personal Information</h2>
 
-                {/* Full Name & Email */}
                 <div className="grid md:grid-cols-2 gap-6">
+                  {/* Full Name */}
                   <div>
-                    <label htmlFor="name" className="block text-sm font-semibold text-swar-text mb-2">
-                      Full Name <span className="text-red-500">*</span>
+                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                      Full Name *
                     </label>
                     <input
                       type="text"
@@ -407,19 +381,20 @@ function SignUpInner() {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all ${
-                        errors.name ? 'border-red-400 bg-red-50' : 'border-swar-border bg-white'
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
+                        errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'
                       }`}
                       placeholder="Enter your full name"
                     />
                     {errors.name && (
-                      <p className="mt-1 text-sm text-red-600 font-medium">{errors.name}</p>
+                      <p className="mt-1 text-sm text-red-600">{errors.name}</p>
                     )}
                   </div>
 
+                  {/* Email */}
                   <div>
-                    <label htmlFor="email" className="block text-sm font-semibold text-swar-text mb-2">
-                      Email Address <span className="text-red-500">*</span>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address *
                     </label>
                     <input
                       type="email"
@@ -427,21 +402,21 @@ function SignUpInner() {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all ${
-                        errors.email ? 'border-red-400 bg-red-50' : 'border-swar-border bg-white'
+                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
+                        errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
                       }`}
                       placeholder="your@email.com"
                     />
                     {errors.email && (
-                      <p className="mt-1 text-sm text-red-600 font-medium">{errors.email}</p>
+                      <p className="mt-1 text-sm text-red-600">{errors.email}</p>
                     )}
                   </div>
                 </div>
 
-                {/* Country Code & Phone */}
-                <div className="grid md:grid-cols-4 gap-4 md:gap-6">
+                {/* Phone */}
+                <div className="grid md:grid-cols-3 gap-6">
                   <div>
-                    <label htmlFor="countryCode" className="block text-sm font-semibold text-swar-text mb-2">
+                    <label htmlFor="countryCode" className="block text-sm font-medium text-gray-700 mb-2">
                       Country Code
                     </label>
                     <select
@@ -449,18 +424,18 @@ function SignUpInner() {
                       name="countryCode"
                       value={formData.countryCode}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                     >
                       {countryCodes.map((item) => (
                         <option key={item.code} value={item.code}>
-                          {item.code}
+                          {item.code} {item.country}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="md:col-span-3">
-                    <label htmlFor="phone" className="block text-sm font-semibold text-swar-text mb-2">
+                  <div className="md:col-span-2">
+                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
                       Phone Number
                     </label>
                     <input
@@ -469,7 +444,7 @@ function SignUpInner() {
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                       placeholder="Enter your phone number"
                     />
                   </div>
@@ -478,7 +453,7 @@ function SignUpInner() {
                 {/* Country & State */}
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="country" className="block text-sm font-semibold text-swar-text mb-2">
+                    <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-2">
                       Country
                     </label>
                     <select
@@ -486,7 +461,7 @@ function SignUpInner() {
                       name="country"
                       value={formData.country}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                     >
                       <option value="">Select Country</option>
                       {countries.map((country) => (
@@ -498,8 +473,8 @@ function SignUpInner() {
                   </div>
 
                   <div>
-                    <label htmlFor="state" className="block text-sm font-semibold text-swar-text mb-2">
-                      State/Province {formData.country && <span className="text-red-500">*</span>}
+                    <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-2">
+                      State/Province {formData.country && '*'}
                     </label>
                     {formData.country ? (
                       <select
@@ -507,7 +482,7 @@ function SignUpInner() {
                         name="state"
                         value={formData.state}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                       >
                         <option value="">Select State/Province</option>
                         {getStatesList(formData.country).map((state) => (
@@ -523,7 +498,7 @@ function SignUpInner() {
                         name="state"
                         value={formData.state}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-3 border-2 border-dashed border-swar-border rounded-lg bg-swar-bg text-swar-text-secondary cursor-not-allowed"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent bg-gray-50 text-gray-500 cursor-not-allowed"
                         placeholder="Select a country first"
                         disabled
                       />
@@ -534,7 +509,7 @@ function SignUpInner() {
                 {/* Gender, Age, Profession */}
                 <div className="grid md:grid-cols-3 gap-6">
                   <div>
-                    <label htmlFor="gender" className="block text-sm font-semibold text-swar-text mb-2">
+                    <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-2">
                       Gender
                     </label>
                     <select
@@ -542,7 +517,7 @@ function SignUpInner() {
                       name="gender"
                       value={formData.gender}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                     >
                       <option value="">Select Gender</option>
                       <option value="male">Male</option>
@@ -551,7 +526,7 @@ function SignUpInner() {
                   </div>
 
                   <div>
-                    <label htmlFor="age" className="block text-sm font-semibold text-swar-text mb-2">
+                    <label htmlFor="age" className="block text-sm font-medium text-gray-700 mb-2">
                       Age
                     </label>
                     <input
@@ -560,7 +535,7 @@ function SignUpInner() {
                       name="age"
                       value={formData.age}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                       placeholder="Your age"
                       min="1"
                       max="120"
@@ -568,7 +543,7 @@ function SignUpInner() {
                   </div>
 
                   <div>
-                    <label htmlFor="profession" className="block text-sm font-semibold text-swar-text mb-2">
+                    <label htmlFor="profession" className="block text-sm font-medium text-gray-700 mb-2">
                       Profession
                     </label>
                     <input
@@ -577,25 +552,22 @@ function SignUpInner() {
                       name="profession"
                       value={formData.profession}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border-2 border-swar-border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all bg-white"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent"
                       placeholder="Your profession"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Security Information Section */}
-              <div className="space-y-5 bg-swar-bg rounded-lg p-6 border border-swar-border">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-1 h-6 bg-swar-accent rounded"></div>
-                  <h2 className="text-xl font-bold text-swar-text">Security</h2>
-                </div>
+              {/* Security Information */}
+              <div className="space-y-6 pt-6 border-t border-gray-200">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Security</h2>
 
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Password */}
                   <div>
-                    <label htmlFor="password" className="block text-sm font-semibold text-swar-text mb-2">
-                      Password <span className="text-red-500">*</span>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                      Password *
                     </label>
                     <div className="relative">
                       <input
@@ -604,29 +576,28 @@ function SignUpInner() {
                         name="password"
                         value={formData.password}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all pr-10 ${
-                          errors.password ? 'border-red-400 bg-red-50' : 'border-swar-border bg-white'
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
+                          errors.password ? 'border-red-400 bg-red-50' : 'border-gray-300'
                         }`}
-                        placeholder="Create a password (min. 6 characters)"
+                        placeholder="Create a password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-primary"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
-                        {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                        {showPassword ? '👁️‍🗨️' : '👁️'}
                       </button>
                     </div>
                     {errors.password && (
-                      <p className="mt-1 text-sm text-red-600 font-medium">{errors.password}</p>
+                      <p className="mt-1 text-sm text-red-600">{errors.password}</p>
                     )}
-                    <p className="mt-2 text-xs text-swar-text-secondary">Password must be at least 6 characters</p>
                   </div>
 
                   {/* Confirm Password */}
                   <div>
-                    <label htmlFor="confirmPassword" className="block text-sm font-semibold text-swar-text mb-2">
-                      Confirm Password <span className="text-red-500">*</span>
+                    <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirm Password *
                     </label>
                     <div className="relative">
                       <input
@@ -635,94 +606,49 @@ function SignUpInner() {
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-swar-primary transition-all pr-10 ${
-                          errors.confirmPassword ? 'border-red-400 bg-red-50' : 'border-swar-border bg-white'
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-yoga-500 focus:border-transparent transition-colors ${
+                          errors.confirmPassword ? 'border-red-400 bg-red-50' : 'border-gray-300'
                         }`}
                         placeholder="Confirm your password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-primary"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
-                        {showConfirmPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                        {showConfirmPassword ? '👁️‍🗨️' : '👁️'}
                       </button>
                     </div>
                     {errors.confirmPassword && (
-                      <p className="mt-1 text-sm text-red-600 font-medium">{errors.confirmPassword}</p>
+                      <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Terms and Conditions */}
-              <div className="space-y-4 bg-swar-bg rounded-lg p-6 border border-swar-border">
-                <label className="flex items-start space-x-3 cursor-pointer group">
+              <div className="space-y-4 pt-6 border-t border-gray-200">
+                <label className="flex items-start space-x-3 cursor-pointer">
                   <input
                     type="checkbox"
                     name="agreeToTerms"
                     checked={formData.agreeToTerms}
                     onChange={handleInputChange}
-                    className="mt-1 w-5 h-5 border-2 border-swar-border rounded text-swar-primary focus:ring-2 focus:ring-swar-primary cursor-pointer"
+                    className="mt-1 w-5 h-5 border-gray-300 rounded text-yoga-600 focus:ring-yoga-500 cursor-pointer"
                   />
-                  <span className="text-sm text-swar-text-secondary group-hover:text-swar-text transition-colors">
+                  <span className="text-sm text-gray-600">
                     I agree to the{' '}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setShowTerms(!showTerms);
-                      }}
-                      className="text-swar-primary hover:text-swar-accent font-semibold underline"
-                    >
+                    <Link href="/terms" className="text-yoga-600 hover:text-yoga-700 font-medium">
                       Terms and Conditions
-                    </button>{' '}
+                    </Link>{' '}
                     and{' '}
-                    <Link href="/privacy" className="text-swar-primary hover:text-swar-accent font-semibold">
+                    <Link href="/privacy" className="text-yoga-600 hover:text-yoga-700 font-medium">
                       Privacy Policy
                     </Link>
                   </span>
                 </label>
                 {errors.agreeToTerms && (
                   <p className="text-sm text-red-600">{errors.agreeToTerms}</p>
-                )}
-
-                {/* Expandable Terms Content */}
-                {showTerms && (
-                  <div className="mt-4 pt-4 border-t border-swar-border bg-white rounded-lg p-4 max-h-96 overflow-y-auto">
-                    <h3 className="font-bold text-swar-text mb-3">Terms and Conditions</h3>
-                    <div className="text-sm text-swar-text-secondary space-y-3">
-                      <p>
-                        Welcome to Swar Yoga. These Terms and Conditions govern your use of our website and services. By accessing and using this website, you accept and agree to be bound by the terms and provision of this agreement.
-                      </p>
-                      <p>
-                        <strong>Use License:</strong> Permission is granted to temporarily download one copy of the materials (information or software) on Swar Yoga's website for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
-                      </p>
-                      <ul className="list-disc list-inside space-y-1">
-                        <li>Modifying or copying the materials</li>
-                        <li>Using the materials for any commercial purpose or for any public display</li>
-                        <li>Attempting to decompile or reverse engineer any software</li>
-                        <li>Removing any copyright or other proprietary notations from the materials</li>
-                        <li>Transferring the materials to another person or "mirroring" the materials</li>
-                      </ul>
-                      <p>
-                        <strong>Disclaimer:</strong> The materials on Swar Yoga's website are provided on an 'as is' basis. Swar Yoga makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement.
-                      </p>
-                      <p>
-                        <strong>Limitations:</strong> In no event shall Swar Yoga or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials.
-                      </p>
-                      <p>
-                        <strong>Accuracy of Materials:</strong> The materials appearing on Swar Yoga's website could include technical, typographical, or photographic errors. Swar Yoga does not warrant that any of the materials on its website are accurate, complete, or current. Swar Yoga may make changes to the materials contained on its website at any time without notice.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowTerms(false)}
-                      className="mt-4 text-swar-primary hover:text-swar-accent font-semibold text-sm"
-                    >
-                      ▲ Hide Terms
-                    </button>
-                  </div>
                 )}
               </div>
 
@@ -748,11 +674,11 @@ function SignUpInner() {
 
             {/* Sign In Link */}
             <div className="mt-8 text-center">
-              <p className="text-swar-text-secondary">
+              <p className="text-gray-600">
                 Already have an account?{' '}
                 <Link
                   href={`/signin${redirectPath && redirectPath !== '/' ? `?redirect=${redirectPath}` : ''}`}
-                  className="text-swar-primary hover:text-swar-accent font-bold"
+                  className="text-yoga-600 hover:text-yoga-700 font-bold"
                 >
                   Sign in here
                 </Link>

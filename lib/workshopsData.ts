@@ -21,246 +21,222 @@ export type WorkshopOverview = {
 
 // Workshop metadata (displayed on main pages and catalog)
 const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
-  'swar-yoga-basic': {
-    name: 'Swar Yoga Basic',
-    slug: 'swar-yoga-basic',
-    image: 'https://i.postimg.cc/qp8DgcCN/3-DAYS-WORKSHOP.jpg?dl=1',
-    description: 'Basic Swar Yoga workshop (3 days • daily 1.5 hours) focused on digestion, sleep, constipation and gas issues.',
-    duration: '3 days (daily 1.5 hours)',
-    level: 'Beginner',
-    category: 'Health',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
   'yogasana-sadhana': {
     name: 'Yogasana & Sadhana',
     slug: 'yogasana-sadhana',
-    image: 'https://images.pexels.com/photos/3807514/pexels-photo-3807514.jpeg',
-    description: 'Complete asana and spiritual practice for holistic health (recorded)',
-    duration: '30 days',
+    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    description: 'A complete yogasana and sadhana practice program for disciplined daily growth.',
+    duration: '21 days',
     level: 'All Levels',
-    category: 'Health',
-    mode: ['Recorded'],
+    category: 'Sadhana',
+    mode: ['Online', 'Offline'],
     language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
+    currency: ['INR', 'NPR', 'USD']
   },
   'swar-yoga-level-1': {
-    name: 'Swar Yoga Level-1',
+    name: 'Swar Yoga Level-1 Workshop',
     slug: 'swar-yoga-level-1',
     image: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
     description: 'First level comprehensive Swar Yoga training',
     duration: '15 days',
     level: 'Beginner',
-    category: 'Health',
-    mode: ['Online', 'Offline'],
+    category: 'Swar Yoga',
+    mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
+    currency: ['INR', 'NPR', 'USD']
   },
-  'swar-yoga-level-3': {
-    name: 'Swar Yoga Level-3',
-    slug: 'swar-yoga-level-3',
+  'swar-yoga-level-2': {
+    name: 'Swar Yoga Level-2 Workshop',
+    slug: 'swar-yoga-level-2',
+    image: 'https://images.pexels.com/photos/3873033/pexels-photo-3873033.jpeg',
+    description: 'Advanced Swar Yoga for wealth creation and prosperity',
+    duration: '15 days',
+    level: 'Intermediate',
+    category: 'Swar Yoga',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'swar-yoga-youth': {
+    name: 'Swar Yoga Youth Program',
+    slug: 'swar-yoga-youth',
+    image: 'https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg',
+    description: 'Specially designed for young practitioners',
+    duration: '10 days',
+    level: 'Beginner',
+    category: 'Youth',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'weight-loss': {
+    name: 'Weight Loss Program',
+    slug: 'weight-loss',
+    image: 'https://images.pexels.com/photos/1624365/pexels-photo-1624365.jpeg',
+    description: 'Transform your body through Swar Yoga',
+    duration: '90 days',
+    level: 'Intermediate',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  meditation: {
+    name: 'Meditation Program',
+    slug: 'meditation',
+    image: 'https://images.pexels.com/photos/3807517/pexels-photo-3807517.jpeg',
+    description: 'Deep meditation and mindfulness training',
+    duration: '15 days',
+    level: 'All Levels',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'amrut-aahar': {
+    name: 'Amrut Aahar Program',
+    slug: 'amrut-aahar',
+    image: 'https://images.pexels.com/photos/3807507/pexels-photo-3807507.jpeg',
+    description: 'Complete natural diet and nutrition guidance',
+    duration: '45 days',
+    level: 'All Levels',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  astavakra: {
+    name: 'Astavakra Dhyan Level-3',
+    slug: 'astavakra',
     image: 'https://images.pexels.com/photos/3807516/pexels-photo-3807516.jpeg',
     description: 'Level-3 advanced meditation and wisdom',
     duration: '10 days',
     level: 'Advanced',
-    category: 'Health',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'swar-yoga-level-4': {
-    name: 'Swar Yoga Level-4',
-    slug: 'swar-yoga-level-4',
-    image: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
-    description: 'Ultimate self-discovery and spiritual transformation',
-    duration: '42 days',
-    level: 'Advanced',
-    category: 'Health',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'weight-loss-96days': {
-    name: '96 Days Weight Loss Program',
-    slug: 'weight-loss-96days',
-    image: 'https://images.pexels.com/photos/1624365/pexels-photo-1624365.jpeg',
-    description: 'Transform your body through Swar Yoga - 96 days comprehensive program',
-    duration: '96 days',
-    level: 'Intermediate',
-    category: 'Health',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'meditation-42days': {
-    name: '42 Days Meditation Program',
-    slug: 'meditation-42days',
-    image: 'https://images.pexels.com/photos/3807517/pexels-photo-3807517.jpeg',
-    description: 'Deep meditation and mindfulness training - 42 days',
-    duration: '42 days',
-    level: 'All Levels',
-    category: 'Health',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'amrut-aahar-42days': {
-    name: '42 Days Amrut Aahar Program',
-    slug: 'amrut-aahar-42days',
-    image: 'https://images.pexels.com/photos/3807507/pexels-photo-3807507.jpeg',
-    description: 'Complete natural diet and nutrition guidance - 42 days',
-    duration: '42 days',
-    level: 'All Levels',
-    category: 'Health',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'bandhan-mukti': {
-    name: 'Bandhan Mukti',
-    slug: 'bandhan-mukti',
-    image: 'https://images.pexels.com/photos/3807519/pexels-photo-3807519.jpeg',
-    description: 'Liberation from limitations through Swar Yoga practice',
-    duration: '10 days',
-    level: 'All Levels',
-    category: 'Health',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'swar-yoga-level-2': {
-    name: 'Swar Yoga Level-2',
-    slug: 'swar-yoga-level-2',
-    image: 'https://images.pexels.com/photos/3873033/pexels-photo-3873033.jpeg',
-    description: 'Advanced Swar Yoga for wealth creation and prosperity',
-    duration: '14 days',
-    level: 'Intermediate',
-    category: 'Wealth',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'swar-yoga-businessman': {
-    name: 'Swar Yoga for Businessman',
-    slug: 'swar-yoga-businessman',
-    image: 'https://images.pexels.com/photos/3807520/pexels-photo-3807520.jpeg',
-    description: 'Business opportunity and personal development through Swar Yoga (2 sessions/week)',
-    duration: '10 weeks',
-    level: 'Intermediate',
-    category: 'Wealth',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'corporate-swaryoga': {
-    name: 'Corporate Swaryoga',
-    slug: 'corporate-swaryoga',
-    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
-    description: 'Stress management and productivity for corporate professionals (2 sessions/week)',
-    duration: '10 weeks',
-    level: 'Intermediate',
-    category: 'Wealth',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'pre-pregnancy-planning': {
-    name: 'Pre Pregnancy Planning Program',
-    slug: 'pre-pregnancy-planning',
-    image: 'https://images.pexels.com/photos/3807521/pexels-photo-3807521.jpeg',
-    description: 'Pre planning pregnancy program (Sat-Sun sessions)',
-    duration: '8 weeks',
-    level: 'All Levels',
-    category: 'Married',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'garbh-sanskar-9months': {
-    name: '9 Months Garbh Sanskar Sadhana',
-    slug: 'garbh-sanskar-9months',
-    image: 'https://images.pexels.com/photos/3807525/pexels-photo-3807525.jpeg',
-    description: 'Complete 9 months garbh sanskar sadhana for expecting mothers',
-    duration: '9 months (monthly)',
-    level: 'All Levels',
-    category: 'Married',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'happy-married-life': {
-    name: 'Happy Married Life',
-    slug: 'happy-married-life',
-    image: 'https://images.pexels.com/photos/3807512/pexels-photo-3807512.jpeg',
-    description: 'Transform your married life with Swar Yoga techniques for couples (recorded)',
-    duration: 'Recorded',
-    level: 'All Levels',
-    category: 'Married',
-    mode: ['Recorded'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'swar-yoga-youth': {
-    name: 'Swar Yoga for Youth',
-    slug: 'swar-yoga-youth',
-    image: 'https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg',
-    description: 'Specially designed Swar Yoga program for young practitioners',
-    duration: '10 days',
-    level: 'Beginner',
-    category: 'Youth',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'children-swaryoga': {
-    name: 'Children Swaryoga',
-    slug: 'children-swaryoga',
-    image: 'https://images.pexels.com/photos/3807518/pexels-photo-3807518.jpeg',
-    description: 'Yoga training program for children and teenagers',
-    duration: '10 days',
-    level: 'Beginner',
-    category: 'Youth',
-    mode: ['Online', 'Offline'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'swy-teacher-training': {
-    name: 'Swar Yoga Teachers Training',
-    slug: 'swy-teacher-training',
-    image: 'https://images.pexels.com/photos/3807523/pexels-photo-3807523.jpeg',
-    description: 'Become a certified Swar Yoga teacher (Residential) • Food & accommodation extra',
-    duration: '15 days',
-    level: 'Advanced',
-    category: 'Trainings',
+    category: 'Swar Yoga',
     mode: ['Residential'],
     language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'pre-pregnancy': {
+    name: 'Pre Pregnancy Program',
+    slug: 'pre-pregnancy',
+    image: 'https://images.pexels.com/photos/3807521/pexels-photo-3807521.jpeg',
+    description: 'Safe yoga practice for expecting mothers',
+    duration: '36 days',
+    level: 'All Levels',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'swy-children': {
+    name: 'Swar Yoga Children Program',
+    slug: 'swy-children',
+    image: 'https://images.pexels.com/photos/3807518/pexels-photo-3807518.jpeg',
+    description: 'Yoga training for children and teenagers',
+    duration: '10 days',
+    level: 'Beginner',
+    category: 'Youth',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'complete-health': {
+    name: 'Complete Health Program',
+    slug: 'complete-health',
+    image: 'https://images.pexels.com/photos/3807519/pexels-photo-3807519.jpeg',
+    description: 'Holistic cure for BP, diabetes, heart, liver, kidney, migraine & hormonal balance',
+    duration: '45 days',
+    level: 'All Levels',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'corporate-swy': {
+    name: 'Corporate Swar Yoga Management',
+    slug: 'corporate-swy',
+    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    description: 'Stress management and productivity for corporate professionals',
+    duration: '10 days',
+    level: 'Intermediate',
+    category: 'Corporate',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'self-awareness': {
+    name: 'Self Awareness Level-4',
+    slug: 'self-awareness',
+    image: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
+    description: 'Ultimate self-discovery and spiritual transformation',
+    duration: '30 days',
+    level: 'Advanced',
+    category: 'Swar Yoga',
+    mode: ['Residential'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'happy-marriage': {
+    name: 'Happy Married Life',
+    slug: 'happy-marriage',
+    image: 'https://images.pexels.com/photos/3807512/pexels-photo-3807512.jpeg',
+    description: 'Transform your married life with Swar Yoga techniques',
+    duration: '36 days',
+    level: 'All Levels',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'gurukul-training': {
+    name: 'Gurukul Teachers Training',
+    slug: 'gurukul-training',
+    image: 'https://images.pexels.com/photos/3807522/pexels-photo-3807522.jpeg',
+    description: 'Comprehensive teacher training program in traditional Gurukul style',
+    duration: '90 days',
+    level: 'Advanced',
+    category: 'Swar Yoga',
+    mode: ['Residential'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'swy-teacher': {
+    name: 'Swar Yoga Teachers Training',
+    slug: 'swy-teacher',
+    image: 'https://images.pexels.com/photos/3807523/pexels-photo-3807523.jpeg',
+    description: 'Become a certified Swar Yoga teacher and trainer',
+    duration: '15 days',
+    level: 'Advanced',
+    category: 'Swar Yoga',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
   },
   'gurukul-organiser-training': {
     name: 'Gurukul Organiser Training',
     slug: 'gurukul-organiser-training',
-    image: 'https://images.pexels.com/photos/3807522/pexels-photo-3807522.jpeg',
-    description: 'Train to become a Gurukul organiser and event coordinator',
-    duration: '4 days',
-    level: 'Advanced',
-    category: 'Trainings',
+    image: 'https://images.pexels.com/photos/3807524/pexels-photo-3807524.jpeg',
+    description: 'Training program to build organisers who can manage and grow Gurukul systems.',
+    duration: '45 days',
+    level: 'Intermediate',
+    category: 'Gurukul',
+    mode: ['Online', 'Residential'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  naturopathy: {
+    name: 'Naturopathy Treatment Program',
+    slug: 'naturopathy',
+    image: 'https://images.pexels.com/photos/3807524/pexels-photo-3807524.jpeg',
+    description: 'Complete natural healing and naturopathy treatment protocols',
+    duration: '30 days',
+    level: 'All Levels',
+    category: 'Health',
     mode: ['Residential'],
     language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
-  'gurukul-teacher-training': {
-    name: 'Gurukul Teachers Training',
-    slug: 'gurukul-teacher-training',
-    image: 'https://images.pexels.com/photos/3807522/pexels-photo-3807522.jpeg',
-    description: 'Comprehensive teacher training in traditional Gurukul style',
-    duration: '5 days',
-    level: 'Advanced',
-    category: 'Trainings',
-    mode: ['Residential'],
-    language: ['Hindi', 'English', 'Marathi'],
-    currency: ['INR']
-  },
+    currency: ['INR', 'NPR', 'USD']
+  }
 };
 
 export const workshopCatalog: WorkshopOverview[] = Object.entries(WORKSHOP_METADATA).map(([slug, data], index) => ({
@@ -291,247 +267,111 @@ export interface WorkshopDetail {
   schedules: Schedule[];
 }
 
-const ISO_MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-const formatInr = (value: number) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
-
-const toISODate = (date: Date) => {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
-
-const addDaysInclusive = (startISO: string, durationDays: number) => {
-  const startMs = Date.parse(startISO);
-  if (Number.isNaN(startMs) || durationDays <= 0) return startISO;
-  const endMs = startMs + (durationDays - 1) * ISO_MS_PER_DAY;
-  return toISODate(new Date(endMs));
-};
-
-const scheduleIdByMode: Record<Schedule['mode'], string> = {
-  online: 'on1',
-  offline: 'of1',
-  residential: 'rs1',
-  recorded: 'rc1',
-};
-
-const scheduleTimeByMode: Record<Schedule['mode'], string> = {
-  online: '6:00 AM - 8:00 AM',
-  offline: '7:00 AM - 9:00 AM',
-  residential: 'Full Day',
-  recorded: 'Anytime (Recorded)',
-};
-
-const scheduleLocationByMode: Partial<Record<Schedule['mode'], string>> = {
-  offline: 'Swar Yoga Center',
-  residential: 'Swar Yoga Gurukul (Residential)',
-};
-
-type WorkshopPricingConfig = {
-  durationLabel: string;
-  durationDays: number;
-  pricesInrByMode: Partial<Record<Schedule['mode'], number>>;
-  modes: Schedule['mode'][];
-  priceLabel?: string;
-};
-
-// All seats are 60 as requested.
-const DEFAULT_SEATS = 60;
-
-// Canonical fees + duration mapping (INR)
-const WORKSHOP_PRICING: Record<string, WorkshopPricingConfig> = {
-  // Health
-  'swar-yoga-basic': {
-    durationLabel: '3 days',
-    durationDays: 3,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 96, offline: 96 },
+export const workshopDetails: Record<string, WorkshopDetail> = {
+  'basic-workshop-50': {
+    id: 999,
+    name: 'Basic Workshop (₹50 Test)',
+    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    duration: '1 day',
+    level: 'All Levels',
+    price: '₹50',
+    schedules: [
+      {
+        id: 't1',
+        mode: 'online',
+        startDate: '2025-12-15',
+        endDate: '2025-12-15',
+        time: '7:00 PM - 8:00 PM',
+        seats: 999,
+        price: 50,
+        currency: 'INR'
+      }
+    ]
   },
-  'yogasana-sadhana': {
-    durationLabel: '30 days',
-    durationDays: 30,
-    modes: ['recorded'],
-    pricesInrByMode: { recorded: 330 },
+  'swar-yoga-basic': {
+    id: 1,
+    name: 'Swar Yoga Basic Workshop',
+    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    duration: '3 days',
+    level: 'Beginner',
+    price: '₹2,999',
+    schedules: [
+      { id: 'o1', mode: 'online', startDate: '2025-01-15', endDate: '2025-01-17', time: '6:00 AM - 8:00 AM', seats: 50, price: 2999, currency: 'INR' },
+      { id: 'o2', mode: 'online', startDate: '2025-02-10', endDate: '2025-02-12', time: '6:00 AM - 8:00 AM', seats: 50, price: 2999, currency: 'INR' },
+      { id: 'o3', mode: 'online', startDate: '2025-03-05', endDate: '2025-03-07', time: '5:00 PM - 7:00 PM', seats: 45, price: 2999, currency: 'INR' },
+      { id: 'o4', mode: 'online', startDate: '2025-04-12', endDate: '2025-04-14', time: '6:00 AM - 8:00 AM', seats: 50, price: 2999, currency: 'INR' },
+      { id: 'o5', mode: 'online', startDate: '2025-05-20', endDate: '2025-05-22', time: '5:00 PM - 7:00 PM', seats: 40, price: 2999, currency: 'INR' },
+      { id: 'o6', mode: 'online', startDate: '2025-06-15', endDate: '2025-06-17', time: '6:00 AM - 8:00 AM', seats: 50, price: 2999, currency: 'INR' },
+      { id: 'of1', mode: 'offline', startDate: '2025-01-20', endDate: '2025-01-22', time: '7:00 AM - 9:00 AM', seats: 30, price: 3999, currency: 'INR', location: 'Mumbai Center' },
+      { id: 'of2', mode: 'offline', startDate: '2025-02-15', endDate: '2025-02-17', time: '7:00 AM - 9:00 AM', seats: 28, price: 3999, currency: 'INR', location: 'Delhi Center' },
+      { id: 'of3', mode: 'offline', startDate: '2025-03-10', endDate: '2025-03-12', time: '6:00 AM - 8:00 AM', seats: 25, price: 3999, currency: 'INR', location: 'Bangalore Center' },
+      { id: 'of4', mode: 'offline', startDate: '2025-04-18', endDate: '2025-04-20', time: '7:00 AM - 9:00 AM', seats: 30, price: 3999, currency: 'INR', location: 'Mumbai Center' },
+      { id: 'of5', mode: 'offline', startDate: '2025-05-25', endDate: '2025-05-27', time: '6:00 AM - 8:00 AM', seats: 22, price: 3999, currency: 'INR', location: 'Delhi Center' },
+      { id: 'of6', mode: 'offline', startDate: '2025-06-20', endDate: '2025-06-22', time: '7:00 AM - 9:00 AM', seats: 30, price: 3999, currency: 'INR', location: 'Bangalore Center' },
+      { id: 'r1', mode: 'residential', startDate: '2025-01-25', endDate: '2025-01-27', time: 'Full Day', seats: 20, price: 5999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r2', mode: 'residential', startDate: '2025-02-22', endDate: '2025-02-24', time: 'Full Day', seats: 18, price: 5999, currency: 'INR', location: 'Goa Retreat Center' },
+      { id: 'r3', mode: 'residential', startDate: '2025-03-18', endDate: '2025-03-20', time: 'Full Day', seats: 20, price: 5999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r4', mode: 'residential', startDate: '2025-04-25', endDate: '2025-04-27', time: 'Full Day', seats: 15, price: 5999, currency: 'INR', location: 'Goa Retreat Center' },
+      { id: 'r5', mode: 'residential', startDate: '2025-05-30', endDate: '2025-06-01', time: 'Full Day', seats: 20, price: 5999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r6', mode: 'residential', startDate: '2025-06-28', endDate: '2025-06-30', time: 'Full Day', seats: 18, price: 5999, currency: 'INR', location: 'Goa Retreat Center' }
+    ]
   },
   'swar-yoga-level-1': {
-    durationLabel: '15 days',
-    durationDays: 15,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 3300, offline: 3300 },
+    id: 2,
+    name: 'Swar Yoga Level-1 Workshop',
+    image: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
+    duration: '15 days',
+    level: 'Beginner',
+    price: '₹9,999',
+    schedules: [
+      { id: 'o1', mode: 'online', startDate: '2025-01-10', endDate: '2025-01-24', time: '5:00 PM - 7:00 PM', seats: 40, price: 9999, currency: 'INR' },
+      { id: 'o2', mode: 'online', startDate: '2025-02-05', endDate: '2025-02-19', time: '5:00 PM - 7:00 PM', seats: 40, price: 9999, currency: 'INR' },
+      { id: 'o3', mode: 'online', startDate: '2025-03-01', endDate: '2025-03-15', time: '6:00 AM - 8:00 AM', seats: 35, price: 9999, currency: 'INR' },
+      { id: 'o4', mode: 'online', startDate: '2025-04-08', endDate: '2025-04-22', time: '5:00 PM - 7:00 PM', seats: 40, price: 9999, currency: 'INR' },
+      { id: 'o5', mode: 'online', startDate: '2025-05-15', endDate: '2025-05-29', time: '5:00 PM - 7:00 PM', seats: 38, price: 9999, currency: 'INR' },
+      { id: 'o6', mode: 'online', startDate: '2025-06-10', endDate: '2025-06-24', time: '6:00 AM - 8:00 AM', seats: 40, price: 9999, currency: 'INR' },
+      { id: 'of1', mode: 'offline', startDate: '2025-01-15', endDate: '2025-01-29', time: '7:00 AM - 9:00 AM', seats: 25, price: 12999, currency: 'INR', location: 'Mumbai Center' },
+      { id: 'of2', mode: 'offline', startDate: '2025-02-10', endDate: '2025-02-24', time: '7:00 AM - 9:00 AM', seats: 20, price: 12999, currency: 'INR', location: 'Delhi Center' },
+      { id: 'of3', mode: 'offline', startDate: '2025-03-05', endDate: '2025-03-19', time: '6:00 AM - 8:00 AM', seats: 22, price: 12999, currency: 'INR', location: 'Bangalore Center' },
+      { id: 'of4', mode: 'offline', startDate: '2025-04-12', endDate: '2025-04-26', time: '7:00 AM - 9:00 AM', seats: 25, price: 12999, currency: 'INR', location: 'Mumbai Center' },
+      { id: 'of5', mode: 'offline', startDate: '2025-05-18', endDate: '2025-06-01', time: '6:00 AM - 8:00 AM', seats: 18, price: 12999, currency: 'INR', location: 'Delhi Center' },
+      { id: 'of6', mode: 'offline', startDate: '2025-06-15', endDate: '2025-06-29', time: '7:00 AM - 9:00 AM', seats: 25, price: 12999, currency: 'INR', location: 'Bangalore Center' },
+      { id: 'r1', mode: 'residential', startDate: '2025-01-20', endDate: '2025-02-03', time: 'Full Day', seats: 15, price: 16999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r2', mode: 'residential', startDate: '2025-02-18', endDate: '2025-03-04', time: 'Full Day', seats: 12, price: 16999, currency: 'INR', location: 'Goa Retreat Center' },
+      { id: 'r3', mode: 'residential', startDate: '2025-03-22', endDate: '2025-04-05', time: 'Full Day', seats: 15, price: 16999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r4', mode: 'residential', startDate: '2025-04-28', endDate: '2025-05-12', time: 'Full Day', seats: 10, price: 16999, currency: 'INR', location: 'Goa Retreat Center' },
+      { id: 'r5', mode: 'residential', startDate: '2025-05-25', endDate: '2025-06-08', time: 'Full Day', seats: 15, price: 16999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r6', mode: 'residential', startDate: '2025-06-22', endDate: '2025-07-06', time: 'Full Day', seats: 12, price: 16999, currency: 'INR', location: 'Goa Retreat Center' }
+    ]
   },
-  'swar-yoga-level-3': {
-    durationLabel: '10 days',
-    durationDays: 10,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 3300, offline: 3300 },
-  },
-  'swar-yoga-level-4': {
-    durationLabel: '42 days',
-    durationDays: 42,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 6000, offline: 6000 },
-  },
-  'weight-loss-96days': {
-    durationLabel: '96 days',
-    durationDays: 96,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 6600, offline: 6600 },
-  },
-  'meditation-42days': {
-    durationLabel: '42 days',
-    durationDays: 42,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 2400, offline: 2400 },
-  },
-  'amrut-aahar-42days': {
-    durationLabel: '42 days',
-    durationDays: 42,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 2400, offline: 2400 },
-  },
-  'bandhan-mukti': {
-    durationLabel: '10 days',
-    durationDays: 10,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 2400, offline: 2400 },
-  },
-
-  // Wealth
-  'swar-yoga-level-2': {
-    durationLabel: '14 days',
-    durationDays: 14,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 3300, offline: 3300 },
-  },
-  'swar-yoga-businessman': {
-    durationLabel: '10 weeks (2 sessions/week)',
-    durationDays: 70,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 4200, offline: 4200 },
-  },
-  'corporate-swaryoga': {
-    durationLabel: '10 weeks (2 sessions/week)',
-    durationDays: 70,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 4200, offline: 4200 },
-  },
-
-  // Married
-  'pre-pregnancy-planning': {
-    durationLabel: '8 weeks (Sat-Sun)',
-    durationDays: 56,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 3300, offline: 3300 },
-  },
-  'garbh-sanskar-9months': {
-    durationLabel: '9 months (monthly)',
-    durationDays: 270,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 1000, offline: 1000 },
-    priceLabel: `${formatInr(1000)} / month`,
-  },
-  'happy-married-life': {
-    durationLabel: 'Recorded',
-    durationDays: 30,
-    modes: ['recorded'],
-    pricesInrByMode: { recorded: 5900 },
-  },
-
-  // Youth & Children
   'swar-yoga-youth': {
-    durationLabel: '10 days',
-    durationDays: 10,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 999, offline: 999 },
-  },
-  'children-swaryoga': {
-    durationLabel: '10 days',
-    durationDays: 10,
-    modes: ['online', 'offline'],
-    pricesInrByMode: { online: 600, offline: 600 },
-  },
-
-  // Trainings
-  'swy-teacher-training': {
-    durationLabel: '15 days (Residential)',
-    durationDays: 15,
-    modes: ['residential'],
-    pricesInrByMode: { residential: 33000 },
-  },
-  'gurukul-organiser-training': {
-    durationLabel: '4 days (Residential)',
-    durationDays: 4,
-    modes: ['residential'],
-    pricesInrByMode: { residential: 4500 },
-  },
-  'gurukul-teacher-training': {
-    durationLabel: '5 days (Residential)',
-    durationDays: 5,
-    modes: ['residential'],
-    pricesInrByMode: { residential: 5999 },
-  },
+    id: 3,
+    name: 'Swar Yoga Youth Program',
+    image: 'https://images.pexels.com/photos/3807517/pexels-photo-3807517.jpeg',
+    duration: '10 days',
+    level: 'All Levels',
+    price: '₹4,999',
+    schedules: [
+      { id: 'o1', mode: 'online', startDate: '2025-01-12', endDate: '2025-01-21', time: '7:00 AM - 9:00 AM', seats: 60, price: 4999, currency: 'INR' },
+      { id: 'o2', mode: 'online', startDate: '2025-02-08', endDate: '2025-02-17', time: '7:00 AM - 9:00 AM', seats: 60, price: 4999, currency: 'INR' },
+      { id: 'o3', mode: 'online', startDate: '2025-03-03', endDate: '2025-03-12', time: '5:00 PM - 7:00 PM', seats: 55, price: 4999, currency: 'INR' },
+      { id: 'o4', mode: 'online', startDate: '2025-04-10', endDate: '2025-04-19', time: '7:00 AM - 9:00 AM', seats: 60, price: 4999, currency: 'INR' },
+      { id: 'o5', mode: 'online', startDate: '2025-05-12', endDate: '2025-05-21', time: '7:00 AM - 9:00 AM', seats: 58, price: 4999, currency: 'INR' },
+      { id: 'o6', mode: 'online', startDate: '2025-06-12', endDate: '2025-06-21', time: '7:00 AM - 9:00 AM', seats: 60, price: 4999, currency: 'INR' },
+      { id: 'of1', mode: 'offline', startDate: '2025-01-18', endDate: '2025-01-27', time: '8:00 AM - 10:00 AM', seats: 35, price: 5999, currency: 'INR', location: 'Mumbai Center' },
+      { id: 'of2', mode: 'offline', startDate: '2025-02-12', endDate: '2025-02-21', time: '8:00 AM - 10:00 AM', seats: 32, price: 5999, currency: 'INR', location: 'Delhi Center' },
+      { id: 'of3', mode: 'offline', startDate: '2025-03-08', endDate: '2025-03-17', time: '5:00 PM - 7:00 PM', seats: 30, price: 5999, currency: 'INR', location: 'Bangalore Center' },
+      { id: 'of4', mode: 'offline', startDate: '2025-04-15', endDate: '2025-04-24', time: '8:00 AM - 10:00 AM', seats: 35, price: 5999, currency: 'INR', location: 'Mumbai Center' },
+      { id: 'of5', mode: 'offline', startDate: '2025-05-20', endDate: '2025-05-29', time: '8:00 AM - 10:00 AM', seats: 30, price: 5999, currency: 'INR', location: 'Delhi Center' },
+      { id: 'of6', mode: 'offline', startDate: '2025-06-18', endDate: '2025-06-27', time: '8:00 AM - 10:00 AM', seats: 35, price: 5999, currency: 'INR', location: 'Bangalore Center' },
+      { id: 'r1', mode: 'residential', startDate: '2025-01-28', endDate: '2025-02-06', time: 'Full Day', seats: 25, price: 8999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r2', mode: 'residential', startDate: '2025-02-25', endDate: '2025-03-06', time: 'Full Day', seats: 22, price: 8999, currency: 'INR', location: 'Goa Retreat Center' },
+      { id: 'r3', mode: 'residential', startDate: '2025-03-25', endDate: '2025-04-03', time: 'Full Day', seats: 25, price: 8999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r4', mode: 'residential', startDate: '2025-04-30', endDate: '2025-05-09', time: 'Full Day', seats: 20, price: 8999, currency: 'INR', location: 'Goa Retreat Center' },
+      { id: 'r5', mode: 'residential', startDate: '2025-06-02', endDate: '2025-06-11', time: 'Full Day', seats: 25, price: 8999, currency: 'INR', location: 'Rishikesh Ashram' },
+      { id: 'r6', mode: 'residential', startDate: '2025-07-01', endDate: '2025-07-10', time: 'Full Day', seats: 22, price: 8999, currency: 'INR', location: 'Goa Retreat Center' }
+    ]
+  }
 };
-
-const buildWorkshopDetails = (): Record<string, WorkshopDetail> => {
-  const details: Record<string, WorkshopDetail> = {};
-
-  const slugs = workshopCatalog.map((w) => w.slug);
-  slugs.forEach((slug, index) => {
-    const meta = workshopCatalog.find((w) => w.slug === slug);
-    const cfg = WORKSHOP_PRICING[slug];
-
-    // If a workshop exists in catalog but not in pricing, skip it.
-    // (We intentionally removed Create Well from the updated list.)
-    if (!meta || !cfg) return;
-
-    const startBase = new Date(Date.UTC(2026, 0, 10 + index * 3));
-    const startDate = toISODate(startBase);
-
-    const schedules: Schedule[] = cfg.modes
-      .map((mode, modeIndex) => {
-        const price = cfg.pricesInrByMode[mode];
-        if (typeof price !== 'number') return null;
-
-        // Stagger modes by a day so they don't all start on the same date.
-        const startForMode = toISODate(new Date(Date.parse(startDate) + modeIndex * ISO_MS_PER_DAY));
-        const endDate = addDaysInclusive(startForMode, cfg.durationDays);
-
-        return {
-          id: scheduleIdByMode[mode],
-          mode,
-          startDate: startForMode,
-          endDate,
-          time: scheduleTimeByMode[mode],
-          seats: DEFAULT_SEATS,
-          price,
-          currency: 'INR',
-          location: scheduleLocationByMode[mode],
-        };
-      })
-      .filter(Boolean) as Schedule[];
-
-    const prices = schedules.map((s) => s.price);
-    const minPrice = prices.length ? Math.min(...prices) : 0;
-    const priceLabel = cfg.priceLabel || formatInr(minPrice);
-
-    details[slug] = {
-      id: index + 1,
-      name: meta.name,
-      image: meta.image,
-      duration: cfg.durationLabel,
-      level: meta.level,
-      price: priceLabel,
-      schedules,
-    };
-  });
-
-  return details;
-};
-
-export const workshopDetails: Record<string, WorkshopDetail> = buildWorkshopDetails();
 
 export const findWorkshopBySlug = (slug: string) => workshopCatalog.find((workshop) => workshop.slug === slug);
-
-// Export pricing for display on cards (with schedule details)
-export const WORKSHOP_PRICING_DISPLAY = workshopDetails;

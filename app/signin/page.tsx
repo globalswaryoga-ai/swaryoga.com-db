@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
-import SocialLoginButtons from '@/components/SocialLoginButtons';
 import { setSession } from '@/lib/sessionManager';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +13,7 @@ export const dynamic = 'force-dynamic';
 function SignInInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams?.get('redirect') || '/';
+  const redirectPath = searchParams.get('redirect') || '/';
 
   const [formData, setFormData] = useState({
     email: '',
@@ -86,8 +85,8 @@ function SignInInner() {
 
       // Redirect after success
       setTimeout(() => {
-        // Default to home page, respect redirect param if provided
-        const redirectTo = redirectPath && redirectPath !== '/' ? redirectPath : '/';
+        // Check if user has life planner access, default to dashboard
+        const redirectTo = redirectPath && redirectPath !== '/' ? redirectPath : '/life-planner/dashboard';
         router.push(redirectTo);
       }, 1500);
     } catch (err) {
@@ -115,18 +114,18 @@ function SignInInner() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen bg-swar-bg">
-        <div className="container mx-auto max-w-md px-6 py-16">
-          <div className="bg-white rounded-2xl shadow-lg p-8">
+      <main className="min-h-screen flex items-center justify-center px-4 py-8 bg-gradient-to-br from-yoga-50 via-white to-yoga-50">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-8 border border-yoga-100">
             {/* Header */}
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-swar-primary-light rounded-full flex items-center justify-center mx-auto mb-4">
-                <LogIn className="h-8 w-8 text-swar-primary" />
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <LogIn className="h-8 w-8 text-green-600" />
               </div>
-              <h1 className="text-2xl font-bold text-swar-text mb-2">Welcome Back</h1>
-              <p className="text-swar-text-secondary">Sign in to access your account and workshops</p>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Welcome Back</h1>
+              <p className="text-gray-600">Sign in to access your account and workshops</p>
               {redirectPath && redirectPath !== '/' && (
-                <div className="mt-2 text-sm text-swar-primary">
+                <div className="mt-2 text-sm text-green-600">
                   Sign in to continue to {redirectPath === 'account' ? 'your account' : 
                                          redirectPath === 'cart' ? 'your cart' : 
                                          redirectPath === 'checkout' ? 'checkout' : redirectPath}
@@ -136,9 +135,9 @@ function SignInInner() {
 
             {/* Status Messages */}
             {submitStatus === 'success' && (
-              <div className="mb-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg flex items-center space-x-3">
-                <CheckCircle className="h-5 w-5 text-swar-primary" />
-                <span className="text-swar-primary">Sign in successful! Redirecting...</span>
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center space-x-3">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <span className="text-green-800">Sign in successful! Redirecting...</span>
               </div>
             )}
 
@@ -153,17 +152,17 @@ function SignInInner() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Email */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-swar-text mb-2">Email Address</label>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-swar-text-secondary" />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     type="email"
                     id="email"
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
-                      errors.email ? 'border-red-400 bg-red-50' : 'border-swar-border'
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
+                      errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="Enter your email address"
                     autoComplete="email"
@@ -174,17 +173,17 @@ function SignInInner() {
 
               {/* Password */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-swar-text mb-2">Password</label>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-swar-text-secondary" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     id="password"
                     name="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-swar-primary focus:border-transparent transition-colors ${
-                      errors.password ? 'border-red-400 bg-red-50' : 'border-swar-border'
+                    className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
+                      errors.password ? 'border-red-400 bg-red-50' : 'border-gray-300'
                     }`}
                     placeholder="Enter your password"
                     autoComplete="current-password"
@@ -192,7 +191,7 @@ function SignInInner() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-text-secondary"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
@@ -205,11 +204,11 @@ function SignInInner() {
                 <label className="flex items-center">
                   <input
                     type="checkbox"
-                    className="rounded border-swar-border text-swar-primary focus:ring-swar-primary"
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                   />
-                  <span className="ml-2 text-sm text-swar-text-secondary">Remember me</span>
+                  <span className="ml-2 text-sm text-gray-600">Remember me</span>
                 </label>
-                <Link href="/forgot-password" className="text-sm text-swar-primary hover:text-swar-primary">
+                <Link href="/forgot-password" className="text-sm text-green-600 hover:text-green-700">
                   Forgot password?
                 </Link>
               </div>
@@ -218,7 +217,7 @@ function SignInInner() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-gradient-to-r from-swar-primary to-green-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
                 {isSubmitting ? (
                   <>
@@ -234,27 +233,13 @@ function SignInInner() {
               </button>
             </form>
 
-            {/* Social Login Buttons */}
-            <div className="mb-8">
-              <SocialLoginButtons
-                onSuccess={(user) => {
-                  // User logged in successfully via social login
-                  // Redirect to the intended path
-                  router.push(redirectPath || '/account');
-                }}
-                onError={(error) => {
-                  setErrors(prev => ({ ...prev, general: error }));
-                }}
-              />
-            </div>
-
             {/* Sign Up Link */}
             <div className="mt-8 text-center">
-              <p className="text-swar-text-secondary">
+              <p className="text-gray-600">
                 Don't have an account?{' '}
                 <Link
                   href={`/signup${redirectPath && redirectPath !== '/' ? `?redirect=${redirectPath}` : ''}`}
-                  className="text-swar-primary hover:text-swar-primary font-medium"
+                  className="text-green-600 hover:text-green-700 font-medium"
                 >
                   Sign up here
                 </Link>
@@ -262,8 +247,8 @@ function SignInInner() {
             </div>
 
             {/* Access Info */}
-            <div className="mt-6 p-4 bg-swar-primary-light border border-green-200 rounded-lg text-center">
-              <p className="text-sm text-swar-primary">
+            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center">
+              <p className="text-sm text-green-800">
                 Sign in to access your personal account and track your journey.
               </p>
             </div>

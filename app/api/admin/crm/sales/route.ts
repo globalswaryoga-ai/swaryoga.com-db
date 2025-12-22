@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import {
+  verifyAdminAccess,
+  parsePagination,
+  handleCrmError,
+  formatCrmSuccess,
+  buildMetadata,
+  isValidObjectId,
+  toObjectId,
+} from '@/lib/crm-handlers';
 import { SalesReport } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 

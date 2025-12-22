@@ -1,507 +1,518 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowLeft } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { CartItem, getStoredCart } from '@/lib/cart';
-import { getCurrencySymbol, roundMoney } from '@/lib/paymentMath';
-import NepalQRModal from '@/components/NepalQRModal';
 
 export const dynamic = 'force-dynamic';
 
-type PaymentCountry = 'india' | 'international' | 'nepal';
-
-type CashfreeInitResponse = {
-  success: boolean;
-  method: 'cashfree';
-  orderId: string;
-  cashfreeOrderId: string;
-  paymentSessionId: string;
-  env: 'sandbox' | 'production';
-  sdkUrl: string;
-};
-
-interface OrderData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  city: string;
-}
-
-export default function CheckoutPage() {
+function CheckoutInner() {
   const router = useRouter();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const processingRef = useRef(false);
-  const [showNepalQR, setShowNepalQR] = useState(false);
-  const [error, setError] = useState('');
-
-  const cashfreeSdkPromiseRef = useRef<Promise<void> | null>(null);
-
-  const [formData, setFormData] = useState<OrderData>({
+  const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
+    address: '',
     city: '',
+    state: '',
+    zip: '',
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Check authentication
+  const searchParams = useSearchParams();
+  const supportedCurrencies = ['INR', 'USD', 'NPR'] as const;
+  const normalizedQueryCurrency = (searchParams.get('currency') || '').toUpperCase();
+  const isSupportedQueryCurrency = supportedCurrencies.includes(normalizedQueryCurrency as typeof supportedCurrencies[number]);
+  const [selectedCurrency, setSelectedCurrency] = useState<CartItem['currency']>(
+    isSupportedQueryCurrency ? (normalizedQueryCurrency as CartItem['currency']) : 'INR'
+  );
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isCartLoaded, setIsCartLoaded] = useState(false);
+
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-    if (!token || !user) {
-      router.replace(`/signin?redirect=${encodeURIComponent('/checkout')}`);
-      return;
-    }
-
-    // Load cart and user data
     const items = getStoredCart();
     setCartItems(items);
-
-    try {
-      const userData = JSON.parse(user);
-      setFormData((prev) => ({
-        ...prev,
-        firstName: userData.name?.split(' ')[0] || '',
-        lastName: userData.name?.split(' ').slice(1).join(' ') || '',
-        email: userData.email || '',
-        phone: userData.phone || '',
-        city: userData.city || '',
-      }));
-    } catch (err) {
-      console.error('Error loading user data:', err);
+    setIsCartLoaded(true);
+    if (items.length && !items.some((item) => item.currency === selectedCurrency)) {
+      setSelectedCurrency(items[0].currency);
     }
+  }, []);
 
-    setIsLoading(false);
-  }, [router]);
+  useEffect(() => {
+    if (!cartItems.length || !isSupportedQueryCurrency) return;
+    if (cartItems.some((item) => item.currency === normalizedQueryCurrency) && selectedCurrency !== normalizedQueryCurrency) {
+      setSelectedCurrency(normalizedQueryCurrency as CartItem['currency']);
+    }
+  }, [cartItems, normalizedQueryCurrency, isSupportedQueryCurrency, selectedCurrency]);
 
-  // Calculate pricing
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const PLATFORM_FEE_PERCENT = 0.033; // 3.3%
-  const charges = roundMoney(subtotal * PLATFORM_FEE_PERCENT);
-  const total = roundMoney(subtotal + charges);
-  const currency = cartItems[0]?.currency || 'INR';
+  const summaryItems = cartItems.filter((item) => item.currency === selectedCurrency);
+  const summarySubtotal = summaryItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const summaryTax = Number((summarySubtotal * 0.08).toFixed(2));
+  const summaryTotal = Number((summarySubtotal + summaryTax).toFixed(2));
+  const summaryQuantity = summaryItems.reduce((sum, item) => sum + item.quantity, 0);
+  const availableCurrencies = Array.from(new Set(cartItems.map((item) => item.currency)));
+  const currencyOverview = availableCurrencies.map((code) => {
+    const items = cartItems.filter((item) => item.currency === code);
+    const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const quantity = items.reduce((sum, item) => sum + item.quantity, 0);
+    return { code, total, quantity };
+  });
+  const hasItemsForSelectedCurrency = summaryItems.length > 0;
+  const showEmptyCartNotice = isCartLoaded && cartItems.length === 0;
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError('');
   };
 
-  const validateForm = (): boolean => {
-    const requiredFields = ['firstName', 'email', 'phone', 'city'];
-    const missingFields = requiredFields.filter((field) => !formData[field as keyof OrderData]?.trim());
-
-    if (missingFields.length > 0) {
-      setError(`Please fill in: ${missingFields.join(', ')}`);
-      return false;
-    }
-
-    if (!formData.email.includes('@')) {
-      setError('Please enter a valid email address');
-      return false;
-    }
-
-    if (formData.phone.length < 10) {
-      setError('Please enter a valid phone number (at least 10 digits)');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handlePayment = async (country: PaymentCountry) => {
-    // Prevent double-clicks / event bubbling from triggering multiple initiations.
-    if (processingRef.current || isProcessing) return;
-
-
-    if (!validateForm()) return;
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
     setError('');
-    processingRef.current = true;
-    setIsProcessing(true);
 
     try {
-      // For Nepal, show QR modal instead of processing payment
-      if (country === 'nepal') {
-        setShowNepalQR(true);
-        setIsProcessing(false);
-        processingRef.current = false;
+      // Validate all required fields
+      if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone ||
+          !formData.address || !formData.city || !formData.state || !formData.zip) {
+        setError('Please fill in all required fields');
+        setLoading(false);
         return;
       }
 
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication required');
+      if (!hasItemsForSelectedCurrency) {
+        setError('Your cart does not have any items for this currency.');
+        setLoading(false);
+        return;
       }
 
-      // Calculate subtotal (without charges for API)
-      const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      // Handle Nepal Rs - Show QR code and WhatsApp instruction
+      if (selectedCurrency === 'NPR') {
+        alert('Thank you for your order!\n\nPlease scan the QR code displayed and send a screenshot of your payment to our WhatsApp:\n\n+91 9779006820\n\nWe will update you shortly.');
+        // In a real scenario, you might show a modal with QR code instead of alert
+        setLoading(false);
+        return;
+      }
 
-      // Prepare order data
-      const orderData = {
-        firstName: formData.firstName.trim(),
-        lastName: formData.lastName.trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        city: formData.city.trim(),
-        amount: subtotal, // Send subtotal, API will add 3.3%
-        currency: country === 'india' ? 'INR' : 'USD',
-        country,
-        productInfo: `Swar Yoga Purchase - ${cartItems.length} item(s)`,
-        items: cartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          currency: item.currency,
-        })),
-      };
+      const amount = Number(summaryTotal.toFixed(2));
+      const productInfo = summaryItems
+        .map((item) => `${item.name} x${item.quantity}`)
+        .join(', ')
+        .slice(0, 90) || 'Swar Yoga Workshops';
 
-      // Call payment initiation API (Cashfree)
-      const response = await fetch('/api/payments/cashfree/initiate', {
+      const lineItems = summaryItems.map((item) => ({
+        productId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+
+      const origin = typeof window !== 'undefined'
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_APP_URL || '');
+      const callbackUrl = `${origin}/api/payments/payu/callback`;
+
+      // Call PayU initiation endpoint for INR and USD
+      const response = await fetch('/api/payments/payu/initiate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(orderData),
+        body: JSON.stringify({
+          amount: amount,
+          currency: selectedCurrency,
+          productInfo: productInfo,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip,
+          items: lineItems,
+          successUrl: callbackUrl,
+          failureUrl: callbackUrl,
+        }),
       });
 
-      const data = (await response.json()) as Partial<CashfreeInitResponse> & { error?: string };
-
       if (!response.ok) {
-        throw new Error(data.error || 'Payment initiation failed');
+        const data = await response.json().catch(() => null);
+        const message = data?.error || data?.details || 'Failed to initiate payment';
+        console.error('PayU initiation error:', { status: response.status, data });
+        throw new Error(message);
       }
 
-      // Store order ID
-      if (!data.orderId || !data.paymentSessionId) {
-        throw new Error('Cashfree payment session not available');
-      }
-      localStorage.setItem('orderId', data.orderId);
-
-      const sdkUrl = data.sdkUrl || 'https://sdk.cashfree.com/js/v3/cashfree.js';
-
-      // Load Cashfree JS SDK once
-      if (!cashfreeSdkPromiseRef.current) {
-        cashfreeSdkPromiseRef.current = new Promise<void>((resolve, reject) => {
-          if (typeof window !== 'undefined' && window.Cashfree) {
-            resolve();
-            return;
-          }
-
-          const existing = document.querySelector(`script[src="${sdkUrl}"]`);
-          if (existing) {
-            existing.addEventListener('load', () => resolve());
-            existing.addEventListener('error', () => reject(new Error('Failed to load Cashfree SDK')));
-            return;
-          }
-
-          const script = document.createElement('script');
-          script.src = sdkUrl;
-          script.async = true;
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('Failed to load Cashfree SDK'));
-          document.body.appendChild(script);
-        });
+      const data = await response.json();
+      
+      if (!data.success || !data.paymentUrl || !data.params) {
+        console.error('Invalid PayU response:', data);
+        throw new Error(data.error || 'Invalid payment gateway response');
       }
 
-      await cashfreeSdkPromiseRef.current;
+      const { paymentUrl, params } = data;
 
-      if (!window.Cashfree) {
-        throw new Error('Cashfree SDK not available');
+      if (!paymentUrl || !params) {
+        throw new Error('Invalid PayU initiation response');
       }
 
-      const cashfree = window.Cashfree({ mode: data.env === 'production' ? 'production' : 'sandbox' });
-      await cashfree.checkout({ paymentSessionId: data.paymentSessionId, redirectTarget: '_self' });
+      // Create hidden form for PayU submission
+      const existingForm = document.getElementById('payu-form');
+      if (existingForm) {
+        existingForm.remove();
+      }
+
+      const form = document.createElement('form');
+      form.id = 'payu-form';
+      form.method = 'POST';
+      form.action = paymentUrl;
+      form.style.display = 'none';
+
+      Object.entries(params).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = String(value);
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+      setLoading(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Payment processing failed';
-      setError(message);
-      setIsProcessing(false);
-      processingRef.current = false;
+      console.error('Error processing payment:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process payment. Please try again.');
+      setLoading(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <>
-        <Navigation />
-        <main className="min-h-screen pt-20 pb-20 bg-swar-bg flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-swar-primary border-t-transparent"></div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
+  const getCurrencySymbol = (curr: string) => {
+    switch(curr) {
+      case 'INR': return '₹';
+      case 'USD': return '$';
+      case 'NPR': return 'Rs';
+      default: return '₹';
+    }
+  };
 
-  if (cartItems.length === 0) {
-    return (
-      <>
-        <Navigation />
-        <main className="min-h-screen pt-20 pb-20 bg-swar-bg">
-          <div className="max-w-2xl mx-auto px-4 py-8">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 text-swar-primary hover:text-swar-primary-hover mb-6"
-            >
-              <ArrowLeft size={20} />
-              Back to Cart
-            </button>
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-            <div className="bg-white rounded-lg shadow-lg p-8 text-center">
-              <p className="text-swar-text-secondary text-lg mb-4">Your cart is empty</p>
-              <button
-                onClick={() => router.push('/workshop')}
-                className="bg-swar-primary text-white px-6 py-2 rounded-lg hover:bg-swar-primary-hover transition-colors"
-              >
-                Browse Workshops
-              </button>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </>
-    );
-  }
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+
+      const parsed = JSON.parse(storedUser);
+      const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
+      const nameParts = name ? name.split(/\s+/) : [];
+      const [firstName = '', ...rest] = nameParts;
+      const lastName = rest.join(' ');
+
+      setFormData((prev) => ({
+        ...prev,
+        firstName: prev.firstName || firstName,
+        lastName: prev.lastName || lastName,
+        email: prev.email || parsed.email || '',
+        phone: prev.phone || parsed.phone || '',
+      }));
+    } catch (error) {
+      console.error('Failed to load stored user for checkout autofill:', error);
+    }
+  }, []);
 
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-20 pb-20 bg-swar-bg">
-        <div className="max-w-2xl mx-auto px-4 py-8">
-          {/* Back Button */}
+      <main className="min-h-screen pt-20">
+        <div className="container py-20">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-swar-primary hover:text-swar-primary-hover mb-6 font-semibold"
+            className="mb-6 flex items-center gap-2 text-yoga-600 hover:text-yoga-700 font-semibold transition-colors"
           >
-            <ArrowLeft size={20} />
-            Back to Cart
+            <ArrowLeft className="w-4 h-4" />
+            Back
           </button>
+          {showEmptyCartNotice && (
+            <div className="mb-8 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-800">
+              Your cart is empty. Visit the <a href="/workshops" className="underline font-semibold">workshops page</a> to add a program before proceeding to PayU.
+            </div>
+          )}
+          <h1 className="text-5xl font-bold mb-12 text-yoga-700">Checkout</h1>
 
-          {/* Order Summary */}
-          <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 mb-8">
-            <h2 className="text-2xl font-bold text-swar-text mb-6">Order Summary</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="md:col-span-2">
+              <form onSubmit={handleSubmit} className="space-y-8">
+                {/* Shipping Information */}
+                <div className="bg-white rounded-lg shadow-md p-8">
+                  <h2 className="text-2xl font-bold mb-6 text-yoga-700">Shipping Information</h2>
+                  
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-2">First Name</label>
+                      <input
+                        type="text"
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        placeholder="John"
+                      />
+                    </div>
 
-            {/* Cart Items */}
-            <div className="space-y-4 mb-6 pb-6 border-b border-swar-border">
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold text-swar-text">{item.name}</p>
-                    <p className="text-sm text-swar-text-secondary">Qty: {item.quantity}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-swar-text">
-                      {getCurrencySymbol(item.currency)}
-                      {roundMoney(item.price * item.quantity)}
-                    </p>
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-2">Last Name</label>
+                      <input
+                        type="text"
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        placeholder="Doe"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-2">Email</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        placeholder="john@example.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-2">Phone</label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        placeholder="(555) 000-0000"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-gray-700 font-bold mb-2">Address</label>
+                      <input
+                        type="text"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        placeholder="123 Main St"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-2">City</label>
+                      <input
+                        type="text"
+                        name="city"
+                        value={formData.city}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        placeholder="New York"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-2">State</label>
+                      <input
+                        type="text"
+                        name="state"
+                        value={formData.state}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        placeholder="NY"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 font-bold mb-2">ZIP Code</label>
+                      <input
+                        type="text"
+                        name="zip"
+                        value={formData.zip}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                        placeholder="10001"
+                      />
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Pricing Summary */}
-            <div className="space-y-2 mb-6 pb-6 border-b border-swar-border">
-              <div className="flex justify-between text-swar-text">
-                <span>Subtotal:</span>
-                <span className="font-semibold">
-                  {getCurrencySymbol(currency)}
-                  {roundMoney(subtotal)}
-                </span>
-              </div>
-              <div className="flex justify-between text-swar-text-secondary text-sm">
-                <span>Processing charges (3.3%):</span>
-                <span>
-                  {getCurrencySymbol(currency)}
-                  {charges}
-                </span>
-              </div>
-            </div>
+                {/* Payment Information - Currency & Method */}
+                <div className="bg-white rounded-lg shadow-md p-8">
+                  <h2 className="text-2xl font-bold mb-4 text-yoga-700">Payment Method</h2>
+                  {cartItems.length === 0 ? (
+                    <p className="text-gray-600">
+                      Add a workshop to your cart to enable checkout.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-gray-600 mb-4">
+                        Select your payment currency:
+                      </p>
+                      <div className="flex flex-wrap gap-3 mb-6">
+                        {['INR', 'USD', 'NPR'].map((code) => {
+                          const isActive = code === selectedCurrency;
+                          return (
+                            <button
+                              key={code}
+                              type="button"
+                              onClick={() => setSelectedCurrency(code as CartItem['currency'])}
+                              className={`rounded-full border px-6 py-3 text-sm font-bold transition ${
+                                isActive
+                                  ? 'bg-yoga-600 text-white border-yoga-600 shadow-md scale-105'
+                                  : 'bg-white text-yoga-700 border-yoga-300 hover:border-yoga-600 hover:scale-105'
+                              }`}
+                            >
+                              {code === 'INR' && '₹ INR'}
+                              {code === 'USD' && '$ USD'}
+                              {code === 'NPR' && 'Rs Nepal'}
+                            </button>
+                          );
+                        })}
+                      </div>
 
-            {/* Total */}
-            <div className="flex justify-between items-center mb-6">
-              <span className="text-lg font-bold text-swar-text">Total Amount:</span>
-              <span className="text-2xl font-bold text-swar-primary">
-                {getCurrencySymbol(currency)}
-                {total}
-              </span>
-            </div>
+                      {selectedCurrency === 'NPR' ? (
+                        <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
+                          <h3 className="text-lg font-bold text-blue-900 mb-3">Nepal Payment Instructions</h3>
+                          <div className="space-y-3 text-blue-900">
+                            <p className="font-semibold">Please follow these steps:</p>
+                            <ol className="list-decimal list-inside space-y-2 ml-2">
+                              <li>Scan the QR code (you'll receive it)</li>
+                              <li>Complete the payment</li>
+                              <li>Take a screenshot of the payment confirmation</li>
+                              <li>Send it to us on WhatsApp: <span className="font-bold">+91 9779006820</span></li>
+                              <li>We will update you within 24 hours</li>
+                            </ol>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600 mb-6">
+                          <p className="font-semibold text-gray-700 mb-2">Payment Gateway: PayU</p>
+                          <p>Pay via debit/credit card, net banking, digital wallets, or international options.</p>
+                        </div>
+                      )}
 
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700 text-sm">
-                {error}
-              </div>
-            )}
-          </div>
+                      <p className="text-gray-600 mb-3">
+                        Your order will be processed in{' '}
+                        <span className="font-semibold text-yoga-700">{selectedCurrency}</span>.
+                      </p>
+                      
+                      {currencyOverview.length > 1 && (
+                        <div className="mt-6 border-t border-gray-200 pt-4">
+                          <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">All payment groups</p>
+                          <div className="space-y-2">
+                            {currencyOverview.map(({ code, total, quantity }) => (
+                              <div key={code} className="flex justify-between text-sm text-gray-600">
+                                <span>{code} • {quantity} item{quantity === 1 ? '' : 's'}</span>
+                                <span className="font-semibold">{getCurrencySymbol(code)}{total.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
 
-          {/* Billing Information */}
-          <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8 mb-8">
-            <h3 className="text-xl font-bold text-swar-text mb-6">Billing Information</h3>
+                  {error && (
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-6">
+                      {error}
+                    </div>
+                  )}
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-swar-text mb-2">First Name *</label>
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  placeholder="John"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-swar-text mb-2">Last Name</label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  placeholder="Doe"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-swar-text mb-2">Email *</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  placeholder="john@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-swar-text mb-2">Phone *</label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  placeholder="+91 9999999999"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-semibold text-swar-text mb-2">City *</label>
-                <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  placeholder="Mumbai"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Method Selection */}
-          <div className="bg-white rounded-lg shadow-lg p-6 sm:p-8">
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <h3 className="text-xl font-bold text-swar-text">Payment Method</h3>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold whitespace-nowrap">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                Cashfree Connected
-              </div>
-            </div>
-
-            {/* Payment Options */}
-            <div className="space-y-4 mb-8">
-              {/* India Payment */}
-              <div className="border-2 border-swar-border rounded-lg p-4">
-                <h3 className="text-sm font-bold text-swar-text mb-3">🇮🇳 India Payment</h3>
                 <button
-                  type="button"
-                  onClick={() => handlePayment('india')}
-                  disabled={isProcessing}
-                  className={`w-full p-4 rounded-lg border-2 transition-all text-center font-semibold ${
-                    isProcessing
-                      ? 'opacity-50 cursor-not-allowed border-gray-200'
-                      : 'border-sky-300 hover:border-sky-500 hover:bg-sky-50'
+                  type="submit"
+                  disabled={loading || !hasItemsForSelectedCurrency}
+                  className={`w-full bg-yoga-600 text-white py-4 rounded-lg font-bold text-lg transition ${
+                    loading || !hasItemsForSelectedCurrency ? 'opacity-50 cursor-not-allowed' : 'hover:bg-yoga-700'
                   }`}
                 >
-                  <p className="text-sm mb-2">💳 Cashfree</p>
-                  <p className="text-xs text-swar-text-secondary">UPI / Cards / NetBanking</p>
+                  {loading
+                    ? 'Redirecting to PayU...'
+                    : hasItemsForSelectedCurrency
+                      ? `Pay ${getCurrencySymbol(selectedCurrency)}${summaryTotal.toFixed(2)}`
+                      : 'Select a currency with items'}
                 </button>
-              </div>
-
-              {/* International Payment */}
-              <button
-                type="button"
-                onClick={() => handlePayment('international')}
-                disabled={isProcessing}
-                className={`w-full p-6 rounded-lg border-2 transition-all text-left ${
-                  isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
-                } border-swar-border`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-swar-text mb-1">🌍 International</h4>
-                    <p className="text-xs text-swar-text-secondary">Cashfree Checkout</p>
-                  </div>
-                  <div
-                    className={`bg-swar-primary text-white px-6 py-2 rounded font-semibold transition-colors ${
-                      isProcessing ? 'opacity-50' : 'hover:bg-swar-primary-hover'
-                    }`}
-                  >
-                    {isProcessing ? 'Processing...' : 'Pay Now'}
-                  </div>
-                </div>
-              </button>
-
-              {/* Nepal QR */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowNepalQR(true);
-                  setIsProcessing(false);
-                }}
-                disabled={isProcessing}
-                className={`w-full p-6 rounded-lg border-2 transition-all text-left ${
-                  isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:border-swar-primary'
-                } border-swar-border`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-swar-text mb-1">🇳🇵 Nepal</h4>
-                    <p className="text-xs text-swar-text-secondary">QR Code Payment</p>
-                  </div>
-                  <div className="bg-swar-primary text-white px-6 py-2 rounded font-semibold">
-                    Show QR
-                  </div>
-                </div>
-              </button>
+              </form>
             </div>
 
-            {/* Error */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-                {error}
-              </div>
-            )}
+            {/* Order Summary */}
+            <div className="md:col-span-1">
+              <div className="bg-yoga-50 rounded-lg p-8 sticky top-24">
+                <h2 className="text-2xl font-bold mb-6 text-yoga-700">Order Summary</h2>
+                
+                <div className="space-y-4 mb-6 border-b border-yoga-200 pb-6">
+                  {hasItemsForSelectedCurrency ? (
+                    summaryItems.map((item) => (
+                      <div key={`${item.id}-${item.currency}`} className="flex justify-between">
+                        <div>
+                          <p className="text-gray-800 font-semibold">{item.name}</p>
+                          <p className="text-xs text-gray-500">Qty {item.quantity}</p>
+                        </div>
+                        <span className="font-semibold">{getCurrencySymbol(selectedCurrency)}{(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      No items available for {selectedCurrency}. Switch currency above or return to the cart.
+                    </p>
+                  )}
+                </div>
 
-            {/* Terms */}
-            <div className="bg-swar-bg rounded-lg p-4 text-sm text-swar-text-secondary">
-              <p>By proceeding with payment, you agree to our terms and conditions. Your payment is secured and encrypted.</p>
+                <div className="space-y-3 mb-6 border-b border-yoga-200 pb-6">
+                  <div className="flex justify-between text-gray-700">
+                    <span>Subtotal</span>
+                    <span>{getCurrencySymbol(selectedCurrency)}{summarySubtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-700">
+                    <span>Tax (8%)</span>
+                    <span>{getCurrencySymbol(selectedCurrency)}{summaryTax.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-xl font-bold text-yoga-700">
+                    Total{summaryQuantity ? ` (${summaryQuantity} item${summaryQuantity === 1 ? '' : 's'})` : ''}
+                  </span>
+                  <span className="text-2xl font-bold text-yoga-600">{getCurrencySymbol(selectedCurrency)}{summaryTotal.toFixed(2)}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </main>
       <Footer />
-
-      {/* Nepal QR Modal */}
-      {showNepalQR && <NepalQRModal onClose={() => setShowNepalQR(false)} amount={total} currency={currency} />}
     </>
+  );
+}
+
+export default function Checkout() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutInner />
+    </Suspense>
   );
 }
