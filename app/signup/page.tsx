@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import SocialLoginButtons from '@/components/SocialLoginButtons';
+import { Eye, EyeOff } from 'lucide-react';
 import { addCartItem, CartCurrency } from '@/lib/cart';
 import { getCurrencyForLanguage } from '@/lib/paymentLinkHelper';
 import { setSession } from '@/lib/sessionManager';
@@ -47,6 +48,7 @@ function SignUpInner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
+  const [showTerms, setShowTerms] = useState(false);
 
   // Auto-detect user's country based on geolocation
   useEffect(() => {
@@ -545,8 +547,6 @@ function SignUpInner() {
                       <option value="">Select Gender</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
-                      <option value="other">Other</option>
-                      <option value="prefer-not">Prefer not to say</option>
                     </select>
                   </div>
 
@@ -612,9 +612,9 @@ function SignUpInner() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-primary text-lg"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-primary"
                       >
-                        {showPassword ? '👁️' : '🔒'}
+                        {showPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                       </button>
                     </div>
                     {errors.password && (
@@ -643,9 +643,9 @@ function SignUpInner() {
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-primary text-lg"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-swar-text-secondary hover:text-swar-primary"
                       >
-                        {showConfirmPassword ? '👁️' : '🔒'}
+                        {showConfirmPassword ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                       </button>
                     </div>
                     {errors.confirmPassword && (
@@ -667,9 +667,16 @@ function SignUpInner() {
                   />
                   <span className="text-sm text-swar-text-secondary group-hover:text-swar-text transition-colors">
                     I agree to the{' '}
-                    <Link href="/terms" className="text-swar-primary hover:text-swar-accent font-semibold">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowTerms(!showTerms);
+                      }}
+                      className="text-swar-primary hover:text-swar-accent font-semibold underline"
+                    >
                       Terms and Conditions
-                    </Link>{' '}
+                    </button>{' '}
                     and{' '}
                     <Link href="/privacy" className="text-swar-primary hover:text-swar-accent font-semibold">
                       Privacy Policy
@@ -678,6 +685,44 @@ function SignUpInner() {
                 </label>
                 {errors.agreeToTerms && (
                   <p className="text-sm text-red-600">{errors.agreeToTerms}</p>
+                )}
+
+                {/* Expandable Terms Content */}
+                {showTerms && (
+                  <div className="mt-4 pt-4 border-t border-swar-border bg-white rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <h3 className="font-bold text-swar-text mb-3">Terms and Conditions</h3>
+                    <div className="text-sm text-swar-text-secondary space-y-3">
+                      <p>
+                        Welcome to Swar Yoga. These Terms and Conditions govern your use of our website and services. By accessing and using this website, you accept and agree to be bound by the terms and provision of this agreement.
+                      </p>
+                      <p>
+                        <strong>Use License:</strong> Permission is granted to temporarily download one copy of the materials (information or software) on Swar Yoga's website for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>Modifying or copying the materials</li>
+                        <li>Using the materials for any commercial purpose or for any public display</li>
+                        <li>Attempting to decompile or reverse engineer any software</li>
+                        <li>Removing any copyright or other proprietary notations from the materials</li>
+                        <li>Transferring the materials to another person or "mirroring" the materials</li>
+                      </ul>
+                      <p>
+                        <strong>Disclaimer:</strong> The materials on Swar Yoga's website are provided on an 'as is' basis. Swar Yoga makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties including, without limitation, implied warranties or conditions of merchantability, fitness for a particular purpose, or non-infringement.
+                      </p>
+                      <p>
+                        <strong>Limitations:</strong> In no event shall Swar Yoga or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials.
+                      </p>
+                      <p>
+                        <strong>Accuracy of Materials:</strong> The materials appearing on Swar Yoga's website could include technical, typographical, or photographic errors. Swar Yoga does not warrant that any of the materials on its website are accurate, complete, or current. Swar Yoga may make changes to the materials contained on its website at any time without notice.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTerms(false)}
+                      className="mt-4 text-swar-primary hover:text-swar-accent font-semibold text-sm"
+                    >
+                      ▲ Hide Terms
+                    </button>
+                  </div>
                 )}
               </div>
 

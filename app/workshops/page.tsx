@@ -280,9 +280,9 @@ function WorkshopsPageInner() {
               </div>
 
               {/* All Filters in One Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
                 {/* Category Filter */}
-                <div className="border border-gray-200 rounded-lg overflow-visible relative">
+                <div className="border border-gray-200 rounded-lg overflow-visible relative lg:col-span-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -340,7 +340,7 @@ function WorkshopsPageInner() {
                   )}
                 </div>
                 {/* Accordion: Workshop */}
-                <div className="border border-gray-200 rounded-lg overflow-visible relative">
+                <div className="border border-gray-200 rounded-lg overflow-visible relative lg:col-span-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -402,7 +402,7 @@ function WorkshopsPageInner() {
                 </div>
 
                 {/* Accordion: Mode */}
-                <div className="border border-gray-200 rounded-lg overflow-visible relative">
+                <div className="border border-gray-200 rounded-lg overflow-visible relative lg:col-span-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -447,7 +447,7 @@ function WorkshopsPageInner() {
                 </div>
 
                 {/* Accordion: Language */}
-                <div className="border border-gray-200 rounded-lg overflow-visible relative">
+                <div className="border border-gray-200 rounded-lg overflow-visible relative lg:col-span-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -492,7 +492,7 @@ function WorkshopsPageInner() {
                 </div>
 
                 {/* Accordion: Currency */}
-                <div className="border border-gray-200 rounded-lg overflow-visible relative">
+                <div className="border border-gray-200 rounded-lg overflow-visible relative lg:col-span-2">
                   <button
                     type="button"
                     onClick={() => {
