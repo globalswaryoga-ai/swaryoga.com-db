@@ -16,6 +16,7 @@ type AdminSchedule = {
   workshopSlug: string;
   workshopName?: string;
   mode: ModeKey;
+  language?: string;
   batch?: string;
   startDate?: string | null;
   endDate?: string | null;
@@ -43,6 +44,7 @@ type EditForm = {
   price: string;
   currency: string;
   location: string;
+  language: string;
 };
 
 type CreateForm = EditForm & {
@@ -107,6 +109,7 @@ const emptyEditForm = (s?: AdminSchedule): EditForm => ({
   price: String(s?.price ?? ''),
   currency: String(s?.currency || 'INR').toUpperCase(),
   location: String(s?.location || ''),
+  language: String(s?.language || 'Hindi'),
 });
 
 const emptyCreateForm = (s?: AdminSchedule): CreateForm => ({
@@ -206,6 +209,7 @@ export default function AdminWorkshopSchedulesPage() {
       return allSchedules
         .filter((s) => s.workshopSlug === selectedWorkshopSlug)
         .filter((s) => s.mode === selectedMode)
+        .filter((s) => !s.language || s.language === selectedLanguage)
         .slice()
         .sort((a, b) => {
           const ams = a.startDate ? Date.parse(String(a.startDate)) : NaN;
@@ -215,7 +219,7 @@ export default function AdminWorkshopSchedulesPage() {
           if (Number.isNaN(bms)) return -1;
           return ams - bms;
         });
-    }, [allSchedules, selectedWorkshopSlug, selectedMode]);
+    }, [allSchedules, selectedWorkshopSlug, selectedMode, selectedLanguage]);
 
     const publishedSchedules = useMemo(() => {
       return schedulesForWorkshopAndMode.filter((s) => (s.status || 'draft') === 'published');
@@ -347,6 +351,7 @@ export default function AdminWorkshopSchedulesPage() {
           workshopSlug: selectedWorkshopSlug,
           workshopName,
           mode: selectedMode,
+          language: createForm.language,
           batch: createForm.batch?.trim() || 'morning',
           startDate: fromInputDate(createForm.startDate),
           endDate: fromInputDate(createForm.endDate),
@@ -412,6 +417,7 @@ export default function AdminWorkshopSchedulesPage() {
           price: editForm.price === '' ? undefined : Number(editForm.price),
           currency: String(editForm.currency || 'INR').toUpperCase(),
           location: editForm.location,
+          language: editForm.language,
         };
 
         const res = await fetch('/api/admin/workshops/schedules/crud', {
@@ -762,6 +768,7 @@ export default function AdminWorkshopSchedulesPage() {
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Start</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">End</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Batch</th>
+                                  <th className="px-4 py-3 text-left font-bold text-swar-text">Language</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Time</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Fees</th>
                                   <th className="px-4 py-3 text-left font-bold text-swar-text">Seats</th>
@@ -796,6 +803,17 @@ export default function AdminWorkshopSchedulesPage() {
                                         className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
                                         placeholder="morning"
                                       />
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                      <select
+                                        value={createForm.language}
+                                        onChange={(e) => setCreateForm((p) => ({ ...p, language: e.target.value }))}
+                                        className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                      >
+                                        <option value="Hindi">Hindi</option>
+                                        <option value="English">English</option>
+                                        <option value="Marathi">Marathi</option>
+                                      </select>
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
                                       <input
@@ -881,8 +899,8 @@ export default function AdminWorkshopSchedulesPage() {
 
                                 {schedulesForWorkshopAndMode.length === 0 && !creating ? (
                                   <tr>
-                                    <td colSpan={8} className="px-4 py-8 text-center text-swar-text-secondary">
-                                      No schedules found for this workshop + mode.
+                                    <td colSpan={9} className="px-4 py-8 text-center text-swar-text-secondary">
+                                      No schedules found for this workshop + mode + language.
                                     </td>
                                   </tr>
                                 ) : (
@@ -936,6 +954,21 @@ export default function AdminWorkshopSchedulesPage() {
                                             />
                                           ) : (
                                             s.batch || '—'
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                          {editing ? (
+                                            <select
+                                              value={editForm.language}
+                                              onChange={(e) => setEditForm((p) => ({ ...p, language: e.target.value }))}
+                                              className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                            >
+                                              <option value="Hindi">Hindi</option>
+                                              <option value="English">English</option>
+                                              <option value="Marathi">Marathi</option>
+                                            </select>
+                                          ) : (
+                                            s.language || '—'
                                           )}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
