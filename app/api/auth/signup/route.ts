@@ -5,14 +5,41 @@
  * @protected This code is protected under intellectual property laws
  */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, User } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
 import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
+import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
+
+// Rate limiting: 5 signup attempts per 10 minutes per IP
+const SIGNUP_RATE_LIMIT = {
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  maxRequests: 5,
+};
 
 export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting
+    const clientId = getClientId(request.headers);
+    const rateLimitCheck = checkRateLimit(clientId, SIGNUP_RATE_LIMIT);
+    
+    if (!rateLimitCheck.allowed) {
+      const retryAfter = Math.ceil((rateLimitCheck.resetTime - Date.now()) / 1000);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Too many signup attempts. Please try again later.',
+          code: 'RATE_LIMIT_EXCEEDED',
+          retryAfter,
+        },
+        { 
+          status: 429,
+          headers: { 'Retry-After': retryAfter.toString() }
+        }
+      );
+    }
+
     const body = await request.json();
     const { name, email, phone, countryCode, country, state, gender, age, profession, password } = body;
 

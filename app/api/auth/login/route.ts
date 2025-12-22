@@ -5,14 +5,41 @@
  * @protected This code is protected under intellectual property laws
  */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, User, Signin } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
 import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
+import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
+
+// Rate limiting: 10 login attempts per minute per IP
+const LOGIN_RATE_LIMIT = {
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 10,
+};
 
 export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting
+    const clientId = getClientId(request.headers);
+    const rateLimitCheck = checkRateLimit(clientId, LOGIN_RATE_LIMIT);
+    
+    if (!rateLimitCheck.allowed) {
+      const retryAfter = Math.ceil((rateLimitCheck.resetTime - Date.now()) / 1000);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Too many login attempts. Please try again later.',
+          code: 'RATE_LIMIT_EXCEEDED',
+          retryAfter,
+        },
+        { 
+          status: 429,
+          headers: { 'Retry-After': retryAfter.toString() }
+        }
+      );
+    }
+
     // Validate input
     const body = await request.json();
     const validation = validateRequired(body, ['email', 'password']);
