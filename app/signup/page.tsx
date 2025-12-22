@@ -120,6 +120,10 @@ function SignUpInner() {
     'Australian Capital Territory', 'New South Wales', 'Northern Territory', 'Queensland', 'South Australia', 'Tasmania', 'Victoria', 'Western Australia'
   ];
 
+  const nepalProvinces = [
+    'Koshi', 'Madhesh', 'Bagmati', 'Gandaki', 'Lumbini', 'Karnali', 'Sudurpashchim'
+  ];
+
   const getStatesList = (country: string) => {
     switch (country) {
       case 'India':
@@ -130,6 +134,8 @@ function SignUpInner() {
         return canadianProvinces;
       case 'Australia':
         return australianStates;
+      case 'Nepal':
+        return nepalProvinces;
       default:
         return [];
     }
