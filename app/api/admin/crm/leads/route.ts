@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
+    const workshop = url.searchParams.get('workshop');
     const q = url.searchParams.get('q');
     const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
 
     const filter: any = {};
     if (status) filter.status = status;
+    if (workshop) filter.workshopName = workshop;
     if (q) {
       const query = String(q).trim();
       if (query) {
@@ -70,6 +72,8 @@ export async function POST(request: NextRequest) {
     const status = body?.status ? String(body.status).trim() : undefined;
     const labels = Array.isArray(body?.labels) ? body.labels.map((x: any) => String(x)) : undefined;
     const source = body?.source ? String(body.source).trim() : undefined;
+    const workshopId = body?.workshopId ? String(body.workshopId).trim() : undefined;
+    const workshopName = body?.workshopName ? String(body.workshopName).trim() : undefined;
 
     await connectDB();
 
@@ -80,6 +84,8 @@ export async function POST(request: NextRequest) {
       ...(status ? { status } : {}),
       ...(labels ? { labels } : {}),
       ...(source ? { source } : {}),
+      ...(workshopId ? { workshopId } : {}),
+      ...(workshopName ? { workshopName } : {}),
     });
 
     return NextResponse.json({ success: true, data: lead }, { status: 201 });

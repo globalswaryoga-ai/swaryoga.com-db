@@ -57,17 +57,23 @@ export const getConnectionStatus = () => lastConnectionStatus;
 
 // User Schema
 const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  // Admin user fields (optional, for admin authentication)
+  userId: { type: String, sparse: true }, // Admin username, e.g., "admincrm"
+  isAdmin: { type: Boolean, default: false },
+  role: { type: String, enum: ['admin', 'user'], default: 'user' },
+  
+  // Regular user fields
+  name: { type: String },
   email: { type: String, required: true, unique: true },
-  phone: { type: String, required: true },
+  phone: { type: String },
   countryCode: { type: String, default: '+91' },
-  country: { type: String, required: true },
-  state: { type: String, required: true },
-  gender: { type: String, enum: ['Male', 'Female', 'male', 'female', 'Other', 'other'], required: true },
-  age: { type: Number, required: true },
-  profession: { type: String, required: true },
+  country: { type: String },
+  state: { type: String },
+  gender: { type: String, enum: ['Male', 'Female', 'male', 'female', 'Other', 'other'] },
+  age: { type: Number },
+  profession: { type: String },
   password: { type: String, required: true },
-  profileId: { type: String, unique: true }, // 6-digit unique profile ID
+  profileId: { type: String, unique: true, sparse: true }, // 6-digit unique profile ID
   profileImage: { type: String }, // Base64 or URL for profile image
   
   // Life Planner Data

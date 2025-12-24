@@ -89,6 +89,11 @@ export function FormModal({
   loading?: boolean;
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    onSubmit(e);
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -98,13 +103,15 @@ export function FormModal({
       footer={
         <>
           <button
+            type="button"
             onClick={onClose}
             className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600 transition-colors"
           >
             {cancelLabel}
           </button>
           <button
-            onClick={(e) => onSubmit(e as any)}
+            type="submit"
+            form="form-modal"
             disabled={loading}
             className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition-colors"
           >
@@ -113,7 +120,7 @@ export function FormModal({
         </>
       }
     >
-      <form onSubmit={onSubmit}>{children}</form>
+      <form id="form-modal" onSubmit={handleFormSubmit}>{children}</form>
     </Modal>
   );
 }

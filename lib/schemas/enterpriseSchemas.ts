@@ -23,10 +23,12 @@ const LeadSchema = new mongoose.Schema(
     labels: { type: [String], default: [] },
     source: {
       type: String,
-      enum: ['website', 'import', 'api', 'manual', 'whatsapp'],
+      enum: ['website', 'import', 'api', 'manual', 'whatsapp', 'referral', 'social', 'event'],
       default: 'manual',
       index: true,
     },
+    workshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopSchedule', sparse: true, index: true },
+    workshopName: { type: String, sparse: true },
     lastMessageAt: { type: Date, index: true },
     metadata: mongoose.Schema.Types.Mixed,
   },
@@ -406,7 +408,7 @@ const AnalyticsEventSchema = new mongoose.Schema(
     leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead' },
     source: {
       type: String,
-      enum: ['website', 'import', 'api', 'manual', 'whatsapp'],
+      enum: ['website', 'import', 'api', 'manual', 'whatsapp', 'referral', 'social', 'event'],
     },
     funnelStage: String, // 'awareness', 'consideration', 'decision', 'conversion'
     value: mongoose.Schema.Types.Mixed, // Sale value, etc

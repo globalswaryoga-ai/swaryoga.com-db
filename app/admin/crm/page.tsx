@@ -168,19 +168,19 @@ export default function CRMDashboard() {
               <div className="space-y-3">
                 <Link
                   href="/admin/crm/leads?action=create"
-                  className="block bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-lg transition-all transform hover:scale-105 text-center font-medium"
+                  className="block bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
                   + Add New Lead
                 </Link>
                 <Link
                   href="/admin/crm/messages"
-                  className="block bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-lg transition-all transform hover:scale-105 text-center font-medium"
+                  className="block bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
                   Send WhatsApp Message
                 </Link>
                 <Link
                   href="/admin/crm/sales"
-                  className="block bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-lg transition-all transform hover:scale-105 text-center font-medium"
+                  className="block bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
                   Record a Sale
                 </Link>
@@ -243,7 +243,7 @@ function StatCard({
 }) {
   return (
     <Link href={href}>
-      <div className={`bg-gradient-to-br ${color} rounded-xl p-6 text-white cursor-pointer transform transition-all hover:scale-105 hover:shadow-2xl`}>
+      <div className={`bg-gradient-to-br ${color} rounded-xl p-6 text-white cursor-pointer transition-colors hover:opacity-90`}>
         <div className="flex items-center justify-between mb-2">
           <span className="text-3xl">{icon}</span>
           <span className="text-xs bg-white/20 px-2 py-1 rounded-full">↗</span>

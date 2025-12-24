@@ -44,10 +44,13 @@ export default function AdminLogin() {
 
     try {
       // Authenticate with API endpoint
-      const response = await fetch('/api/auth/admin-login', {
+      const response = await fetch('/api/admin/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          userId: formData.username,
+          password: formData.password
+        }),
       });
 
       const data = await response.json();
@@ -57,11 +60,11 @@ export default function AdminLogin() {
         
         // Store admin token in localStorage
         localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminUser', data.username);
+        localStorage.setItem('adminUser', data.user?.userId || formData.username);
 
         // Redirect to admin dashboard
         setTimeout(() => {
-          router.push('/admin/dashboard');
+          router.push('/admin/crm');
         }, 1000);
       } else {
         setErrors({ 

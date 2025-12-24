@@ -7,6 +7,7 @@ import { useCRM } from '@/hooks/useCRM';
 import { useSearch } from '@/hooks/useSearch';
 import { useModal } from '@/hooks/useModal';
 import { useForm } from '@/hooks/useForm';
+import * as XLSX from 'xlsx';
 import {
   DataTable,
   FormModal,
@@ -25,6 +26,8 @@ interface Lead {
   status: 'lead' | 'prospect' | 'customer' | 'inactive';
   source: string;
   labels: string[];
+  workshopId?: string;
+  workshopName?: string;
   createdAt: string;
 }
 
@@ -34,6 +37,7 @@ type LeadFormValues = {
   phoneNumber: string;
   source: Lead['source'] | string;
   status: Lead['status'];
+  workshopName?: string;
 };
 
 export default function LeadsPage() {
@@ -48,16 +52,60 @@ export default function LeadsPage() {
   const [limit] = useState(20);
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterWorkshop, setFilterWorkshop] = useState<string>('');
+  const [workshops, setWorkshops] = useState<string[]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [workshopCounts, setWorkshopCounts] = useState<Record<string, number>>({});
+  const [loadingMetadata, setLoadingMetadata] = useState(false);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
+  // Fetch only filter metadata (fast, no lead data)
+  const fetchMetadata = useCallback(async () => {
+    if (!token) return;
+    try {
+      setLoadingMetadata(true);
+      const response = await fetch('/api/admin/crm/leads/metadata', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setStatusCounts(data.data.statusCounts);
+        setWorkshops(data.data.workshops);
+        setWorkshopCounts(data.data.workshopCounts);
+        setTotal(data.data.total);
+      }
+    } catch (err) {
+      console.error('Failed to fetch metadata', err);
+    } finally {
+      setLoadingMetadata(false);
+    }
+  }, [token]);
+
+  // Fetch only current page of leads
   const fetchLeads = useCallback(async () => {
-    const params: Record<string, any> = { limit, skip };
-    if (search.query) params.q = search.query;
+    if (!token) return;
+    try {
+      const params: Record<string, any> = { limit, skip };
+      if (filterStatus) params.status = filterStatus;
+      if (filterWorkshop) params.workshop = filterWorkshop;
+      if (search.query) params.q = search.query;
 
-    const result = await crm.fetch('/api/admin/crm/leads', { params });
-    // API returns { leads, total, limit, skip }
-    setLeads(result?.leads || []);
-    setTotal(result?.total || 0);
-  }, [crm, limit, skip, search.query]);
+      const response = await fetch(
+        '/api/admin/crm/leads?' + new URLSearchParams(params),
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setLeads(data.data.leads || []);
+        setTotal(data.data.total || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch leads', err);
+    }
+  }, [token, limit, skip, filterStatus, filterWorkshop, search.query]);
 
   const handleCreateLead = async (values: LeadFormValues) => {
     try {
@@ -69,13 +117,15 @@ export default function LeadsPage() {
           phoneNumber: values.phoneNumber,
           source: values.source,
           status: values.status,
+          workshopName: values.workshopName,
         },
       });
 
       modal.close();
       form.resetForm();
       setSkip(0);
-      await fetchLeads();
+      fetchMetadata();
+      fetchLeads();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create lead');
     }
@@ -88,6 +138,7 @@ export default function LeadsPage() {
       phoneNumber: '',
       source: 'website',
       status: 'lead',
+      workshopName: '',
     },
     onSubmit: handleCreateLead,
     onError: (err) => setError(err.message),
@@ -98,8 +149,14 @@ export default function LeadsPage() {
       router.push('/admin/login');
       return;
     }
-    fetchLeads();
-  }, [token, router, fetchLeads]);
+    fetchMetadata();
+  }, [token, router, fetchMetadata]);
+
+  useEffect(() => {
+    if (token) {
+      fetchLeads();
+    }
+  }, [token, fetchLeads]);
 
   const handleDeleteLead = async (leadId: string) => {
     if (!confirm('Are you sure you want to delete this lead?')) return;
@@ -110,6 +167,7 @@ export default function LeadsPage() {
       });
 
       if (!response.ok) throw new Error('Failed to delete lead');
+      fetchMetadata();
       fetchLeads();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete lead');
@@ -128,10 +186,52 @@ export default function LeadsPage() {
       });
 
       if (!response.ok) throw new Error('Failed to update status');
+      fetchMetadata();
       fetchLeads();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update');
     }
+  };
+
+  const downloadExcel = () => {
+    if (leads.length === 0) {
+      alert('No leads to download');
+      return;
+    }
+
+    // Prepare data
+    const excelData = leads.map((lead) => ({
+      Name: lead.name || '',
+      Email: lead.email || '',
+      'Phone Number': lead.phoneNumber,
+      Status: lead.status,
+      Source: lead.source,
+      'Program/Workshop': lead.workshopName || '',
+      Labels: lead.labels?.join(', ') || '',
+      'Created Date': new Date(lead.createdAt).toLocaleDateString(),
+    }));
+
+    // Create workbook
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+
+    // Auto-size columns
+    const colWidths = [
+      { wch: 20 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 15 },
+    ];
+    ws['!cols'] = colWidths;
+
+    // Download
+    const fileName = `leads_${filterStatus || 'all'}_${filterWorkshop || 'all'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
   const columns = [
@@ -155,6 +255,7 @@ export default function LeadsPage() {
       ),
     },
     { key: 'source', label: 'Source' },
+    { key: 'workshopName', label: 'Program/Workshop' },
     {
       key: 'createdAt',
       label: 'Created',
@@ -189,14 +290,95 @@ export default function LeadsPage() {
         <PageHeader
           title="Leads Management"
           action={
-            <button
-              onClick={modal.open}
-              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg transition-all"
-            >
-              + Add Lead
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBulkModalOpen(true)}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg transition-all"
+              >
+                📤 Bulk Upload
+              </button>
+              <button
+                onClick={modal.open}
+                className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg transition-all"
+              >
+                + Add Lead
+              </button>
+            </div>
           }
         />
+
+        {/* Filters & Actions */}
+        <div className="bg-slate-800/50 border border-purple-500/20 rounded-lg p-6 backdrop-blur">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            {/* Status Filter */}
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Filter by Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value);
+                  setSkip(0);
+                }}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+              >
+                <option value="">All Status ({total})</option>
+                <option value="lead">Lead ({statusCounts.lead || 0})</option>
+                <option value="prospect">Prospect ({statusCounts.prospect || 0})</option>
+                <option value="customer">Customer ({statusCounts.customer || 0})</option>
+                <option value="inactive">Inactive ({statusCounts.inactive || 0})</option>
+              </select>
+            </div>
+
+            {/* Workshop Filter */}
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Filter by Program</label>
+              <select
+                value={filterWorkshop}
+                onChange={(e) => {
+                  setFilterWorkshop(e.target.value);
+                  setSkip(0);
+                }}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+              >
+                <option value="">All Programs</option>
+                {workshops.map((workshop) => (
+                  <option key={workshop} value={workshop}>
+                    {workshop} ({workshopCounts[workshop] || 0})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Search */}
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Search</label>
+              <input
+                type="text"
+                placeholder="Name, email, phone..."
+                value={search.query}
+                onChange={(e) => search.setQuery(e.target.value)}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white placeholder-purple-300 focus:outline-none focus:border-purple-500"
+              />
+            </div>
+
+            {/* Download Button */}
+            <div>
+              <button
+                onClick={downloadExcel}
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg transition-all font-medium flex items-center justify-center gap-2"
+              >
+                📥 Download Excel
+              </button>
+            </div>
+          </div>
+
+          {/* Results Info */}
+          <div className="mt-4 pt-4 border-t border-purple-500/20 text-purple-200 text-sm">
+            Showing {leads.length} of {total} leads
+            {filterStatus && ` • Status: ${filterStatus}`}
+            {filterWorkshop && ` • Program: ${filterWorkshop}`}
+          </div>
+        </div>
 
         {/* Error Alert */}
         {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
@@ -312,8 +494,113 @@ export default function LeadsPage() {
                 <option value="event">Event</option>
               </select>
             </div>
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Status</label>
+              <select
+                name="status"
+                value={form.values.status}
+                onChange={form.handleChange}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+              >
+                <option value="lead">Lead</option>
+                <option value="prospect">Prospect</option>
+                <option value="customer">Customer</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Workshop/Program (Optional)</label>
+              <input
+                type="text"
+                name="workshopName"
+                value={form.values.workshopName || ''}
+                onChange={form.handleChange}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white placeholder-purple-300 focus:outline-none focus:border-purple-500"
+                placeholder="e.g., Yoga Retreat 2025, Advanced Pranayama"
+              />
+            </div>
           </div>
         </FormModal>
+      )}
+
+      {/* Bulk Import Modal */}
+      {bulkModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-purple-500/30 rounded-lg p-8 max-w-md w-full space-y-6">
+            <h2 className="text-xl font-bold text-white">Bulk Import Leads</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-purple-200 text-sm mb-2">Upload Excel File</label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  id="bulk-upload"
+                  className="w-full"
+                />
+                <p className="text-purple-300 text-xs mt-2">
+                  Format: Name, Email, Phone, Status, Source, Workshop/Program
+                </p>
+              </div>
+
+              <div className="bg-slate-700/50 rounded p-3 text-purple-200 text-sm">
+                <p className="font-semibold mb-2">Instructions:</p>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>Required: Name, Email, Phone</li>
+                  <li>Optional: Status (lead/prospect/customer/inactive)</li>
+                  <li>Optional: Source (website/referral/social/event)</li>
+                  <li>Optional: Workshop/Program name</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const input = document.getElementById('bulk-upload') as HTMLInputElement;
+                  const file = input?.files?.[0];
+                  if (!file) {
+                    alert('Please select a file');
+                    return;
+                  }
+
+                  const formData = new FormData();
+                  formData.append('file', file);
+
+                  try {
+                    const response = await fetch('/api/admin/crm/leads/upload', {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${token}` },
+                      body: formData,
+                    });
+
+                    if (response.ok) {
+                      const data = await response.json();
+                      alert(`Successfully imported ${data.data.imported} leads!\n${data.data.skipped} duplicates skipped.`);
+                      setBulkModalOpen(false);
+                      fetchMetadata();
+                      fetchLeads();
+                    } else {
+                      const error = await response.json();
+                      alert(`Error: ${error.error}`);
+                    }
+                  } catch (err) {
+                    alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                  }
+                }}
+                className="flex-1 bg-green-500/20 border border-green-500 text-green-200 px-4 py-2 rounded-lg hover:bg-green-500/30 transition-colors font-medium"
+              >
+                Upload
+              </button>
+              <button
+                onClick={() => setBulkModalOpen(false)}
+                className="flex-1 bg-slate-700 border border-slate-600 text-slate-300 px-4 py-2 rounded-lg hover:border-slate-500 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

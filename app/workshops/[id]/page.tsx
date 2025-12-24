@@ -65,18 +65,12 @@ Topics covered:
       { id: 2, title: 'Advanced Breathing', url: 'https://www.youtube.com/embed/9bZkp7q19f0' },
       { id: 3, title: 'Meditation Techniques', url: 'https://www.youtube.com/embed/dQw4w9WgXcQ' }
     ],
-    import React from 'react';
-    import { notFound } from 'next/navigation';
-    import Navigation from '@/components/Navigation';
-    import Footer from '@/components/Footer';
-    import Link from 'next/link';
-    import Image from 'next/image';
-    import { ArrowRight, Globe, Languages, Wallet, Clock } from 'lucide-react';
-    import { findWorkshopBySlug } from '@/lib/workshopsData';
+  },
+};
 
-    export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 
-    export default function WorkshopDetailPage({ params }: { params: { id: string } }) {
+export default function WorkshopDetailPage({ params }: { params: { id: string } }) {
       const workshop = findWorkshopBySlug(params.id);
 
       // Invalid slug (including reserved words like "register") should be a real 404.
@@ -192,22 +186,3 @@ Topics covered:
         </>
       );
     }
-              </p>
-              <Link
-                href={`/workshops/${workshopSlug}/register`}
-                className="inline-flex items-center gap-2 bg-white hover:bg-gray-100 text-primary-600 px-10 py-4 rounded-lg transition-all duration-300 group hover:shadow-lg transform hover:scale-105 font-bold text-lg"
-              >
-                Register Now
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* Register Modal removed in favor of full-page register view */}
-
-      <Footer />
-    </>
-  );
-}

@@ -1,0 +1,45 @@
+/* CRM Performance Optimizations */
+
+/* Disable expensive animations during page load */
+@media (prefers-reduced-motion: no-preference) {
+  .smooth-transition {
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Reduce layout shift with will-change sparingly */
+.interactive-button {
+  will-change: background-color;
+}
+
+/* Optimize gradient rendering */
+.gradient-bg {
+  background-size: 100% 100%;
+  background-attachment: fixed;
+}
+
+/* Prevent jank during hover */
+.hover-safe {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Optimize table rendering */
+.data-table {
+  contain: layout style paint;
+}
+
+/* Smooth color transitions without scale */
+.button-smooth {
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+/* Remove expensive box-shadow, use opacity instead */
+.card-hover {
+  transition: opacity 0.2s ease;
+}
+
+.card-hover:hover {
+  opacity: 0.9;
+}
