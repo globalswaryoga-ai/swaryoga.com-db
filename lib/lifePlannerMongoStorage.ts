@@ -429,6 +429,93 @@ class LifePlannerMongoStorage {
       console.error('Failed to save progress');
     }
   }
+
+  /**
+   * Get workshop tasks and sadhana for a specific date
+   */
+  async getDailyTasks(date: string): Promise<{ workshopTasks: any[]; sadhana: any; date: string } | null> {
+    try {
+      const response = await fetch(`/api/life-planner/daily-tasks?date=${date}&type=all`, {
+        method: 'GET',
+        headers: this.authHeaders(),
+      });
+      if (!response.ok) return null;
+      const result = await response.json();
+      return result.data || null;
+    } catch (error) {
+      console.error('Failed to fetch daily tasks:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get workshop tasks for a specific date
+   */
+  async getWorkshopTasks(date: string): Promise<any[]> {
+    try {
+      const response = await fetch(`/api/life-planner/daily-tasks?date=${date}&type=workshopTasks`, {
+        method: 'GET',
+        headers: this.authHeaders(),
+      });
+      if (!response.ok) return [];
+      const result = await response.json();
+      return result.data || [];
+    } catch (error) {
+      console.error('Failed to fetch workshop tasks:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get sadhana for a specific date
+   */
+  async getSadhana(date: string): Promise<any | null> {
+    try {
+      const response = await fetch(`/api/life-planner/daily-tasks?date=${date}&type=sadhana`, {
+        method: 'GET',
+        headers: this.authHeaders(),
+      });
+      if (!response.ok) return null;
+      const result = await response.json();
+      return result.data || null;
+    } catch (error) {
+      console.error('Failed to fetch sadhana:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Save workshop tasks and/or sadhana for a specific date
+   */
+  async saveDailyTasks(date: string, workshopTasks?: any[], sadhana?: any): Promise<void> {
+    try {
+      const response = await fetch('/api/life-planner/daily-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+        body: JSON.stringify({ date, workshopTasks, sadhana }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to save daily tasks: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error saving daily tasks:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save workshop tasks for a specific date
+   */
+  async saveWorkshopTasks(date: string, workshopTasks: any[]): Promise<void> {
+    await this.saveDailyTasks(date, workshopTasks, undefined);
+  }
+
+  /**
+   * Save sadhana for a specific date
+   */
+  async saveSadhana(date: string, sadhana: any): Promise<void> {
+    await this.saveDailyTasks(date, undefined, sadhana);
+  }
 }
 
 export const lifePlannerStorage = new LifePlannerMongoStorage();

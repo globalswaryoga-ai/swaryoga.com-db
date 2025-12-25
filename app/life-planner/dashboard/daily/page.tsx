@@ -145,65 +145,81 @@ export default function DailyViewPage() {
 
     const sadhanaKey = `dailySadhanaV2:${today}`;
 
-    // Load Workshop tasks (keep in effect to avoid hook dependency warnings)
-    {
-      const key = `dailyWorkshopPlannerTasks:${today}`;
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        setWorkshopTasks(JSON.parse(stored));
-      }
-    }
-
-    // Load Sadhana (per-day) and migrate legacy key if needed
-    try {
-      const storedV2 = localStorage.getItem(sadhanaKey);
-      if (storedV2) {
-        setSadhanaState(JSON.parse(storedV2));
-        setSadhanaHasLoaded(true);
-      } else {
-        const legacy = localStorage.getItem('dailySadhana');
-        if (legacy) {
-          const legacyItems = JSON.parse(legacy) as Array<{
-            id?: string;
-            name?: string;
-            frequency?: string;
-            duration?: string;
-            completed?: boolean;
-          }>;
-
-          const migrated: DailySadhanaState = {
-            ...DEFAULT_SADHANA,
-            morning: (Array.isArray(legacyItems) ? legacyItems : [])
-              .filter((x) => typeof x?.name === 'string' && x.name.trim().length > 0)
-              .map((x, idx) => ({
-                id: `migr-${x.id || idx}-${Date.now()}`,
-                name: String(x.name || '').trim(),
-                frequency: String(x.frequency || '').trim(),
-                duration: String(x.duration || '').trim(),
-                completed: Boolean(x.completed),
-              })),
-          };
-
-          // Try to parse water liters from a legacy "Water" item
-          const waterItem = (Array.isArray(legacyItems) ? legacyItems : []).find(
-            (x) => typeof x?.name === 'string' && x.name.toLowerCase().includes('water')
-          );
-          if (waterItem?.duration) {
-            const match = String(waterItem.duration).match(/(\d+(?:\.\d+)?)/);
-            if (match?.[1]) migrated.diet.waterLiters = Number(match[1]) || 0;
+    // Try to load from MongoDB first, then fallback to localStorage
+    (async () => {
+      try {
+        const dailyTasks = await lifePlannerStorage.getDailyTasks(today);
+        if (dailyTasks?.workshopTasks && Array.isArray(dailyTasks.workshopTasks)) {
+          setWorkshopTasks(dailyTasks.workshopTasks);
+        } else {
+          // Fallback to localStorage
+          const key = `dailyWorkshopPlannerTasks:${today}`;
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            setWorkshopTasks(JSON.parse(stored));
           }
+        }
 
-          setSadhanaState(migrated);
-          localStorage.setItem(sadhanaKey, JSON.stringify(migrated));
+        if (dailyTasks?.sadhana) {
+          setSadhanaState(dailyTasks.sadhana);
+          setSadhanaHasLoaded(true);
+          return; // Skip localStorage load if MongoDB has data
+        }
+      } catch (error) {
+        console.error('Error loading daily tasks from MongoDB:', error);
+      }
+
+      // Fallback to localStorage if MongoDB fails
+      try {
+        const storedV2 = localStorage.getItem(sadhanaKey);
+        if (storedV2) {
+          setSadhanaState(JSON.parse(storedV2));
           setSadhanaHasLoaded(true);
         } else {
-          setSadhanaState(DEFAULT_SADHANA);
-          setSadhanaHasLoaded(true);
+          const legacy = localStorage.getItem('dailySadhana');
+          if (legacy) {
+            const legacyItems = JSON.parse(legacy) as Array<{
+              id?: string;
+              name?: string;
+              frequency?: string;
+              duration?: string;
+              completed?: boolean;
+            }>;
+
+            const migrated: DailySadhanaState = {
+              ...DEFAULT_SADHANA,
+              morning: (Array.isArray(legacyItems) ? legacyItems : [])
+                .filter((x) => typeof x?.name === 'string' && x.name.trim().length > 0)
+                .map((x, idx) => ({
+                  id: `migr-${x.id || idx}-${Date.now()}`,
+                  name: String(x.name || '').trim(),
+                  frequency: String(x.frequency || '').trim(),
+                  duration: String(x.duration || '').trim(),
+                  completed: Boolean(x.completed),
+                })),
+            };
+
+            // Try to parse water liters from a legacy "Water" item
+            const waterItem = (Array.isArray(legacyItems) ? legacyItems : []).find(
+              (x) => typeof x?.name === 'string' && x.name.toLowerCase().includes('water')
+            );
+            if (waterItem?.duration) {
+              const match = String(waterItem.duration).match(/(\d+(?:\.\d+)?)/);
+              if (match?.[1]) migrated.diet.waterLiters = Number(match[1]) || 0;
+            }
+
+            setSadhanaState(migrated);
+            localStorage.setItem(sadhanaKey, JSON.stringify(migrated));
+            setSadhanaHasLoaded(true);
+          } else {
+            setSadhanaState(DEFAULT_SADHANA);
+            setSadhanaHasLoaded(true);
+          }
         }
+      } catch {
+        setSadhanaHasLoaded(true);
       }
-    } catch {
-      setSadhanaHasLoaded(true);
-    }
+    })();
 
     // Load Vision/Goals/Tasks from Mongo-backed storage so Daily matches other dashboards.
     (async () => {
@@ -321,10 +337,23 @@ export default function DailyViewPage() {
     if (!sadhanaHasLoaded) return;
     try {
       localStorage.setItem(sadhanaStorageKey, JSON.stringify(sadhanaState));
+      
+      // Auto-save to MongoDB (debounced with 500ms timeout)
+      const timer = setTimeout(() => {
+        (async () => {
+          try {
+            await lifePlannerStorage.saveSadhana(today, sadhanaState);
+          } catch (error) {
+            console.error('Error saving sadhana to MongoDB:', error);
+          }
+        })();
+      }, 500);
+      
+      return () => clearTimeout(timer);
     } catch {
       // ignore
     }
-  }, [sadhanaState, sadhanaHasLoaded, sadhanaStorageKey]);
+  }, [sadhanaState, sadhanaHasLoaded, sadhanaStorageKey, today]);
 
   // Persist health routines when changed (debounced, like Health page)
   useEffect(() => {
@@ -402,6 +431,17 @@ export default function DailyViewPage() {
   const persistWorkshopTasks = (updated: WorkshopTask[]) => {
     setWorkshopTasks(updated);
     localStorage.setItem(getWorkshopStorageKey(), JSON.stringify(updated));
+    
+    // Auto-save to MongoDB (debounced)
+    setTimeout(() => {
+      (async () => {
+        try {
+          await lifePlannerStorage.saveWorkshopTasks(today, updated);
+        } catch (error) {
+          console.error('Error saving workshop tasks to MongoDB:', error);
+        }
+      })();
+    }, 500);
   };
 
   const addWorkshopTask = () => {
