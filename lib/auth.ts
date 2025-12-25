@@ -18,7 +18,19 @@ export const generateToken = (payload: TokenPayload): string => {
 export const verifyToken = (token?: string): TokenPayload | null => {
   if (!token) return null;
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    const decoded = jwt.verify(token, JWT_SECRET) as unknown;
+
+    // Backward compatibility: older flows sometimes signed a string payload
+    // (typically the user's ObjectId). Normalize to TokenPayload.
+    if (typeof decoded === 'string') {
+      return { userId: decoded };
+    }
+
+    if (decoded && typeof decoded === 'object') {
+      return decoded as TokenPayload;
+    }
+
+    return null;
   } catch (error) {
     console.error('Token verification failed:', error);
     return null;

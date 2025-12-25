@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { Types } from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,10 +21,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const email = decoded.email || (typeof decoded === 'object' && (decoded as any).email);
-    if (!email) {
-      return NextResponse.json({ error: 'Email not found in token' }, { status: 401 });
-    }
+    const userId = decoded.userId;
+    const email = decoded.email;
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date'); // YYYY-MM-DD format
@@ -36,7 +35,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = await User.findOne({ email }).lean();
+    const user = userId && Types.ObjectId.isValid(userId)
+      ? await User.findById(userId).lean()
+      : email
+        ? await User.findOne({ email: email.trim().toLowerCase() }).lean()
+        : null;
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -84,10 +87,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const email = decoded.email || (typeof decoded === 'object' && (decoded as any).email);
-    if (!email) {
-      return NextResponse.json({ error: 'Email not found in token' }, { status: 401 });
-    }
+    const userId = decoded.userId;
+    const email = decoded.email;
 
     const body = await request.json();
     const { date, workshopTasks, sadhana } = body;
@@ -100,8 +101,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Update user's daily tasks
+    const query = userId && Types.ObjectId.isValid(userId)
+      ? { _id: userId }
+      : email
+        ? { email: email.trim().toLowerCase() }
+        : null;
+
+    if (!query) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const user = await User.findOneAndUpdate(
-      { email },
+      query,
       {
         $set: {
           [`lifePlannerDailyTasks.${date}`]: {
@@ -119,7 +130,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    console.log(`[POST] ✅ Saved daily tasks for ${email} on ${date}:`, {
+    console.log(`[POST] ✅ Saved daily tasks on ${date}:`, {
+      hasUserId: !!(userId && Types.ObjectId.isValid(userId)),
+      hasEmail: !!email,
       workshopTasksCount: (workshopTasks || []).length,
       hasSadhana: !!sadhana,
     });

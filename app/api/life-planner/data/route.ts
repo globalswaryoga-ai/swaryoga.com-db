@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { Types } from 'mongoose';
 
 export const dynamic = 'force-dynamic';
 
-function getAuthedEmail(request: NextRequest): string | null {
+function getAuthedIdentity(request: NextRequest): { userId?: string; email?: string } | null {
   const authHeader = request.headers.get('authorization');
   if (!authHeader) return null;
   const [scheme, token] = authHeader.split(' ');
   if (scheme !== 'Bearer' || !token) return null;
   const payload = verifyToken(token);
-  return payload?.email ?? null;
+  if (!payload) return null;
+  return {
+    userId: payload.userId,
+    email: payload.email,
+  };
 }
 
 // GET Life Planner data for a user
@@ -18,26 +23,39 @@ export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    // Auth: derive email from token
-    const email = getAuthedEmail(request);
+    // Auth: accept either userId or email in JWT
+    const identity = getAuthedIdentity(request);
     const searchParams = request.nextUrl.searchParams;
     const dataType = searchParams.get('type'); // vision, goals, tasks, etc.
 
-    console.log(`[GET] Fetching ${dataType || 'all'} for user ${email}`);
+    console.log(`[GET] Fetching ${dataType || 'all'} for user`, {
+      hasUserId: !!identity?.userId,
+      hasEmail: !!identity?.email,
+    });
 
-    if (!email) {
-      console.warn('[GET] Unauthorized - no email found');
+    if (!identity?.userId && !identity?.email) {
+      console.warn('[GET] Unauthorized - no userId/email found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    // Find user
-    const user = await User.findOne({ email: email.trim() });
+    const userId = identity.userId;
+    const email = identity.email;
+
+    // Find user (prefer userId when available)
+    const user = userId && Types.ObjectId.isValid(userId)
+      ? await User.findById(userId)
+      : email
+        ? await User.findOne({ email: email.trim().toLowerCase() })
+        : null;
 
     if (!user) {
-      console.error(`[GET] User not found: ${email}`);
+      console.error(`[GET] User not found`, {
+        userId: userId && Types.ObjectId.isValid(userId) ? userId : undefined,
+        email: email ? email.trim().toLowerCase() : undefined,
+      });
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -55,7 +73,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Return all Life Planner data
-    console.log(`[GET] ✅ Returned all data for ${email}`);
+    console.log(`[GET] ✅ Returned all data`);
     return NextResponse.json({
       visions: user.lifePlannerVisions || [],
       actionPlans: user.lifePlannerActionPlans || [],
@@ -85,12 +103,15 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     const { type, data } = body;
-    const email = getAuthedEmail(request);
+    const identity = getAuthedIdentity(request);
 
-    console.log(`[PUT] Updating ${type} for user ${email}`);
+    console.log(`[PUT] Updating ${type} for user`, {
+      hasUserId: !!identity?.userId,
+      hasEmail: !!identity?.email,
+    });
 
-    if (!email) {
-      console.warn('[PUT] Unauthorized - no email found');
+    if (!identity?.userId && !identity?.email) {
+      console.warn('[PUT] Unauthorized - no userId/email found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -107,9 +128,25 @@ export async function PUT(request: NextRequest) {
     const fieldName = `lifePlanner${type.charAt(0).toUpperCase()}${type.slice(1)}`;
     console.log(`[PUT] Field name: ${fieldName}, data length: ${Array.isArray(data) ? data.length : 'not array'}`);
 
+    const userId = identity.userId;
+    const email = identity.email;
+
     // Update user with new Life Planner data
+    const query = userId && Types.ObjectId.isValid(userId)
+      ? { _id: userId }
+      : email
+        ? { email: email.trim().toLowerCase() }
+        : null;
+
+    if (!query) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const user = await User.findOneAndUpdate(
-      { email: email.trim() },
+      query,
       {
         [fieldName]: data,
         updatedAt: new Date(),
@@ -118,14 +155,17 @@ export async function PUT(request: NextRequest) {
     );
 
     if (!user) {
-      console.error(`[PUT] User not found: ${email}`);
+      console.error(`[PUT] User not found`, {
+        userId: userId && Types.ObjectId.isValid(userId) ? userId : undefined,
+        email: email ? email.trim().toLowerCase() : undefined,
+      });
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    console.log(`[PUT] ✅ Successfully updated ${type} for ${email}`);
+    console.log(`[PUT] ✅ Successfully updated ${type}`);
     return NextResponse.json({
       message: 'Data saved successfully',
       data: user[fieldName as keyof typeof user],
