@@ -46,6 +46,7 @@ function SignUpInner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   // Auto-detect user's country based on geolocation
   useEffect(() => {
@@ -287,7 +288,13 @@ function SignUpInner() {
         language,
       });
 
-      router.push('/cart');
+      // Show success popup
+      setShowSuccessPopup(true);
+
+      // Redirect after 3 seconds
+      setTimeout(() => {
+        router.push('/cart');
+      }, 3000);
     } catch (err) {
       console.error('Sign-up error:', err);
       setErrors({ general: 'An error occurred. Please try again.' });
@@ -695,6 +702,61 @@ function SignUpInner() {
         </div>
       </main>
       <Footer />
+
+      {/* Success Popup Modal */}
+      {showSuccessPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-2xl p-8 max-w-md mx-4 text-center animate-in fade-in zoom-in duration-300">
+            {/* Success Icon */}
+            <div className="mb-6 flex justify-center">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center animate-bounce">
+                <span className="text-4xl">✅</span>
+              </div>
+            </div>
+
+            {/* Success Title */}
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Welcome to Swar Yoga!
+            </h2>
+
+            {/* Success Message */}
+            <p className="text-lg text-green-600 font-semibold mb-2">
+              You are signed up well! 🎉
+            </p>
+
+            <p className="text-gray-600 mb-4">
+              You're auto logged in and ready to begin your yoga journey.
+            </p>
+
+            {/* User Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Name:</span> {formData.name}
+              </p>
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Email:</span> {formData.email}
+              </p>
+            </div>
+
+            {/* Redirect Message */}
+            <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 mb-4">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yoga-600"></div>
+              <span>Redirecting to cart in 3 seconds...</span>
+            </div>
+
+            {/* Continue Button */}
+            <button
+              onClick={() => {
+                setShowSuccessPopup(false);
+                router.push('/cart');
+              }}
+              className="w-full bg-gradient-to-r from-yoga-600 to-yoga-700 text-white py-3 px-4 rounded-lg font-bold hover:from-yoga-700 hover:to-yoga-800 transition-all shadow-lg hover:shadow-xl"
+            >
+              Continue to Cart
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
