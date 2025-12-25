@@ -59,6 +59,8 @@ export default function LeadsPage() {
   const [workshopCounts, setWorkshopCounts] = useState<Record<string, number>>({});
   const [loadingMetadata, setLoadingMetadata] = useState(false);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [duplicateLead, setDuplicateLead] = useState<any>(null);
 
   // Fetch only filter metadata (fast, no lead data)
   const fetchMetadata = useCallback(async () => {
@@ -109,23 +111,40 @@ export default function LeadsPage() {
 
   const handleCreateLead = async (values: LeadFormValues) => {
     try {
-      await crm.fetch('/api/admin/crm/leads', {
+      const response = await fetch('/api/admin/crm/leads', {
         method: 'POST',
-        body: {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           name: values.name,
           email: values.email,
           phoneNumber: values.phoneNumber,
           source: values.source,
           status: values.status,
           workshopName: values.workshopName,
-        },
+        }),
       });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Check if it's a duplicate error
+        if (response.status === 409 && data.duplicate) {
+          setDuplicateLead(data.existingLead);
+          setDuplicateModalOpen(true);
+          return;
+        }
+        throw new Error(data.error || 'Failed to create lead');
+      }
 
       modal.close();
       form.resetForm();
       setSkip(0);
       fetchMetadata();
       fetchLeads();
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create lead');
     }
@@ -521,6 +540,55 @@ export default function LeadsPage() {
             </div>
           </div>
         </FormModal>
+      )}
+
+      {/* Duplicate Entry Modal */}
+      {duplicateModalOpen && duplicateLead && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-red-500/50 rounded-lg p-8 max-w-md w-full space-y-6">
+            <div className="text-center">
+              <div className="text-4xl mb-2">⚠️</div>
+              <h2 className="text-xl font-bold text-red-300">Lead Already Exists!</h2>
+            </div>
+            
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 space-y-2">
+              <p className="text-white text-sm"><strong>Name:</strong> {duplicateLead.name || 'N/A'}</p>
+              <p className="text-white text-sm"><strong>Email:</strong> {duplicateLead.email || 'N/A'}</p>
+              <p className="text-white text-sm"><strong>Phone:</strong> {duplicateLead.phoneNumber}</p>
+              <p className="text-white text-sm"><strong>Status:</strong> <span className="capitalize font-semibold">{duplicateLead.status}</span></p>
+              <p className="text-white text-sm"><strong>Program:</strong> {duplicateLead.workshopName || 'Not assigned'}</p>
+              <p className="text-purple-200 text-xs"><strong>Created:</strong> {new Date(duplicateLead.createdAt).toLocaleDateString()}</p>
+            </div>
+
+            <p className="text-purple-300 text-sm text-center">
+              This lead is already in the system. No duplicate entries are allowed.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setDuplicateModalOpen(false);
+                  setDuplicateLead(null);
+                  router.push(`/admin/crm/leads/${duplicateLead._id}`);
+                }}
+                className="flex-1 bg-blue-500/20 border border-blue-500 text-blue-200 px-4 py-2 rounded-lg hover:bg-blue-500/30 transition-colors font-medium"
+              >
+                View Lead
+              </button>
+              <button
+                onClick={() => {
+                  setDuplicateModalOpen(false);
+                  setDuplicateLead(null);
+                  modal.close();
+                  form.resetForm();
+                }}
+                className="flex-1 bg-slate-700 border border-slate-600 text-slate-300 px-4 py-2 rounded-lg hover:border-slate-500 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Bulk Import Modal */}

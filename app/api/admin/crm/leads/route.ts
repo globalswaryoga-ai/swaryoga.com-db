@@ -77,6 +77,34 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
+    // Check for duplicates by email or phone number
+    const existingLead = await Lead.findOne({
+      $or: [
+        ...(email ? [{ email }] : []),
+        { phoneNumber },
+      ],
+    });
+
+    if (existingLead) {
+      // Return existing lead info so UI can show it
+      return NextResponse.json(
+        {
+          error: 'Lead already exists',
+          duplicate: true,
+          existingLead: {
+            _id: existingLead._id,
+            name: existingLead.name,
+            email: existingLead.email,
+            phoneNumber: existingLead.phoneNumber,
+            status: existingLead.status,
+            workshopName: existingLead.workshopName,
+            createdAt: existingLead.createdAt,
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     const lead = await Lead.create({
       phoneNumber,
       ...(name ? { name } : {}),
