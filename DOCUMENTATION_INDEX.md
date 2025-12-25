@@ -24,6 +24,27 @@
 
 ---
 
+## 📝 DOCUMENTATION AUTOMATION SYSTEM
+
+**Auto-update enabled!** Any new `.md` file you create is automatically tracked.
+
+- **[QUICK_START_DOCUMENTATION.md](QUICK_START_DOCUMENTATION.md)** ⚡ **Quick reference**
+  - 3-step process to add docs
+  - Copy-paste templates
+  - Verify automation works
+
+- **[DOCUMENTATION_AUTOMATION_GUIDE.md](DOCUMENTATION_AUTOMATION_GUIDE.md)** 📚 **Full guide**
+  - Complete feature overview
+  - Detailed workflows
+  - Troubleshooting tips
+
+- **[NEW_DOCUMENTATION_TEMPLATE.md](NEW_DOCUMENTATION_TEMPLATE.md)** 📄 **File template**
+  - Ready-to-use template
+  - Naming conventions
+  - Best practices
+
+---
+
 ## 🔐 CODE LOCK & SECURITY
 
 - **[CODE_LOCK_PROTECTION.md](CODE_LOCK_PROTECTION.md)** - Full lock protection system
