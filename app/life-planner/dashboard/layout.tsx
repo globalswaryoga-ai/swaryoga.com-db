@@ -14,9 +14,16 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
     if (typeof window === 'undefined') return true;
     return window.innerWidth >= 768;
   });
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true); // Default to true to avoid redirect on initial load
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
+    // Check if we're on the client side and have a valid session
+    if (typeof window === 'undefined') {
+      setIsCheckingAuth(false);
+      return;
+    }
+
     // Life Planner historically used its own keys, but the rest of the app uses the unified session manager
     // (token/user). Support both so the dashboard reliably opens.
     const plannerSessionRaw = localStorage.getItem('lifePlannerUser');
@@ -67,8 +74,11 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
 
     const effectiveSession = localStorage.getItem('lifePlannerUser') || plannerSessionRaw;
 
+    // If no valid session/token, redirect to login
     if (!effectiveSession || !effectiveToken) {
       // Token is required for Mongo-backed persistence; without it the API returns 401.
+      setIsAuthenticated(false);
+      setIsCheckingAuth(false);
       router.push('/life-planner/login');
       return;
     }
@@ -78,10 +88,17 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
     extendSession();
 
     setIsAuthenticated(true);
+    setIsCheckingAuth(false);
   }, [router]);
 
+  // Show loading state only while checking auth; don't redirect away immediately
+  if (isCheckingAuth) {
+    return <div className="flex items-center justify-center min-h-screen">Loading…</div>;
+  }
+
+  // If auth check is done and not authenticated, don't render the dashboard
   if (!isAuthenticated) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return null;
   }
 
   return (
