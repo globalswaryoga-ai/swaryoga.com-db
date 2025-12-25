@@ -59,8 +59,11 @@ export async function POST(request: NextRequest) {
       await user.save();
     }
 
-    // Generate JWT token
-    const jwtToken = generateToken(user._id.toString());
+    // Generate JWT token with email (required for life planner API)
+    const jwtToken = generateToken({
+      userId: user._id.toString(),
+      email: user.email,
+    });
 
     return NextResponse.json({
       success: true,
