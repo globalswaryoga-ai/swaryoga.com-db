@@ -61,6 +61,12 @@ const userSchema = new mongoose.Schema({
   userId: { type: String, sparse: true }, // Admin username, e.g., "admincrm"
   isAdmin: { type: Boolean, default: false },
   role: { type: String, enum: ['admin', 'user'], default: 'user' },
+  permissions: { 
+    type: [String], 
+    enum: ['all', 'crm', 'whatsapp', 'email'], 
+    default: ['all'],
+    sparse: true 
+  }, // Admin permissions: 'all' or combination of 'crm', 'whatsapp', 'email'
   
   // Regular user fields
   name: { type: String },

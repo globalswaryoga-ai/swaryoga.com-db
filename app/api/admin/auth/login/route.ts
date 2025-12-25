@@ -52,7 +52,8 @@ export async function POST(request: Request) {
         userId: user.userId,
         email: user.email,
         isAdmin: user.isAdmin,
-        role: user.role
+        role: user.role,
+        permissions: user.permissions
       },
       process.env.JWT_SECRET || 'replace_me_with_a_long_random_string',
       { expiresIn: '7d' }
@@ -66,7 +67,8 @@ export async function POST(request: Request) {
           userId: user.userId,
           email: user.email,
           role: user.role,
-          isAdmin: user.isAdmin
+          isAdmin: user.isAdmin,
+          permissions: user.permissions
         }
       },
       { status: 200 }

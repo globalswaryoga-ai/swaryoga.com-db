@@ -35,6 +35,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     },
     {
       icon: Users,
+      label: 'Admin Users',
+      href: '/admin/users',
+      color: 'text-purple-600'
+    },
+    {
+      icon: Users,
       label: 'Signup Data',
       href: '/admin/signup-data',
       color: 'text-swar-primary'
