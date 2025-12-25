@@ -92,6 +92,7 @@ const userSchema = new mongoose.Schema({
   lifePlannerReminders: [mongoose.Schema.Types.Mixed],
   lifePlannerHealthRoutines: [mongoose.Schema.Types.Mixed],
   lifePlannerDailyHealthPlans: [mongoose.Schema.Types.Mixed],
+  lifePlannerDailyTasks: mongoose.Schema.Types.Mixed, // Daily workshop tasks and sadhana per date
   lifePlannerDiamondPeople: [mongoose.Schema.Types.Mixed],
   lifePlannerProgress: [mongoose.Schema.Types.Mixed],
   

@@ -112,12 +112,17 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      { new: true }
-    ).lean();
+      { new: true, runValidators: false }
+    );
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    console.log(`[POST] ✅ Saved daily tasks for ${email} on ${date}:`, {
+      workshopTasksCount: (workshopTasks || []).length,
+      hasSadhana: !!sadhana,
+    });
 
     return NextResponse.json(
       {
