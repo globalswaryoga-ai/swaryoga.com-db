@@ -4,48 +4,10 @@ import { verifyToken } from '@/lib/auth';
 import { ConsentManager } from '@/lib/consentManager';
 import { AuditLogger } from '@/lib/auditLogger';
 import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
-
-function normalizePhone(raw: string): string {
-  return String(raw || '')
-    .trim()
-    .replace(/[\s\-()]/g, '');
-}
+import { normalizePhone, sendWhatsAppText } from '@/lib/whatsapp';
 
 function looksLikeObjectId(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-fA-F]{24}$/.test(value);
-}
-
-async function sendWhatsAppText(to: string, body: string) {
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!accessToken || !phoneNumberId) {
-    throw new Error('Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID in environment');
-  }
-
-  const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body },
-    }),
-    cache: 'no-store',
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message =
-      data?.error?.message || data?.error?.error_user_msg || data?.error || 'WhatsApp API error';
-    throw new Error(String(message));
-  }
-  return data;
 }
 
 export async function POST(request: NextRequest) {
@@ -141,10 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const apiResult = await sendWhatsAppText(to, message);
-    const waMessageId =
-      Array.isArray(apiResult?.messages) && apiResult.messages[0]?.id
-        ? String(apiResult.messages[0].id)
-        : undefined;
+    const waMessageId = apiResult.waMessageId;
 
     await WhatsAppMessage.updateOne(
       { _id: msgDoc._id },

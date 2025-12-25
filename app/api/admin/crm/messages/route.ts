@@ -11,6 +11,9 @@ import {
   toObjectId,
 } from '@/lib/crm-handlers';
 import { WhatsAppMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
+import { ConsentManager } from '@/lib/consentManager';
+import { AuditLogger } from '@/lib/auditLogger';
+import { normalizePhone, sendWhatsAppText } from '@/lib/whatsapp';
 
 /**
  * WhatsApp message management - REFACTORED
@@ -88,22 +91,99 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
+    const to = normalizePhone(String(phoneNumber));
+    const leadPhone = normalizePhone(String((lead as any).phoneNumber || ''));
+    if (!to) {
+      return NextResponse.json({ error: 'Invalid phoneNumber' }, { status: 400 });
+    }
+
+    // Safety: prevent accidental sends to a number that doesn't match the lead record.
+    if (leadPhone && to !== leadPhone) {
+      return NextResponse.json(
+        { error: 'phoneNumber does not match lead phoneNumber' },
+        { status: 400 }
+      );
+    }
+
+    // Consent / opt-out compliance
+    const compliance = await ConsentManager.validateCompliance(to);
+    if (!compliance.compliant) {
+      return NextResponse.json(
+        { error: compliance.reason || 'User has opted out or is blocked' },
+        { status: 403 }
+      );
+    }
+
     // Create message record
+    const now = new Date();
+    const normalizedType = String(messageType || 'text');
     const message = await WhatsAppMessage.create({
       leadId,
-      phoneNumber,
-      messageContent,
+      phoneNumber: to,
+      messageContent: String(messageContent),
       direction: 'outbound',
-      messageType: messageType || 'text',
+      messageType: normalizedType,
       status: 'queued',
       sentBy: userId,
-      sentAt: new Date(),
+      sentAt: now,
       templateId: templateId || undefined,
       retryCount: 0,
     });
 
     // Update lead's lastMessageAt
-    await Lead.updateOne({ _id: leadId }, { $set: { lastMessageAt: new Date() } });
+    await Lead.updateOne({ _id: leadId }, { $set: { lastMessageAt: now } });
+
+    // Send immediately for text messages.
+    // For template/media/interactive, we still record the message as queued for now.
+    if (normalizedType === 'text') {
+      try {
+        const apiResult = await sendWhatsAppText(to, String(messageContent).trim());
+        await WhatsAppMessage.updateOne(
+          { _id: message._id },
+          {
+            $set: {
+              status: 'sent',
+              waMessageId: apiResult.waMessageId,
+              updatedAt: new Date(),
+            },
+            $unset: {
+              failureReason: 1,
+              nextRetryAt: 1,
+            },
+          }
+        );
+
+        if (isValidObjectId(String(userId))) {
+          await AuditLogger.log({
+            userId: String(userId),
+            actionType: 'message_send',
+            resourceType: 'whatsapp_message',
+            resourceId: String(message._id),
+            description: `Sent WhatsApp message to ${to}`,
+            metadata: { to, waMessageId: apiResult.waMessageId },
+          });
+        }
+
+        const updated = await WhatsAppMessage.findById(message._id).lean();
+        return formatCrmSuccess(updated || message);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'WhatsApp send failed';
+        await WhatsAppMessage.updateOne(
+          { _id: message._id },
+          {
+            $set: {
+              status: 'failed',
+              failureReason: String(msg),
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        // Bubble up a clear error for the UI.
+        const status = typeof (err as any)?.status === 'number' ? (err as any).status : 502;
+        return NextResponse.json({ error: msg }, { status });
+      }
+    }
 
     return formatCrmSuccess(message);
   } catch (error) {
@@ -113,7 +193,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    verifyAdminAccess(request);
+    const userId = verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -142,18 +222,93 @@ export async function PUT(request: NextRequest) {
       }
       return formatCrmSuccess(message);
     } else if (action === 'retry') {
-      const message = await WhatsAppMessage.findByIdAndUpdate(
-        messageId,
-        {
-          $set: { status: 'queued', nextRetryAt: new Date() },
-          $inc: { retryCount: 1 },
-        },
-        { new: true }
-      );
-      if (!message) {
-        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      const message = await WhatsAppMessage.findById(messageId);
+      if (!message) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+
+      if (String(message.messageType || 'text') !== 'text') {
+        return NextResponse.json({ error: 'Retry currently supported only for text messages' }, { status: 400 });
       }
-      return formatCrmSuccess(message);
+
+      if (!message.messageContent) {
+        return NextResponse.json({ error: 'Message content missing' }, { status: 400 });
+      }
+
+      const maxRetries = typeof message.maxRetries === 'number' ? message.maxRetries : 3;
+      const retryCount = typeof message.retryCount === 'number' ? message.retryCount : 0;
+      if (retryCount >= maxRetries) {
+        return NextResponse.json({ error: 'Max retries exceeded' }, { status: 400 });
+      }
+
+      const to = normalizePhone(String(message.phoneNumber));
+      const compliance = await ConsentManager.validateCompliance(to);
+      if (!compliance.compliant) {
+        await WhatsAppMessage.updateOne(
+          { _id: message._id },
+          {
+            $set: {
+              status: 'failed',
+              failureReason: compliance.reason || 'User has opted out or is blocked',
+              updatedAt: new Date(),
+            },
+            $inc: { retryCount: 1 },
+          }
+        );
+        return NextResponse.json(
+          { error: compliance.reason || 'User has opted out or is blocked' },
+          { status: 403 }
+        );
+      }
+
+      try {
+        const apiResult = await sendWhatsAppText(to, String(message.messageContent).trim());
+        const updated = await WhatsAppMessage.findByIdAndUpdate(
+          messageId,
+          {
+            $set: {
+              status: 'sent',
+              waMessageId: apiResult.waMessageId,
+              updatedAt: new Date(),
+            },
+            $unset: {
+              failureReason: 1,
+              nextRetryAt: 1,
+            },
+            $inc: { retryCount: 1 },
+          },
+          { new: true }
+        );
+
+        if (updated && isValidObjectId(String(userId))) {
+          await AuditLogger.log({
+            userId: String(userId),
+            actionType: 'message_send',
+            resourceType: 'whatsapp_message',
+            resourceId: String(updated._id),
+            description: `Retried WhatsApp message to ${to}`,
+            metadata: { to, waMessageId: apiResult.waMessageId },
+          });
+        }
+
+        return formatCrmSuccess(updated || message);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'WhatsApp send failed';
+        const updated = await WhatsAppMessage.findByIdAndUpdate(
+          messageId,
+          {
+            $set: {
+              status: 'failed',
+              failureReason: String(msg),
+              nextRetryAt: new Date(),
+              updatedAt: new Date(),
+            },
+            $inc: { retryCount: 1 },
+          },
+          { new: true }
+        );
+
+        const status = typeof (err as any)?.status === 'number' ? (err as any).status : 502;
+        return NextResponse.json({ error: msg, data: updated }, { status });
+      }
     } else {
       // Generic update
       const message = await WhatsAppMessage.findByIdAndUpdate(
