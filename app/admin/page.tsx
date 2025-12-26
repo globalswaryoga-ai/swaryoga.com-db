@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogOut, UserCog, Bell, ScrollText, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, UserCheck, Bell, ScrollText, Sparkles } from 'lucide-react';
 
 type AdminUserPayload = {
   userId?: string;
@@ -119,11 +119,11 @@ export default function AdminRoot() {
   }, [router]);
 
   // Requested behavior:
-  // - admin (and admincrm with permissions: ['all']) can open Dashboard, CRM, Users.
-  // - other admin users can open only CRM.
+  // - Full-access admin (admin / permissions: ['all']) can open Dashboard + Admin CRM.
+  // - Other admin users can open only User CRM.
   const canDashboard = isSuperAdmin;
-  const canUsers = isSuperAdmin;
-  const canCRM = true;
+  const canAdminCRM = isSuperAdmin;
+  const canUserCRM = true;
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
@@ -171,7 +171,7 @@ export default function AdminRoot() {
       <div className="max-w-6xl mx-auto px-6 py-12">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-white">Dashboard</h2>
-          <p className="text-gray-300 mt-2">Header shortcuts (Dashboard / CRM / Users)</p>
+          <p className="text-gray-300 mt-2">Header shortcuts (Dashboard / CRM / User CRM)</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <Card
@@ -185,21 +185,21 @@ export default function AdminRoot() {
           />
           <Card
             href="/admin/crm"
-            enabled={canCRM}
+            enabled={canAdminCRM}
             title="CRM"
-            description="Leads, messages, templates, analytics and sales."
-            cta="→ Go to CRM"
+            description="Admin CRM access (full controls for leads, templates, analytics)."
+            cta="→ Open Admin CRM"
             gradientClass="bg-gradient-to-br from-green-600 to-green-800"
             icon={<Users size={40} className="text-white" />}
           />
           <Card
             href="/admin/users"
-            enabled={canUsers}
-            title="Users"
-            description="Create and manage admin users and permissions."
-            cta="→ Manage Users"
+            enabled={canUserCRM}
+            title="User CRM"
+            description="CRM access for users based on the permissions you assign."
+            cta="→ Open User CRM"
             gradientClass="bg-gradient-to-br from-purple-600 to-purple-800"
-            icon={<UserCog size={40} className="text-white" />}
+            icon={<UserCheck size={40} className="text-white" />}
           />
         </div>
 

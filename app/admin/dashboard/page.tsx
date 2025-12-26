@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogOut, Menu, X, TrendingUp, ShoppingCart, DollarSign, Home } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Menu, X, TrendingUp, ShoppingCart, DollarSign, Home, UserPlus } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 import ServerStatus from '@/components/ServerStatus';
 
@@ -35,6 +35,21 @@ export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [adminUser, setAdminUser] = useState('');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  // Quick add-user modal (create admin users with permissions)
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [createUserBusy, setCreateUserBusy] = useState(false);
+  const [createUserMsg, setCreateUserMsg] = useState<string>('');
+  const [newUserId, setNewUserId] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [permissionMode, setPermissionMode] = useState<'all' | 'selected'>('selected');
+  const [selectedPermissions, setSelectedPermissions] = useState({
+    crm: true,
+    whatsapp: false,
+    email: false,
+  });
   const [purgeEmail, setPurgeEmail] = useState('swarsakshi9999@gmail.com');
   const [purgeOlderThanDays, setPurgeOlderThanDays] = useState<string>('');
   const [purgePaymentMethod, setPurgePaymentMethod] = useState<string>('');
@@ -80,12 +95,13 @@ export default function AdminDashboard() {
       }
     }
 
-    const isSuperAdmin = resolvedUserId === 'admin' || permissions.includes('all');
+    const isSuperAdminResolved = resolvedUserId === 'admin' || permissions.includes('all');
+    setIsSuperAdmin(isSuperAdminResolved);
 
     if (!adminToken) {
       router.push('/admin/login');
     } else {
-      if (!isSuperAdmin) {
+      if (!isSuperAdminResolved) {
         router.push('/admin/crm');
         return;
       }
@@ -94,6 +110,86 @@ export default function AdminDashboard() {
       fetchDashboardData(adminToken);
     }
   }, [router]);
+
+  const toggleSelectedPermission = (key: keyof typeof selectedPermissions) => {
+    setSelectedPermissions((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const resetCreateUserForm = () => {
+    setNewUserId('');
+    setNewEmail('');
+    setNewPassword('');
+    setPermissionMode('selected');
+    setSelectedPermissions({ crm: true, whatsapp: false, email: false });
+    setCreateUserMsg('');
+  };
+
+  const createAdminUser = async () => {
+    const token = getAdminToken();
+    if (!token) {
+      setCreateUserMsg('Admin token missing. Please login again.');
+      return;
+    }
+
+    const userId = newUserId.trim();
+    const email = newEmail.trim().toLowerCase();
+    const password = newPassword;
+
+    if (!userId || !email || !password) {
+      setCreateUserMsg('userId, email, and password are required.');
+      return;
+    }
+
+    const permissions =
+      permissionMode === 'all'
+        ? ['all']
+        : (Object.keys(selectedPermissions) as Array<keyof typeof selectedPermissions>)
+            .filter((k) => selectedPermissions[k])
+            .map((k) => String(k));
+
+    if (permissions.length === 0) {
+      setCreateUserMsg('Select at least one permission (CRM/WhatsApp/Email) or choose Full Access.');
+      return;
+    }
+
+    setCreateUserBusy(true);
+    setCreateUserMsg('');
+    try {
+      const response = await fetch('/api/admin/auth/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId,
+          email,
+          password,
+          permissions,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to create user');
+      }
+
+      setCreateUserMsg(`User created: ${userId}`);
+      // Keep modal open so admin can add multiple users quickly
+      setNewUserId('');
+      setNewEmail('');
+      setNewPassword('');
+      setPermissionMode('selected');
+      setSelectedPermissions({ crm: true, whatsapp: false, email: false });
+    } catch (err) {
+      setCreateUserMsg(err instanceof Error ? err.message : 'Failed to create user');
+    } finally {
+      setCreateUserBusy(false);
+    }
+  };
 
   const fetchDashboardData = async (token: string) => {
     try {
@@ -361,6 +457,21 @@ export default function AdminDashboard() {
 
             <div className="flex items-center space-x-4">
               <ServerStatus />
+
+              {isSuperAdmin && (
+                <button
+                  onClick={() => {
+                    resetCreateUserForm();
+                    setShowAddUser(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                  title="Add new admin user"
+                >
+                  <UserPlus className="h-5 w-5" />
+                  <span className="font-semibold">Add Users</span>
+                </button>
+              )}
+
               <div className="text-right">
                 <p className="text-sm text-swar-text-secondary">Welcome back</p>
                 <p className="font-semibold text-swar-text capitalize">{adminUser}</p>
@@ -382,6 +493,163 @@ export default function AdminDashboard() {
             </div>
           </div>
         </header>
+
+        {showAddUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/50"
+              onClick={() => setShowAddUser(false)}
+              aria-hidden="true"
+            />
+            <div className="relative w-full max-w-2xl mx-4 bg-white rounded-xl shadow-xl border border-swar-border">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-swar-border">
+                <h2 className="text-xl font-bold text-swar-text">Add Users</h2>
+                <button
+                  onClick={() => setShowAddUser(false)}
+                  className="p-2 rounded-lg hover:bg-swar-primary-light"
+                  title="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-swar-text mb-1">Username (userId)</label>
+                    <input
+                      value={newUserId}
+                      onChange={(e) => setNewUserId(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2"
+                      placeholder="e.g., usercrm1"
+                      disabled={createUserBusy}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-swar-text mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2"
+                      placeholder="user@example.com"
+                      disabled={createUserBusy}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-swar-text mb-1">Password</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full border border-swar-border rounded-lg px-3 py-2"
+                      placeholder="Enter strong password"
+                      disabled={createUserBusy}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-5 border-t border-swar-border pt-4">
+                  <p className="text-sm font-semibold text-swar-text mb-2">Permissions</p>
+                  <div className="flex flex-col gap-3">
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="permission-mode"
+                        checked={permissionMode === 'selected'}
+                        onChange={() => setPermissionMode('selected')}
+                        disabled={createUserBusy}
+                        className="mt-1"
+                      />
+                      <div>
+                        <div className="font-semibold text-swar-text">Custom (recommended for User CRM)</div>
+                        <div className="text-sm text-swar-text-secondary">Default is CRM only.</div>
+                      </div>
+                    </label>
+
+                    {permissionMode === 'selected' && (
+                      <div className="ml-7 grid grid-cols-1 md:grid-cols-3 gap-3 bg-swar-primary-light rounded-lg p-3">
+                        <label className="flex items-center gap-2 text-sm text-swar-text">
+                          <input
+                            type="checkbox"
+                            checked={selectedPermissions.crm}
+                            onChange={() => toggleSelectedPermission('crm')}
+                            disabled={createUserBusy}
+                          />
+                          CRM
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-swar-text">
+                          <input
+                            type="checkbox"
+                            checked={selectedPermissions.whatsapp}
+                            onChange={() => toggleSelectedPermission('whatsapp')}
+                            disabled={createUserBusy}
+                          />
+                          WhatsApp
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-swar-text">
+                          <input
+                            type="checkbox"
+                            checked={selectedPermissions.email}
+                            onChange={() => toggleSelectedPermission('email')}
+                            disabled={createUserBusy}
+                          />
+                          Email
+                        </label>
+                      </div>
+                    )}
+
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="radio"
+                        name="permission-mode"
+                        checked={permissionMode === 'all'}
+                        onChange={() => setPermissionMode('all')}
+                        disabled={createUserBusy}
+                        className="mt-1"
+                      />
+                      <div>
+                        <div className="font-semibold text-swar-text">Full Access (all)</div>
+                        <div className="text-sm text-swar-text-secondary">Use only for trusted admins.</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {createUserMsg && (
+                  <div className="mt-4 text-sm">
+                    <div
+                      className={
+                        createUserMsg.toLowerCase().includes('created')
+                          ? 'text-green-700'
+                          : 'text-red-700'
+                      }
+                    >
+                      {createUserMsg}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-swar-border flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setShowAddUser(false)}
+                  className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+                  disabled={createUserBusy}
+                >
+                  Close
+                </button>
+                <button
+                  onClick={createAdminUser}
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  disabled={createUserBusy}
+                >
+                  {createUserBusy ? 'Creating...' : 'Create User'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Dashboard Content */}
         <main className="flex-1 overflow-auto p-6">
