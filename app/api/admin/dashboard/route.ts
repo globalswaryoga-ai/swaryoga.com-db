@@ -26,6 +26,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Super admin gate: dashboard is for the main admin only.
+    const isSuperAdmin = decoded?.userId === 'admin' || (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
+    if (!isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await connectDB();
 
     // Get all statistics

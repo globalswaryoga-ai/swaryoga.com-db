@@ -66,9 +66,25 @@ export default function AdminDashboard() {
     const adminToken = localStorage.getItem('adminToken');
     const adminUsername = localStorage.getItem('adminUser');
 
+    // Super admin gate: only "admin" can access the main dashboard.
+    const userStr = localStorage.getItem('admin_user');
+    let resolvedUserId = adminUsername || '';
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        resolvedUserId = (u?.userId as string) || resolvedUserId;
+      } catch {
+        // ignore
+      }
+    }
+
     if (!adminToken) {
       router.push('/admin/login');
     } else {
+      if (resolvedUserId !== 'admin') {
+        router.push('/admin/crm');
+        return;
+      }
       setIsAuthenticated(true);
       setAdminUser(adminUsername || '');
       fetchDashboardData(adminToken);

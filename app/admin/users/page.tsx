@@ -40,6 +40,23 @@ export default function AdminUsersPage() {
       router.push('/admin/login');
       return;
     }
+
+    // Super admin gate: only "admin" can manage admin users.
+    const userStr = localStorage.getItem('admin_user');
+    let resolvedUserId = localStorage.getItem('adminUser') || '';
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        resolvedUserId = (u?.userId as string) || resolvedUserId;
+      } catch {
+        // ignore
+      }
+    }
+    if (resolvedUserId !== 'admin') {
+      router.push('/admin/crm');
+      return;
+    }
+
     fetchAdminUsers();
   }, [router]);
 

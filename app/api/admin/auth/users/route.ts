@@ -14,6 +14,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
 
+    const isSuperAdmin = decoded?.userId === 'admin' || (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
+    if (!isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await connectDB();
 
     // Get User model
@@ -38,6 +43,11 @@ export async function POST(request: NextRequest) {
 
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
+    }
+
+    const isSuperAdmin = decoded?.userId === 'admin' || (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
+    if (!isSuperAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { userId, email, password, permissions } = await request.json();

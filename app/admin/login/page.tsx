@@ -63,11 +63,19 @@ export default function AdminLogin() {
         localStorage.setItem('adminToken', data.token);
         localStorage.setItem('adminUser', resolvedUserId);
         localStorage.setItem('admin_token', data.token);
-        localStorage.setItem('admin_user', JSON.stringify({ userId: resolvedUserId }));
+        // Prefer storing the full user payload for permission-based routing.
+        // Keep backward compatibility by ensuring at least { userId } exists.
+        localStorage.setItem(
+          'admin_user',
+          JSON.stringify({
+            ...(data.user && typeof data.user === 'object' ? data.user : {}),
+            userId: resolvedUserId,
+          })
+        );
 
-        // Redirect to admin dashboard
+        // Always send admins to the hub first; the hub will show cards based on permissions.
         setTimeout(() => {
-          router.push('/admin/crm');
+          router.push('/admin');
         }, 1000);
       } else {
         setErrors({ 
