@@ -9,31 +9,30 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     // Verify admin token
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const authHeader = request.headers.get('authorization') || '';
 
-    // Check if it's a Bearer token (JWT from user login with admin email)
-    let isValidAdmin = false;
-    let token = authHeader;
-    
-    if (authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-      const payload = verifyToken(token);
-      // Allow if it's a JWT token with admin@swaryoga.com email
-      if (payload && payload.email === 'admin@swaryoga.com') {
-        isValidAdmin = true;
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+    if (!bearer) {
+      // Legacy admin-panel token support (only if configured)
+      const expectedAdminPanelToken = (process.env.ADMIN_PANEL_TOKEN || '').trim();
+      if (!expectedAdminPanelToken || authHeader !== expectedAdminPanelToken) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
     }
 
-    // Also allow admin panel tokens (admin_xxxxx format)
-    if (!isValidAdmin && token.startsWith('admin_')) {
-      isValidAdmin = true;
+    const decoded = bearer ? verifyToken(bearer) : null;
+    if (bearer && !decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!isValidAdmin) {
-      return NextResponse.json({ error: 'Only admin can send replies' }, { status: 403 });
+    // Permission gate: email module
+    if (bearer) {
+      const perms = Array.isArray(decoded?.permissions) ? decoded.permissions : [];
+      const isSuperAdmin = decoded?.userId === 'admin' || perms.includes('all');
+      const canEmail = isSuperAdmin || perms.includes('email');
+      if (!canEmail) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     const { contactId, userEmail, subject, reply } = await request.json();

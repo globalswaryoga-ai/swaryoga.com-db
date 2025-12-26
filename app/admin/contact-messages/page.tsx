@@ -32,10 +32,29 @@ export default function ContactMessages() {
 
   useEffect(() => {
     const adminToken = localStorage.getItem('adminToken');
+    const userStr = localStorage.getItem('admin_user');
+    let userId = localStorage.getItem('adminUser') || '';
+    let permissions: string[] = [];
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        userId = (u?.userId as string) || userId;
+        permissions = Array.isArray(u?.permissions) ? u.permissions : [];
+      } catch {
+        // ignore
+      }
+    }
+
+    const isSuperAdmin = userId === 'admin' || permissions.includes('all');
+    const canEmail = isSuperAdmin || permissions.includes('email');
 
     if (!adminToken) {
       router.push('/admin/login');
     } else {
+      if (!canEmail) {
+        router.push('/admin');
+        return;
+      }
       setIsAuthenticated(true);
       fetchMessages();
     }

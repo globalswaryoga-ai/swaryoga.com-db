@@ -1,4 +1,5 @@
 import { connectDB, Contact, Message } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -6,12 +7,30 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     // Verify admin token
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const authHeader = req.headers.get('authorization') || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+
+    // Allow legacy admin-panel token only if explicitly configured
+    if (!bearer) {
+      const expectedAdminPanelToken = (process.env.ADMIN_PANEL_TOKEN || '').trim();
+      if (!expectedAdminPanelToken || authHeader !== expectedAdminPanelToken) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+
+    const decoded = bearer ? verifyToken(bearer) : null;
+    if (bearer && !decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Permission gate: email module
+    if (bearer) {
+      const perms = Array.isArray(decoded?.permissions) ? decoded?.permissions : [];
+      const isSuperAdmin = decoded?.userId === 'admin' || perms.includes('all');
+      const canEmail = isSuperAdmin || perms.includes('email');
+      if (!canEmail) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     await connectDB();
