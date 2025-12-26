@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LayoutDashboard, Users, LogOut, Menu, X, TrendingUp, ShoppingCart, DollarSign, Home, UserPlus } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
@@ -32,7 +32,6 @@ interface DashboardData {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [adminUser, setAdminUser] = useState('');
@@ -116,14 +115,17 @@ export default function AdminDashboard() {
     if (!isAuthenticated) return;
     if (!isSuperAdmin) return;
 
-    const open = searchParams.get('addUsers');
+    // NOTE: Avoid useSearchParams() in this page because it can trigger
+    // "missing-suspense-with-csr-bailout" during Vercel prerendering.
+    // We only need this on the client anyway.
+    const open = new URLSearchParams(window.location.search).get('addUsers');
     if (open === '1') {
       resetCreateUserForm();
       setShowAddUser(true);
       // Clean URL so refresh doesn't re-open every time
       router.replace('/admin/dashboard');
     }
-  }, [isAuthenticated, isSuperAdmin, searchParams, router]);
+  }, [isAuthenticated, isSuperAdmin, router]);
 
   const toggleSelectedPermission = (key: keyof typeof selectedPermissions) => {
     setSelectedPermissions((prev) => ({
