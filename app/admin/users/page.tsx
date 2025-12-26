@@ -35,24 +35,28 @@ export default function AdminUsersPage() {
 
   // Check authentication
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
+    const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
     if (!token) {
       router.push('/admin/login');
       return;
     }
 
-    // Super admin gate: only "admin" can manage admin users.
+    // Full access gate: allow "admin" and admins with permissions: ['all'] (e.g., admincrm).
     const userStr = localStorage.getItem('admin_user');
     let resolvedUserId = localStorage.getItem('adminUser') || '';
+    let permissions: string[] = [];
     if (userStr) {
       try {
         const u = JSON.parse(userStr);
         resolvedUserId = (u?.userId as string) || resolvedUserId;
+        permissions = Array.isArray(u?.permissions) ? u.permissions : [];
       } catch {
         // ignore
       }
     }
-    if (resolvedUserId !== 'admin') {
+
+    const isSuperAdmin = resolvedUserId === 'admin' || permissions.includes('all');
+    if (!isSuperAdmin) {
       router.push('/admin/crm');
       return;
     }
@@ -62,7 +66,7 @@ export default function AdminUsersPage() {
 
   const fetchAdminUsers = async () => {
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
       const response = await fetch('/api/admin/auth/users', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -114,7 +118,7 @@ export default function AdminUsersPage() {
         return;
       }
 
-      const token = localStorage.getItem('admin_token');
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
       const response = await fetch('/api/admin/auth/users', {
         method: 'POST',
         headers: {
@@ -154,7 +158,7 @@ export default function AdminUsersPage() {
     if (!window.confirm('Are you sure you want to delete this admin user?')) return;
 
     try {
-      const token = localStorage.getItem('admin_token');
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
       const response = await fetch(`/api/admin/auth/users/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },

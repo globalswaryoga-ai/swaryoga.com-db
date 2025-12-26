@@ -63,30 +63,34 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     // Check if admin is logged in
-    const adminToken = localStorage.getItem('adminToken');
+    const adminToken = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
     const adminUsername = localStorage.getItem('adminUser');
 
-    // Super admin gate: only "admin" can access the main dashboard.
+    // Full access gate: allow "admin" and admins with permissions: ['all'] (e.g., admincrm).
     const userStr = localStorage.getItem('admin_user');
-    let resolvedUserId = adminUsername || '';
+    let resolvedUserId = localStorage.getItem('adminUser') || adminUsername || '';
+    let permissions: string[] = [];
     if (userStr) {
       try {
         const u = JSON.parse(userStr);
         resolvedUserId = (u?.userId as string) || resolvedUserId;
+        permissions = Array.isArray(u?.permissions) ? u.permissions : [];
       } catch {
         // ignore
       }
     }
 
+    const isSuperAdmin = resolvedUserId === 'admin' || permissions.includes('all');
+
     if (!adminToken) {
       router.push('/admin/login');
     } else {
-      if (resolvedUserId !== 'admin') {
+      if (!isSuperAdmin) {
         router.push('/admin/crm');
         return;
       }
       setIsAuthenticated(true);
-      setAdminUser(adminUsername || '');
+      setAdminUser(resolvedUserId || '');
       fetchDashboardData(adminToken);
     }
   }, [router]);
@@ -117,6 +121,8 @@ export default function AdminDashboard() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
     router.push('/admin/login');
@@ -124,7 +130,7 @@ export default function AdminDashboard() {
 
   const getAdminToken = () => {
     if (typeof window === 'undefined') return '';
-    return localStorage.getItem('adminToken') || '';
+    return localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || '';
   };
 
   const buildPurgeQuery = () => {
