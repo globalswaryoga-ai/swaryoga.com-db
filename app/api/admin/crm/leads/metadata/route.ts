@@ -3,6 +3,17 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 
+function getViewerUserId(decoded: any): string {
+  return String(decoded?.userId || decoded?.username || '').trim();
+}
+
+function isSuperAdmin(decoded: any): boolean {
+  return (
+    decoded?.userId === 'admin' ||
+    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
+  );
+}
+
 /**
  * GET /api/admin/crm/leads/metadata
  * Get counts and unique workshops for filtering (no lead data, fast)
@@ -15,27 +26,48 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+
+    const url = new URL(request.url);
+    const userIdParam = url.searchParams.get('userId');
+    const superAdmin = isSuperAdmin(decoded);
+
+    const baseFilter: any = {};
+    if (superAdmin) {
+      if (userIdParam && String(userIdParam).trim()) {
+        baseFilter.assignedToUserId = String(userIdParam).trim();
+      }
+    } else {
+      baseFilter.assignedToUserId = viewerUserId;
+    }
+
     await connectDB();
 
-    // Get status counts
+    // Get status counts (scoped to visible leads)
     const statusCounts = await Promise.all([
-      Lead.countDocuments({ status: 'lead' }),
-      Lead.countDocuments({ status: 'prospect' }),
-      Lead.countDocuments({ status: 'customer' }),
-      Lead.countDocuments({ status: 'inactive' }),
+      Lead.countDocuments({ ...baseFilter, status: 'lead' }),
+      Lead.countDocuments({ ...baseFilter, status: 'prospect' }),
+      Lead.countDocuments({ ...baseFilter, status: 'customer' }),
+      Lead.countDocuments({ ...baseFilter, status: 'inactive' }),
     ]);
 
-    // Get unique workshops
-    const uniqueWorkshops = await Lead.distinct('workshopName', { workshopName: { $nin: [null, ''] } });
+    // Get unique workshops (scoped)
+    const uniqueWorkshops = await Lead.distinct('workshopName', {
+      ...baseFilter,
+      workshopName: { $nin: [null, ''] },
+    });
 
     // Get workshop counts
     const workshopCounts: Record<string, number> = {};
     for (const workshop of uniqueWorkshops) {
-      const count = await Lead.countDocuments({ workshopName: workshop });
+      const count = await Lead.countDocuments({ ...baseFilter, workshopName: workshop });
       workshopCounts[workshop] = count;
     }
 
-    const total = await Lead.countDocuments();
+    const total = await Lead.countDocuments(baseFilter);
 
     return NextResponse.json(
       {

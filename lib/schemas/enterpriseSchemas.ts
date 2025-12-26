@@ -26,6 +26,12 @@ function getCrmDb() {
 // ==========================================================================
 const LeadSchema = new mongoose.Schema(
   {
+    // Ownership / multi-user access control
+    // - assignedToUserId: which CRM user owns/manages this lead (used for per-user filtering)
+    // - createdByUserId: who created the lead (admin / user head / creator)
+    assignedToUserId: { type: String, trim: true, index: true },
+    createdByUserId: { type: String, trim: true, index: true },
+
     name: { type: String, trim: true },
     phoneNumber: { type: String, required: true, unique: true, index: true },
     email: { type: String, trim: true, lowercase: true },
@@ -52,6 +58,7 @@ const LeadSchema = new mongoose.Schema(
 
 LeadSchema.index({ status: 1, lastMessageAt: -1 });
 LeadSchema.index({ labels: 1 });
+LeadSchema.index({ assignedToUserId: 1, lastMessageAt: -1 });
 
 // ============================================================================
 // 1. WHATSAPP MESSAGE SCHEMA - Track all WhatsApp messages sent

@@ -3,6 +3,17 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 
+function getViewerUserId(decoded: any): string {
+  return String(decoded?.userId || decoded?.username || '').trim();
+}
+
+function isSuperAdmin(decoded: any): boolean {
+  return (
+    decoded?.userId === 'admin' ||
+    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -11,16 +22,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+
+    const superAdmin = isSuperAdmin(decoded);
+
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
     const workshop = url.searchParams.get('workshop');
     const q = url.searchParams.get('q');
+    const userIdParam = url.searchParams.get('userId');
     const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
     await connectDB();
 
     const filter: any = {};
+
+    // Multi-user access control:
+    // - Super-admin can see all leads and optionally filter by assigned user.
+    // - Other admins see only their own assigned leads.
+    if (superAdmin) {
+      if (userIdParam && String(userIdParam).trim()) {
+        filter.assignedToUserId = String(userIdParam).trim();
+      }
+    } else {
+      filter.assignedToUserId = viewerUserId;
+    }
+
     if (status) filter.status = status;
     if (workshop) filter.workshopName = workshop;
     if (q) {
@@ -57,6 +88,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+
+    const superAdmin = isSuperAdmin(decoded);
+
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -74,6 +112,10 @@ export async function POST(request: NextRequest) {
     const source = body?.source ? String(body.source).trim() : undefined;
     const workshopId = body?.workshopId ? String(body.workshopId).trim() : undefined;
     const workshopName = body?.workshopName ? String(body.workshopName).trim() : undefined;
+
+    // Ownership fields
+    const requestedAssignedTo = body?.assignedToUserId ? String(body.assignedToUserId).trim() : '';
+    const assignedToUserId = superAdmin && requestedAssignedTo ? requestedAssignedTo : viewerUserId;
 
     await connectDB();
 
@@ -107,6 +149,8 @@ export async function POST(request: NextRequest) {
 
     const lead = await Lead.create({
       phoneNumber,
+      assignedToUserId,
+      createdByUserId: viewerUserId,
       ...(name ? { name } : {}),
       ...(email ? { email } : {}),
       ...(status ? { status } : {}),

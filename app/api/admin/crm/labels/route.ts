@@ -4,6 +4,17 @@ import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
+function getViewerUserId(decoded: any): string {
+  return String(decoded?.userId || decoded?.username || '').trim();
+}
+
+function isSuperAdmin(decoded: any): boolean {
+  return (
+    decoded?.userId === 'admin' ||
+    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
+  );
+}
+
 /**
  * Label management for CRM leads
  * GET: Get all unique labels with count
@@ -19,10 +30,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
+
     await connectDB();
+
+    const baseMatch = superAdmin ? {} : { assignedToUserId: viewerUserId };
 
     // Aggregate to get all unique labels with counts
     const labelStats = await Lead.aggregate([
+      { $match: baseMatch },
       { $unwind: { path: '$labels', preserveNullAndEmptyArrays: true } },
       { $group: { _id: '$labels', count: { $sum: 1 } } },
       { $match: { _id: { $ne: null } } },
@@ -48,6 +68,12 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
+
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
 
     const body = await request.json().catch(() => null);
     if (!body) {
@@ -76,7 +102,10 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await Lead.updateMany(
-      { _id: { $in: objectIds } },
+      {
+        _id: { $in: objectIds },
+        ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+      },
       { $addToSet: { labels: label }, $set: { updatedAt: new Date() } }
     );
 
@@ -98,6 +127,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
+
     const url = new URL(request.url);
     const label = url.searchParams.get('label');
 
@@ -107,7 +142,10 @@ export async function DELETE(request: NextRequest) {
 
     await connectDB();
 
-    const result = await Lead.updateMany({}, { $pull: { labels: label }, $set: { updatedAt: new Date() } });
+    const result = await Lead.updateMany(
+      superAdmin ? {} : { assignedToUserId: viewerUserId },
+      { $pull: { labels: label }, $set: { updatedAt: new Date() } }
+    );
 
     return NextResponse.json(
       { success: true, data: { modified: result.modifiedCount } },

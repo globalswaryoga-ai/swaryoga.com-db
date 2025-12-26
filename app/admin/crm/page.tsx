@@ -21,7 +21,7 @@ export default function CRMDashboard() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('adminToken');
+        const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
         if (!token) {
           router.push('/admin/login');
           return;

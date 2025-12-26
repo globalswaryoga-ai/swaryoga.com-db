@@ -4,6 +4,17 @@ import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
+function getViewerUserId(decoded: any): string {
+  return String(decoded?.userId || decoded?.username || '').trim();
+}
+
+function isSuperAdmin(decoded: any): boolean {
+  return (
+    decoded?.userId === 'admin' ||
+    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
+  );
+}
+
 /**
  * Bulk operations for leads
  * POST: Bulk import leads
@@ -20,6 +31,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
+
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -33,6 +50,9 @@ export async function POST(request: NextRequest) {
       if (leads.length === 0) {
         return NextResponse.json({ error: 'No leads provided' }, { status: 400 });
       }
+
+      const requestedAssignedTo = body?.assignedToUserId ? String(body.assignedToUserId).trim() : '';
+      const assignedToUserId = superAdmin && requestedAssignedTo ? requestedAssignedTo : viewerUserId;
 
       await connectDB();
 
@@ -71,6 +91,8 @@ export async function POST(request: NextRequest) {
 
           await Lead.create({
             phoneNumber,
+            assignedToUserId,
+            createdByUserId: viewerUserId,
             name: leadData.name ? String(leadData.name).trim() : undefined,
             email: leadData.email ? String(leadData.email).trim() : undefined,
             status: leadData.status || 'lead',
@@ -120,7 +142,10 @@ export async function POST(request: NextRequest) {
         .filter((id: any) => id !== null);
 
       const result = await Lead.updateMany(
-        { _id: { $in: objectIds } },
+        {
+          _id: { $in: objectIds },
+          ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+        },
         { $set: { status: newStatus, updatedAt: new Date() } }
       );
 
@@ -161,7 +186,13 @@ export async function POST(request: NextRequest) {
         update = { $pullAll: { labels }, $set: { updatedAt: new Date() } };
       }
 
-      const result = await Lead.updateMany({ _id: { $in: objectIds } }, update);
+      const result = await Lead.updateMany(
+        {
+          _id: { $in: objectIds },
+          ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+        },
+        update
+      );
 
       return NextResponse.json(
         { success: true, data: { modified: result.modifiedCount, matched: result.matchedCount } },
@@ -183,6 +214,12 @@ export async function DELETE(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
+
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
 
     const body = await request.json().catch(() => null);
     if (!body) {
@@ -206,7 +243,10 @@ export async function DELETE(request: NextRequest) {
       })
       .filter((id: any) => id !== null);
 
-    const result = await Lead.deleteMany({ _id: { $in: objectIds } });
+    const result = await Lead.deleteMany({
+      _id: { $in: objectIds },
+      ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+    });
 
     return NextResponse.json(
       { success: true, data: { deleted: result.deletedCount } },
@@ -226,14 +266,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
+
     const url = new URL(request.url);
     const format = url.searchParams.get('format') || 'json'; // json or csv
     const status = url.searchParams.get('status');
+    const userIdParam = url.searchParams.get('userId');
     const limit = Math.min(Number(url.searchParams.get('limit') || 500) || 500, 10000);
 
     await connectDB();
 
     const filter: any = {};
+    if (superAdmin) {
+      if (userIdParam && String(userIdParam).trim()) {
+        filter.assignedToUserId = String(userIdParam).trim();
+      }
+    } else {
+      filter.assignedToUserId = viewerUserId;
+    }
     if (status) filter.status = status;
 
     const leads = await Lead.find(filter).limit(limit).lean();
@@ -244,8 +298,9 @@ export async function GET(request: NextRequest) {
         return new NextResponse('No data', { status: 200, headers: { 'Content-Type': 'text/csv' } });
       }
 
-      const headers = ['Phone Number', 'Name', 'Email', 'Status', 'Labels', 'Source', 'Last Message', 'Created At'];
+      const headers = ['User', 'Phone Number', 'Name', 'Email', 'Status', 'Labels', 'Source', 'Last Message', 'Created At'];
       const rows = leads.map((lead: any) => [
+        lead.assignedToUserId || '',
         lead.phoneNumber,
         lead.name || '',
         lead.email || '',

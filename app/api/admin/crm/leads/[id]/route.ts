@@ -4,6 +4,17 @@ import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
+function getViewerUserId(decoded: any): string {
+  return String(decoded?.userId || decoded?.username || '').trim();
+}
+
+function isSuperAdmin(decoded: any): boolean {
+  return (
+    decoded?.userId === 'admin' ||
+    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
+  );
+}
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -12,14 +23,24 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
+
     if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
     }
 
     await connectDB();
-    const lead = await Lead.findById(params.id).lean();
+    const lead: any = await Lead.findById(params.id).lean();
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+
+    if (!superAdmin && String(lead.assignedToUserId || '').trim() !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ success: true, data: lead }, { status: 200 });
   } catch (error) {
@@ -35,6 +56,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
+
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
 
     if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
@@ -57,6 +84,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (body.metadata !== undefined) update.metadata = body.metadata;
 
     await connectDB();
+    const existing: any = await Lead.findById(params.id).lean();
+    if (!existing) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const lead = await Lead.findByIdAndUpdate(params.id, { $set: update }, { new: true }).lean();
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -76,6 +111,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
+
     if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
     }
@@ -97,6 +138,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (body.metadata !== undefined) update.metadata = body.metadata;
 
     await connectDB();
+    const existing: any = await Lead.findById(params.id).lean();
+    if (!existing) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const lead = await Lead.findByIdAndUpdate(params.id, { $set: update }, { new: true }).lean();
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -116,11 +165,26 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
 
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+    const superAdmin = isSuperAdmin(decoded);
+
     if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid lead id' }, { status: 400 });
     }
 
     await connectDB();
+
+    const existing: any = await Lead.findById(params.id).lean();
+    if (!existing) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    if (!superAdmin && String(existing.assignedToUserId || '').trim() !== viewerUserId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const deleted = await Lead.findByIdAndDelete(params.id).lean();
     if (!deleted) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });

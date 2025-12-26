@@ -20,6 +20,8 @@ import {
 
 interface Lead {
   _id: string;
+  assignedToUserId?: string;
+  createdByUserId?: string;
   name: string;
   email: string;
   phoneNumber: string;
@@ -38,6 +40,13 @@ type LeadFormValues = {
   source: Lead['source'] | string;
   status: Lead['status'];
   workshopName?: string;
+  assignedToUserId?: string;
+};
+
+type AdminUserOption = {
+  userId: string;
+  email?: string;
+  permissions?: string[];
 };
 
 export default function LeadsPage() {
@@ -62,12 +71,62 @@ export default function LeadsPage() {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateLead, setDuplicateLead] = useState<any>(null);
 
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [userFilter, setUserFilter] = useState<string>('');
+  const [userOptions, setUserOptions] = useState<AdminUserOption[]>([]);
+
+  useEffect(() => {
+    // Determine if current admin has full access (admin / permissions: ['all'])
+    if (typeof window === 'undefined') return;
+    const userStr = localStorage.getItem('admin_user');
+    if (!userStr) {
+      setIsSuperAdmin(false);
+      return;
+    }
+    try {
+      const u = JSON.parse(userStr);
+      const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
+      setIsSuperAdmin((u?.userId === 'admin') || perms.includes('all'));
+    } catch {
+      setIsSuperAdmin(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // For super-admin, fetch user list so admin can filter by user and assign leads.
+    const loadUsers = async () => {
+      if (!token || !isSuperAdmin) return;
+      try {
+        const response = await fetch('/api/admin/auth/users', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const users = Array.isArray(data?.data) ? data.data : [];
+        setUserOptions(
+          users
+            .map((x: any) => ({
+              userId: String(x?.userId || '').trim(),
+              email: x?.email ? String(x.email) : undefined,
+              permissions: Array.isArray(x?.permissions) ? x.permissions : undefined,
+            }))
+            .filter((u: AdminUserOption) => Boolean(u.userId))
+        );
+      } catch {
+        // ignore
+      }
+    };
+    loadUsers();
+  }, [token, isSuperAdmin]);
+
   // Fetch only filter metadata (fast, no lead data)
   const fetchMetadata = useCallback(async () => {
     if (!token) return;
     try {
       setLoadingMetadata(true);
-      const response = await fetch('/api/admin/crm/leads/metadata', {
+      const params: Record<string, any> = {};
+      if (isSuperAdmin && userFilter) params.userId = userFilter;
+      const response = await fetch('/api/admin/crm/leads/metadata' + (Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''), {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
@@ -82,7 +141,7 @@ export default function LeadsPage() {
     } finally {
       setLoadingMetadata(false);
     }
-  }, [token]);
+  }, [token, isSuperAdmin, userFilter]);
 
   // Fetch only current page of leads
   const fetchLeads = useCallback(async () => {
@@ -92,6 +151,7 @@ export default function LeadsPage() {
       if (filterStatus) params.status = filterStatus;
       if (filterWorkshop) params.workshop = filterWorkshop;
       if (search.query) params.q = search.query;
+      if (isSuperAdmin && userFilter) params.userId = userFilter;
 
       const response = await fetch(
         '/api/admin/crm/leads?' + new URLSearchParams(params),
@@ -107,7 +167,7 @@ export default function LeadsPage() {
     } catch (err) {
       console.error('Failed to fetch leads', err);
     }
-  }, [token, limit, skip, filterStatus, filterWorkshop, search.query]);
+  }, [token, limit, skip, filterStatus, filterWorkshop, search.query, isSuperAdmin, userFilter]);
 
   const handleCreateLead = async (values: LeadFormValues) => {
     try {
@@ -124,6 +184,7 @@ export default function LeadsPage() {
           source: values.source,
           status: values.status,
           workshopName: values.workshopName,
+          ...(isSuperAdmin && values.assignedToUserId ? { assignedToUserId: values.assignedToUserId } : {}),
         }),
       });
 
@@ -158,6 +219,7 @@ export default function LeadsPage() {
       source: 'website',
       status: 'lead',
       workshopName: '',
+      assignedToUserId: '',
     },
     onSubmit: handleCreateLead,
     onError: (err) => setError(err.message),
@@ -220,6 +282,7 @@ export default function LeadsPage() {
 
     // Prepare data
     const excelData = leads.map((lead) => ({
+      User: lead.assignedToUserId || '',
       Name: lead.name || '',
       Email: lead.email || '',
       'Phone Number': lead.phoneNumber,
@@ -237,6 +300,7 @@ export default function LeadsPage() {
 
     // Auto-size columns
     const colWidths = [
+      { wch: 18 },
       { wch: 20 },
       { wch: 25 },
       { wch: 15 },
@@ -254,6 +318,11 @@ export default function LeadsPage() {
   };
 
   const columns = [
+    {
+      key: 'assignedToUserId',
+      label: 'User',
+      render: (val: any) => <span className="text-purple-100">{val || 'Unassigned'}</span>,
+    },
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
     { key: 'phoneNumber', label: 'Phone' },
@@ -411,6 +480,27 @@ export default function LeadsPage() {
           }}
         />
 
+        {isSuperAdmin && (
+          <div className="mt-4 bg-slate-800/50 border border-purple-500/20 rounded-xl p-4">
+            <label className="block text-purple-200 text-sm mb-2">Filter by User</label>
+            <select
+              value={userFilter}
+              onChange={(e) => {
+                setUserFilter(e.target.value);
+                setSkip(0);
+              }}
+              className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+            >
+              <option value="">All Users</option>
+              {userOptions.map((u) => (
+                <option key={u.userId} value={u.userId}>
+                  {u.userId}{u.email ? ` (${u.email})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Loading State */}
         {crm.loading ? (
           <LoadingSpinner />
@@ -463,6 +553,25 @@ export default function LeadsPage() {
           cancelLabel="Cancel"
         >
           <div className="space-y-4">
+            {isSuperAdmin && (
+              <div>
+                <label className="block text-purple-200 text-sm mb-2">Assign to User (Optional)</label>
+                <select
+                  name="assignedToUserId"
+                  value={form.values.assignedToUserId || ''}
+                  onChange={form.handleChange}
+                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="">(Default: current admin)</option>
+                  {userOptions.map((u) => (
+                    <option key={u.userId} value={u.userId}>
+                      {u.userId}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-purple-300 text-xs mt-1">This controls which user can see/manage this lead.</p>
+              </div>
+            )}
             <div>
               <label className="block text-purple-200 text-sm mb-2">Name *</label>
               <input

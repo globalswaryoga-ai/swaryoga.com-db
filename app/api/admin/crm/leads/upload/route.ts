@@ -4,6 +4,17 @@ import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import * as XLSX from 'xlsx';
 
+function getViewerUserId(decoded: any): string {
+  return String(decoded?.userId || decoded?.username || '').trim();
+}
+
+function isSuperAdmin(decoded: any): boolean {
+  return (
+    decoded?.userId === 'admin' ||
+    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
+  );
+}
+
 /**
  * POST: Upload bulk leads from Excel file
  */
@@ -14,6 +25,18 @@ export async function POST(request: NextRequest) {
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
     }
+
+    const viewerUserId = getViewerUserId(decoded);
+    if (!viewerUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
+    }
+
+    const superAdmin = isSuperAdmin(decoded);
+    const url = new URL(request.url);
+    const assignedToParam = url.searchParams.get('assignedToUserId');
+    const assignedToUserId = superAdmin && assignedToParam && String(assignedToParam).trim()
+      ? String(assignedToParam).trim()
+      : viewerUserId;
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -103,6 +126,8 @@ export async function POST(request: NextRequest) {
 
         const leadData: any = {
           phoneNumber,
+          assignedToUserId,
+          createdByUserId: viewerUserId,
         };
 
         if (name) leadData.name = name;
