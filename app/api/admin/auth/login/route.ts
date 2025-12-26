@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { generateToken } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
-    const { userId, password } = await request.json();
+    const { userId, email, password } = await request.json();
 
-    if (!userId || !password) {
+    const identifier = (typeof userId === 'string' && userId.trim())
+      ? userId.trim()
+      : (typeof email === 'string' && email.trim())
+        ? email.trim()
+        : '';
+
+    if (!identifier || !password) {
       return NextResponse.json(
-        { error: 'Missing userId or password' },
+        { error: 'Missing userId/email or password' },
         { status: 400 }
       );
     }
@@ -20,8 +26,13 @@ export async function POST(request: Request) {
     const { User } = await import('@/lib/db');
     const UserModel = User;
 
-    // Find user
-    const user = await UserModel.findOne({ userId });
+    // Find user by userId or email (people often try email on the admin screen).
+    const user = await UserModel.findOne({
+      $or: [
+        { userId: identifier },
+        { email: identifier.toLowerCase() },
+      ],
+    });
     if (!user) {
       return NextResponse.json(
         { error: 'Invalid credentials' },
@@ -46,18 +57,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        userId: user.userId,
-        email: user.email,
-        isAdmin: user.isAdmin,
-        role: user.role,
-        permissions: user.permissions
-      },
-      process.env.JWT_SECRET || 'replace_me_with_a_long_random_string',
-      { expiresIn: '7d' }
-    );
+    // Generate JWT token using the same secret/config as the rest of the app.
+    const token = generateToken({
+      userId: user.userId,
+      email: user.email,
+      isAdmin: user.isAdmin,
+      role: user.role,
+      permissions: user.permissions,
+    });
 
     return NextResponse.json(
       {

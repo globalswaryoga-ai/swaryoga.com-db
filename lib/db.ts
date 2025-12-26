@@ -1,11 +1,17 @@
 // MongoDB Connection and Models
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
+// Primary DB (Website + Life Planner) connection.
+// Backward compatible: if MONGODB_URI_MAIN is not set, fall back to MONGODB_URI.
+const MONGODB_URI = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI;
+// Main database name enforcement. This prevents accidental writes to legacy DBs
+// when the connection string points at an old database name.
+// Override when needed (e.g. staging) via MONGODB_MAIN_DB_NAME.
+const MAIN_DB_NAME = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
 
 // Log for debugging - but don't expose the full URI
 if (!MONGODB_URI) {
-  console.error('❌ ERROR: MONGODB_URI environment variable is not set');
+  console.error('❌ ERROR: MongoDB URI is not set (expected MONGODB_URI_MAIN or MONGODB_URI)');
   console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('MONGO') || k.includes('DB')));
 }
 
@@ -15,7 +21,7 @@ let lastConnectionStatus = 'Not Connected';
 export const connectDB = async () => {
   try {
     if (!MONGODB_URI) {
-      const msg = 'MONGODB_URI environment variable is not configured';
+      const msg = 'MongoDB URI is not configured (set MONGODB_URI_MAIN or MONGODB_URI)';
       console.error('❌ ' + msg);
       lastConnectionStatus = 'Not Configured';
       throw new Error(msg);
@@ -36,11 +42,13 @@ export const connectDB = async () => {
     lastConnectionStatus = 'Connecting...';
     console.log('🔄 Attempting to connect to MongoDB...');
     const conn = await mongoose.connect(MONGODB_URI, {
+      dbName: MAIN_DB_NAME,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
     isConnecting = false;
-    console.log('✅ Successfully connected to MongoDB');
+    const actualDbName = conn.connection?.db?.databaseName;
+    console.log(`✅ Successfully connected to MongoDB (db: ${actualDbName || 'unknown'})`);
     lastConnectionStatus = 'Connected';
     return conn.connection;
   } catch (error) {

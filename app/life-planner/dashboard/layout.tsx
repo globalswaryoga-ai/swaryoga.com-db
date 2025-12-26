@@ -72,11 +72,21 @@ export default function LifePlannerDashboardLayout({ children }: { children: Rea
       }
     }
 
-    const effectiveSession = localStorage.getItem('lifePlannerUser') || plannerSessionRaw;
+    // If the user object is missing (common after migrations or manual clears), rebuild it from
+    // legacy keys so the Life Planner keeps working across refresh.
+    if (!plannerSessionRaw && !appUserRaw) {
+      const legacyEmail = localStorage.getItem('userEmail') || localStorage.getItem('savedEmail') || '';
+      if (legacyEmail && !localStorage.getItem('lifePlannerUser')) {
+        localStorage.setItem('lifePlannerUser', JSON.stringify({ email: legacyEmail, createdAt: Date.now() }));
+      }
+      if (legacyEmail && !localStorage.getItem('user')) {
+        localStorage.setItem('user', JSON.stringify({ email: legacyEmail, name: legacyEmail.split('@')[0] || 'User' }));
+      }
+    }
 
-    // If no valid session/token, redirect to login
-    if (!effectiveSession || !effectiveToken) {
-      // Token is required for Mongo-backed persistence; without it the API returns 401.
+    // If no token, redirect to login (token is required for Mongo-backed persistence).
+    // We do NOT require a user object here because the token is the real source of truth.
+    if (!effectiveToken) {
       setIsAuthenticated(false);
       setIsCheckingAuth(false);
       router.push('/life-planner/login');

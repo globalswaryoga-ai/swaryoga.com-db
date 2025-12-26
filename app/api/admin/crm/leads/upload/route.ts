@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
       errors: [] as any[],
     };
 
+    // Deduplicate inside the same upload to avoid E11000 duplicate key errors.
+    const seenPhones = new Set<string>();
+
     for (const row of rawData) {
       try {
         // Handle different column names
@@ -57,6 +60,13 @@ export async function POST(request: NextRequest) {
           results.errors.push({ phone: 'N/A', reason: 'Missing phone number' });
           continue;
         }
+
+        if (seenPhones.has(phoneNumber)) {
+          results.skipped++;
+          results.errors.push({ phone: phoneNumber, reason: 'Duplicate phone number in this upload batch' });
+          continue;
+        }
+        seenPhones.add(phoneNumber);
 
         // Check for duplicate
         const existing = await Lead.findOne({ phoneNumber });

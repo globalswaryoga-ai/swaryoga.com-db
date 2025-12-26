@@ -66,19 +66,23 @@ function SignInInner() {
         throw new Error('Invalid email or password');
       }
 
-      const data = await response.json();
+      const raw = await response.json().catch(() => ({}));
+      // Support both legacy ({ token, user }) and standardized apiSuccess ({ success, data: { token, user } }).
+      const payload = (raw && typeof raw === 'object' && 'data' in raw) ? (raw as any).data : raw;
+      const token: string | undefined = (payload as any)?.token;
+      const user = (payload as any)?.user;
       setSubmitStatus('success');
 
       // Use session manager to store token with 2-day expiry
-      if (data.token && data.user) {
+      if (token && user) {
         setSession({
-          token: data.token,
+          token,
           user: {
-            id: data.user.id,
-            name: data.user.name,
-            email: data.user.email,
-            phone: data.user.phone || '',
-            countryCode: data.user.countryCode || '+91'
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone || '',
+            countryCode: user.countryCode || '+91'
           }
         });
       }

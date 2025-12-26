@@ -270,12 +270,17 @@ export const withSecurityMiddleware = (
  */
 export const validateSecurityEnv = (): { valid: boolean; errors: string[] } => {
   const errors: string[] = [];
-  const required = ['JWT_SECRET', 'MONGODB_URI'];
+  const required = ['JWT_SECRET'];
   
   for (const key of required) {
     if (!process.env[key]) {
       errors.push(`Missing required environment variable: ${key}`);
     }
+  }
+
+  // Accept either new or legacy Mongo URI var.
+  if (!process.env.MONGODB_URI_MAIN && !process.env.MONGODB_URI) {
+    errors.push('Missing required environment variable: MONGODB_URI_MAIN (preferred) or MONGODB_URI');
   }
   
   // Check JWT_SECRET length

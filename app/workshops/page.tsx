@@ -7,7 +7,7 @@ import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import { workshopCatalog, WorkshopOverview, WORKSHOP_PRICING_DISPLAY } from '@/lib/workshopsData';
+import { workshopCatalog, WorkshopOverview, workshopDetails } from '@/lib/workshopsData';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,10 +126,10 @@ function WorkshopsPageInner() {
     
     const loadSchedulesWithSeats = async () => {
       try {
-        // Build schedulesByWorkshopId from local WORKSHOP_PRICING_DISPLAY
+        // Build schedulesByWorkshopId from local workshopDetails
         const nextMap: Record<string, ApiWorkshopSchedule[]> = {};
         
-        Object.entries(WORKSHOP_PRICING_DISPLAY).forEach(([slug, details]) => {
+        Object.entries(workshopDetails).forEach(([slug, details]) => {
           if (details && details.schedules) {
             nextMap[slug] = details.schedules.map((s) => ({
               id: s.id,

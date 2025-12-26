@@ -9,6 +9,8 @@ interface TokenPayload {
   // Admin JWTs use a different payload shape.
   isAdmin?: boolean;
   username?: string;
+  role?: string;
+  permissions?: string[];
 }
 
 export const generateToken = (payload: TokenPayload): string => {

@@ -4,7 +4,7 @@
  */
 
 import { Reminder, Vision, Goal, Task, Todo, Word, HealthRoutine, DiamondPerson, ProgressReport, ActionPlan, DailyHealthPlan } from '@/lib/types/lifePlanner';
-import { getSession } from '@/lib/sessionManager';
+import { clearSession, getSession } from '@/lib/sessionManager';
 
 class LifePlannerMongoStorage {
   private getEmail(): string | null {
@@ -43,6 +43,10 @@ class LifePlannerMongoStorage {
     return localStorage.getItem('lifePlannerToken') || localStorage.getItem('token') || getSession()?.token || null;
   }
 
+  private hasAuth(): boolean {
+    return Boolean(this.getToken());
+  }
+
   private authHeaders(): Record<string, string> {
     const token = this.getToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
@@ -50,14 +54,12 @@ class LifePlannerMongoStorage {
 
   private handleUnauthorized(): void {
     if (typeof window === 'undefined') return;
-    // Clear invalid session so UI routes the user to login.
-    localStorage.removeItem('lifePlannerToken');
-    // Keep lifePlannerUser so the email stays prefilled/known, but auth must be renewed.
+    // 401 means the token is invalid/expired. Clear the session fully so UI re-auths cleanly.
+    clearSession();
   }
 
   async getVisions(): Promise<Vision[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=visions`, {
         headers: this.authHeaders(),
@@ -75,8 +77,7 @@ class LifePlannerMongoStorage {
   }
 
   async getActionPlans(): Promise<ActionPlan[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=actionPlans`, {
         headers: this.authHeaders(),
@@ -94,38 +95,49 @@ class LifePlannerMongoStorage {
   }
 
   async saveActionPlans(actionPlans: ActionPlan[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
         body: JSON.stringify({ type: 'actionPlans', data: actionPlans }),
       });
-      if (response.status === 401) this.handleUnauthorized();
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return;
+      }
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        console.error('[LifePlannerMongoStorage] saveActionPlans failed', { status: response.status, body });
+      }
     } catch {
       console.error('Failed to save action plans');
     }
   }
 
   async saveVisions(visions: Vision[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
         body: JSON.stringify({ type: 'visions', data: visions }),
       });
-      if (response.status === 401) this.handleUnauthorized();
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return;
+      }
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        console.error('[LifePlannerMongoStorage] saveVisions failed', { status: response.status, body });
+      }
     } catch {
       console.error('Failed to save visions');
     }
   }
 
   async getGoals(): Promise<Goal[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=goals`, {
         headers: this.authHeaders(),
@@ -143,8 +155,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveGoals(goals: Goal[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
@@ -158,8 +169,7 @@ class LifePlannerMongoStorage {
   }
 
   async getTasks(): Promise<Task[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=tasks`, {
         headers: this.authHeaders(),
@@ -177,8 +187,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveTasks(tasks: Task[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
@@ -192,8 +201,7 @@ class LifePlannerMongoStorage {
   }
 
   async getTodos(): Promise<Todo[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=todos`, {
         headers: this.authHeaders(),
@@ -211,8 +219,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveTodos(todos: Todo[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
@@ -226,8 +233,7 @@ class LifePlannerMongoStorage {
   }
 
   async getWords(): Promise<Word[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=words`, {
         headers: this.authHeaders(),
@@ -245,23 +251,28 @@ class LifePlannerMongoStorage {
   }
 
   async saveWords(words: Word[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
         body: JSON.stringify({ type: 'words', data: words }),
       });
-      if (response.status === 401) this.handleUnauthorized();
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return;
+      }
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        console.error('[LifePlannerMongoStorage] saveWords failed', { status: response.status, body });
+      }
     } catch {
       console.error('Failed to save words');
     }
   }
 
   async getReminders(): Promise<Reminder[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=reminders`, {
         headers: this.authHeaders(),
@@ -285,8 +296,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveReminders(reminders: Reminder[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
@@ -300,8 +310,7 @@ class LifePlannerMongoStorage {
   }
 
   async getHealthRoutines(): Promise<HealthRoutine[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=healthRoutines`, {
         headers: this.authHeaders(),
@@ -319,8 +328,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveHealthRoutines(routines: HealthRoutine[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
@@ -334,8 +342,7 @@ class LifePlannerMongoStorage {
   }
 
   async getDailyHealthPlans(): Promise<DailyHealthPlan[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=dailyHealthPlans`, {
         headers: this.authHeaders(),
@@ -353,8 +360,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveDailyHealthPlans(plans: DailyHealthPlan[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
@@ -368,8 +374,7 @@ class LifePlannerMongoStorage {
   }
 
   async getDiamondPeople(): Promise<DiamondPerson[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=diamondPeople`, {
         headers: this.authHeaders(),
@@ -387,8 +392,7 @@ class LifePlannerMongoStorage {
   }
 
   async saveDiamondPeople(people: DiamondPerson[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
@@ -402,12 +406,15 @@ class LifePlannerMongoStorage {
   }
 
   async getProgress(): Promise<ProgressReport[]> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return [];
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/data?type=progress`, {
         headers: this.authHeaders(),
       });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -417,14 +424,14 @@ class LifePlannerMongoStorage {
   }
 
   async saveProgress(progress: ProgressReport[]): Promise<void> {
-    const email = this.getEmail() || this.getEmailFallback();
-    if (!email) return;
+    if (!this.hasAuth()) return;
     try {
-      await fetch('/api/life-planner/data', {
+      const response = await fetch('/api/life-planner/data', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
         body: JSON.stringify({ type: 'progress', data: progress }),
       });
+      if (response.status === 401) this.handleUnauthorized();
     } catch {
       console.error('Failed to save progress');
     }
@@ -434,11 +441,16 @@ class LifePlannerMongoStorage {
    * Get workshop tasks and sadhana for a specific date
    */
   async getDailyTasks(date: string): Promise<{ workshopTasks: any[]; sadhana: any; date: string } | null> {
+    if (!this.hasAuth()) return null;
     try {
       const response = await fetch(`/api/life-planner/daily-tasks?date=${date}&type=all`, {
         method: 'GET',
         headers: this.authHeaders(),
       });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return null;
+      }
       if (!response.ok) return null;
       const result = await response.json();
       return result.data || null;
@@ -452,11 +464,16 @@ class LifePlannerMongoStorage {
    * Get workshop tasks for a specific date
    */
   async getWorkshopTasks(date: string): Promise<any[]> {
+    if (!this.hasAuth()) return [];
     try {
       const response = await fetch(`/api/life-planner/daily-tasks?date=${date}&type=workshopTasks`, {
         method: 'GET',
         headers: this.authHeaders(),
       });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return [];
+      }
       if (!response.ok) return [];
       const result = await response.json();
       return result.data || [];
@@ -470,11 +487,16 @@ class LifePlannerMongoStorage {
    * Get sadhana for a specific date
    */
   async getSadhana(date: string): Promise<any | null> {
+    if (!this.hasAuth()) return null;
     try {
       const response = await fetch(`/api/life-planner/daily-tasks?date=${date}&type=sadhana`, {
         method: 'GET',
         headers: this.authHeaders(),
       });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        return null;
+      }
       if (!response.ok) return null;
       const result = await response.json();
       return result.data || null;
@@ -488,12 +510,17 @@ class LifePlannerMongoStorage {
    * Save workshop tasks and/or sadhana for a specific date
    */
   async saveDailyTasks(date: string, workshopTasks?: any[], sadhana?: any): Promise<void> {
+    if (!this.hasAuth()) return;
     try {
       const response = await fetch('/api/life-planner/daily-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
         body: JSON.stringify({ date, workshopTasks, sadhana }),
       });
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        throw new Error('Unauthorized');
+      }
       if (!response.ok) {
         throw new Error(`Failed to save daily tasks: ${response.statusText}`);
       }

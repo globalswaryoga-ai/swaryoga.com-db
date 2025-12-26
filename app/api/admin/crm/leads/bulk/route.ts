@@ -43,6 +43,10 @@ export async function POST(request: NextRequest) {
         errors: [] as any[],
       };
 
+      // Deduplicate inside the same batch to avoid E11000 duplicate key errors.
+      // (DB check alone is not enough when the file itself contains duplicates.)
+      const seenPhones = new Set<string>();
+
       for (const leadData of leads) {
         try {
           const phoneNumber = String(leadData.phoneNumber || '').trim();
@@ -51,6 +55,13 @@ export async function POST(request: NextRequest) {
             results.errors.push({ phoneNumber: 'N/A', reason: 'Missing phone number' });
             continue;
           }
+
+          if (seenPhones.has(phoneNumber)) {
+            results.skipped++;
+            results.errors.push({ phoneNumber, reason: 'Duplicate phone number in this import batch' });
+            continue;
+          }
+          seenPhones.add(phoneNumber);
 
           const existing = await Lead.findOne({ phoneNumber });
           if (existing) {

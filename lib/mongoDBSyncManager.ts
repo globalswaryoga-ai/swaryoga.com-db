@@ -5,7 +5,8 @@ import mongoose from 'mongoose';
 import { permanentStorage } from '@/lib/permanentStorageManager';
 
 // MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || '';
+const MONGODB_URI = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI || '';
+const MAIN_DB_NAME = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
 
 interface CachedConnection {
   conn: typeof mongoose | null;
@@ -26,6 +27,7 @@ export const connectDB = async () => {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      dbName: MAIN_DB_NAME,
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {

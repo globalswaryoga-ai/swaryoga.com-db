@@ -4,6 +4,7 @@ export type WorkshopOverview = {
   slug: string;
   image: string;
   description: string;
+  instructor?: string;
   duration: string;
   level: string;
   category: string;

@@ -11,7 +11,9 @@ export default function AdminRoot() {
   const [adminUser, setAdminUser] = useState('');
 
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const token = typeof window !== 'undefined'
+      ? (localStorage.getItem('admin_token') || localStorage.getItem('adminToken'))
+      : null;
     if (!token) {
       router.push('/admin/login');
     } else {
@@ -24,6 +26,10 @@ export default function AdminRoot() {
         } catch (e) {
           setAdminUser('Admin');
         }
+      } else {
+        // Fallback to the other admin user key used in some pages.
+        const legacyUser = localStorage.getItem('adminUser');
+        if (legacyUser) setAdminUser(legacyUser);
       }
       setLoading(false);
     }
@@ -32,6 +38,8 @@ export default function AdminRoot() {
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('admin_user');
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminUser');
     router.push('/admin/login');
   };
 

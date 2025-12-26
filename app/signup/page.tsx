@@ -230,7 +230,7 @@ function SignUpInner() {
 
     try {
       // API call to backend
-      const payload = {
+      const requestPayload = {
         name: formData.name.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
@@ -246,13 +246,15 @@ function SignUpInner() {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestPayload),
       });
 
-      const data = await response.json();
+      const raw = await response.json().catch(() => ({}));
+      // Support both legacy ({ token, user }) and standardized apiSuccess ({ success, data: { token, user } }).
+      const responsePayload = (raw && typeof raw === 'object' && 'data' in raw) ? (raw as any).data : raw;
       
       if (!response.ok) {
-        const errorMessage = data.error || 'Signup failed';
+        const errorMessage = (responsePayload as any)?.error || (raw as any)?.error || 'Signup failed';
         console.error('❌ Signup error:', errorMessage);
         setErrors({ general: errorMessage });
         setSubmitStatus('error');
@@ -262,16 +264,17 @@ function SignUpInner() {
 
       // Use session manager to store token with 2-day expiry
       const storedUser = {
-        id: data.user?.id || '',
-        name: data.user?.name || formData.name.trim(),
-        email: data.user?.email || formData.email.trim(),
-        phone: data.user?.phone || formData.phone.trim(),
-        countryCode: data.user?.countryCode || formData.countryCode || '+91'
+        id: (responsePayload as any)?.user?.id || '',
+        name: (responsePayload as any)?.user?.name || formData.name.trim(),
+        email: (responsePayload as any)?.user?.email || formData.email.trim(),
+        phone: (responsePayload as any)?.user?.phone || formData.phone.trim(),
+        countryCode: (responsePayload as any)?.user?.countryCode || formData.countryCode || '+91'
       };
 
-      if (data.token) {
+      const token: string | undefined = (responsePayload as any)?.token;
+      if (token) {
         setSession({
-          token: data.token,
+          token,
           user: storedUser
         });
       }

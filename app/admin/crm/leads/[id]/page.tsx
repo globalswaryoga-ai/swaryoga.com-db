@@ -122,7 +122,7 @@ export default function LeadDetailPage() {
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="Lead Details" description="Loading..." />
+        <PageHeader title="Lead Details" subtitle="Loading..." />
         <LoadingSpinner />
       </div>
     );
@@ -131,7 +131,7 @@ export default function LeadDetailPage() {
   if (!lead) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title="Lead Details" description="Lead not found" />
+        <PageHeader title="Lead Details" subtitle="Lead not found" />
         <AlertBox
           type="error"
           message={error || 'Lead not found'}
@@ -145,8 +145,15 @@ export default function LeadDetailPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title={lead.name || 'Unnamed Lead'}
-        description={`ID: ${lead._id}`}
-        onBack={() => router.back()}
+        subtitle={`ID: ${lead._id}`}
+        action={
+          <button
+            onClick={() => router.back()}
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+          >
+            Back
+          </button>
+        }
       />
 
       {error && <AlertBox type="error" message={error} />}

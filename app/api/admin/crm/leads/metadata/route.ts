@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Get unique workshops
-    const uniqueWorkshops = await Lead.distinct('workshopName', { workshopName: { $ne: null, $ne: '' } });
+    const uniqueWorkshops = await Lead.distinct('workshopName', { workshopName: { $nin: [null, ''] } });
 
     // Get workshop counts
     const workshopCounts: Record<string, number> = {};

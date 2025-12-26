@@ -6,6 +6,7 @@ out/
 .env
 .env.local
 .env.*.local
+.env.vercel
 .env.payment
 .env.workshop
 dist

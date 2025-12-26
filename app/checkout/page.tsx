@@ -40,9 +40,13 @@ function CheckoutInner() {
     const items = getStoredCart();
     setCartItems(items);
     setIsCartLoaded(true);
-    if (items.length && !items.some((item) => item.currency === selectedCurrency)) {
-      setSelectedCurrency(items[0].currency);
-    }
+    if (!items.length) return;
+
+    // Avoid capturing `selectedCurrency` in the effect closure.
+    // If the currently-selected currency isn't present in the stored cart, switch to the first cart item's currency.
+    setSelectedCurrency((prevCurrency) =>
+      items.some((item) => item.currency === prevCurrency) ? prevCurrency : items[0].currency
+    );
   }, []);
 
   useEffect(() => {

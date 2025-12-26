@@ -22,6 +22,11 @@ import { Timer } from '@/lib/logging';
 const timer = new Timer();
 
 export async function GET(request: NextRequest) {
+  // Never expose server logs on production.
+  if (process.env.NODE_ENV === 'production' && process.env.DEBUG_ALLOW_PROD !== '1') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+  }
+
   const requestContext = createRequestContext(request);
   logRequest(requestContext, 'Debug endpoint accessed');
 

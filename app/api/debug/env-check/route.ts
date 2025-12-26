@@ -5,9 +5,20 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET() {
+  // Never expose environment diagnostics on production.
+  if (process.env.NODE_ENV === 'production' && process.env.DEBUG_ALLOW_PROD !== '1') {
+    return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+  }
+
+  const mongoUriMain = process.env.MONGODB_URI_MAIN;
+  const mongoUriLegacy = process.env.MONGODB_URI;
+  const mongoUriEffective = mongoUriMain || mongoUriLegacy;
   const env = {
     nodeEnv: process.env.NODE_ENV,
-    mongoUri: process.env.MONGODB_URI ? '✓ set' : '✗ missing',
+    mongoUriMain: mongoUriMain ? '✓ set' : '✗ missing',
+    mongoUriLegacy: mongoUriLegacy ? '✓ set' : '✗ missing',
+    mongoUriEffective: mongoUriEffective ? '✓ set' : '✗ missing',
+    mongoMainDbName: process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB (default)',
     jwtSecret: process.env.JWT_SECRET ? '✓ set' : '✗ missing',
     nextPublicApiUrl: process.env.NEXT_PUBLIC_API_URL,
     nextPublicAppUrl: process.env.NEXT_PUBLIC_APP_URL,
@@ -30,10 +41,10 @@ export async function GET() {
     },
   };
 
-  if (!process.env.MONGODB_URI) {
+  if (!mongoUriEffective) {
     return NextResponse.json({
       error: 'Environment variables not configured properly on Vercel',
-      details: 'MONGODB_URI is missing. Please add it to Vercel project settings.',
+      details: 'MONGODB_URI_MAIN (preferred) or MONGODB_URI is missing. Please add it to Vercel project settings.',
       env,
     }, {
       status: 503,

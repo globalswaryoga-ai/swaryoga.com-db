@@ -1,5 +1,20 @@
 import mongoose from 'mongoose';
 
+// CRM/Admin database selection
+// This file contains CRM + enterprise schemas that you may want to keep separate from the main app DB.
+// We keep one Atlas cluster, but allow routing these collections to a separate database via useDb().
+//
+// Configure via env:
+// - MONGODB_CRM_DB_NAME (recommended)
+//   Example: swaryoga_admin_crm
+const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
+
+function getCrmDb() {
+  // Note: connectDB() should be called before using these models.
+  // useDb() is safe and will reuse the underlying connection.
+  return mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
+}
+
 /**
  * ENTERPRISE-LEVEL SCHEMAS
  * For CRM, WhatsApp integration, compliance, and advanced features
@@ -460,14 +475,16 @@ SalesReportSchema.index({ saleDate: 1, paymentMode: 1 });
 // ============================================================================
 // EXPORT MODELS
 // ============================================================================
-export const Lead = mongoose.models.Lead || mongoose.model('Lead', LeadSchema);
-export const WhatsAppMessage = mongoose.models.WhatsAppMessage || mongoose.model('WhatsAppMessage', WhatsAppMessageSchema);
-export const UserConsent = mongoose.models.UserConsent || mongoose.model('UserConsent', UserConsentSchema);
-export const MessageStatus = mongoose.models.MessageStatus || mongoose.model('MessageStatus', MessageStatusSchema);
-export const AuditLog = mongoose.models.AuditLog || mongoose.model('AuditLog', AuditLogSchema);
-export const WhatsAppTemplate = mongoose.models.WhatsAppTemplate || mongoose.model('WhatsAppTemplate', WhatsAppTemplateSchema);
-export const RateLimit = mongoose.models.RateLimit || mongoose.model('RateLimit', RateLimitSchema);
-export const Backup = mongoose.models.Backup || mongoose.model('Backup', BackupSchema);
-export const Permission = mongoose.models.Permission || mongoose.model('Permission', PermissionSchema);
-export const AnalyticsEvent = mongoose.models.AnalyticsEvent || mongoose.model('AnalyticsEvent', AnalyticsEventSchema);
-export const SalesReport = mongoose.models.SalesReport || mongoose.model('SalesReport', SalesReportSchema);
+const crmDb = getCrmDb();
+
+export const Lead = crmDb.models.Lead || crmDb.model('Lead', LeadSchema);
+export const WhatsAppMessage = crmDb.models.WhatsAppMessage || crmDb.model('WhatsAppMessage', WhatsAppMessageSchema);
+export const UserConsent = crmDb.models.UserConsent || crmDb.model('UserConsent', UserConsentSchema);
+export const MessageStatus = crmDb.models.MessageStatus || crmDb.model('MessageStatus', MessageStatusSchema);
+export const AuditLog = crmDb.models.AuditLog || crmDb.model('AuditLog', AuditLogSchema);
+export const WhatsAppTemplate = crmDb.models.WhatsAppTemplate || crmDb.model('WhatsAppTemplate', WhatsAppTemplateSchema);
+export const RateLimit = crmDb.models.RateLimit || crmDb.model('RateLimit', RateLimitSchema);
+export const Backup = crmDb.models.Backup || crmDb.model('Backup', BackupSchema);
+export const Permission = crmDb.models.Permission || crmDb.model('Permission', PermissionSchema);
+export const AnalyticsEvent = crmDb.models.AnalyticsEvent || crmDb.model('AnalyticsEvent', AnalyticsEventSchema);
+export const SalesReport = crmDb.models.SalesReport || crmDb.model('SalesReport', SalesReportSchema);

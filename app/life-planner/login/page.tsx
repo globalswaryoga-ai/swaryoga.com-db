@@ -67,14 +67,25 @@ export default function LifePlannerLoginPage() {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        setError(data.error || 'Database connection failed. Please try again later.');
+        const raw = await response.json().catch(() => ({}));
+        const payload = (raw && typeof raw === 'object' && 'data' in raw) ? (raw as any).data : raw;
+        setError((payload as any)?.error || (raw as any)?.error || 'Login failed. Please try again.');
         setIsLoading(false);
         return;
       }
 
       // Success - set session and save credentials if requested
-      const data = await response.json();
+      const raw = await response.json().catch(() => ({}));
+      // Support both legacy responses ({ token, user }) and standardized apiSuccess ({ success, data: { token, user } }).
+      const payload = (raw && typeof raw === 'object' && 'data' in raw) ? (raw as any).data : raw;
+      const token: string | undefined = (payload as any)?.token;
+      const user = (payload as any)?.user;
+
+      if (!token) {
+        setError('Login succeeded but no session token was returned. Please try again.');
+        setIsLoading(false);
+        return;
+      }
       
       setSuccess(true);
       
@@ -90,22 +101,22 @@ export default function LifePlannerLoginPage() {
 
       // Set session with unified format
       setSession({
-        token: data.token,
+        token,
         user: {
-          id: data.user?.id || '',
-          name: data.user?.name || '',
-          email: data.user?.email || email.trim(),
-          phone: data.user?.phone || '',
-          countryCode: data.user?.countryCode || '+91'
+          id: user?.id || '',
+          name: user?.name || '',
+          email: user?.email || email.trim(),
+          phone: user?.phone || '',
+          countryCode: user?.countryCode || '+91'
         }
       });
 
       // Also keep life-planner specific keys for backward compatibility with existing life planner code.
       try {
-        localStorage.setItem('lifePlannerToken', data.token);
+        localStorage.setItem('lifePlannerToken', token);
         localStorage.setItem(
           'lifePlannerUser',
-          JSON.stringify({ email: data.user?.email || email.trim(), createdAt: Date.now() })
+          JSON.stringify({ email: user?.email || email.trim(), createdAt: Date.now() })
         );
       } catch {
         // ignore storage failures

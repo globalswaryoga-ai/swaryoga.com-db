@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
+    // Never expose client IP headers on production.
+    if (process.env.NODE_ENV === 'production' && process.env.DEBUG_ALLOW_PROD !== '1') {
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+    }
+
     // Get IP from various headers (Vercel sets these)
     const ip = 
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||

@@ -58,9 +58,12 @@ export default function AdminLogin() {
       if (response.ok && data.token) {
         setSubmitStatus('success');
         
-        // Store admin token in localStorage
+        // Store admin token in localStorage (support both key formats used across the repo)
+        const resolvedUserId = data.user?.userId || formData.username;
         localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminUser', data.user?.userId || formData.username);
+        localStorage.setItem('adminUser', resolvedUserId);
+        localStorage.setItem('admin_token', data.token);
+        localStorage.setItem('admin_user', JSON.stringify({ userId: resolvedUserId }));
 
         // Redirect to admin dashboard
         setTimeout(() => {
