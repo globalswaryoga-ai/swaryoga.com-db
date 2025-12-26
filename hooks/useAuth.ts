@@ -1,6 +1,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+function getStoredAdminToken() {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+}
+
 /**
  * Custom hook for authentication checks
  * Redirects to login if no token found
@@ -17,7 +22,7 @@ export function useAuth() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const token = localStorage.getItem('adminToken');
+    const token = getStoredAdminToken();
     if (!token) {
       router.push('/admin/login');
     }
@@ -25,7 +30,7 @@ export function useAuth() {
 
   // Return token if available
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('adminToken');
+  return getStoredAdminToken();
 }
 
 /**
@@ -33,7 +38,7 @@ export function useAuth() {
  */
 export function getAuthToken() {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('adminToken');
+  return getStoredAdminToken();
 }
 
 /**
@@ -42,6 +47,7 @@ export function getAuthToken() {
 export function clearAuthToken() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem('adminToken');
+  localStorage.removeItem('admin_token');
 }
 
 /**
@@ -50,6 +56,7 @@ export function clearAuthToken() {
 export function setAuthToken(token: string) {
   if (typeof window === 'undefined') return;
   localStorage.setItem('adminToken', token);
+  localStorage.setItem('admin_token', token);
 }
 
 /**
@@ -57,5 +64,5 @@ export function setAuthToken(token: string) {
  */
 export function isAuthenticated() {
   if (typeof window === 'undefined') return false;
-  return !!localStorage.getItem('adminToken');
+  return !!getStoredAdminToken();
 }

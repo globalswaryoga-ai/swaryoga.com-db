@@ -33,6 +33,12 @@ interface SalesSummary {
   targetAchieved: number;
 }
 
+type SalesAggRow = {
+  _id: string;
+  totalSales: number;
+  count: number;
+};
+
 export default function SalesPage() {
   const router = useRouter();
   const token = useAuth();
@@ -40,8 +46,10 @@ export default function SalesPage() {
 
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
+  const [daily, setDaily] = useState<SalesAggRow[]>([]);
+  const [monthly, setMonthly] = useState<SalesAggRow[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'list' | 'summary'>('list');
+  const [view, setView] = useState<'list' | 'summary' | 'daily' | 'monthly'>('list');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formData, setFormData] = useState({
     leadId: '',
@@ -51,11 +59,24 @@ export default function SalesPage() {
 
   const fetchSalesData = useCallback(async () => {
     try {
+      setError(null);
       const result = await crm.fetch('/api/admin/crm/sales', { params: { view } });
       if (view === 'summary') {
-        setSummary(result as SalesSummary);
+        const s = (result && typeof result === 'object' ? (result as any).summary : null) || {};
+        setSummary({
+          totalSales: Number(s.totalSales || 0),
+          totalTransactions: Number(s.totalTransactions || 0),
+          averageSale: Number(s.averageSale || 0),
+          maxSale: Number(s.maxSale || 0),
+          minSale: Number(s.minSale || 0),
+          targetAchieved: Number(s.targetAchieved || 0),
+        });
+      } else if (view === 'daily') {
+        setDaily(Array.isArray((result as any)?.daily) ? (result as any).daily : []);
+      } else if (view === 'monthly') {
+        setMonthly(Array.isArray((result as any)?.monthly) ? (result as any).monthly : []);
       } else {
-        setSales(result?.sales || []);
+        setSales((result as any)?.sales || []);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -97,11 +118,18 @@ export default function SalesPage() {
         method: 'DELETE',
         params: { saleId },
       });
+      setError(null);
       fetchSalesData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
     }
   };
+
+  const aggColumns = [
+    { key: '_id', label: 'Period' },
+    { key: 'count', label: 'Transactions', render: (v: number) => String(v ?? 0) },
+    { key: 'totalSales', label: 'Total Revenue', render: (v: number) => `₹${Number(v || 0).toLocaleString()}` },
+  ];
 
   const columns = [
     {
@@ -151,7 +179,7 @@ export default function SalesPage() {
 
         {/* View Selector */}
         <div className="flex gap-2 flex-wrap">
-          {(['list', 'summary'] as const).map((v) => (
+          {(['list', 'summary', 'daily', 'monthly'] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
@@ -176,31 +204,53 @@ export default function SalesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                   label="Total Sales"
-                  value={summary.totalTransactions.toString()}
+                  value={String(summary.totalTransactions || 0)}
                   icon="📊"
                   color="purple"
                 />
                 <StatCard
                   label="Total Revenue"
-                  value={`₹${summary.totalSales.toLocaleString()}`}
+                  value={`₹${Number(summary.totalSales || 0).toLocaleString()}`}
                   icon="💰"
                   color="green"
                 />
                 <StatCard
                   label="Average Sale"
-                  value={`₹${summary.averageSale.toLocaleString()}`}
+                  value={`₹${Number(summary.averageSale || 0).toLocaleString()}`}
                   icon="📈"
                   color="blue"
                 />
                 <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
                   <div className="text-white font-semibold mb-4 text-sm">Summary</div>
                   <div className="space-y-2">
-                    <div className="flex justify-between text-purple-200 text-xs"><span>Max Sale</span><span>₹{summary.maxSale.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-purple-200 text-xs"><span>Min Sale</span><span>₹{summary.minSale.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-purple-200 text-xs"><span>Target Achieved</span><span>{summary.targetAchieved}</span></div>
+                    <div className="flex justify-between text-purple-200 text-xs"><span>Max Sale</span><span>₹{Number(summary.maxSale || 0).toLocaleString()}</span></div>
+                    <div className="flex justify-between text-purple-200 text-xs"><span>Min Sale</span><span>₹{Number(summary.minSale || 0).toLocaleString()}</span></div>
+                    <div className="flex justify-between text-purple-200 text-xs"><span>Target Achieved</span><span>{Number(summary.targetAchieved || 0)}</span></div>
                   </div>
                 </div>
               </div>
+            )}
+
+            {view === 'daily' && (
+              <DataTable
+                columns={aggColumns}
+                data={daily}
+                loading={crm.loading}
+                empty={daily.length === 0}
+                striped
+                hover
+              />
+            )}
+
+            {view === 'monthly' && (
+              <DataTable
+                columns={aggColumns}
+                data={monthly}
+                loading={crm.loading}
+                empty={monthly.length === 0}
+                striped
+                hover
+              />
             )}
 
             {/* Sales List */}
