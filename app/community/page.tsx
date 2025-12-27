@@ -70,7 +70,7 @@ export default function CommunityPage() {
   const [messageInput, setMessageInput] = useState('');
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCommunity, setJoinCommunity] = useState<Community | null>(null);
-  const [joinForm, setJoinForm] = useState({ name: '', email: '', countryCode: '+91', mobile: '' });
+  const [joinForm, setJoinForm] = useState({ name: '', email: '', countryCode: '+91', mobile: '', groupName: '' });
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [joinSuccess, setJoinSuccess] = useState(false);
@@ -105,9 +105,6 @@ export default function CommunityPage() {
     setJoinLoading(true);
     setJoinError('');
 
-    // Use selectedCommunity instead of joinCommunity for general form
-    const community = selectedCommunity?.id === 'general' ? selectedCommunity : joinCommunity;
-
     // Validation
     if (!joinForm.name.trim()) {
       setJoinError('Name is required');
@@ -127,35 +124,65 @@ export default function CommunityPage() {
       return;
     }
 
-    if (!community?.id || !community?.name) {
-      setJoinError('Community information is missing');
-      setJoinLoading(false);
-      return;
-    }
-
     try {
-      const response = await fetch('/api/community/join', {
+      // First: Always join to General Community
+      const generalResponse = await fetch('/api/community/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: joinForm.name,
           email: joinForm.email,
           mobile: joinForm.mobile,
-          communityId: community.id,
-          communityName: community.name,
+          communityId: 'general',
+          communityName: 'General Community',
         }),
       });
 
-      const data = await response.json();
+      const generalData = await generalResponse.json();
 
-      if (!response.ok) {
-        setJoinError(data.error || 'Failed to join');
+      if (!generalResponse.ok) {
+        setJoinError(generalData.error || 'Failed to join General Community');
         setJoinLoading(false);
         return;
       }
 
+      setUserMemberships((prev) => new Set([...prev, 'general']));
+
+      // Second: If user provided a group name, try to join that group too
+      if (joinForm.groupName.trim()) {
+        // Find the community by name (case-insensitive)
+        const targetCommunity = ENROLL_COMMUNITIES.find(
+          (c) => c.name.toLowerCase() === joinForm.groupName.toLowerCase()
+        );
+
+        if (targetCommunity) {
+          const groupResponse = await fetch('/api/community/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: joinForm.name,
+              email: joinForm.email,
+              mobile: joinForm.mobile,
+              communityId: targetCommunity.id,
+              communityName: targetCommunity.name,
+            }),
+          });
+
+          const groupData = await groupResponse.json();
+
+          if (groupResponse.ok) {
+            setUserMemberships((prev) => new Set([...prev, targetCommunity.id]));
+          }
+          // If group join fails, just silently continue - user still joined general
+        } else {
+          setJoinError(`Group "${joinForm.groupName}" not found. You've been added to General Community only.`);
+          setJoinLoading(false);
+          setJoinSuccess(true);
+          return;
+        }
+      }
+
       setJoinSuccess(true);
-      setUserMemberships((prev) => new Set([...prev, community.id]));
       
       // For general community, user is not approved yet
       if (joinCommunity?.id === 'general') {
@@ -407,6 +434,22 @@ export default function CommunityPage() {
                                   }`}
                                 />
                               </div>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Group Name (Optional)
+                              </label>
+                              <input
+                                type="text"
+                                value={joinForm.groupName}
+                                onChange={(e) => setJoinForm(prev => ({ ...prev, groupName: e.target.value }))}
+                                placeholder='e.g., "Swar Yoga", "Youth Swar Yoga", "English Swar Yoga"'
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <p className="text-xs text-gray-500 mt-2">
+                                If you have a group name, enter it here. Otherwise, you'll be added to General Community only. Admin can add you to other groups later.
+                              </p>
                             </div>
                           </div>
 
