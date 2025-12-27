@@ -76,6 +76,7 @@ export default function CommunityPage() {
   const [joinSuccess, setJoinSuccess] = useState(false);
   const [userMemberships, setUserMemberships] = useState<Set<string>>(new Set());
   const [canSendMessage, setCanSendMessage] = useState<Set<string>>(new Set());
+  const [currentUser, setCurrentUser] = useState<{ name: string; groupName: string } | null>(null);
 
   const handleJoinClick = (community: Community) => {
     setJoinCommunity(community);
@@ -183,6 +184,10 @@ export default function CommunityPage() {
       }
 
       setJoinSuccess(true);
+      
+      // Store current user info with their group name
+      const userGroupName = joinForm.groupName.trim() || 'General Community';
+      setCurrentUser({ name: joinForm.name, groupName: userGroupName });
       
       // For general community, user is not approved yet
       if (joinCommunity?.id === 'general') {
@@ -327,7 +332,14 @@ export default function CommunityPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-6">
+                  {currentUser && (
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 px-4 py-3 rounded-lg border border-blue-200">
+                      <p className="text-sm font-semibold text-gray-900">👤 {currentUser.name}</p>
+                      <p className="text-xs text-gray-600 mt-1">Group: {currentUser.groupName}</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
                   <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                     <Phone size={20} className="text-gray-600" />
                   </button>
@@ -459,6 +471,11 @@ export default function CommunityPage() {
                               <span>{joinError}</span>
                             </div>
                           )}
+
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
+                            <p className="font-semibold mb-2">📌 Important Notice</p>
+                            <p>Other groups can only be added by admin after your program enrollment. You'll start with General Community access.</p>
+                          </div>
 
                           <button
                             type="submit"
