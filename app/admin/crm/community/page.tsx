@@ -16,6 +16,8 @@ interface CommunityMember {
   communityName: string;
   joinedAt: string;
   status: 'active' | 'inactive' | 'banned';
+  approved?: boolean;
+  approvedAt?: string;
   messageCount: number;
   reactions: number;
 }
@@ -54,6 +56,42 @@ export default function AdminCommunityPage() {
   const [selectedMember, setSelectedMember] = useState<CommunityMember | null>(null);
   const [messageText, setMessageText] = useState('');
   const [actionDropdown, setActionDropdown] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
+
+  // Approve member for messaging in general community
+  const approveMember = async (memberId: string) => {
+    try {
+      setApproving(memberId);
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
+      
+      const response = await fetch(`/api/admin/community/members/${memberId}/approve`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ approved: true }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('❌ ' + (error.error || 'Failed to approve member'));
+        return;
+      }
+
+      // Update local state
+      setMembers(members.map(m => 
+        m._id === memberId ? { ...m, approved: true, approvedAt: new Date().toISOString() } : m
+      ));
+      setActionDropdown(null);
+      alert('✅ Member approved for messaging!');
+    } catch (err) {
+      alert('❌ Error approving member');
+      console.error(err);
+    } finally {
+      setApproving(null);
+    }
+  };
 
   // Fetch members when community changes
   useEffect(() => {
@@ -284,8 +322,32 @@ export default function AdminCommunityPage() {
                           <MoreVertical size={18} />
                         </button>
                         {actionDropdown === member._id && (
-                          <div className="absolute right-0 mt-2 w-40 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10">
-                            <button className="w-full text-left px-4 py-2 text-white hover:bg-gray-600 flex items-center gap-2 text-sm">
+                          <div className="absolute right-0 mt-2 w-48 bg-gray-700 border border-gray-600 rounded-lg shadow-xl z-10">
+                            {selectedCommunity === 'general' && !member.approved && (
+                              <>
+                                <button 
+                                  onClick={() => approveMember(member._id)}
+                                  disabled={approving === member._id}
+                                  className="w-full text-left px-4 py-2 text-green-400 hover:bg-gray-600 flex items-center gap-2 text-sm disabled:opacity-50"
+                                >
+                                  <CheckCircle size={16} /> 
+                                  {approving === member._id ? 'Approving...' : 'Approve for Messaging'}
+                                </button>
+                                <div className="border-t border-gray-600"></div>
+                              </>
+                            )}
+                            {selectedCommunity === 'general' && member.approved && (
+                              <>
+                                <div className="w-full px-4 py-2 text-green-400 flex items-center gap-2 text-sm bg-gray-600/50">
+                                  <CheckCircle size={16} /> Approved ✓
+                                </div>
+                                <div className="border-t border-gray-600"></div>
+                              </>
+                            )}
+                            <button className="w-full text-left px-4 py-2 text-yellow-400 hover:bg-gray-600 flex items-center gap-2 text-sm">
+                              <Edit size={16} /> Edit
+                            </button>
+                            <button className="w-full text-left px-4 py-2 text-white hover:bg-gray-600 flex items-center gap-2 text-sm border-t border-gray-600">
                               <Shield size={16} /> Make Admin
                             </button>
                             <button className="w-full text-left px-4 py-2 text-white hover:bg-gray-600 flex items-center gap-2 text-sm border-t border-gray-600">
