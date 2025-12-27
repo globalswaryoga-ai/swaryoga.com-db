@@ -796,3 +796,28 @@ noteSchema.index({ userId: 1, 'linkedTo.visionId': 1 });
 noteSchema.index({ userId: 1, mood: 1 });
 
 export const Note = mongoose.models.Note || mongoose.model('Note', noteSchema);
+
+// Community Member Schema - for Community page joiners
+const communityMemberSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, trim: true, lowercase: true, sparse: true },
+  mobile: { type: String, required: true, trim: true, unique: true },
+  countryCode: { type: String, default: '+91' },
+  communityId: { type: String, required: true }, // 'general', 'swar-yoga', etc.
+  communityName: { type: String, required: true }, // Denormalized for quick queries
+  joinedAt: { type: Date, default: Date.now, index: true },
+  status: { type: String, enum: ['active', 'inactive', 'banned'], default: 'active' },
+  messageCount: { type: Number, default: 0 },
+  lastMessageAt: { type: Date },
+  reactions: { type: Number, default: 0 }, // Count of reactions given
+  metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+// Unique index: one user per community (by mobile)
+communityMemberSchema.index({ mobile: 1, communityId: 1 }, { unique: true });
+communityMemberSchema.index({ communityId: 1, joinedAt: -1 });
+communityMemberSchema.index({ email: 1, sparse: true });
+
+export const CommunityMember = mongoose.models.CommunityMember || mongoose.model('CommunityMember', communityMemberSchema);

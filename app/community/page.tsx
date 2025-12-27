@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Heart, MessageCircle, Send, Users, Settings, Search, ChevronDown, FileText, Image as ImageIcon, Video, MoreVertical } from 'lucide-react';
+import { Heart, MessageCircle, Send, Users, Settings, Search, ChevronDown, FileText, Image as ImageIcon, Video, MoreVertical, X, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 
@@ -135,6 +135,191 @@ const POLL: Poll = {
   totalVotes: 891,
 };
 
+// Join Modal Component
+interface JoinModalProps {
+  community: Community | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const JoinModal: React.FC<JoinModalProps> = ({ community, isOpen, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({ name: '', email: '', mobile: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setError('');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/community/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          mobile: formData.mobile,
+          communityId: community?.id,
+          communityName: community?.name,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to join community');
+        setLoading(false);
+        return;
+      }
+
+      setSuccess(true);
+      setFormData({ name: '', email: '', mobile: '' });
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+        setSuccess(false);
+      }, 2000);
+    } catch (err) {
+      setError('Network error. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !community) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-scale-in">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">{community.icon}</span>
+            <div>
+              <h3 className="font-bold text-lg">{community.name}</h3>
+              <p className="text-sm text-white/80">{community.members} members</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+            disabled={loading}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Body */}
+        {!success ? (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <p className="text-gray-600 text-sm">Join this beautiful community with us</p>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Full Name *
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Your name"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="your@email.com"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Mobile Number *
+              </label>
+              <div className="flex gap-2">
+                <select
+                  defaultValue="+91"
+                  className="px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="+91">🇮🇳 +91</option>
+                  <option value="+977">🇳🇵 +977</option>
+                  <option value="+1">🇺🇸 +1</option>
+                  <option value="+44">🇬🇧 +44</option>
+                </select>
+                <input
+                  type="tel"
+                  name="mobile"
+                  value={formData.mobile}
+                  onChange={handleChange}
+                  placeholder="10 digits"
+                  required
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex gap-2">
+                <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader size={18} className="animate-spin" />
+                  Joining...
+                </>
+              ) : (
+                'Join Community'
+              )}
+            </button>
+
+            <p className="text-xs text-gray-500 text-center">
+              ✨ Your data is safe with us
+            </p>
+          </form>
+        ) : (
+          <div className="p-6 flex flex-col items-center justify-center min-h-[300px]">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-full p-4 mb-4">
+              <CheckCircle size={48} className="text-green-600" />
+            </div>
+            <h4 className="text-lg font-bold text-gray-900 mb-2">Welcome to {community.name}! 🎉</h4>
+            <p className="text-sm text-gray-600 text-center mb-4">
+              You're now a proud member of this beautiful community
+            </p>
+            <div className="text-4xl mb-2">🙏</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // Reaction Component
 const ReactionBar: React.FC<{ reactions: Reaction[]; onReact: (emoji: string) => void }> = ({ reactions, onReact }) => (
   <div className="flex flex-wrap gap-2 mt-3">
@@ -224,6 +409,8 @@ export default function CommunityPage() {
   const [searchCommunity, setSearchCommunity] = useState('');
   const [messageInput, setMessageInput] = useState('');
   const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [joinSuccess, setJoinSuccess] = useState(false);
 
   const currentCommunity = COMMUNITIES.find(c => c.id === selectedCommunity);
   const isGeneralCommunity = currentCommunity?.type === 'general';
@@ -303,9 +490,18 @@ export default function CommunityPage() {
                       <p className="text-sm text-white/80">{currentCommunity.members} members online</p>
                     </div>
                   </div>
-                  <button className="p-2 hover:bg-white/20 rounded-lg transition-colors">
-                    <Settings size={20} />
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowJoinModal(true)}
+                      className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition-all flex items-center gap-2 text-sm"
+                    >
+                      <Users size={18} />
+                      Join
+                    </button>
+                    <button className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                      <Settings size={20} />
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -365,11 +561,22 @@ export default function CommunityPage() {
         <div className="mt-12 bg-gradient-to-r from-indigo-600 to-pink-600 rounded-xl p-8 text-white text-center">
           <h2 className="text-3xl font-bold mb-2">Join the Conversation</h2>
           <p className="text-lg text-white/90 mb-6">Connect with thousands of yoga enthusiasts and transform your practice</p>
-          <button className="px-8 py-3 bg-white text-indigo-600 rounded-lg font-bold hover:bg-gray-100 transition-colors">
+          <button
+            onClick={() => setShowJoinModal(true)}
+            className="px-8 py-3 bg-white text-indigo-600 rounded-lg font-bold hover:bg-gray-100 transition-colors"
+          >
             Explore All Communities
           </button>
         </div>
       </div>
+
+      {/* Join Modal */}
+      <JoinModal
+        community={currentCommunity}
+        isOpen={showJoinModal}
+        onClose={() => setShowJoinModal(false)}
+        onSuccess={() => setJoinSuccess(true)}
+      />
 
       <Footer />
 
@@ -386,6 +593,19 @@ export default function CommunityPage() {
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
+        }
+        @keyframes scale-in {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        .animate-scale-in {
+          animation: scale-in 0.3s ease-out;
         }
       `}</style>
     </div>
