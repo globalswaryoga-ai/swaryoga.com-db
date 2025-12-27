@@ -1,7 +1,18 @@
 'use client';
 
-import WorkshopDetailPage from '../../workshops/[id]/page';
+import { useRouter } from 'next/navigation';
 
 export default function WorkshopDetailAliasPage({ params }: { params: { id: string } }) {
-  return <WorkshopDetailPage params={params} />;
+  const router = useRouter();
+  
+  // Redirect to the workshops route
+  if (typeof window !== 'undefined') {
+    router.push(`/workshops/${params.id}`);
+  }
+  
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <p>Redirecting...</p>
+    </div>
+  );
 }
