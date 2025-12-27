@@ -91,11 +91,16 @@ export default function CRMDashboard() {
             {[
               { href: '/admin/crm', label: 'Overview', icon: '📊' },
               { href: '/admin/crm/leads', label: 'Leads', icon: '👥' },
+              { href: '/admin/crm/leads-followup', label: 'Leads Followup', icon: '📋' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
+              { href: '/admin/crm/whatsapp', label: 'WhatsApp Chat', icon: '🟢' },
               { href: '/admin/crm/messages', label: 'Messages', icon: '💬' },
+              { href: '/admin/crm/labels', label: 'Labels', icon: '🏷️' },
               { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
               { href: '/admin/crm/templates', label: 'Templates', icon: '📝' },
               { href: '/admin/crm/permissions', label: 'Consent', icon: '✅' },
+              { href: '/admin/crm/chatbot-builder', label: 'Chatbot Flows', icon: '🤖' },
+              { href: '/admin/crm/chatbot-settings', label: 'Chatbot Settings', icon: '⚙️' },
             ].map((item) => (
               <Link
                 key={item.href}
@@ -141,7 +146,7 @@ export default function CRMDashboard() {
                 label="Total Sales"
                 value={stats.totalSales}
                 icon="💰"
-                color="from-green-500 to-green-600"
+                color="from-[#1E7F43] to-[#166235]"
                 href="/admin/crm/sales"
               />
               <StatCard
@@ -176,14 +181,14 @@ export default function CRMDashboard() {
                   + Add New Lead
                 </Link>
                 <Link
-                  href="/admin/crm/messages"
+                  href="/admin/crm/whatsapp"
                   className="block bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
-                  Send WhatsApp Message
+                  Open WhatsApp Chat
                 </Link>
                 <Link
                   href="/admin/crm/sales"
-                  className="block bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
+                  className="block bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
                   Record a Sale
                 </Link>

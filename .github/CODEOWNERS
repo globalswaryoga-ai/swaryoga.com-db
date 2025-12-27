@@ -1,0 +1,23 @@
+# Code owners for sensitive/locked areas.
+# NOTE: This only becomes enforceable when GitHub branch protection has:
+#   - "Require pull request reviews before merging"
+#   - "Require review from Code Owners"
+# enabled.
+
+# Life Planner (locked)
+/app/life-planner/ @mohankalburgi
+/app/api/life-planner/ @mohankalburgi
+/components/life-planner/ @mohankalburgi
+/components/LifePlanner*.tsx @mohankalburgi
+/lib/lifePlanner*.ts @mohankalburgi
+/lib/types/lifePlanner.ts @mohankalburgi
+
+# CRM (locked)
+/app/admin/crm/ @mohankalburgi
+/app/api/admin/crm/ @mohankalburgi
+/lib/schemas/enterpriseSchemas.ts @mohankalburgi
+/lib/auditLogger.ts @mohankalburgi
+/lib/consentManager.ts @mohankalburgi
+/lib/messageTracker.ts @mohankalburgi
+/lib/permissionManager.ts @mohankalburgi
+/lib/rateLimitManager.ts @mohankalburgi

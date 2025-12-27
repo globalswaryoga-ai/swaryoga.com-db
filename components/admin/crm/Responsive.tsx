@@ -147,9 +147,11 @@ export function ResponsiveTable({
             </tr>
           </thead>
           <tbody>
-            {data.map((row, idx) => (
+            {data.map((row, idx) => {
+              const rowKey = (row as any)._id || (row as any).id || idx;
+              return (
               <tr
-                key={idx}
+                key={rowKey}
                 onClick={() => onRowClick?.(row)}
                 className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors cursor-pointer"
               >
@@ -159,16 +161,19 @@ export function ResponsiveTable({
                   </td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {/* Mobile Cards */}
       <div className="md:hidden space-y-3">
-        {data.map((row, idx) => (
+        {data.map((row, idx) => {
+          const rowKey = (row as any)._id || (row as any).id || idx;
+          return (
           <MobileCard
-            key={idx}
+            key={rowKey}
             title={row[mobileColumns[0]?.key]}
             subtitle={row[mobileColumns[1]?.key]}
             action={
@@ -191,7 +196,8 @@ export function ResponsiveTable({
               ))}
             </div>
           </MobileCard>
-        ))}
+          );
+        })}
       </div>
     </>
   );

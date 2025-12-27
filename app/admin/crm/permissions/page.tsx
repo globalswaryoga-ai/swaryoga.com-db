@@ -201,7 +201,7 @@ export default function ConsentPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
+    <div className="min-h-screen bg-white p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Page Header */}
         <PageHeader
@@ -209,7 +209,7 @@ export default function ConsentPage() {
           action={
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-green-700 transition-all"
+              className="bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-2 rounded-lg transition-all font-semibold"
             >
               + Grant Consent
             </button>
@@ -447,7 +447,7 @@ export default function ConsentPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg font-semibold transition-colors"
+                    className="flex-1 px-4 py-2 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold transition-colors"
                   >
                     Save
                   </button>

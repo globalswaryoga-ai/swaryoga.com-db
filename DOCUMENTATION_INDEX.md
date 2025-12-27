@@ -1,12 +1,22 @@
 # 📖 DOCUMENTATION INDEX - START HERE
 
-**Last Updated:** December 25, 2025
+**Last Updated:** December 27, 2025
 
 ---
 
 ## 🎯 QUICK START - Read These First
 
-1. **[MASTER_PROJECT_STATUS.md](MASTER_PROJECT_STATUS.md)** ⭐ **START HERE**
+### NEW: CRM & WhatsApp Consolidated Guide
+1. **[CRM_WHATSAPP_MASTER_GUIDE.md](CRM_WHATSAPP_MASTER_GUIDE.md)** ⭐ **MASTER GUIDE**
+   - Complete CRM system overview (consolidated from 25 documents)
+   - WhatsApp automation and templates (all features)
+   - All 10+ API endpoints with examples
+   - Database models and workflows
+   - Troubleshooting and performance guides
+   - 1,055 lines of organized content
+
+### Other Key Guides
+1. **[MASTER_PROJECT_STATUS.md](MASTER_PROJECT_STATUS.md)** ⭐ **PROJECT STATUS**
    - Complete project overview
    - All features status
    - Code lock protection details

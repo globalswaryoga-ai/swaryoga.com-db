@@ -33,6 +33,17 @@ export function useCRM(options: UseCRMOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
 
+  const handleUnauthorized = () => {
+    if (typeof window === 'undefined') return;
+    // Clear both legacy + current token keys used across the repo.
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('adminUser');
+    localStorage.removeItem('admin_user');
+    // Force user back to login.
+    window.location.href = '/admin/login';
+  };
+
   const fetch = useCallback(
     async (endpoint: string, fetchOptions: FetchOptions = {}) => {
       const {
@@ -63,6 +74,11 @@ export function useCRM(options: UseCRMOptions = {}) {
         });
 
         if (!response.ok) {
+          if (response.status === 401) {
+            // Token missing/expired/invalid. Clear local storage and redirect.
+            handleUnauthorized();
+            throw new Error('Session expired. Please login again.');
+          }
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `API error: ${response.statusText}`);
         }
@@ -85,7 +101,10 @@ export function useCRM(options: UseCRMOptions = {}) {
         setLoading(false);
       }
     },
-    [options]
+    // IMPORTANT: do not depend on the `options` object identity because callers often
+    // pass a new object literal on every render. That would recreate `fetch` and can
+    // trigger re-fetch loops + UI "vibration".
+    [options.token, options.onSuccess, options.onError]
   );
 
   return {

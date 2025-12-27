@@ -1,0 +1,71 @@
+name: Code Lock (Life Planner + CRM)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  code-lock:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine changed files
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          echo "Base: $BASE_SHA"
+          echo "Head: $HEAD_SHA"
+
+          # If BASE_SHA is missing/invalid (rare), fall back to previous commit.
+          if ! git cat-file -e "$BASE_SHA"^{commit} 2>/dev/null; then
+            BASE_SHA="${HEAD_SHA}~1"
+          fi
+
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sed '/^$/d' | sort -u > changed_files.txt
+
+          echo "changed_count=$(wc -l < changed_files.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce locked paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f changed_files.txt ]]; then
+            echo "No changed_files.txt found; nothing to check."
+            exit 0
+          fi
+
+          echo "Changed files (count: $(wc -l < changed_files.txt | tr -d ' '))"
+          cat changed_files.txt
+
+          # Locked areas (repo-level enforcement)
+          LOCKED_REGEX='^(app/life-planner/|app/api/life-planner/|app/admin/crm/|app/api/admin/crm/|components/life-planner/|components/LifePlanner.*\.tsx$|lib/lifePlanner.*\.ts$|lib/types/lifePlanner\.ts$|lib/schemas/enterpriseSchemas\.ts$|lib/(auditLogger|consentManager|messageTracker|permissionManager|rateLimitManager)\.ts$)'
+
+          if grep -E "$LOCKED_REGEX" -n changed_files.txt > locked_matches.txt; then
+            echo ""
+            echo "🔒 CODE LOCK BLOCKED THIS CHANGE"
+            echo "The following files are in LOCKED areas and cannot be changed without explicit owner approval:"
+            cat locked_matches.txt
+            echo ""
+            echo "If this change is intended, open a PR and get the required approvals (CODEOWNERS / branch protection)."
+            exit 1
+          fi
+
+          echo "✅ No locked files modified."

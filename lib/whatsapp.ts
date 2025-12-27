@@ -15,11 +15,15 @@ export type WhatsAppSendTextResult = {
 };
 
 function getWhatsAppEnv() {
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  // Primary (preferred) env keys
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER;
 
   if (!accessToken || !phoneNumberId) {
-    throw new Error('Missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID in environment');
+    throw new Error(
+      'Missing WhatsApp env vars. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID (preferred), ' +
+        'or WHATSAPP_BUSINESS_TOKEN and WHATSAPP_BUSINESS_PHONE_NUMBER (legacy).'
+    );
   }
 
   return { accessToken, phoneNumberId };

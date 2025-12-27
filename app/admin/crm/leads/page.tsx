@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -20,6 +20,7 @@ import {
 
 interface Lead {
   _id: string;
+  leadNumber?: string;
   assignedToUserId?: string;
   createdByUserId?: string;
   name: string;
@@ -70,6 +71,8 @@ export default function LeadsPage() {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateLead, setDuplicateLead] = useState<any>(null);
+
+  const [backfillBusy, setBackfillBusy] = useState(false);
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userFilter, setUserFilter] = useState<string>('');
@@ -282,6 +285,7 @@ export default function LeadsPage() {
 
     // Prepare data
     const excelData = leads.map((lead) => ({
+      'Lead ID': lead.leadNumber || '',
       User: lead.assignedToUserId || '',
       Name: lead.name || '',
       Email: lead.email || '',
@@ -300,6 +304,7 @@ export default function LeadsPage() {
 
     // Auto-size columns
     const colWidths = [
+      { wch: 10 },
       { wch: 18 },
       { wch: 20 },
       { wch: 25 },
@@ -317,23 +322,71 @@ export default function LeadsPage() {
     XLSX.writeFile(wb, fileName);
   };
 
-  const columns = [
+  type LeadColumn = {
+    key: string;
+    label: string;
+    render?: (value: any, lead: Lead) => ReactNode;
+  };
+
+  const columns: LeadColumn[] = [
+    {
+      key: 'leadNumber',
+      label: 'Lead ID',
+      render: (val: any) => (
+        <div className="border-2 border-red-500 rounded-lg px-3 py-2 bg-red-50 text-center">
+          <div className="text-xs font-bold text-red-700 mb-1">LEAD ID</div>
+          <div className="font-mono font-bold text-red-700">{val || '-'}</div>
+        </div>
+      ),
+    },
     {
       key: 'assignedToUserId',
       label: 'User',
-      render: (val: any) => <span className="text-purple-100">{val || 'Unassigned'}</span>,
+      render: (val: any) => (
+        <div className="bg-green-800 text-white rounded-lg px-3 py-2 text-center font-semibold">
+          {val || 'Unassigned'}
+        </div>
+      ),
     },
-    { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email' },
+    {
+      key: 'name',
+      label: 'Name & Contact',
+      render: (name: any, lead: Lead) => (
+        <div className="space-y-1">
+          <div className="font-semibold text-slate-900 break-words">{String(name || 'N/A')}</div>
+          <div className="text-xs text-slate-600 break-words">{lead.email || 'N/A'}</div>
+        </div>
+      ),
+    },
     { key: 'phoneNumber', label: 'Phone' },
+    {
+      key: 'labels',
+      label: 'Labels',
+      render: (labels: any) => (
+        <div className="flex flex-wrap gap-1">
+          {Array.isArray(labels) && labels.length > 0 ? (
+            labels.map((label: any) => (
+              <span
+                key={String(label)}
+                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-300"
+              >
+                {String(label)}
+              </span>
+            ))
+          ) : (
+            <span className="text-gray-400 text-xs">—</span>
+          )}
+        </div>
+      ),
+    },
     {
       key: 'status',
       label: 'Status',
-      render: (status: string, lead: Lead) => (
+      render: (status: any, lead: Lead) => (
         <select
-          value={status}
+          value={String(status || 'lead')}
           onChange={(e) => handleStatusChange(lead._id, e.target.value)}
-          className="px-3 py-1 bg-slate-700/50 border border-purple-500/30 rounded-full text-sm text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+          className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 border border-emerald-600 rounded-full text-sm text-white font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-400 cursor-pointer hover:from-emerald-600 hover:to-teal-700 transition-all"
         >
           <option value="lead">Lead</option>
           <option value="prospect">Prospect</option>
@@ -347,22 +400,36 @@ export default function LeadsPage() {
     {
       key: 'createdAt',
       label: 'Created',
-      render: (date: string) => new Date(date).toLocaleDateString(),
+      render: (date: any) => {
+        const d = new Date(String(date || ''));
+        return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+      },
     },
     {
       key: 'actions',
       label: 'Actions',
       render: (_: any, lead: Lead) => (
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center relative">
           <button
             onClick={() => router.push(`/admin/crm/leads/${lead._id}`)}
-            className="px-3 py-1 bg-blue-500/20 text-blue-200 rounded-lg text-sm hover:bg-blue-500/30 transition-colors"
+            className="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-lg text-sm font-medium transition-colors"
+            title="View lead details"
           >
             View
           </button>
+
+          <button
+            onClick={() => router.push('/admin/crm/leads-followup')}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+            title="Open lead followup"
+          >
+            Followup
+          </button>
+
           <button
             onClick={() => handleDeleteLead(lead._id)}
-            className="px-3 py-1 bg-red-500/20 text-red-200 rounded-lg text-sm hover:bg-red-500/30 transition-colors"
+            className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
+            title="Delete lead"
           >
             Delete
           </button>
@@ -372,42 +439,92 @@ export default function LeadsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Page Header */}
-        <PageHeader
-          title="Leads Management"
-          action={
-            <div className="flex gap-2">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 p-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Page Header - Professional */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setBulkModalOpen(true)}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg transition-all"
+                onClick={() => router.push('/admin/crm')}
+                className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-600 hover:text-slate-900"
+                title="Go to CRM Dashboard"
               >
-                📤 Bulk Upload
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M9 22V12H15V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </button>
-              <button
-                onClick={modal.open}
-                className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg transition-all"
-              >
-                + Add Lead
-              </button>
+              <div>
+                <h1 className="text-4xl font-bold text-slate-900">Lead Management</h1>
+                <p className="text-slate-600 text-lg">Manage and track all customer leads efficiently</p>
+              </div>
             </div>
-          }
-        />
+          </div>
+          <div className="flex gap-3 flex-wrap justify-end">
+            <button
+              onClick={() => router.push('/admin/crm/leads/deleted')}
+              className="bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded-lg transition-all font-semibold border border-red-200 flex items-center gap-2"
+            >
+              🗑️ Deleted
+            </button>
+            {isSuperAdmin && (
+              <button
+                onClick={async () => {
+                  if (!token) return;
+                  try {
+                    setBackfillBusy(true);
+                    const res = await fetch('/api/admin/crm/leads/backfill-ids?limit=500', {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data?.error || 'Backfill failed');
 
-        {/* Filters & Actions */}
-        <div className="bg-slate-800/50 border border-purple-500/20 rounded-lg p-6 backdrop-blur">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    fetchMetadata();
+                    fetchLeads();
+                    alert(`Backfilled ${data?.data?.updated || 0} lead IDs. Remaining: ${data?.data?.remaining || 0}`);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Backfill failed');
+                  } finally {
+                    setBackfillBusy(false);
+                  }
+                }}
+                disabled={backfillBusy}
+                className="bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-2 rounded-lg transition-all disabled:opacity-60 font-semibold border border-amber-200"
+              >
+                {backfillBusy ? '⏳ Generating…' : '🧾 Generate IDs'}
+              </button>
+            )}
+            <button
+              onClick={() => setBulkModalOpen(true)}
+              className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg transition-all font-semibold border border-blue-200"
+            >
+              📤 Bulk Upload
+            </button>
+            <button
+              onClick={modal.open}
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-2 rounded-lg transition-all font-bold shadow-md hover:shadow-lg"
+            >
+              + Add Lead
+            </button>
+          </div>
+        </div>
+
+        {/* Filters Section - Professional Card */}
+        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-6">Filters & Search</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Status Filter */}
             <div>
-              <label className="block text-purple-200 text-sm mb-2">Filter by Status</label>
+              <label className="block text-slate-700 text-sm font-semibold mb-3">Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => {
                   setFilterStatus(e.target.value);
                   setSkip(0);
                 }}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
               >
                 <option value="">All Status ({total})</option>
                 <option value="lead">Lead ({statusCounts.lead || 0})</option>
@@ -419,14 +536,14 @@ export default function LeadsPage() {
 
             {/* Workshop Filter */}
             <div>
-              <label className="block text-purple-200 text-sm mb-2">Filter by Program</label>
+              <label className="block text-slate-700 text-sm font-semibold mb-3">Program/Workshop</label>
               <select
                 value={filterWorkshop}
                 onChange={(e) => {
                   setFilterWorkshop(e.target.value);
                   setSkip(0);
                 }}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
               >
                 <option value="">All Programs</option>
                 {workshops.map((workshop) => (
@@ -437,105 +554,142 @@ export default function LeadsPage() {
               </select>
             </div>
 
-            {/* Search */}
+            {/* User Filter */}
+            {isSuperAdmin && (
+              <div>
+                <label className="block text-slate-700 text-sm font-semibold mb-3">Admin User</label>
+                <select
+                  value={userFilter}
+                  onChange={(e) => {
+                    setUserFilter(e.target.value);
+                    setSkip(0);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
+                >
+                  <option value="">All Users</option>
+                  {userOptions.map((u) => (
+                    <option key={u.userId} value={u.userId}>
+                      {u.email || u.userId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Search Box */}
             <div>
-              <label className="block text-purple-200 text-sm mb-2">Search</label>
+              <label className="block text-slate-700 text-sm font-semibold mb-3">Search</label>
               <input
                 type="text"
                 placeholder="Name, email, phone..."
                 value={search.query}
-                onChange={(e) => search.setQuery(e.target.value)}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white placeholder-purple-300 focus:outline-none focus:border-purple-500"
+                onChange={(e) => {
+                  search.setQuery(e.target.value);
+                  setSkip(0);
+                }}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
               />
             </div>
-
-            {/* Download Button */}
-            <div>
-              <button
-                onClick={downloadExcel}
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg transition-all font-medium flex items-center justify-center gap-2"
-              >
-                📥 Download Excel
-              </button>
-            </div>
-          </div>
-
-          {/* Results Info */}
-          <div className="mt-4 pt-4 border-t border-purple-500/20 text-purple-200 text-sm">
-            Showing {leads.length} of {total} leads
-            {filterStatus && ` • Status: ${filterStatus}`}
-            {filterWorkshop && ` • Program: ${filterWorkshop}`}
           </div>
         </div>
 
         {/* Error Alert */}
-        {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
-
-        {/* Toolbar with Search */}
-        <Toolbar
-          search={search.query}
-          onSearchChange={(q) => {
-            search.setQuery(q);
-            setSkip(0);
-          }}
-        />
-
-        {isSuperAdmin && (
-          <div className="mt-4 bg-slate-800/50 border border-purple-500/20 rounded-xl p-4">
-            <label className="block text-purple-200 text-sm mb-2">Filter by User</label>
-            <select
-              value={userFilter}
-              onChange={(e) => {
-                setUserFilter(e.target.value);
-                setSkip(0);
-              }}
-              className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500"
-            >
-              <option value="">All Users</option>
-              {userOptions.map((u) => (
-                <option key={u.userId} value={u.userId}>
-                  {u.userId}{u.email ? ` (${u.email})` : ''}
-                </option>
-              ))}
-            </select>
+        {error && (
+          <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-red-700 flex justify-between items-center">
+            <span className="font-medium">{error}</span>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold text-xl">×</button>
           </div>
         )}
 
         {/* Loading State */}
         {crm.loading ? (
-          <LoadingSpinner />
+          <div className="flex items-center justify-center py-16">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full animate-spin">
+                <div className="w-10 h-10 bg-white rounded-full"></div>
+              </div>
+              <p className="text-slate-600 font-medium">Loading leads...</p>
+            </div>
+          </div>
+        ) : leads.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-sm">
+            <div className="text-5xl mb-4">📊</div>
+            <h3 className="text-xl font-semibold text-slate-900 mb-2">No leads found</h3>
+            <p className="text-slate-600 mb-6">Start by adding a new lead or uploading from a file</p>
+            <button
+              onClick={modal.open}
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-2 rounded-lg font-semibold transition-all"
+            >
+              + Add Your First Lead
+            </button>
+          </div>
         ) : (
           <>
-            {/* Data Table */}
-            <DataTable
-              columns={columns}
-              data={leads}
-              loading={crm.loading}
-              empty={leads.length === 0}
-              striped
-              hover
-            />
+            {/* Data Table - Professional Card */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-visible">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+                      {columns.map((col) => (
+                        <th
+                          key={col.key}
+                          className="px-6 py-4 text-left text-sm font-bold text-slate-700 uppercase tracking-wider"
+                        >
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.map((lead, idx) => (
+                      <tr
+                        key={lead._id}
+                        className={`border-b border-slate-200 transition-colors relative ${
+                          idx % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50 hover:bg-slate-100'
+                        }`}
+                      >
+                        {columns.map((col) => (
+                          <td key={col.key} className="px-6 py-4 text-sm text-slate-900">
+                            {col.render ? col.render((lead as any)[col.key], lead) : (lead as any)[col.key]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-            {/* Pagination */}
+            {/* Pagination - Professional */}
             {leads.length > 0 && (
-              <div className="border-t border-purple-500/20 px-6 py-4 flex items-center justify-between bg-slate-800/50 backdrop-blur rounded-xl">
-                <button
-                  onClick={() => setSkip(Math.max(0, skip - limit))}
-                  disabled={skip === 0}
-                  className="px-4 py-2 bg-purple-500/20 text-purple-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500/30 transition-colors"
-                >
-                  ← Previous
-                </button>
-                <span className="text-purple-200">
-                  Page {Math.floor(skip / limit) + 1} of {Math.ceil(total / limit)}
-                </span>
-                <button
-                  onClick={() => setSkip(skip + limit)}
-                  disabled={skip + limit >= total}
-                  className="px-4 py-2 bg-purple-500/20 text-purple-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500/30 transition-colors"
-                >
-                  Next →
-                </button>
+              <div className="bg-white border border-slate-200 rounded-xl p-6 flex items-center justify-between">
+                <div className="text-slate-600 font-medium">
+                  Showing <span className="font-bold text-slate-900">{skip + 1}</span> to{' '}
+                  <span className="font-bold text-slate-900">{Math.min(skip + limit, total)}</span> of{' '}
+                  <span className="font-bold text-slate-900">{total}</span> leads
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setSkip(Math.max(0, skip - limit))}
+                    disabled={skip === 0}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 rounded-lg font-medium transition-all"
+                  >
+                    ← Previous
+                  </button>
+                  <div className="flex items-center px-4 text-slate-600 font-medium">
+                    Page {Math.floor(skip / limit) + 1} of {Math.ceil(total / limit)}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (skip + limit < total) setSkip(skip + limit);
+                    }}
+                    disabled={skip + limit >= total}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+                  >
+                    Next →
+                  </button>
+                </div>
               </div>
             )}
           </>
@@ -654,7 +808,7 @@ export default function LeadsPage() {
       {/* Duplicate Entry Modal */}
       {duplicateModalOpen && duplicateLead && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
-          <div className="bg-slate-800 border border-red-500/50 rounded-lg p-8 max-w-md w-full space-y-6">
+          <div className="bg-white border-2 border-red-300 rounded-xl p-8 max-w-md w-full space-y-6 shadow-2xl\">
             <div className="text-center">
               <div className="text-4xl mb-2">⚠️</div>
               <h2 className="text-xl font-bold text-red-300">Lead Already Exists!</h2>
@@ -703,24 +857,24 @@ export default function LeadsPage() {
       {/* Bulk Import Modal */}
       {bulkModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
-          <div className="bg-slate-800 border border-purple-500/30 rounded-lg p-8 max-w-md w-full space-y-6">
-            <h2 className="text-xl font-bold text-white">Bulk Import Leads</h2>
+          <div className="bg-white border-2 border-green-300 rounded-xl p-8 max-w-md w-full space-y-6 shadow-2xl\">
+            <h2 className="text-xl font-bold text-green-700\">Bulk Import Leads</h2>
             
-            <div className="space-y-4">
+            <div className="space-y-4\">
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Upload Excel File</label>
+                <label className="block text-green-700 text-sm mb-2 font-semibold\">Upload Excel File</label>
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv"
                   id="bulk-upload"
                   className="w-full"
                 />
-                <p className="text-purple-300 text-xs mt-2">
+                <p className="text-green-600 text-xs mt-2\">
                   Format: Name, Email, Phone, Status, Source, Workshop/Program
                 </p>
               </div>
 
-              <div className="bg-slate-700/50 rounded p-3 text-purple-200 text-sm">
+              <div className="bg-green-50 rounded-lg p-3 text-green-700 text-sm border-2 border-green-200">
                 <p className="font-semibold mb-2">Instructions:</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>Required: Name, Email, Phone</li>
@@ -765,7 +919,7 @@ export default function LeadsPage() {
                     alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
                   }
                 }}
-                className="flex-1 bg-green-500/20 border border-green-500 text-green-200 px-4 py-2 rounded-lg hover:bg-green-500/30 transition-colors font-medium"
+                className="flex-1 bg-green-500/20 border border-green-500 text-green-800 px-4 py-2 rounded-lg hover:bg-green-500/30 transition-colors font-medium"
               >
                 Upload
               </button>

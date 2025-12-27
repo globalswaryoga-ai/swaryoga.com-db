@@ -29,3 +29,9 @@ test-payment-opening.js
 
 # Test / coverage
 coverage/
+
+# WhatsApp Web (wwebjs) session/cache (never commit)
+.wwebjs_auth/
+.wwebjs_cache/
+**/.wwebjs_auth/
+**/.wwebjs_cache/

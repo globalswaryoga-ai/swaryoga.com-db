@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 
 function normalizePhone(raw: string): string {
   return String(raw || '')
@@ -122,6 +123,12 @@ export async function POST(request: NextRequest) {
 
           if (!lead?._id) continue;
 
+          // Detect if this is the first inbound message for welcome automation.
+          const previousInbound = await WhatsAppMessage.findOne({ leadId: lead._id, direction: 'inbound' })
+            .sort({ sentAt: -1 })
+            .lean();
+          const wasFirstInbound = !previousInbound;
+
           // Handle STOP/OPTOUT keywords
           const keyword = body.trim().toUpperCase();
           if (keyword === 'STOP' || keyword === 'UNSUBSCRIBE' || keyword === 'OPTOUT') {
@@ -145,6 +152,14 @@ export async function POST(request: NextRequest) {
               },
             },
           });
+
+          // Run automations (welcome/greetings/chatbot/AI). Best-effort: failures are swallowed.
+          handleInboundWhatsAppAutomations({
+            leadId: lead._id,
+            phoneNumber: from,
+            messageBody: body,
+            wasFirstInbound,
+          }).catch(() => {});
         }
       }
     }

@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
     verifyAdminAccess(request);
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
+    const orderParam = url.searchParams.get('order');
+    const sortDir = orderParam === 'asc' ? 1 : -1;
 
     await connectDB();
 
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
     const messages = await WhatsAppMessage.find(filter)
-      .sort({ sentAt: -1 })
+      .sort({ sentAt: sortDir })
       .skip(skip)
       .limit(limit)
       .populate('leadId', 'name phoneNumber')
@@ -199,7 +201,34 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { messageId, action, ...updates } = body;
+    const { messageId, leadId, action, ...updates } = body;
+
+    await connectDB();
+
+    // Backward-compatible action aliases used by older UI code.
+    const normalizedAction =
+      action === 'mark-read'
+        ? 'markAsRead'
+        : action === 'mark-unread'
+          ? 'markAsUnread'
+          : action;
+
+    if (normalizedAction === 'markThreadAsRead') {
+      if (!leadId || !isValidObjectId(String(leadId))) {
+        return NextResponse.json({ error: 'Missing/invalid: leadId' }, { status: 400 });
+      }
+
+      const res = await WhatsAppMessage.updateMany(
+        {
+          leadId: toObjectId(String(leadId)),
+          direction: 'inbound',
+          status: { $ne: 'read' },
+        },
+        { $set: { status: 'read', readAt: new Date(), updatedAt: new Date() } }
+      );
+
+      return formatCrmSuccess({ modifiedCount: res.modifiedCount });
+    }
 
     if (!messageId) {
       return NextResponse.json({ error: 'Missing: messageId' }, { status: 400 });
@@ -209,9 +238,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid messageId' }, { status: 400 });
     }
 
-    await connectDB();
-
-    if (action === 'markAsRead') {
+    if (normalizedAction === 'markAsRead') {
       const message = await WhatsAppMessage.findByIdAndUpdate(
         messageId,
         { $set: { status: 'read', readAt: new Date() } },
@@ -221,7 +248,31 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Message not found' }, { status: 404 });
       }
       return formatCrmSuccess(message);
-    } else if (action === 'retry') {
+    } else if (normalizedAction === 'markAsUnread') {
+      const message = await WhatsAppMessage.findByIdAndUpdate(
+        messageId,
+        {
+          $set: { status: 'delivered' },
+          $unset: { readAt: 1 },
+        },
+        { new: true }
+      );
+      if (!message) {
+        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      }
+      return formatCrmSuccess(message);
+    } else if (normalizedAction === 'archive' || normalizedAction === 'unarchive') {
+      const archived = normalizedAction === 'archive';
+      const message = await WhatsAppMessage.findByIdAndUpdate(
+        messageId,
+        { $set: { 'metadata.archived': archived } },
+        { new: true }
+      );
+      if (!message) {
+        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      }
+      return formatCrmSuccess(message);
+    } else if (normalizedAction === 'retry') {
       const message = await WhatsAppMessage.findById(messageId);
       if (!message) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
 

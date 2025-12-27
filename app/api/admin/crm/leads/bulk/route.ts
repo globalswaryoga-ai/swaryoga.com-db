@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { DeletedLead, Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
+import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
@@ -89,7 +90,10 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
+          const { leadNumber } = await allocateNextLeadNumber();
+
           await Lead.create({
+            leadNumber,
             phoneNumber,
             assignedToUserId,
             createdByUserId: viewerUserId,
@@ -242,6 +246,35 @@ export async function DELETE(request: NextRequest) {
         }
       })
       .filter((id: any) => id !== null);
+
+    // Snapshot leads before deletion for the delete-record log.
+    const toDelete = await Lead.find({
+      _id: { $in: objectIds },
+      ...(superAdmin ? {} : { assignedToUserId: viewerUserId }),
+    }).lean();
+
+    if (toDelete.length > 0) {
+      const deletionDocs = toDelete.map((l: any) => ({
+        leadId: l._id,
+        leadNumber: l.leadNumber,
+        assignedToUserId: l.assignedToUserId,
+        createdByUserId: l.createdByUserId,
+        deletedByUserId: viewerUserId,
+        name: l.name,
+        phoneNumber: l.phoneNumber,
+        email: l.email,
+        workshopName: l.workshopName,
+        status: l.status,
+        labels: Array.isArray(l.labels) ? l.labels : [],
+        source: l.source,
+        createdAtOriginal: l.createdAt,
+        updatedAtOriginal: l.updatedAt,
+        deletedAt: new Date(),
+        metadata: l.metadata,
+      }));
+      // Non-fatal if logging fails.
+      await DeletedLead.insertMany(deletionDocs, { ordered: false }).catch(() => null);
+    }
 
     const result = await Lead.deleteMany({
       _id: { $in: objectIds },

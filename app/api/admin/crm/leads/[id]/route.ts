@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { DeletedLead, Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
 function getViewerUserId(decoded: any): string {
@@ -83,6 +83,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (body.workshopName !== undefined) update.workshopName = body.workshopName || null;
     if (body.metadata !== undefined) update.metadata = body.metadata;
 
+    // Assignment is privileged: only super-admin can assign/unassign
+    if (body.assignedToUserId !== undefined) {
+      if (!superAdmin) {
+        return NextResponse.json({ error: 'Forbidden: Only super admin can assign leads' }, { status: 403 });
+      }
+      const raw = body.assignedToUserId;
+      const next = raw === null || raw === '' ? null : String(raw).trim();
+      update.assignedToUserId = next;
+    }
+
     await connectDB();
     const existing: any = await Lead.findById(params.id).lean();
     if (!existing) {
@@ -137,6 +147,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (body.workshopName !== undefined) update.workshopName = body.workshopName || null;
     if (body.metadata !== undefined) update.metadata = body.metadata;
 
+    // Assignment is privileged: only super-admin can assign/unassign
+    if (body.assignedToUserId !== undefined) {
+      if (!superAdmin) {
+        return NextResponse.json({ error: 'Forbidden: Only super admin can assign leads' }, { status: 403 });
+      }
+      const raw = body.assignedToUserId;
+      const next = raw === null || raw === '' ? null : String(raw).trim();
+      update.assignedToUserId = next;
+    }
+
     await connectDB();
     const existing: any = await Lead.findById(params.id).lean();
     if (!existing) {
@@ -185,9 +205,33 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const deleted = await Lead.findByIdAndDelete(params.id).lean();
+    const deleted: any = await Lead.findByIdAndDelete(params.id).lean();
     if (!deleted) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+
+    // Record deletion snapshot so deleted leadNumber remains visible in "Delete Record" view.
+    try {
+      await DeletedLead.create({
+        leadId: deleted._id,
+        leadNumber: (deleted as any)?.leadNumber,
+        assignedToUserId: (deleted as any)?.assignedToUserId,
+        createdByUserId: (deleted as any)?.createdByUserId,
+        deletedByUserId: viewerUserId,
+        name: (deleted as any)?.name,
+        phoneNumber: (deleted as any)?.phoneNumber,
+        email: (deleted as any)?.email,
+        workshopName: (deleted as any)?.workshopName,
+        status: (deleted as any)?.status,
+        labels: Array.isArray((deleted as any)?.labels) ? (deleted as any).labels : [],
+        source: (deleted as any)?.source,
+        createdAtOriginal: (deleted as any)?.createdAt,
+        updatedAtOriginal: (deleted as any)?.updatedAt,
+        deletedAt: new Date(),
+        metadata: (deleted as any)?.metadata,
+      });
+    } catch {
+      // Non-fatal: deletion should succeed even if logging fails.
     }
     return NextResponse.json({ success: true, data: deleted }, { status: 200 });
   } catch (error) {

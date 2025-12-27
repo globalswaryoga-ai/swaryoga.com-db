@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
@@ -147,7 +148,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Allocate permanent 6-digit lead number (e.g., 006999)
+    const { leadNumber } = await allocateNextLeadNumber();
+
     const lead = await Lead.create({
+      leadNumber,
       phoneNumber,
       assignedToUserId,
       createdByUserId: viewerUserId,

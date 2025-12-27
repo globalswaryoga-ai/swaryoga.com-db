@@ -34,6 +34,7 @@ export default function MessagesPage() {
   const router = useRouter();
   const token = useAuth();
   const crm = useCRM({ token });
+  const crmFetch = crm.fetch;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +68,8 @@ export default function MessagesPage() {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const result = await crm.fetch('/api/admin/crm/messages', {
+      setError(null);
+      const result = await crmFetch('/api/admin/crm/messages', {
         params: {
           limit: pageSize,
           skip: (page - 1) * pageSize,
@@ -81,7 +83,7 @@ export default function MessagesPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
-  }, [crm, directionFilter, page, pageSize, statusFilter]);
+  }, [crmFetch, directionFilter, page, pageSize, statusFilter]);
 
   useEffect(() => {
     if (!token) {
@@ -278,7 +280,7 @@ export default function MessagesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
+    <div className="min-h-screen bg-white p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Page Header */}
         <PageHeader
@@ -286,7 +288,7 @@ export default function MessagesPage() {
           action={
             <button
               onClick={() => setShowSendModal(true)}
-              className="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-green-700 transition-all"
+              className="bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-2 rounded-lg transition-all font-semibold"
             >
               + Send Message
             </button>

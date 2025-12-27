@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import * as XLSX from 'xlsx';
+import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
@@ -98,6 +99,8 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        const { leadNumber } = await allocateNextLeadNumber();
+
         const name = String(
           (row as any).Name || (row as any).name || ''
         ).trim();
@@ -125,6 +128,7 @@ export async function POST(request: NextRequest) {
         ).trim();
 
         const leadData: any = {
+          leadNumber,
           phoneNumber,
           assignedToUserId,
           createdByUserId: viewerUserId,

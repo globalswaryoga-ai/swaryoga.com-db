@@ -31,10 +31,10 @@ jobs:
         
       - name: Run SNYK security scan
         uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         continue-on-error: true
       
       - name: Upload Snyk results

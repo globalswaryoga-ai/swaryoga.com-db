@@ -64,27 +64,27 @@ export function DataTable({
 
   if (empty || !data?.length) {
     return (
-      <div className="flex items-center justify-center py-12 border border-slate-700 rounded-lg">
-        <div className="text-slate-400">{emptyMessage}</div>
+      <div className="flex items-center justify-center py-12 border border-slate-200 rounded-lg bg-slate-50">
+        <div className="text-slate-500">{emptyMessage}</div>
       </div>
     );
   }
 
   return (
-    <div className={`overflow-x-auto rounded-lg border border-slate-700 ${className}`}>
+    <div className={`overflow-x-auto rounded-lg border border-slate-200 ${className}`} style={{ overflowY: 'visible' }}>
       <table className="w-full text-sm">
-        <thead className="bg-slate-800 border-b border-slate-700">
+        <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
           <tr>
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={`px-6 py-3 font-semibold text-slate-200 text-${column.align || 'left'}`}
+                className={`px-6 py-3 font-semibold text-slate-700 uppercase tracking-wider text-${column.align || 'left'}`}
                 style={{ width: column.width }}
               >
                 <div className="flex items-center gap-2">
                   {column.label}
                   {column.sortable && (
-                    <span className="text-slate-500 cursor-pointer hover:text-slate-300">
+                    <span className="text-slate-400 cursor-pointer hover:text-slate-600">
                       ⬍
                     </span>
                   )}
@@ -94,27 +94,30 @@ export function DataTable({
           </tr>
         </thead>
         <tbody>
-          {data.map((row, idx) => (
+          {data.map((row, idx) => {
+            const rowKey = (row as any)._id || (row as any).id || idx;
+            return (
             <tr
-              key={idx}
+              key={rowKey}
               className={`
-                border-b border-slate-700 transition-colors
-                ${striped && idx % 2 === 0 ? 'bg-slate-900/30' : ''}
-                ${hover ? 'hover:bg-slate-800 cursor-pointer' : ''}
+                border-b border-slate-200 transition-colors relative
+                ${striped && idx % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50 hover:bg-slate-100'}
+                ${hover ? 'cursor-pointer' : ''}
                 ${rowClassName?.(row) || ''}
               `}
               onClick={() => onRowClick?.(row)}
             >
               {columns.map((column) => (
                 <td
-                  key={`${idx}-${column.key}`}
-                  className={`px-6 py-3 text-slate-300 text-${column.align || 'left'}`}
+                  key={`${rowKey}-${column.key}`}
+                  className={`px-6 py-3 text-slate-900 text-${column.align || 'left'}`}
                 >
                   {column.render ? column.render(row[column.key], row) : row[column.key]}
                 </td>
               ))}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
