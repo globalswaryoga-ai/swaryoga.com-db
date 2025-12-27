@@ -93,10 +93,11 @@ function RegisterNowDashboardPageInner() {
       try {
         setSchedulesLoading(true);
         setSchedulesError('');
-        const res = await fetch('/api/workshops/schedules', { cache: 'no-store' });
+        const res = await fetch('/api/workshops/schedules?status=published', { cache: 'no-store' });
         const json = await res.json().catch(() => null);
         if (!res.ok) throw new Error(json?.error || 'Failed to load schedules');
         const data = Array.isArray(json?.data) ? (json.data as DbSchedule[]) : [];
+        console.log('[registerNow] Loaded', data.length, 'published schedules');
         if (!cancelled) setAllSchedules(data);
       } catch (e) {
         if (!cancelled) setSchedulesError(e instanceof Error ? e.message : String(e));

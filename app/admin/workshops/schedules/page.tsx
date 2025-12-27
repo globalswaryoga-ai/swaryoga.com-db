@@ -393,7 +393,7 @@ export default function AdminWorkshopSchedulesPage() {
           seatsTotal: createForm.seatsTotal === '' ? undefined : Number(createForm.seatsTotal),
           price: createForm.price === '' ? undefined : Number(createForm.price),
           location: createForm.location,
-          status: 'draft' as const,
+          status: 'published' as const,
         };
 
         const currencies = createForm.allCurrencies
