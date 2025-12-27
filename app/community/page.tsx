@@ -74,6 +74,8 @@ export default function CommunityPage() {
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [joinSuccess, setJoinSuccess] = useState(false);
+  const [userMemberships, setUserMemberships] = useState<Set<string>>(new Set());
+  const [canSendMessage, setCanSendMessage] = useState<Set<string>>(new Set());
 
   const handleJoinClick = (community: Community) => {
     setJoinCommunity(community);
@@ -82,10 +84,45 @@ export default function CommunityPage() {
     setJoinError('');
   };
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateMobile = (mobile: string): boolean => {
+    // Accept 10 digits for mobile
+    const mobileRegex = /^[0-9]{10}$/;
+    return mobileRegex.test(mobile);
+  };
+
+  const validateWhatsApp = (mobile: string): boolean => {
+    // WhatsApp requires 10 digit mobile
+    return validateMobile(mobile);
+  };
+
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setJoinLoading(true);
     setJoinError('');
+
+    // Validation
+    if (!joinForm.name.trim()) {
+      setJoinError('Name is required');
+      setJoinLoading(false);
+      return;
+    }
+
+    if (!validateEmail(joinForm.email)) {
+      setJoinError('Please enter a valid email address');
+      setJoinLoading(false);
+      return;
+    }
+
+    if (!validateWhatsApp(joinForm.mobile)) {
+      setJoinError('Please enter a valid 10-digit mobile number');
+      setJoinLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch('/api/community/join', {
@@ -109,6 +146,16 @@ export default function CommunityPage() {
       }
 
       setJoinSuccess(true);
+      setUserMemberships((prev) => new Set([...prev, joinCommunity?.id || '']));
+      
+      // For general community, user is not approved yet
+      if (joinCommunity?.id === 'general') {
+        setCanSendMessage((prev) => new Set(prev)); // Don't add to approved
+      } else {
+        // For enrolled communities, user can message immediately
+        setCanSendMessage((prev) => new Set([...prev, joinCommunity?.id || '']));
+      }
+      
       setJoinForm({ name: '', email: '', mobile: '' });
       setTimeout(() => {
         setShowJoinModal(false);
@@ -287,7 +334,31 @@ export default function CommunityPage() {
 
               {/* Input Area */}
               <div className="bg-white border-t border-gray-200 p-4">
-                {selectedCommunity.type === 'open' || selectedCommunity.isJoined ? (
+                {selectedCommunity.id === 'general' && !userMemberships.has('general') ? (
+                  // General Community - requires form first
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-200 text-center">
+                    <p className="text-gray-700 font-semibold mb-3">
+                      📝 Fill the form to join our community
+                    </p>
+                    <button
+                      onClick={() => handleJoinClick(selectedCommunity)}
+                      className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                    >
+                      Join with Form
+                    </button>
+                  </div>
+                ) : selectedCommunity.id === 'general' && !canSendMessage.has('general') ? (
+                  // General Community - joined but not approved yet
+                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-lg border border-yellow-200 text-center">
+                    <p className="text-gray-700 font-semibold mb-2">
+                      ⏳ Your message access is pending admin approval
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      You can view all posts, but messaging will be enabled once approved.
+                    </p>
+                  </div>
+                ) : (selectedCommunity.type === 'open' && userMemberships.has('general')) || (selectedCommunity.type === 'enroll' && selectedCommunity.isJoined) ? (
+                  // Can send messages
                   <div className="flex gap-3">
                     <input
                       type="text"
@@ -306,6 +377,7 @@ export default function CommunityPage() {
                     </button>
                   </div>
                 ) : (
+                  // Not a member of enrolled community
                   <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 rounded-lg border border-orange-200 text-center">
                     <p className="text-gray-700 font-semibold mb-3">
                       👋 Join this community to start messaging
@@ -354,7 +426,11 @@ export default function CommunityPage() {
                 </div>
 
                 <form onSubmit={handleJoinSubmit} className="p-6 space-y-4">
-                  <p className="text-gray-600 text-sm">Join this beautiful community with us</p>
+                  <p className="text-gray-600 text-sm">
+                    {joinCommunity.id === 'general' 
+                      ? '📋 Fill this form to join. You can view posts immediately, but messaging requires admin approval.' 
+                      : 'Join this beautiful community with us'}
+                  </p>
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
@@ -369,31 +445,63 @@ export default function CommunityPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Email *
+                      {joinForm.email && !validateEmail(joinForm.email) && (
+                        <span className="text-red-600 text-xs ml-1">✗ Invalid email</span>
+                      )}
+                      {joinForm.email && validateEmail(joinForm.email) && (
+                        <span className="text-green-600 text-xs ml-1">✓ Valid email</span>
+                      )}
+                    </label>
                     <input
                       type="email"
                       value={joinForm.email}
                       onChange={(e) => setJoinForm(prev => ({ ...prev, email: e.target.value }))}
                       placeholder="your@email.com"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                      className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                        joinForm.email && validateEmail(joinForm.email)
+                          ? 'border-green-300 focus:ring-green-500'
+                          : joinForm.email && !validateEmail(joinForm.email)
+                          ? 'border-red-300 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number *</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      WhatsApp Number (10 digits) *
+                      {joinForm.mobile && !validateWhatsApp(joinForm.mobile) && (
+                        <span className="text-red-600 text-xs ml-1">✗ Must be 10 digits</span>
+                      )}
+                      {joinForm.mobile && validateWhatsApp(joinForm.mobile) && (
+                        <span className="text-green-600 text-xs ml-1">✓ Valid number</span>
+                      )}
+                    </label>
                     <input
                       type="tel"
                       value={joinForm.mobile}
-                      onChange={(e) => setJoinForm(prev => ({ ...prev, mobile: e.target.value }))}
-                      placeholder="10 digits"
+                      onChange={(e) => setJoinForm(prev => ({ ...prev, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                      placeholder="9876543210"
+                      maxLength={10}
                       required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                        joinForm.mobile && validateWhatsApp(joinForm.mobile)
+                          ? 'border-green-300 focus:ring-green-500'
+                          : joinForm.mobile && !validateWhatsApp(joinForm.mobile)
+                          ? 'border-red-300 focus:ring-red-500'
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                     />
+                    <p className="text-xs text-gray-500 mt-1">We'll use this for WhatsApp updates</p>
                   </div>
 
                   {joinError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                      {joinError}
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-start gap-2">
+                      <span className="text-lg">⚠️</span>
+                      <span>{joinError}</span>
                     </div>
                   )}
 

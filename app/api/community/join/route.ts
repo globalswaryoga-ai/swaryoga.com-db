@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new member
+    // General community members need admin approval to send messages
+    const isGeneralCommunity = communityId === 'general';
+    
     const newMember = new CommunityMember({
       name: name.trim(),
       email: email ? email.trim().toLowerCase() : null,
@@ -57,20 +60,26 @@ export async function POST(request: NextRequest) {
       communityId,
       communityName,
       status: 'active',
+      approved: !isGeneralCommunity, // Enrolled communities auto-approve, general requires approval
       joinedAt: new Date(),
     });
 
     await newMember.save();
 
+    const message = isGeneralCommunity
+      ? '👋 Welcome! You can view posts. Messaging will be enabled after admin approval.'
+      : '🎉 Welcome to the community!';
+
     return NextResponse.json(
       {
         success: true,
-        message: '🎉 Welcome to the community!',
+        message,
         data: {
           memberId: newMember._id,
           name: newMember.name,
           communityName: newMember.communityName,
           joinedAt: newMember.joinedAt,
+          approved: newMember.approved,
         },
       },
       { status: 201 }

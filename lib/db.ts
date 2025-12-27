@@ -807,6 +807,9 @@ const communityMemberSchema = new mongoose.Schema({
   communityName: { type: String, required: true }, // Denormalized for quick queries
   joinedAt: { type: Date, default: Date.now, index: true },
   status: { type: String, enum: ['active', 'inactive', 'banned'], default: 'active' },
+  approved: { type: Boolean, default: false }, // For 'general' community: can send messages only if approved
+  approvedAt: { type: Date }, // When admin approved this member
+  approvedBy: { type: String }, // Admin who approved
   messageCount: { type: Number, default: 0 },
   lastMessageAt: { type: Date },
   reactions: { type: Number, default: 0 }, // Count of reactions given
