@@ -140,6 +140,11 @@ const nextConfig = {
     afterFiles: [],
     fallback: [],
   }),
+  // Disable Vercel toolbar
+  productionBrowserSourceMaps: false,
+  env: {
+    NEXT_PUBLIC_VERCEL_URL: process.env.VERCEL_URL || '',
+  },
 };
 
 module.exports = nextConfig;

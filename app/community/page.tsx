@@ -356,11 +356,12 @@ export default function CommunityPage() {
                 </div>
               </div>
 
-              {/* Header Section with Join Form - Full Page for General Community */}
+              {/* Header Section with Join Form - Below Header for General Community */}
               {selectedCommunity.id === 'general' && !userMemberships.has('general') ? (
                 <div className="flex-1 flex flex-col bg-gradient-to-br from-blue-50 to-purple-50 overflow-y-auto">
-                  <div className="flex-1 flex items-center justify-center p-6">
-                    <div className="w-full max-w-2xl">
+                  {/* Form positioned below header */}
+                  <div className="p-6 border-b border-gray-200">
+                    <div className="w-full max-w-2xl mx-auto">
                       <div className="bg-white rounded-xl shadow-lg p-8">
                         <div className="mb-8">
                           <h2 className="text-3xl font-bold text-gray-900 mb-3">📋 Join Our Community</h2>
@@ -491,6 +492,11 @@ export default function CommunityPage() {
                         </form>
                       </div>
                     </div>
+                  </div>
+                  
+                  {/* Messages Area - Below Form */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col justify-end">
+                    {/* Form closed, messages start below */}
                   </div>
                 </div>
               ) : (
