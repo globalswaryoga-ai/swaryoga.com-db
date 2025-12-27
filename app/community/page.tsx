@@ -475,6 +475,7 @@ export default function CommunityPage() {
                     </div>
                   </div>
                 ) : (
+                  <>
                     {SAMPLE_MESSAGES.map((message) => (
                       <div
                         key={message.id}
@@ -499,6 +500,7 @@ export default function CommunityPage() {
                         {message.isSent && <span className="text-2xl">{message.avatar}</span>}
                       </div>
                     ))}
+                  </>
                 )}
               </div>
 
@@ -548,8 +550,6 @@ export default function CommunityPage() {
                   </div>
                 )}
               </div>
-                </>
-              )}
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
@@ -561,8 +561,6 @@ export default function CommunityPage() {
           </div>
         </div>
       </div>
-
-      {/* Join Modal */}
       {showJoinModal && joinCommunity && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
