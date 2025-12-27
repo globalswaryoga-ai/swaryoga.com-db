@@ -8,6 +8,7 @@ import Footer from '@/components/Footer';
 import { ArrowLeft } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { CartItem, getStoredCart } from '@/lib/cart';
+import PaymentInstructionModal from '@/components/PaymentInstructionModal';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,7 @@ function CheckoutInner() {
   );
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartLoaded, setIsCartLoaded] = useState(false);
+  const [showPaymentInstructionModal, setShowPaymentInstructionModal] = useState(false);
 
   useEffect(() => {
     const items = getStoredCart();
@@ -97,10 +99,9 @@ function CheckoutInner() {
         return;
       }
 
-      // Handle Nepal Rs - Show QR code and WhatsApp instruction
+      // Handle Nepal Rs - Show payment instruction modal
       if (selectedCurrency === 'NPR') {
-        alert('Thank you for your order!\n\nPlease scan the QR code displayed and send a screenshot of your payment to our WhatsApp:\n\n+91 9779006820\n\nWe will update you shortly.');
-        // In a real scenario, you might show a modal with QR code instead of alert
+        setShowPaymentInstructionModal(true);
         setLoading(false);
         return;
       }
@@ -508,6 +509,17 @@ function CheckoutInner() {
           </div>
         </div>
       </main>
+
+      {/* Payment Instruction Modal for Nepal Rs */}
+      <PaymentInstructionModal
+        isOpen={showPaymentInstructionModal}
+        onClose={() => setShowPaymentInstructionModal(false)}
+        currency={selectedCurrency}
+        amount={summaryTotal}
+        email={formData.email}
+        phone={formData.phone}
+      />
+
       <Footer />
     </>
   );
