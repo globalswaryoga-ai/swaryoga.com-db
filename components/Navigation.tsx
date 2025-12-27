@@ -21,6 +21,7 @@ export default function Navigation() {
     { name: 'Workshops', href: '/workshop' },
     { name: 'Resort', href: '/resort' },
     { name: 'Blog', href: '/blog' },
+    { name: 'Community', href: '/community' },
     { name: 'Contact', href: '/contact' },
   ];
 
