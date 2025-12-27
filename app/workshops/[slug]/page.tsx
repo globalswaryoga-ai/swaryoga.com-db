@@ -15,8 +15,8 @@ const extractFiveLines = (text: string): string[] => {
   return lines.slice(0, 5);
 };
 
-export default function WorkshopDetailPage({ params }: { params: { id: string } }) {
-  const workshop = findWorkshopBySlug(params.id);
+export default function WorkshopDetailPage({ params }: { params: { slug: string } }) {
+  const workshop = findWorkshopBySlug(params.slug);
 
   // Invalid slug (including reserved words like "register") should be a real 404.
   if (!workshop) {
