@@ -372,6 +372,86 @@ export default function CommunityPage() {
                       <p className="text-xs text-gray-600 mt-1">Group: {currentUser.groupName}</p>
                     </div>
                   )}
+                  
+                  {/* Join Form in Header - Compact */}
+                  {selectedCommunity.id === 'general' && !userMemberships.has('general') && !currentUser && (
+                    <div className="hidden md:block bg-white border border-blue-200 rounded-lg p-3 min-w-max max-w-xs">
+                      <p className="text-xs font-bold text-gray-700 mb-2">Quick Join</p>
+                      <form onSubmit={handleJoinSubmit} className="space-y-2">
+                        <input
+                          type="text"
+                          value={joinForm.name}
+                          onChange={(e) => setJoinForm(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="Name"
+                          required
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <input
+                          type="email"
+                          value={joinForm.email}
+                          onChange={(e) => setJoinForm(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="Email"
+                          required
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <div className="flex gap-1">
+                          <select
+                            value={joinForm.countryCode}
+                            onChange={(e) => setJoinForm(prev => ({ ...prev, countryCode: e.target.value }))}
+                            className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                          >
+                            <option value="+91">+91</option>
+                            <option value="+1">+1</option>
+                            <option value="+44">+44</option>
+                            <option value="+61">+61</option>
+                            <option value="+27">+27</option>
+                            <option value="+977">+977</option>
+                            <option value="+971">+971</option>
+                            <option value="+65">+65</option>
+                            <option value="+60">+60</option>
+                            <option value="+234">+234</option>
+                          </select>
+                          <input
+                            type="tel"
+                            value={joinForm.mobile}
+                            onChange={(e) => setJoinForm(prev => ({ ...prev, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                            placeholder="Mobile"
+                            maxLength={10}
+                            required
+                            className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <select
+                          value={joinForm.groupName}
+                          onChange={(e) => setJoinForm(prev => ({ ...prev, groupName: e.target.value }))}
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                        >
+                          <option value="Public Community">Public Community</option>
+                          <option value="Swar Yoga">Swar Yoga</option>
+                          <option value="Youth Swar Yoga">Youth Swar Yoga</option>
+                          <option value="English Swar Yoga">English Swar Yoga</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={joinForm.userId}
+                          onChange={(e) => setJoinForm(prev => ({ ...prev, userId: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                          placeholder="User ID (6 digits)"
+                          maxLength={6}
+                          required
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <button
+                          type="submit"
+                          disabled={joinLoading}
+                          className="w-full py-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-semibold rounded hover:shadow-md transition-all disabled:opacity-50"
+                        >
+                          {joinLoading ? 'Joining...' : 'Join'}
+                        </button>
+                        {joinError && <p className="text-xs text-red-600">{joinError}</p>}
+                      </form>
+                    </div>
+                  )}
+                  
                   <div className="flex gap-2">
                   <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                     <Phone size={20} className="text-gray-600" />
@@ -385,218 +465,41 @@ export default function CommunityPage() {
                 </div>
               </div>
 
-              {/* Header Section with Join Form - Below Header for General Community */}
-              {selectedCommunity.id === 'general' && !userMemberships.has('general') ? (
-                <div className="flex-1 flex flex-col bg-gradient-to-br from-blue-50 to-purple-50 overflow-y-auto">
-                  {/* Form positioned below header */}
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="w-full max-w-2xl mx-auto">
-                      <div className="bg-white rounded-xl shadow-lg p-8">
-                        <div className="mb-8">
-                          <h2 className="text-3xl font-bold text-gray-900 mb-3">📋 Join Our Community</h2>
-                          <p className="text-lg text-gray-600">Fill the form below to join the Public Community and start engaging with our members</p>
-                        </div>
-                        
-                        <form onSubmit={handleJoinSubmit} className="space-y-6">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
-                              <input
-                                type="text"
-                                value={joinForm.name}
-                                onChange={(e) => setJoinForm(prev => ({ ...prev, name: e.target.value }))}
-                                placeholder="Your full name"
-                                required
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Email *
-                                {joinForm.email && !validateEmail(joinForm.email) && (
-                                  <span className="text-red-600 text-xs ml-1">✗ Invalid</span>
-                                )}
-                                {joinForm.email && validateEmail(joinForm.email) && (
-                                  <span className="text-green-600 text-xs ml-1">✓ Valid</span>
-                                )}
-                              </label>
-                              <input
-                                type="email"
-                                value={joinForm.email}
-                                onChange={(e) => setJoinForm(prev => ({ ...prev, email: e.target.value }))}
-                                placeholder="your@email.com"
-                                required
-                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                                  joinForm.email && validateEmail(joinForm.email)
-                                    ? 'border-green-300 focus:ring-green-500'
-                                    : joinForm.email && !validateEmail(joinForm.email)
-                                    ? 'border-red-300 focus:ring-red-500'
-                                    : 'border-gray-300 focus:ring-blue-500'
-                                }`}
-                              />
-                            </div>
-
-                            <div className="md:col-span-2">
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                WhatsApp Number *
-                                {joinForm.mobile && !validateWhatsApp(joinForm.mobile) && (
-                                  <span className="text-red-600 text-xs ml-1">✗ Must be 10 digits</span>
-                                )}
-                                {joinForm.mobile && validateWhatsApp(joinForm.mobile) && (
-                                  <span className="text-green-600 text-xs ml-1">✓ Valid</span>
-                                )}
-                              </label>
-                              <div className="flex gap-2">
-                                <select
-                                  value={joinForm.countryCode}
-                                  onChange={(e) => setJoinForm(prev => ({ ...prev, countryCode: e.target.value }))}
-                                  className="px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold"
-                                >
-                                  <option value="+91">🇮🇳 +91</option>
-                                  <option value="+1">🇺🇸 +1</option>
-                                  <option value="+44">🇬🇧 +44</option>
-                                  <option value="+61">🇦🇺 +61</option>
-                                  <option value="+27">🇿🇦 +27</option>
-                                  <option value="+977">🇳🇵 +977</option>
-                                  <option value="+971">🇦🇪 +971</option>
-                                  <option value="+65">🇸🇬 +65</option>
-                                  <option value="+60">🇲🇾 +60</option>
-                                  <option value="+234">🇳🇬 +234</option>
-                                </select>
-                                <input
-                                  type="tel"
-                                  value={joinForm.mobile}
-                                  onChange={(e) => setJoinForm(prev => ({ ...prev, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
-                                  placeholder="9876543210"
-                                  maxLength={10}
-                                  required
-                                  className={`flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                                    joinForm.mobile && validateWhatsApp(joinForm.mobile)
-                                      ? 'border-green-300 focus:ring-green-500'
-                                      : joinForm.mobile && !validateWhatsApp(joinForm.mobile)
-                                      ? 'border-red-300 focus:ring-red-500'
-                                      : 'border-gray-300 focus:ring-blue-500'
-                                  }`}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="md:col-span-2">
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Select Group
-                              </label>
-                              <select
-                                value={joinForm.groupName}
-                                onChange={(e) => setJoinForm(prev => ({ ...prev, groupName: e.target.value }))}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                              >
-                                <option value="Public Community">Public Community (Default)</option>
-                                <option value="Swar Yoga">Swar Yoga</option>
-                                <option value="Aham Bramhasmi">Aham Bramhasmi</option>
-                                <option value="Astavakra">Astavakra</option>
-                                <option value="Shivoham">Shivoham</option>
-                                <option value="I am Fit">I am Fit</option>
-                                <option value="Children Swar Yoga">Children Swar Yoga</option>
-                                <option value="Youth Swar Yoga">Youth Swar Yoga</option>
-                                <option value="English Swar Yoga">English Swar Yoga</option>
-                                <option value="Shankara">Shankara</option>
-                                <option value="Amrut Bhoj">Amrut Bhoj</option>
-                                <option value="Yogasana">Yogasana</option>
-                                <option value="Businessman">Businessman</option>
-                              </select>
-                              <p className="text-xs text-gray-500 mt-2">
-                                Select your group. Admin can add you to other groups after program enrollment.
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                  User ID (6 digits) *
-                                </label>
-                                <input
-                                  type="text"
-                                  value={joinForm.userId}
-                                  onChange={(e) => setJoinForm(prev => ({ ...prev, userId: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                                  placeholder="123456"
-                                  maxLength={6}
-                                  required
-                                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors font-mono ${
-                                    joinForm.userId && joinForm.userId.length === 6
-                                      ? 'border-green-300 focus:ring-green-500'
-                                      : joinForm.userId && joinForm.userId.length < 6
-                                      ? 'border-yellow-300 focus:ring-yellow-500'
-                                      : 'border-gray-300 focus:ring-blue-500'
-                                  }`}
-                                />
-                                <p className="text-xs text-gray-500 mt-2">
-                                  {joinForm.userId.length === 0 && 'Enter your 6-digit user ID from your purchase'}
-                                  {joinForm.userId.length > 0 && joinForm.userId.length < 6 && `${6 - joinForm.userId.length} more digit${6 - joinForm.userId.length !== 1 ? 's' : ''} needed`}
-                                  {joinForm.userId.length === 6 && '✓ User ID complete (will verify against your sales record)'}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {joinError && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 flex items-start gap-2">
-                              <span className="text-lg">⚠️</span>
-                              <span>{joinError}</span>
-                            </div>
-                          )}
-
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
-                            <p className="font-semibold mb-2">📌 Important Notice</p>
-                            <p className="mb-2">Your 6-digit User ID must match your sales record (email or mobile). This will be verified upon submission.</p>
-                            <p>Other groups can only be added by admin after your program enrollment. You'll start with General Community access.</p>
-                          </div>
-
-                          <button
-                            type="submit"
-                            disabled={joinLoading}
-                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
-                          >
-                            {joinLoading ? 'Joining...' : 'Join Community'}
-                          </button>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Messages Area - Below Form */}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col justify-end">
-                    {/* Form closed, messages start below */}
-                  </div>
-                </div>
-              ) : (
-                <>
-              {/* Messages Area */}
+              {/* Messages Area - Always displayed */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col justify-end">
-                {SAMPLE_MESSAGES.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex gap-3 ${message.isSent ? 'justify-end' : 'justify-start'}`}
-                  >
-                    {!message.isSent && <span className="text-2xl">{message.avatar}</span>}
-                    <div className={`max-w-sm ${message.isSent ? 'items-end' : 'items-start'}`}>
-                      {!message.isSent && (
-                        <p className="text-xs font-semibold text-gray-700 mb-1">{message.author}</p>
-                      )}
-                      <div
-                        className={`px-4 py-2 rounded-lg ${
-                          message.isSent
-                            ? 'bg-blue-600 text-white rounded-br-none'
-                            : 'bg-gray-200 text-gray-900 rounded-bl-none'
-                        }`}
-                      >
-                        <p>{message.content}</p>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1 px-2">{message.timestamp}</p>
+                {selectedCommunity.id === 'general' && !userMemberships.has('general') ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <p className="text-gray-500 text-lg mb-4">Join the community to see messages</p>
+                      <p className="text-gray-400 text-sm">Complete the form in the header to join</p>
                     </div>
-                    {message.isSent && <span className="text-2xl">{message.avatar}</span>}
                   </div>
-                ))}
+                ) : (
+                    {SAMPLE_MESSAGES.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex gap-3 ${message.isSent ? 'justify-end' : 'justify-start'}`}
+                      >
+                        {!message.isSent && <span className="text-2xl">{message.avatar}</span>}
+                        <div className={`max-w-sm ${message.isSent ? 'items-end' : 'items-start'}`}>
+                          {!message.isSent && (
+                            <p className="text-xs font-semibold text-gray-700 mb-1">{message.author}</p>
+                          )}
+                          <div
+                            className={`px-4 py-2 rounded-lg ${
+                              message.isSent
+                                ? 'bg-blue-600 text-white rounded-br-none'
+                                : 'bg-gray-200 text-gray-900 rounded-bl-none'
+                            }`}
+                          >
+                            <p>{message.content}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 px-2">{message.timestamp}</p>
+                        </div>
+                        {message.isSent && <span className="text-2xl">{message.avatar}</span>}
+                      </div>
+                    ))}
+                )}
               </div>
 
               {/* Input Area */}
@@ -647,15 +550,15 @@ export default function CommunityPage() {
               </div>
                 </>
               )}
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <MessageCircle size={64} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500 text-lg">Select a community to start messaging</p>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <MessageCircle size={64} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500 text-lg">Select a community to start messaging</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
