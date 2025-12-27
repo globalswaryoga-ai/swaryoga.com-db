@@ -5,12 +5,12 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
-    const { name, email, mobile, communityId, communityName } = await request.json();
+    const { name, email, mobile, countryCode, userId, communityId, communityName } = await request.json();
 
     // Validate inputs
-    if (!name || !mobile || !communityId || !communityName) {
+    if (!name || !mobile || !userId || !communityId || !communityName) {
       return NextResponse.json(
-        { error: 'Name, mobile, communityId, and communityName are required' },
+        { error: 'Name, mobile, userId, communityId, and communityName are required' },
         { status: 400 }
       );
     }
@@ -57,6 +57,8 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       email: email ? email.trim().toLowerCase() : null,
       mobile: cleanMobile,
+      countryCode: countryCode || '+91',
+      userId: userId.toString().padStart(6, '0'),
       communityId,
       communityName,
       status: 'active',

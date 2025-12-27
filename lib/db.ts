@@ -803,6 +803,7 @@ const communityMemberSchema = new mongoose.Schema({
   email: { type: String, required: true, trim: true, lowercase: true, sparse: true },
   mobile: { type: String, required: true, trim: true, unique: true },
   countryCode: { type: String, default: '+91' },
+  userId: { type: String, required: true, index: true }, // 6-digit user ID
   communityId: { type: String, required: true }, // 'general', 'swar-yoga', etc.
   communityName: { type: String, required: true }, // Denormalized for quick queries
   joinedAt: { type: Date, default: Date.now, index: true },

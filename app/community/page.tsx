@@ -70,7 +70,7 @@ export default function CommunityPage() {
   const [messageInput, setMessageInput] = useState('');
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCommunity, setJoinCommunity] = useState<Community | null>(null);
-  const [joinForm, setJoinForm] = useState({ name: '', email: '', countryCode: '+91', mobile: '', groupName: '' });
+  const [joinForm, setJoinForm] = useState({ name: '', email: '', countryCode: '+91', mobile: '', groupName: 'Public Community', userId: '' });
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [joinSuccess, setJoinSuccess] = useState(false);
@@ -135,6 +135,8 @@ export default function CommunityPage() {
           name: joinForm.name,
           email: joinForm.email,
           mobile: joinForm.mobile,
+          countryCode: joinForm.countryCode,
+          userId: joinForm.userId,
           communityId: 'general',
           communityName: 'General Community',
         }),
@@ -165,6 +167,8 @@ export default function CommunityPage() {
               name: joinForm.name,
               email: joinForm.email,
               mobile: joinForm.mobile,
+              countryCode: joinForm.countryCode,
+              userId: joinForm.userId,
               communityId: targetCommunity.id,
               communityName: targetCommunity.name,
             }),
@@ -201,7 +205,7 @@ export default function CommunityPage() {
         setCanSendMessage((prev) => new Set([...prev, joinCommunity?.id || '']));
       }
       
-      setJoinForm({ name: '', email: '', mobile: '' });
+      setJoinForm({ name: '', email: '', mobile: '', countryCode: '+91', groupName: 'Public Community', userId: '' });
       setTimeout(() => {
         setShowJoinModal(false);
         setJoinSuccess(false);
@@ -455,18 +459,58 @@ export default function CommunityPage() {
 
                             <div className="md:col-span-2">
                               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Group Name (Optional)
+                                Select Group
                               </label>
-                              <input
-                                type="text"
+                              <select
                                 value={joinForm.groupName}
                                 onChange={(e) => setJoinForm(prev => ({ ...prev, groupName: e.target.value }))}
-                                placeholder='e.g., "Swar Yoga", "Youth Swar Yoga", "English Swar Yoga"'
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                              >
+                                <option value="Public Community">Public Community (Default)</option>
+                                <option value="Swar Yoga">Swar Yoga</option>
+                                <option value="Aham Bramhasmi">Aham Bramhasmi</option>
+                                <option value="Astavakra">Astavakra</option>
+                                <option value="Shivoham">Shivoham</option>
+                                <option value="I am Fit">I am Fit</option>
+                                <option value="Children Swar Yoga">Children Swar Yoga</option>
+                                <option value="Youth Swar Yoga">Youth Swar Yoga</option>
+                                <option value="English Swar Yoga">English Swar Yoga</option>
+                                <option value="Shankara">Shankara</option>
+                                <option value="Amrut Bhoj">Amrut Bhoj</option>
+                                <option value="Yogasana">Yogasana</option>
+                                <option value="Businessman">Businessman</option>
+                              </select>
                               <p className="text-xs text-gray-500 mt-2">
-                                If you have a group name, enter it here. Otherwise, you'll be added to Public Community only. Admin can add you to other groups later.
+                                Select your group. Admin can add you to other groups after program enrollment.
                               </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                  User ID (6 digits) *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={joinForm.userId}
+                                  onChange={(e) => setJoinForm(prev => ({ ...prev, userId: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                                  placeholder="123456"
+                                  maxLength={6}
+                                  required
+                                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors font-mono ${
+                                    joinForm.userId && joinForm.userId.length === 6
+                                      ? 'border-green-300 focus:ring-green-500'
+                                      : joinForm.userId && joinForm.userId.length < 6
+                                      ? 'border-yellow-300 focus:ring-yellow-500'
+                                      : 'border-gray-300 focus:ring-blue-500'
+                                  }`}
+                                />
+                                <p className="text-xs text-gray-500 mt-2">
+                                  {joinForm.userId.length === 0 && 'Enter your 6-digit user ID'}
+                                  {joinForm.userId.length > 0 && joinForm.userId.length < 6 && `${6 - joinForm.userId.length} more digit${6 - joinForm.userId.length !== 1 ? 's' : ''} needed`}
+                                  {joinForm.userId.length === 6 && '✓ Valid user ID'}
+                                </p>
+                              </div>
                             </div>
                           </div>
 
