@@ -32,7 +32,7 @@ const OPEN_COMMUNITIES: Community[] = [
     id: 'general', 
     name: 'General Community', 
     type: 'open', 
-    icon: '🌍', 
+    icon: '', 
     members: 1542, 
     description: 'Open for all members',
     lastMessage: 'Welcome to our community!',
@@ -43,18 +43,18 @@ const OPEN_COMMUNITIES: Community[] = [
 ];
 
 const ENROLL_COMMUNITIES: Community[] = [
-  { id: 'swar-yoga', name: 'Swar Yoga', type: 'enroll', icon: '🎵', members: 324, description: 'Join for yoga practices', lastMessage: 'New session tomorrow...', lastMessageTime: '5 min ago', unread: 2, isJoined: false },
-  { id: 'aham-bramhasmi', name: 'Aham Bramhasmi', type: 'enroll', icon: '✨', members: 287, description: 'Spiritual growth', lastMessage: 'Amazing insights shared', lastMessageTime: '1 hour ago', unread: 0, isJoined: false },
-  { id: 'astavakra', name: 'Astavakra', type: 'enroll', icon: '🧘', members: 156, description: 'Teachings community', lastMessage: 'Wisdom sharing...', lastMessageTime: '3 hours ago', unread: 1, isJoined: false },
-  { id: 'shivoham', name: 'Shivoham', type: 'enroll', icon: '🔱', members: 198, description: 'Shiva consciousness', lastMessage: 'Meditation practice', lastMessageTime: '1 day ago', unread: 0, isJoined: false },
-  { id: 'i-am-fit', name: 'I am Fit', type: 'enroll', icon: '💪', members: 423, description: 'Fitness & wellness', lastMessage: 'Workout routine...', lastMessageTime: '2 days ago', unread: 0, isJoined: false },
-  { id: 'children-yoga', name: 'Children Swar Yoga', type: 'enroll', icon: '👶', members: 289, description: 'Young practitioners', lastMessage: 'Fun activities', lastMessageTime: '1 day ago', unread: 0, isJoined: false },
-  { id: 'youth-yoga', name: 'Youth Swar Yoga', type: 'enroll', icon: '🚀', members: 512, description: 'Youth empowerment', lastMessage: 'New updates', lastMessageTime: '4 hours ago', unread: 3, isJoined: true },
-  { id: 'english-yoga', name: 'English Swar Yoga', type: 'enroll', icon: '🌐', members: 401, description: 'English language', lastMessage: 'Discussion ongoing', lastMessageTime: '2 hours ago', unread: 0, isJoined: false },
-  { id: 'shankara', name: 'Shankara', type: 'enroll', icon: '📚', members: 176, description: 'Vedanta teachings', lastMessage: 'Philosophical insights', lastMessageTime: '5 hours ago', unread: 0, isJoined: false },
-  { id: 'amrut-bhoj', name: 'Amrut Bhoj', type: 'enroll', icon: '🍯', members: 234, description: 'Wisdom sharing', lastMessage: 'Nectar of knowledge', lastMessageTime: '3 days ago', unread: 0, isJoined: false },
-  { id: 'yogasana', name: 'Yogasana', type: 'enroll', icon: '🕉️', members: 367, description: 'Physical practice', lastMessage: 'Asana guide...', lastMessageTime: '6 hours ago', unread: 0, isJoined: false },
-  { id: 'businessman', name: 'Businessman', type: 'enroll', icon: '💼', members: 289, description: 'Business & growth', lastMessage: 'Business tips', lastMessageTime: '1 hour ago', unread: 1, isJoined: false },
+  { id: 'swar-yoga', name: 'Swar Yoga', type: 'enroll', icon: '', members: 324, description: 'Join for yoga practices', lastMessage: 'New session tomorrow...', lastMessageTime: '5 min ago', unread: 2, isJoined: false },
+  { id: 'aham-bramhasmi', name: 'Aham Bramhasmi', type: 'enroll', icon: '', members: 287, description: 'Spiritual growth', lastMessage: 'Amazing insights shared', lastMessageTime: '1 hour ago', unread: 0, isJoined: false },
+  { id: 'astavakra', name: 'Astavakra', type: 'enroll', icon: '', members: 156, description: 'Teachings community', lastMessage: 'Wisdom sharing...', lastMessageTime: '3 hours ago', unread: 1, isJoined: false },
+  { id: 'shivoham', name: 'Shivoham', type: 'enroll', icon: '', members: 198, description: 'Shiva consciousness', lastMessage: 'Meditation practice', lastMessageTime: '1 day ago', unread: 0, isJoined: false },
+  { id: 'i-am-fit', name: 'I am Fit', type: 'enroll', icon: '', members: 423, description: 'Fitness & wellness', lastMessage: 'Workout routine...', lastMessageTime: '2 days ago', unread: 0, isJoined: false },
+  { id: 'children-yoga', name: 'Children Swar Yoga', type: 'enroll', icon: '', members: 289, description: 'Young practitioners', lastMessage: 'Fun activities', lastMessageTime: '1 day ago', unread: 0, isJoined: false },
+  { id: 'youth-yoga', name: 'Youth Swar Yoga', type: 'enroll', icon: '', members: 512, description: 'Youth empowerment', lastMessage: 'New updates', lastMessageTime: '4 hours ago', unread: 3, isJoined: true },
+  { id: 'english-yoga', name: 'English Swar Yoga', type: 'enroll', icon: '', members: 401, description: 'English language', lastMessage: 'Discussion ongoing', lastMessageTime: '2 hours ago', unread: 0, isJoined: false },
+  { id: 'shankara', name: 'Shankara', type: 'enroll', icon: '', members: 176, description: 'Vedanta teachings', lastMessage: 'Philosophical insights', lastMessageTime: '5 hours ago', unread: 0, isJoined: false },
+  { id: 'amrut-bhoj', name: 'Amrut Bhoj', type: 'enroll', icon: '', members: 234, description: 'Wisdom sharing', lastMessage: 'Nectar of knowledge', lastMessageTime: '3 days ago', unread: 0, isJoined: false },
+  { id: 'yogasana', name: 'Yogasana', type: 'enroll', icon: '', members: 367, description: 'Physical practice', lastMessage: 'Asana guide...', lastMessageTime: '6 hours ago', unread: 0, isJoined: false },
+  { id: 'businessman', name: 'Businessman', type: 'enroll', icon: '', members: 289, description: 'Business & growth', lastMessage: 'Business tips', lastMessageTime: '1 hour ago', unread: 1, isJoined: false },
 ];
 
 const SAMPLE_MESSAGES: Message[] = [
@@ -70,7 +70,7 @@ export default function CommunityPage() {
   const [messageInput, setMessageInput] = useState('');
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCommunity, setJoinCommunity] = useState<Community | null>(null);
-  const [joinForm, setJoinForm] = useState({ name: '', email: '', mobile: '' });
+  const [joinForm, setJoinForm] = useState({ name: '', email: '', countryCode: '+91', mobile: '' });
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [joinSuccess, setJoinSuccess] = useState(false);
@@ -304,6 +304,117 @@ export default function CommunityPage() {
                 </div>
               </div>
 
+              {/* Header Section with Join Form */}
+              {selectedCommunity.id === 'general' && !userMemberships.has('general') && (
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-200 p-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">📋 Fill the form to join our community</h3>
+                    <p className="text-sm text-gray-600">Join the General Community and start engaging with our members</p>
+                  </div>
+                  
+                  <form onSubmit={handleJoinSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
+                        <input
+                          type="text"
+                          value={joinForm.name}
+                          onChange={(e) => setJoinForm(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="Your name"
+                          required
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Email *
+                          {joinForm.email && !validateEmail(joinForm.email) && (
+                            <span className="text-red-600 text-xs ml-1">✗ Invalid</span>
+                          )}
+                          {joinForm.email && validateEmail(joinForm.email) && (
+                            <span className="text-green-600 text-xs ml-1">✓ Valid</span>
+                          )}
+                        </label>
+                        <input
+                          type="email"
+                          value={joinForm.email}
+                          onChange={(e) => setJoinForm(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="your@email.com"
+                          required
+                          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                            joinForm.email && validateEmail(joinForm.email)
+                              ? 'border-green-300 focus:ring-green-500'
+                              : joinForm.email && !validateEmail(joinForm.email)
+                              ? 'border-red-300 focus:ring-red-500'
+                              : 'border-gray-300 focus:ring-blue-500'
+                          }`}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          WhatsApp Number *
+                          {joinForm.mobile && !validateWhatsApp(joinForm.mobile) && (
+                            <span className="text-red-600 text-xs ml-1">✗ Must be 10 digits</span>
+                          )}
+                          {joinForm.mobile && validateWhatsApp(joinForm.mobile) && (
+                            <span className="text-green-600 text-xs ml-1">✓ Valid</span>
+                          )}
+                        </label>
+                        <div className="flex gap-2">
+                          <select
+                            value={joinForm.countryCode}
+                            onChange={(e) => setJoinForm(prev => ({ ...prev, countryCode: e.target.value }))}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold"
+                          >
+                            <option value="+91">🇮🇳 +91</option>
+                            <option value="+1">🇺🇸 +1</option>
+                            <option value="+44">🇬🇧 +44</option>
+                            <option value="+61">🇦🇺 +61</option>
+                            <option value="+27">🇿🇦 +27</option>
+                            <option value="+977">🇳🇵 +977</option>
+                            <option value="+971">🇦🇪 +971</option>
+                            <option value="+65">🇸🇬 +65</option>
+                            <option value="+60">🇲🇾 +60</option>
+                            <option value="+234">🇳🇬 +234</option>
+                          </select>
+                          <input
+                            type="tel"
+                            value={joinForm.mobile}
+                            onChange={(e) => setJoinForm(prev => ({ ...prev, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                            placeholder="9876543210"
+                            maxLength={10}
+                            required
+                            className={`flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                              joinForm.mobile && validateWhatsApp(joinForm.mobile)
+                                ? 'border-green-300 focus:ring-green-500'
+                                : joinForm.mobile && !validateWhatsApp(joinForm.mobile)
+                                ? 'border-red-300 focus:ring-red-500'
+                                : 'border-gray-300 focus:ring-blue-500'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {joinError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                        ⚠️ {joinError}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={joinLoading}
+                      className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                    >
+                      {joinLoading ? 'Joining...' : 'Join Community'}
+                    </button>
+                  </form>
+                </div>
+              )}
+
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col justify-end">
                 {SAMPLE_MESSAGES.map((message) => (
@@ -334,20 +445,7 @@ export default function CommunityPage() {
 
               {/* Input Area */}
               <div className="bg-white border-t border-gray-200 p-4">
-                {selectedCommunity.id === 'general' && !userMemberships.has('general') ? (
-                  // General Community - requires form first
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-200 text-center">
-                    <p className="text-gray-700 font-semibold mb-3">
-                      📝 Fill the form to join our community
-                    </p>
-                    <button
-                      onClick={() => handleJoinClick(selectedCommunity)}
-                      className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
-                    >
-                      Join with Form
-                    </button>
-                  </div>
-                ) : selectedCommunity.id === 'general' && !canSendMessage.has('general') ? (
+                {selectedCommunity.id === 'general' && !canSendMessage.has('general') ? (
                   // General Community - joined but not approved yet
                   <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-lg border border-yellow-200 text-center">
                     <p className="text-gray-700 font-semibold mb-2">
