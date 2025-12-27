@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { Lead, LeadNote, LeadFollowUp } from '@/lib/schemas/enterpriseSchemas';
+import { Lead, LeadNote, LeadFollowUp, WhatsAppMessage, WhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
+import { ConsentManager } from '@/lib/consentManager';
+import { sendWhatsAppText } from '@/lib/whatsapp';
 import { Types } from 'mongoose';
 
 function parseTodosText(input: unknown): Array<{ text: string; dueDate?: string }> {
@@ -266,35 +268,203 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // For now, just save as a note with WhatsApp metadata
-        // In a full implementation, this would queue a WhatsApp message send
-        const note = new LeadNote({
-          leadId,
-          createdByUserId: userId,
-          note: `[WhatsApp] ${followupNotes}`,
-          metadata: {
-            source: 'leads-followup-page',
-            actionType: 'whatsapp',
-            whatsappType: extras.whatsappType,
-            scheduled: extras.whatsappScheduled,
-            scheduleDate: extras.whatsappScheduleDate,
-            delayed: extras.whatsappDelayed,
-            delayAmount: extras.whatsappDelayAmount,
-            delayUnit: extras.whatsappDelayUnit,
-            broadcast: extras.whatsappBroadcast,
-            broadcastLabel: extras.whatsappBroadcastLabel,
-          },
-        });
-        await note.save();
+        try {
+          // Get lead with phone number
+          const lead = await Lead.findById(leadId);
+          if (!lead || !lead.phoneNumber) {
+            return NextResponse.json(
+              { error: 'Lead phone number not found' },
+              { status: 400 }
+            );
+          }
 
-        return NextResponse.json(
-          {
-            success: true,
-            message: 'WhatsApp message queued (TODO: implement actual send)',
-            data: note,
-          },
-          { status: 201 }
-        );
+          // Check compliance
+          const compliance = await ConsentManager.validateCompliance(lead.phoneNumber);
+          if (!compliance.compliant) {
+            return NextResponse.json(
+              { 
+                error: 'Lead has opted out of WhatsApp messages',
+                compliance: compliance 
+              },
+              { status: 400 }
+            );
+          }
+
+          // Handle scheduled/delayed vs immediate
+          const now = new Date();
+          let messageData: any = {
+            leadId,
+            phoneNumber: lead.phoneNumber,
+            direction: 'outbound',
+            messageType: extras.whatsappType || 'text',
+            messageContent: followupNotes.trim(),
+            status: 'queued',
+            sentBy: userId,
+            sentAt: now,
+            retryCount: 0,
+            metadata: {
+              source: 'leads-followup-page',
+              actionType: 'whatsapp',
+            },
+          };
+
+          // Handle scheduling
+          if (extras.whatsappScheduled && extras.whatsappScheduleDate) {
+            const scheduledDate = new Date(extras.whatsappScheduleDate);
+            if (scheduledDate > now) {
+              // Create scheduled job instead of immediate message
+              const job = new WhatsAppScheduledJob({
+                createdByUserId: userId,
+                messageType: extras.whatsappType || 'text',
+                messageContent: followupNotes.trim(),
+                targetFilters: { leadIds: [leadId] },
+                status: 'active',
+                frequency: 'once',
+                nextRunAt: scheduledDate,
+                metadata: { source: 'leads-followup' },
+              });
+              await job.save();
+
+              // Save note
+              const note = new LeadNote({
+                leadId,
+                createdByUserId: userId,
+                note: `[WhatsApp-Scheduled] ${followupNotes}`,
+                metadata: {
+                  source: 'leads-followup-page',
+                  actionType: 'whatsapp-scheduled',
+                  scheduledFor: scheduledDate,
+                  jobId: job._id,
+                },
+              });
+              await note.save();
+
+              return NextResponse.json(
+                {
+                  success: true,
+                  message: 'WhatsApp message scheduled',
+                  data: { note, job },
+                },
+                { status: 201 }
+              );
+            }
+          }
+
+          // Handle delayed sending
+          if (extras.whatsappDelayed && extras.whatsappDelayAmount) {
+            const delayMs = 
+              (extras.whatsappDelayUnit === 'hours' 
+                ? parseInt(extras.whatsappDelayAmount) * 60 * 60 * 1000
+                : parseInt(extras.whatsappDelayAmount) * 60 * 1000);
+            
+            messageData.delayedUntil = new Date(now.getTime() + delayMs);
+            messageData.status = 'delayed';
+          }
+
+          // Create message record
+          const message = new WhatsAppMessage(messageData);
+          await message.save();
+
+          // Send immediately if not scheduled/delayed
+          if (!extras.whatsappScheduled && !extras.whatsappDelayed) {
+            try {
+              const apiResult = await sendWhatsAppText(lead.phoneNumber, followupNotes.trim());
+              
+              // Update message status
+              await WhatsAppMessage.findByIdAndUpdate(message._id, {
+                status: 'sent',
+                waMessageId: apiResult.waMessageId,
+                updatedAt: new Date(),
+              });
+
+              // Save note
+              const note = new LeadNote({
+                leadId,
+                createdByUserId: userId,
+                note: `[WhatsApp-Sent] ${followupNotes}`,
+                metadata: {
+                  source: 'leads-followup-page',
+                  actionType: 'whatsapp-sent',
+                  messageId: message._id,
+                  sentAt: new Date(),
+                },
+              });
+              await note.save();
+
+              return NextResponse.json(
+                {
+                  success: true,
+                  message: 'WhatsApp message sent successfully',
+                  data: { message: note, waMessageId: apiResult.waMessageId },
+                },
+                { status: 201 }
+              );
+            } catch (sendError) {
+              // Update message as failed
+              const errorMsg = sendError instanceof Error ? sendError.message : 'Unknown error';
+              await WhatsAppMessage.findByIdAndUpdate(message._id, {
+                status: 'failed',
+                failureReason: errorMsg,
+              });
+
+              // Save note with error
+              const note = new LeadNote({
+                leadId,
+                createdByUserId: userId,
+                note: `[WhatsApp-Failed] ${followupNotes} - Error: ${errorMsg}`,
+                metadata: {
+                  source: 'leads-followup-page',
+                  actionType: 'whatsapp-failed',
+                  messageId: message._id,
+                  error: errorMsg,
+                },
+              });
+              await note.save();
+
+              return NextResponse.json(
+                {
+                  success: false,
+                  message: 'Failed to send WhatsApp message',
+                  error: errorMsg,
+                  data: note,
+                },
+                { status: 400 }
+              );
+            }
+          }
+
+          // For delayed messages, save note
+          const note = new LeadNote({
+            leadId,
+            createdByUserId: userId,
+            note: `[WhatsApp-${extras.whatsappDelayed ? 'Delayed' : 'Queued'}] ${followupNotes}`,
+            metadata: {
+              source: 'leads-followup-page',
+              actionType: `whatsapp-${extras.whatsappDelayed ? 'delayed' : 'queued'}`,
+              messageId: message._id,
+            },
+          });
+          await note.save();
+
+          return NextResponse.json(
+            {
+              success: true,
+              message: `WhatsApp message ${extras.whatsappDelayed ? 'queued for delayed delivery' : 'queued'}`,
+              data: note,
+            },
+            { status: 201 }
+          );
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+          return NextResponse.json(
+            {
+              success: false,
+              message: 'Error queuing WhatsApp message',
+              error: errorMsg,
+            },
+            { status: 500 }
+          );
+        }
       }
 
       case 'email': {
