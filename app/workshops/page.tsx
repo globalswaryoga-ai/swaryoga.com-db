@@ -11,6 +11,29 @@ import { workshopCatalog, WorkshopOverview, workshopDetails } from '@/lib/worksh
 
 export const dynamic = 'force-dynamic';
 
+// Fee mapping for all workshops
+const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; currency: string }> = {
+  'swar-yoga-basic': { minPrice: 96, maxPrice: 96, currency: 'INR' },
+  'yogasana-sadhana': { minPrice: 330, maxPrice: 330, currency: 'INR' },
+  'swar-yoga-level-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'swar-yoga-level-3': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'swar-yoga-level-4': { minPrice: 6000, maxPrice: 6000, currency: 'INR' },
+  '96-days-weight-loss': { minPrice: 6600, maxPrice: 6600, currency: 'INR' },
+  '42-days-meditation': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
+  'amrut-aahar': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
+  'bandhan-mukti': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
+  'swar-yoga-level-2': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'swar-yoga-businessman': { minPrice: 4200, maxPrice: 4200, currency: 'INR' },
+  'personality-development': { minPrice: 3300, maxPrice: 5500, currency: 'INR' },
+  'garbh-sanskar': { minPrice: 1000, maxPrice: 9000, currency: 'INR' },
+  'teacher-training': { minPrice: 15000, maxPrice: 33000, currency: 'INR' },
+  'annual-satsang': { minPrice: 500, maxPrice: 1000, currency: 'INR' },
+  'nadi-parikshan': { minPrice: 500, maxPrice: 1000, currency: 'INR' },
+  'family-wellness': { minPrice: 2000, maxPrice: 4000, currency: 'INR' },
+  'advanced-breathing': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
+  'life-transformation': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+};
+
 const workshopFilterOptions = workshopCatalog.map((workshop) => ({
   slug: workshop.slug,
   name: workshop.name
@@ -658,7 +681,7 @@ function WorkshopsPageInner() {
                           {/* CTA Buttons */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                             <Link
-                              href={`/workshops/${workshop.slug}`}
+                              href={`/workshops/${workshop.slug}/landing`}
                               className="w-full bg-white border-2 border-primary-600 text-primary-700 hover:bg-primary-50 active:scale-95 py-2 sm:py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-xs sm:text-sm"
                             >
                               Learn More
@@ -676,7 +699,11 @@ function WorkshopsPageInner() {
                           <div className="flex items-center justify-between mb-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs sm:text-sm">
                             <span className="text-gray-600 font-semibold">Fee</span>
                             <span className="text-primary-700 font-bold">
-                              {startingPrice ? formatPrice(startingPrice, selectedPayment) : 'Contact us'}
+                              {WORKSHOP_FEES[workshop.slug]
+                                ? WORKSHOP_FEES[workshop.slug].minPrice === WORKSHOP_FEES[workshop.slug].maxPrice
+                                  ? formatPrice(WORKSHOP_FEES[workshop.slug].minPrice, selectedPayment)
+                                  : `₹${WORKSHOP_FEES[workshop.slug].minPrice.toLocaleString('en-IN')} - ${formatPrice(WORKSHOP_FEES[workshop.slug].maxPrice, selectedPayment)}`
+                                : 'Contact us'}
                             </span>
                           </div>
 
