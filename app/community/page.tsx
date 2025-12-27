@@ -30,7 +30,7 @@ interface Message {
 const OPEN_COMMUNITIES: Community[] = [
   { 
     id: 'general', 
-    name: 'General Community', 
+    name: 'Public Community', 
     type: 'open', 
     icon: '', 
     members: 1542, 
@@ -77,6 +77,7 @@ export default function CommunityPage() {
   const [userMemberships, setUserMemberships] = useState<Set<string>>(new Set());
   const [canSendMessage, setCanSendMessage] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<{ name: string; groupName: string } | null>(null);
+  const [onlineCount, setOnlineCount] = useState<number>(0);
 
   const handleJoinClick = (community: Community) => {
     setJoinCommunity(community);
@@ -186,8 +187,11 @@ export default function CommunityPage() {
       setJoinSuccess(true);
       
       // Store current user info with their group name
-      const userGroupName = joinForm.groupName.trim() || 'General Community';
+      const userGroupName = joinForm.groupName.trim() || 'Public Community';
       setCurrentUser({ name: joinForm.name, groupName: userGroupName });
+      
+      // Increment online count
+      setOnlineCount((prev) => prev + 1);
       
       // For general community, user is not approved yet
       if (joinCommunity?.id === 'general') {
@@ -328,7 +332,7 @@ export default function CommunityPage() {
                       {selectedCommunity.name}
                     </h1>
                     <p className="text-sm text-gray-500">
-                      {selectedCommunity.members.toLocaleString()} members • {selectedCommunity.description}
+                      {selectedCommunity.members.toLocaleString()} members • {onlineCount > 0 && <span className="inline-flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full"></span>{onlineCount} inside</span>} {onlineCount > 0 && '•'} {selectedCommunity.description}
                     </p>
                   </div>
                 </div>
@@ -360,7 +364,7 @@ export default function CommunityPage() {
                       <div className="bg-white rounded-xl shadow-lg p-8">
                         <div className="mb-8">
                           <h2 className="text-3xl font-bold text-gray-900 mb-3">📋 Join Our Community</h2>
-                          <p className="text-lg text-gray-600">Fill the form below to join the General Community and start engaging with our members</p>
+                          <p className="text-lg text-gray-600">Fill the form below to join the Public Community and start engaging with our members</p>
                         </div>
                         
                         <form onSubmit={handleJoinSubmit} className="space-y-6">
@@ -460,7 +464,7 @@ export default function CommunityPage() {
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                               <p className="text-xs text-gray-500 mt-2">
-                                If you have a group name, enter it here. Otherwise, you'll be added to General Community only. Admin can add you to other groups later.
+                                If you have a group name, enter it here. Otherwise, you'll be added to Public Community only. Admin can add you to other groups later.
                               </p>
                             </div>
                           </div>
