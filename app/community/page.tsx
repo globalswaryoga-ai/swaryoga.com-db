@@ -126,8 +126,33 @@ export default function CommunityPage() {
       return;
     }
 
+    if (!joinForm.userId || joinForm.userId.length !== 6) {
+      setJoinError('Please enter a valid 6-digit User ID');
+      setJoinLoading(false);
+      return;
+    }
+
     try {
-      // First: Always join to General Community
+      // First: Validate User ID against sales database
+      const validateResponse = await fetch('/api/community/validate-user-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: joinForm.userId,
+          email: joinForm.email,
+          mobile: joinForm.mobile,
+        }),
+      });
+
+      const validateData = await validateResponse.json();
+
+      if (!validateResponse.ok) {
+        setJoinError(validateData.error || 'User ID validation failed');
+        setJoinLoading(false);
+        return;
+      }
+
+      // Second: User ID validated - proceed with joining community
       const generalResponse = await fetch('/api/community/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -506,9 +531,9 @@ export default function CommunityPage() {
                                   }`}
                                 />
                                 <p className="text-xs text-gray-500 mt-2">
-                                  {joinForm.userId.length === 0 && 'Enter your 6-digit user ID'}
+                                  {joinForm.userId.length === 0 && 'Enter your 6-digit user ID from your purchase'}
                                   {joinForm.userId.length > 0 && joinForm.userId.length < 6 && `${6 - joinForm.userId.length} more digit${6 - joinForm.userId.length !== 1 ? 's' : ''} needed`}
-                                  {joinForm.userId.length === 6 && '✓ Valid user ID'}
+                                  {joinForm.userId.length === 6 && '✓ User ID complete (will verify against your sales record)'}
                                 </p>
                               </div>
                             </div>
@@ -523,6 +548,7 @@ export default function CommunityPage() {
 
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
                             <p className="font-semibold mb-2">📌 Important Notice</p>
+                            <p className="mb-2">Your 6-digit User ID must match your sales record (email or mobile). This will be verified upon submission.</p>
                             <p>Other groups can only be added by admin after your program enrollment. You'll start with General Community access.</p>
                           </div>
 

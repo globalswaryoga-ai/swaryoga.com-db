@@ -32,6 +32,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate User ID format
+    if (!/^\d{6}$/.test(userId)) {
+      return NextResponse.json(
+        { error: 'User ID must be exactly 6 digits' },
+        { status: 400 }
+      );
+    }
+
+    // Check if already a member by userId
+    const existingByUserId = await CommunityMember.findOne({
+      userId: userId,
+    });
+
+    if (existingByUserId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'This User ID is already registered in the community',
+        },
+        { status: 409 }
+      );
+    }
+
     // Check if already a member
     const existingMember = await CommunityMember.findOne({
       mobile: cleanMobile,
