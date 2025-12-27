@@ -105,6 +105,9 @@ export default function CommunityPage() {
     setJoinLoading(true);
     setJoinError('');
 
+    // Use selectedCommunity instead of joinCommunity for general form
+    const community = selectedCommunity?.id === 'general' ? selectedCommunity : joinCommunity;
+
     // Validation
     if (!joinForm.name.trim()) {
       setJoinError('Name is required');
@@ -124,6 +127,12 @@ export default function CommunityPage() {
       return;
     }
 
+    if (!community?.id || !community?.name) {
+      setJoinError('Community information is missing');
+      setJoinLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/community/join', {
         method: 'POST',
@@ -132,8 +141,8 @@ export default function CommunityPage() {
           name: joinForm.name,
           email: joinForm.email,
           mobile: joinForm.mobile,
-          communityId: joinCommunity?.id,
-          communityName: joinCommunity?.name,
+          communityId: community.id,
+          communityName: community.name,
         }),
       });
 
@@ -146,7 +155,7 @@ export default function CommunityPage() {
       }
 
       setJoinSuccess(true);
-      setUserMemberships((prev) => new Set([...prev, joinCommunity?.id || '']));
+      setUserMemberships((prev) => new Set([...prev, community.id]));
       
       // For general community, user is not approved yet
       if (joinCommunity?.id === 'general') {
@@ -304,117 +313,124 @@ export default function CommunityPage() {
                 </div>
               </div>
 
-              {/* Header Section with Join Form */}
-              {selectedCommunity.id === 'general' && !userMemberships.has('general') && (
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-200 p-6">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">📋 Fill the form to join our community</h3>
-                    <p className="text-sm text-gray-600">Join the General Community and start engaging with our members</p>
-                  </div>
-                  
-                  <form onSubmit={handleJoinSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
-                        <input
-                          type="text"
-                          value={joinForm.name}
-                          onChange={(e) => setJoinForm(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="Your name"
-                          required
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Email *
-                          {joinForm.email && !validateEmail(joinForm.email) && (
-                            <span className="text-red-600 text-xs ml-1">✗ Invalid</span>
-                          )}
-                          {joinForm.email && validateEmail(joinForm.email) && (
-                            <span className="text-green-600 text-xs ml-1">✓ Valid</span>
-                          )}
-                        </label>
-                        <input
-                          type="email"
-                          value={joinForm.email}
-                          onChange={(e) => setJoinForm(prev => ({ ...prev, email: e.target.value }))}
-                          placeholder="your@email.com"
-                          required
-                          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                            joinForm.email && validateEmail(joinForm.email)
-                              ? 'border-green-300 focus:ring-green-500'
-                              : joinForm.email && !validateEmail(joinForm.email)
-                              ? 'border-red-300 focus:ring-red-500'
-                              : 'border-gray-300 focus:ring-blue-500'
-                          }`}
-                        />
-                      </div>
-
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          WhatsApp Number *
-                          {joinForm.mobile && !validateWhatsApp(joinForm.mobile) && (
-                            <span className="text-red-600 text-xs ml-1">✗ Must be 10 digits</span>
-                          )}
-                          {joinForm.mobile && validateWhatsApp(joinForm.mobile) && (
-                            <span className="text-green-600 text-xs ml-1">✓ Valid</span>
-                          )}
-                        </label>
-                        <div className="flex gap-2">
-                          <select
-                            value={joinForm.countryCode}
-                            onChange={(e) => setJoinForm(prev => ({ ...prev, countryCode: e.target.value }))}
-                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold"
-                          >
-                            <option value="+91">🇮🇳 +91</option>
-                            <option value="+1">🇺🇸 +1</option>
-                            <option value="+44">🇬🇧 +44</option>
-                            <option value="+61">🇦🇺 +61</option>
-                            <option value="+27">🇿🇦 +27</option>
-                            <option value="+977">🇳🇵 +977</option>
-                            <option value="+971">🇦🇪 +971</option>
-                            <option value="+65">🇸🇬 +65</option>
-                            <option value="+60">🇲🇾 +60</option>
-                            <option value="+234">🇳🇬 +234</option>
-                          </select>
-                          <input
-                            type="tel"
-                            value={joinForm.mobile}
-                            onChange={(e) => setJoinForm(prev => ({ ...prev, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
-                            placeholder="9876543210"
-                            maxLength={10}
-                            required
-                            className={`flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                              joinForm.mobile && validateWhatsApp(joinForm.mobile)
-                                ? 'border-green-300 focus:ring-green-500'
-                                : joinForm.mobile && !validateWhatsApp(joinForm.mobile)
-                                ? 'border-red-300 focus:ring-red-500'
-                                : 'border-gray-300 focus:ring-blue-500'
-                            }`}
-                          />
+              {/* Header Section with Join Form - Full Page for General Community */}
+              {selectedCommunity.id === 'general' && !userMemberships.has('general') ? (
+                <div className="flex-1 flex flex-col bg-gradient-to-br from-blue-50 to-purple-50 overflow-y-auto">
+                  <div className="flex-1 flex items-center justify-center p-6">
+                    <div className="w-full max-w-2xl">
+                      <div className="bg-white rounded-xl shadow-lg p-8">
+                        <div className="mb-8">
+                          <h2 className="text-3xl font-bold text-gray-900 mb-3">📋 Join Our Community</h2>
+                          <p className="text-lg text-gray-600">Fill the form below to join the General Community and start engaging with our members</p>
                         </div>
+                        
+                        <form onSubmit={handleJoinSubmit} className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
+                              <input
+                                type="text"
+                                value={joinForm.name}
+                                onChange={(e) => setJoinForm(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Your full name"
+                                required
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Email *
+                                {joinForm.email && !validateEmail(joinForm.email) && (
+                                  <span className="text-red-600 text-xs ml-1">✗ Invalid</span>
+                                )}
+                                {joinForm.email && validateEmail(joinForm.email) && (
+                                  <span className="text-green-600 text-xs ml-1">✓ Valid</span>
+                                )}
+                              </label>
+                              <input
+                                type="email"
+                                value={joinForm.email}
+                                onChange={(e) => setJoinForm(prev => ({ ...prev, email: e.target.value }))}
+                                placeholder="your@email.com"
+                                required
+                                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                                  joinForm.email && validateEmail(joinForm.email)
+                                    ? 'border-green-300 focus:ring-green-500'
+                                    : joinForm.email && !validateEmail(joinForm.email)
+                                    ? 'border-red-300 focus:ring-red-500'
+                                    : 'border-gray-300 focus:ring-blue-500'
+                                }`}
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                WhatsApp Number *
+                                {joinForm.mobile && !validateWhatsApp(joinForm.mobile) && (
+                                  <span className="text-red-600 text-xs ml-1">✗ Must be 10 digits</span>
+                                )}
+                                {joinForm.mobile && validateWhatsApp(joinForm.mobile) && (
+                                  <span className="text-green-600 text-xs ml-1">✓ Valid</span>
+                                )}
+                              </label>
+                              <div className="flex gap-2">
+                                <select
+                                  value={joinForm.countryCode}
+                                  onChange={(e) => setJoinForm(prev => ({ ...prev, countryCode: e.target.value }))}
+                                  className="px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-semibold"
+                                >
+                                  <option value="+91">🇮🇳 +91</option>
+                                  <option value="+1">🇺🇸 +1</option>
+                                  <option value="+44">🇬🇧 +44</option>
+                                  <option value="+61">🇦🇺 +61</option>
+                                  <option value="+27">🇿🇦 +27</option>
+                                  <option value="+977">🇳🇵 +977</option>
+                                  <option value="+971">🇦🇪 +971</option>
+                                  <option value="+65">🇸🇬 +65</option>
+                                  <option value="+60">🇲🇾 +60</option>
+                                  <option value="+234">🇳🇬 +234</option>
+                                </select>
+                                <input
+                                  type="tel"
+                                  value={joinForm.mobile}
+                                  onChange={(e) => setJoinForm(prev => ({ ...prev, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                                  placeholder="9876543210"
+                                  maxLength={10}
+                                  required
+                                  className={`flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                                    joinForm.mobile && validateWhatsApp(joinForm.mobile)
+                                      ? 'border-green-300 focus:ring-green-500'
+                                      : joinForm.mobile && !validateWhatsApp(joinForm.mobile)
+                                      ? 'border-red-300 focus:ring-red-500'
+                                      : 'border-gray-300 focus:ring-blue-500'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {joinError && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 flex items-start gap-2">
+                              <span className="text-lg">⚠️</span>
+                              <span>{joinError}</span>
+                            </div>
+                          )}
+
+                          <button
+                            type="submit"
+                            disabled={joinLoading}
+                            className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                          >
+                            {joinLoading ? 'Joining...' : 'Join Community'}
+                          </button>
+                        </form>
                       </div>
                     </div>
-
-                    {joinError && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                        ⚠️ {joinError}
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={joinLoading}
-                      className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
-                    >
-                      {joinLoading ? 'Joining...' : 'Join Community'}
-                    </button>
-                  </form>
+                  </div>
                 </div>
-              )}
-
+              ) : (
+                <>
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col justify-end">
                 {SAMPLE_MESSAGES.map((message) => (
@@ -489,6 +505,8 @@ export default function CommunityPage() {
                   </div>
                 )}
               </div>
+                </>
+              )}
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center">
