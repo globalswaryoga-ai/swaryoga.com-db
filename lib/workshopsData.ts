@@ -33,7 +33,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/mzYKqFxYzQU',
     duration: '30 days',
     level: 'All Levels',
-    category: 'Sadhana',
+    category: 'Health',
     mode: ['Online', 'Offline'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -47,7 +47,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
     duration: '15 days',
     level: 'Beginner',
-    category: 'Swar Yoga',
+    category: 'Health',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -61,7 +61,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/5nqVXQG9Mvk',
     duration: '15 days',
     level: 'Intermediate',
-    category: 'Swar Yoga',
+    category: 'Wealth',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -75,7 +75,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/xm1h7KLhBNM',
     duration: '10 days',
     level: 'Beginner',
-    category: 'Youth',
+    category: 'Youth & Children',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -131,7 +131,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/L3GGhK65iEw',
     duration: '10 days',
     level: 'Advanced',
-    category: 'Swar Yoga',
+    category: 'Health',
     mode: ['Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -145,7 +145,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/y90cV_3OMrQ',
     duration: '36 days',
     level: 'All Levels',
-    category: 'Health',
+    category: 'Marriage',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -159,7 +159,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/8HWaFGJz6Yw',
     duration: '10 days',
     level: 'Beginner',
-    category: 'Youth',
+    category: 'Youth & Children',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -187,7 +187,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/9_OLxmZzcNQ',
     duration: '10 days',
     level: 'Intermediate',
-    category: 'Corporate',
+    category: 'Wealth',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -201,7 +201,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/GNNmCPBSyv8',
     duration: '30 days',
     level: 'Advanced',
-    category: 'Swar Yoga',
+    category: 'Health',
     mode: ['Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -215,7 +215,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/gNbVlsGXe3M',
     duration: '36 days',
     level: 'All Levels',
-    category: 'Health',
+    category: 'Marriage',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -229,7 +229,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/XQ6MYL_rKgE',
     duration: '90 days',
     level: 'Advanced',
-    category: 'Swar Yoga',
+    category: 'Training',
     mode: ['Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -243,7 +243,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/7qTSVzR6gIc',
     duration: '15 days',
     level: 'Advanced',
-    category: 'Swar Yoga',
+    category: 'Training',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -257,7 +257,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/mTVVNGMBx0Q',
     duration: '45 days',
     level: 'Intermediate',
-    category: 'Gurukul',
+    category: 'Training',
     mode: ['Online', 'Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -271,7 +271,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/nGNnVhEhjPg',
     duration: '7 days',
     level: 'All Levels',
-    category: 'Health',
+    category: 'Training',
     mode: ['Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
