@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home } from 'lucide-react';
 
 interface Post {
   _id: string;
@@ -256,9 +256,14 @@ export default function CommunityPage() {
       {/* Top Navigation Bar */}
       <div className="sticky top-0 z-50 bg-gradient-to-r from-slate-800/95 to-purple-800/95 backdrop-blur-md border-b border-purple-500/20">
         <div className="container mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            Swar Yoga 🧘
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/" className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors" title="Home">
+              <Home size={24} className="text-blue-400" />
+            </Link>
+            <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+              Swar Yoga 🧘
+            </Link>
+          </div>
           <div className="flex items-center gap-4">
             {user ? (
               <>
@@ -305,17 +310,6 @@ export default function CommunityPage() {
                 <p className="text-blue-200 text-sm font-semibold mb-3">👋 Join the Community</p>
                 <p className="text-blue-300 text-xs">Connect with fellow yoga practitioners and share your journey</p>
               </div>
-            )}
-
-            {/* New Post Button */}
-            {user && (
-              <Link
-                href="/community/post"
-                className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white px-6 py-3 rounded-xl transition-all transform hover:scale-105 mb-6 font-semibold shadow-lg"
-              >
-                <Plus size={20} />
-                New Post
-              </Link>
             )}
 
             {/* Communities Section */}
