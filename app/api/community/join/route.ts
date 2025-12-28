@@ -55,20 +55,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if already a member
+    // Check if already a member by mobile number
+    // If they already joined with same mobile, update their info instead of blocking
     const existingMember = await CommunityMember.findOne({
       mobile: cleanMobile,
       communityId,
     });
 
     if (existingMember) {
+      // Update existing member's info (allow them to "rejoin" after logout)
+      const isGeneralCommunity = communityId === 'general';
+      
+      existingMember.name = name.trim();
+      existingMember.email = email ? email.trim().toLowerCase() : existingMember.email;
+      existingMember.countryCode = countryCode || '+91';
+      existingMember.status = 'active';
+      // Keep their previous approval status
+      
+      await existingMember.save();
+
+      const message = isGeneralCommunity
+        ? '👋 Welcome back! You can view posts. Messaging will be enabled after admin approval.'
+        : '🎉 Welcome back to the community!';
+
       return NextResponse.json(
         {
-          success: false,
-          error: 'You are already a member of this community',
-          message: 'Welcome back! 👋',
+          success: true,
+          message: message,
+          data: existingMember,
+          isUpdate: true,
         },
-        { status: 409 }
+        { status: 200 }
       );
     }
 

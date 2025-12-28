@@ -57,16 +57,48 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if request already exists
-    const existingRequest = await JoinRequest.findOne({ userId });
+    // Allow re-submission (update) if they're requesting from same mobile number
+    const existingRequest = await JoinRequest.findOne({ 
+      mobile: cleanMobile,
+      communityId 
+    });
+    
     if (existingRequest) {
-      return NextResponse.json(
-        {
-          success: true,
-          message: 'Your previous request is being reviewed. Please wait for admin approval.',
-          data: existingRequest,
-        },
-        { status: 409 }
-      );
+      // If previous request is pending, allow them to update it
+      if (existingRequest.status === 'pending') {
+        // Update the request with new info
+        existingRequest.name = name.trim();
+        existingRequest.email = email.trim().toLowerCase();
+        existingRequest.workshopsCompleted = workshopsCompleted || false;
+        existingRequest.message = message || '';
+        existingRequest.createdAt = new Date(); // Reset the submission time
+        
+        await existingRequest.save();
+        
+        return NextResponse.json(
+          {
+            success: true,
+            message: '✅ Your request has been updated! Admin will review and get back to you soon.',
+            data: existingRequest,
+            isUpdate: true,
+          },
+          { status: 200 }
+        );
+      } else if (existingRequest.status === 'approved') {
+        // Already approved - they should use join instead
+        return NextResponse.json(
+          {
+            success: true,
+            message: 'Your request was already approved! You can now join the community.',
+            data: existingRequest,
+          },
+          { status: 200 }
+        );
+      } else {
+        // Rejected - allow new request
+        // Delete old rejected request and create new one
+        await JoinRequest.deleteOne({ _id: existingRequest._id });
+      }
     }
 
     // Create new join request

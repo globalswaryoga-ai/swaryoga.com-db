@@ -183,13 +183,14 @@ export default function CommunityPage() {
         }),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert('❌ ' + (error.error || 'Failed to join community'));
+      const result = await response.json();
+
+      if (!response.ok && response.status !== 200) {
+        alert('❌ ' + (result.error || 'Failed to join community'));
         return;
       }
 
-      const result = await response.json();
+      // Success: Handle both new join and rejoin cases
       alert('✅ ' + (result.message || 'Successfully joined!'));
       localStorage.setItem('community_user', JSON.stringify({
         name: joinFormData.name,
@@ -243,13 +244,15 @@ export default function CommunityPage() {
         }),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert('❌ ' + (error.error || 'Failed to submit request'));
+      const result = await response.json();
+
+      if (!response.ok && response.status !== 200) {
+        alert('❌ ' + (result.error || 'Failed to submit request'));
         return;
       }
 
-      alert('✅ Request submitted successfully! Admin will review and get back to you soon.');
+      // Success: Handle both new request and re-submission cases
+      alert('✅ ' + (result.message || 'Request submitted successfully!'));
       setShowRequestModal(false);
       setRequestFormData({ name: '', email: '', mobile: '', workshopsCompleted: false, message: '' });
     } catch (error) {

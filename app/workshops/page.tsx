@@ -613,13 +613,41 @@ function WorkshopsPageInner() {
               )}
             </div>
 
-            {/* Workshop Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-8 sm:mb-12">
-              {currentWorkshops.map((workshop) => (
-                <div
-                  key={workshop.id}
-                  className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-105 group flex flex-col"
+            {/* Workshop Cards Carousel */}
+            <div className="mb-8 sm:mb-12">
+              {/* Carousel Container */}
+              <div className="flex items-center gap-3 sm:gap-4">
+                {/* Left Arrow Button */}
+                <button
+                  onClick={() => {
+                    const carousel = document.getElementById('workshop-carousel');
+                    if (carousel) {
+                      carousel.scrollBy({ left: -320, behavior: 'smooth' });
+                    }
+                  }}
+                  className="flex-shrink-0 p-2 sm:p-3 bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white rounded-lg transition-all duration-300 touch-target active:scale-95"
+                  aria-label="Scroll left"
                 >
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+
+                {/* Carousel Content */}
+                <div
+                  id="workshop-carousel"
+                  className="flex-1 overflow-x-auto scroll-smooth scrollbar-hide"
+                  style={{
+                    scrollBehavior: 'smooth',
+                    WebkitOverflowScrolling: 'touch',
+                  }}
+                >
+                  <div className="flex gap-4 sm:gap-6 pb-2">
+                    {currentWorkshops.map((workshop) => (
+                    <div
+                      key={workshop.id}
+                      className="flex-shrink-0 w-full sm:w-80 md:w-96 bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-105 group flex flex-col"
+                    >
                   {/* Workshop Image */}
                   <div className="relative h-48 sm:h-56 md:h-64 overflow-hidden bg-gray-200 flex-shrink-0">
                     <Image
@@ -739,11 +767,35 @@ function WorkshopsPageInner() {
 
                     {/* Batches Section Removed - Only shown on detail page */}
                   </div>
+                    </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+
+                {/* Right Arrow Button */}
+                <button
+                  onClick={() => {
+                    const carousel = document.getElementById('workshop-carousel');
+                    if (carousel) {
+                      carousel.scrollBy({ left: 320, behavior: 'smooth' });
+                    }
+                  }}
+                  className="flex-shrink-0 p-2 sm:p-3 bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white rounded-lg transition-all duration-300 touch-target active:scale-95"
+                  aria-label="Scroll right"
+                >
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            {/* Pagination - Prev/Next only (3 per page) */}
+            {/* Mobile instruction text */}
+            <p className="text-center text-gray-500 text-xs sm:text-sm mb-8">
+              💡 Scroll left and right to browse more workshops
+            </p>
+
+            {/* Pagination removed - using carousel instead */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-3 sm:gap-4 flex-wrap mt-8 sm:mt-12">
                 <button
