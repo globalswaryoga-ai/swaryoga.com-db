@@ -520,9 +520,9 @@ export default function CommunityPage() {
       {/* Join Community Modal */}
       {showJoinModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-purple-500/30 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-gradient-to-br from-green-900 to-emerald-900 border border-green-500/40 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             {/* Modal Header */}
-            <div className={`bg-gradient-to-r ${joiningCommunity?.gradient} p-6 text-white`}>
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white">
               <div className="flex items-center gap-3">
                 <div className="text-5xl">{joiningCommunity?.icon}</div>
                 <div>
@@ -535,35 +535,35 @@ export default function CommunityPage() {
             {/* Modal Content */}
             <div className="p-8 space-y-4">
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">👤 Full Name</label>
+                <label className="block text-sm font-bold text-green-200 mb-2">👤 Full Name</label>
                 <input
                   type="text"
                   placeholder="Enter your full name"
                   value={joinFormData.name}
                   onChange={(e) => setJoinFormData({...joinFormData, name: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-700 text-white border border-purple-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">📧 Email Address</label>
+                <label className="block text-sm font-bold text-green-200 mb-2">📧 Email Address</label>
                 <input
                   type="email"
                   placeholder="your.email@example.com"
                   value={joinFormData.email}
                   onChange={(e) => setJoinFormData({...joinFormData, email: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-700 text-white border border-purple-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">📱 WhatsApp Number</label>
+                <label className="block text-sm font-bold text-green-200 mb-2">📱 WhatsApp Number</label>
                 <input
                   type="tel"
                   placeholder="+91 98765 43210"
                   value={joinFormData.mobile}
                   onChange={(e) => setJoinFormData({...joinFormData, mobile: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-700 text-white border border-purple-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
@@ -573,14 +573,14 @@ export default function CommunityPage() {
                     setShowJoinModal(false);
                     setJoinFormData({ name: '', email: '', mobile: '' });
                   }}
-                  className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+                  className="flex-1 px-4 py-3 bg-green-900/50 hover:bg-green-900 text-green-200 border border-green-500/30 rounded-lg font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleJoinCommunity}
                   disabled={joiningLoading}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {joiningLoading ? (
                     <>
@@ -600,9 +600,9 @@ export default function CommunityPage() {
       {/* Request Access Modal */}
       {showRequestModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-amber-500/30 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-gradient-to-br from-green-900 to-emerald-900 border border-green-500/40 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             {/* Modal Header */}
-            <div className={`bg-gradient-to-r ${requestingCommunity?.gradient} p-6 text-white`}>
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white">
               <div className="flex items-center gap-3">
                 <div className="text-5xl">{requestingCommunity?.icon}</div>
                 <div>
@@ -615,65 +615,65 @@ export default function CommunityPage() {
             {/* Modal Content */}
             <div className="p-8 space-y-4 max-h-[80vh] overflow-y-auto">
               {/* Info Box */}
-              <div className="bg-amber-500/20 border border-amber-500/30 rounded-lg p-4 mb-4">
-                <p className="text-amber-200 text-sm">
+              <div className="bg-green-500/20 border border-green-500/40 rounded-lg p-4 mb-4">
+                <p className="text-green-200 text-sm">
                   ℹ️ This is a private community. Your request will be reviewed by our admin team.
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">👤 Full Name</label>
+                <label className="block text-sm font-bold text-green-200 mb-2">👤 Full Name</label>
                 <input
                   type="text"
                   placeholder="Enter your full name"
                   value={requestFormData.name}
                   onChange={(e) => setRequestFormData({...requestFormData, name: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-700 text-white border border-amber-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">📧 Email Address</label>
+                <label className="block text-sm font-bold text-green-200 mb-2">📧 Email Address</label>
                 <input
                   type="email"
                   placeholder="your.email@example.com"
                   value={requestFormData.email}
                   onChange={(e) => setRequestFormData({...requestFormData, email: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-700 text-white border border-amber-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">📱 WhatsApp Number</label>
+                <label className="block text-sm font-bold text-green-200 mb-2">📱 WhatsApp Number</label>
                 <input
                   type="tel"
                   placeholder="+91 98765 43210"
                   value={requestFormData.mobile}
                   onChange={(e) => setRequestFormData({...requestFormData, mobile: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-700 text-white border border-amber-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
-              <div className="flex items-center gap-3 bg-slate-700/50 p-4 rounded-lg border border-slate-600">
+              <div className="flex items-center gap-3 bg-green-900/50 p-4 rounded-lg border border-green-500/30">
                 <input
                   type="checkbox"
                   id="workshops"
                   checked={requestFormData.workshopsCompleted}
                   onChange={(e) => setRequestFormData({...requestFormData, workshopsCompleted: e.target.checked})}
-                  className="w-4 h-4 cursor-pointer"
+                  className="w-4 h-4 cursor-pointer accent-green-500"
                 />
-                <label htmlFor="workshops" className="text-sm text-slate-300 cursor-pointer flex-1">
+                <label htmlFor="workshops" className="text-sm text-green-200 cursor-pointer flex-1">
                   ✅ I have completed the required workshops
                 </label>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">💬 Message (Optional)</label>
+                <label className="block text-sm font-bold text-green-200 mb-2">💬 Message (Optional)</label>
                 <textarea
                   placeholder="Tell us about your yoga journey and why you want to join this community..."
                   value={requestFormData.message}
                   onChange={(e) => setRequestFormData({...requestFormData, message: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-700 text-white border border-amber-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none placeholder-gray-500"
                   rows={4}
                 />
               </div>
@@ -684,14 +684,14 @@ export default function CommunityPage() {
                     setShowRequestModal(false);
                     setRequestFormData({ name: '', email: '', mobile: '', workshopsCompleted: false, message: '' });
                   }}
-                  className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+                  className="flex-1 px-4 py-3 bg-green-900/50 hover:bg-green-900 text-green-200 border border-green-500/30 rounded-lg font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleRequestAccess}
                   disabled={requestLoading}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {requestLoading ? (
                     <>
