@@ -12,12 +12,18 @@ export async function GET(request: NextRequest) {
     
     const stats = await Promise.all(
       communityIds.map(async (id) => {
-        // Count members from CommunityMember collection (actual members)
-        const memberCount = await CommunityMember.countDocuments({ 
-          communityId: id,
-          status: 'active' // Only count active members
-        });
-        return { id, count: memberCount };
+        try {
+          // Count members from CommunityMember collection (actual members)
+          const memberCount = await CommunityMember.countDocuments({ 
+            communityId: id,
+            status: 'active' // Only count active members
+          });
+          console.log(`✅ Community ${id}: ${memberCount} active members`);
+          return { id, count: memberCount };
+        } catch (err) {
+          console.error(`❌ Error counting members for ${id}:`, err);
+          return { id, count: 0 };
+        }
       })
     );
 
@@ -25,6 +31,8 @@ export async function GET(request: NextRequest) {
     stats.forEach((stat) => {
       data[stat.id] = stat.count;
     });
+
+    console.log('📊 Final stats:', data);
 
     return NextResponse.json(
       { success: true, data },

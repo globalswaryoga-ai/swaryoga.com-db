@@ -80,15 +80,28 @@ export default function CommunityPage() {
 
   const fetchCommunityStats = async () => {
     try {
-      const response = await fetch('/api/community/stats');
+      // Force no-cache to always get fresh stats
+      const response = await fetch('/api/community/stats', {
+        method: 'GET',
+        cache: 'no-store',
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }
+      });
       if (response.ok) {
         const data = await response.json();
+        console.log('📊 Community stats fetched:', data.data);
         setCommunityStats(data.data || {});
         // Update COMMUNITIES with real stats
-        setCommunities(COMMUNITIES.map(c => ({
+        const updatedCommunities = COMMUNITIES.map(c => ({
           ...c,
           members: data.data?.[c.id] || 0
-        })));
+        }));
+        console.log('📊 Updated communities:', updatedCommunities);
+        setCommunities(updatedCommunities);
+      } else {
+        console.error('❌ Stats fetch failed with status:', response.status);
       }
     } catch (error) {
       console.error('Error fetching community stats:', error);
