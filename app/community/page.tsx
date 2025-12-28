@@ -396,27 +396,51 @@ export default function CommunityPage() {
                       </div>
                     </button>
                     {!user && selectedCommunity === community.id && (
-                      community.isPublic ? (
-                        <button
-                          onClick={() => {
-                            setJoiningCommunity(community);
-                            setShowJoinModal(true);
-                          }}
-                          className="w-full px-3 py-2 bg-green-600/80 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition-all"
-                        >
-                          ✓ Join Now
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setRequestingCommunity(community);
-                            setShowRequestModal(true);
-                          }}
-                          className="w-full px-3 py-2 bg-amber-500/80 hover:bg-amber-500 text-white rounded-lg text-sm font-semibold transition-all"
-                        >
-                          📋 Request Access
-                        </button>
-                      )
+                      <div className="space-y-2">
+                        {community.isPublic ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                setJoiningCommunity(community);
+                                setShowJoinModal(true);
+                              }}
+                              className="w-full px-3 py-2 bg-green-600/80 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition-all"
+                            >
+                              ✓ Join Now
+                            </button>
+                            <button
+                              onClick={() => {
+                                setJoiningCommunity(community);
+                                setShowJoinModal(true);
+                              }}
+                              className="w-full px-3 py-2 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-all border border-blue-400/50"
+                            >
+                              🔄 Rejoin
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => {
+                                setRequestingCommunity(community);
+                                setShowRequestModal(true);
+                              }}
+                              className="w-full px-3 py-2 bg-amber-500/80 hover:bg-amber-500 text-white rounded-lg text-sm font-semibold transition-all"
+                            >
+                              📋 Request Access
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRequestingCommunity(community);
+                                setShowRequestModal(true);
+                              }}
+                              className="w-full px-3 py-2 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-all border border-blue-400/50"
+                            >
+                              🔄 Rejoin Request
+                            </button>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -458,27 +482,52 @@ export default function CommunityPage() {
                   </div>
                 </div>
                 {!user && (
-                  currentCommunity?.isPublic ? (
-                    <button
-                      onClick={() => {
-                        setJoiningCommunity(currentCommunity);
-                        setShowJoinModal(true);
-                      }}
-                      className="px-8 py-4 bg-white text-purple-600 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg"
-                    >
-                      + Join Now
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setRequestingCommunity(currentCommunity);
-                        setShowRequestModal(true);
-                      }}
-                      className="px-8 py-4 bg-amber-400 text-amber-900 rounded-xl font-bold hover:bg-amber-300 transition-all transform hover:scale-105 shadow-lg"
-                    >
-                      📋 Request Access
-                    </button>
-                  )
+                  <div className="flex gap-3 flex-col">
+                    {currentCommunity?.isPublic ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            setJoiningCommunity(currentCommunity);
+                            setShowJoinModal(true);
+                          }}
+                          className="px-8 py-4 bg-white text-purple-600 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg"
+                        >
+                          + Join Now
+                        </button>
+                        <button
+                          onClick={() => {
+                            setJoiningCommunity(currentCommunity);
+                            setShowJoinModal(true);
+                          }}
+                          className="px-8 py-4 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all transform hover:scale-105 shadow-lg border-2 border-blue-300"
+                        >
+                          🔄 Rejoin
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setRequestingCommunity(currentCommunity);
+                            setShowRequestModal(true);
+                          }}
+                          className="px-8 py-4 bg-amber-400 text-amber-900 rounded-xl font-bold hover:bg-amber-300 transition-all transform hover:scale-105 shadow-lg"
+                        >
+                          📋 Request Access
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRequestingCommunity(currentCommunity);
+                            setShowRequestModal(true);
+                          }}
+                          className="px-8 py-4 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all transform hover:scale-105 shadow-lg border-2 border-blue-300"
+                        >
+                          🔄 Rejoin Request
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
                 )}
               </div>
             </div>
