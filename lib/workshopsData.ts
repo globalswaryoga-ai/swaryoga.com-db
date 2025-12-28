@@ -363,7 +363,7 @@ export const workshopDetails: Record<string, WorkshopDetail> = {
     level: 'Beginner',
     price: '₹9,999',
     schedules: [
-      { id: 'o1', mode: 'online', startDate: '2025-01-10', endDate: '2025-01-24', time: '5:00 PM - 7:00 PM', seats: 40, price: 9999, currency: 'INR' },
+      { id: 'o1', mode: 'online', startDate: '2026-01-06', endDate: '2026-01-21', time: '7:00 PM - 8:30 PM', seats: 60, price: 9999, currency: 'INR' },
       { id: 'o2', mode: 'online', startDate: '2025-02-05', endDate: '2025-02-19', time: '5:00 PM - 7:00 PM', seats: 40, price: 9999, currency: 'INR' },
       { id: 'o3', mode: 'online', startDate: '2025-03-01', endDate: '2025-03-15', time: '6:00 AM - 8:00 AM', seats: 35, price: 9999, currency: 'INR' },
       { id: 'o4', mode: 'online', startDate: '2025-04-08', endDate: '2025-04-22', time: '5:00 PM - 7:00 PM', seats: 40, price: 9999, currency: 'INR' },
@@ -391,7 +391,7 @@ export const workshopDetails: Record<string, WorkshopDetail> = {
     level: 'All Levels',
     price: '₹4,999',
     schedules: [
-      { id: 'o1', mode: 'online', startDate: '2025-01-12', endDate: '2025-01-21', time: '7:00 AM - 9:00 AM', seats: 60, price: 4999, currency: 'INR' },
+      { id: 'o1', mode: 'online', startDate: '2026-01-05', endDate: '2026-01-17', time: '9:00 PM - 10:30 PM', seats: 60, price: 4999, currency: 'INR' },
       { id: 'o2', mode: 'online', startDate: '2025-02-08', endDate: '2025-02-17', time: '7:00 AM - 9:00 AM', seats: 60, price: 4999, currency: 'INR' },
       { id: 'o3', mode: 'online', startDate: '2025-03-03', endDate: '2025-03-12', time: '5:00 PM - 7:00 PM', seats: 55, price: 4999, currency: 'INR' },
       { id: 'o4', mode: 'online', startDate: '2025-04-10', endDate: '2025-04-19', time: '7:00 AM - 9:00 AM', seats: 60, price: 4999, currency: 'INR' },
