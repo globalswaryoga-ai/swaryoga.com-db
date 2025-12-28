@@ -27,11 +27,11 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'yogasana-sadhana': {
     name: 'Yogasana & Sadhana',
     slug: 'yogasana-sadhana',
-    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1588286840104-8957b019727f?w=500&h=600&fit=crop',
     description: 'A complete yogasana and sadhana practice program for disciplined daily growth.',
     detailedDescription: 'Master the fundamental yogasanas and integrate them into a daily sadhana (spiritual practice) that transforms your body, mind, and spirit. This comprehensive program covers classical yoga postures combined with breathing techniques and meditation. You will develop strength, flexibility, and inner awareness through consistent daily practice. Perfect for beginners and experienced practitioners seeking to deepen their practice. This program has helped thousands achieve better health, mental clarity, and spiritual growth.',
     videoUrl: 'https://www.youtube.com/embed/mzYKqFxYzQU',
-    duration: '21 days',
+    duration: '30 days',
     level: 'All Levels',
     category: 'Sadhana',
     mode: ['Online', 'Offline'],
@@ -83,7 +83,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'weight-loss': {
     name: 'Weight Loss Program',
     slug: 'weight-loss',
-    image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=500&h=600&fit=crop',
     description: 'Transform your body through Swar Yoga',
     detailedDescription: 'Achieve sustainable weight loss without restrictive diets using the holistic Swar Yoga approach. This program combines specialized breathing techniques, movement practices, and metabolic optimization. Learn how to activate your natural fat-burning mechanisms and maintain ideal weight long-term. Includes nutrition guidance aligned with your individual constitution and energy patterns.',
     videoUrl: 'https://www.youtube.com/embed/cklZSXAWA5U',
@@ -97,7 +97,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   meditation: {
     name: 'Meditation Program',
     slug: 'meditation',
-    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1496886445473-541e9f60cf53?w=500&h=600&fit=crop',
     description: 'Deep meditation and mindfulness training',
     detailedDescription: 'Journey into profound states of meditation and inner peace through scientifically-backed techniques. This program progressively develops your meditation capacity, from basic mindfulness to advanced states of consciousness. Experience reduced stress, enhanced focus, and spiritual connection. Daily guided practices combined with theory helps you understand the mechanics of mind and meditation.',
     videoUrl: 'https://www.youtube.com/embed/T3qQdIj7f0Y',
@@ -111,7 +111,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'amrut-aahar': {
     name: 'Amrut Aahar Program',
     slug: 'amrut-aahar',
-    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1505576399279-565b52ce32f0?w=500&h=600&fit=crop',
     description: 'Complete natural diet and nutrition guidance',
     detailedDescription: 'Discover the science of optimal nutrition and how to nourish your body for maximum vitality and longevity. Amrut Aahar means "nectar food" - learn which foods truly nourish and heal your unique constitution. This program covers seasonal eating, food combinations, digestion optimization, and natural remedies. Transform your eating habits into a path of health and enlightenment.',
     videoUrl: 'https://www.youtube.com/embed/9uWo6Av2Qcg',
@@ -125,7 +125,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   astavakra: {
     name: 'Astavakra Dhyan Level-3',
     slug: 'astavakra',
-    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1506131082519-3f2b69ce5a8a?w=500&h=600&fit=crop',
     description: 'Level-3 advanced meditation and wisdom',
     detailedDescription: 'The highest level of advanced meditation practice drawing from the Astavakra Gita teachings. This intensive residential program guides seekers into transcendent states of consciousness and self-realization. Only for those who have completed prerequisite levels. Experience non-dual awareness and the ultimate truths of existence through direct practice and transmission from the master.',
     videoUrl: 'https://www.youtube.com/embed/L3GGhK65iEw',
@@ -139,7 +139,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'pre-pregnancy': {
     name: 'Pre Pregnancy Program',
     slug: 'pre-pregnancy',
-    image: 'https://images.unsplash.com/photo-1434895550962-67e8de38b9d4?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=500&h=600&fit=crop',
     description: 'Safe yoga practice for expecting mothers',
     detailedDescription: 'A specially designed program for expectant mothers that ensures safe, effective yoga practice throughout pregnancy. Learn techniques to reduce pregnancy discomfort, prepare for childbirth naturally, and maintain emotional wellbeing. Includes gentle movements, breathing practices, and meditation designed specifically for pregnant women. Reduces anxiety, improves sleep, and promotes healthy development of the baby.',
     videoUrl: 'https://www.youtube.com/embed/y90cV_3OMrQ',
@@ -153,7 +153,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'swy-children': {
     name: 'Swar Yoga Children Program',
     slug: 'swy-children',
-    image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1503454537688-e0dac4d27609?w=500&h=600&fit=crop',
     description: 'Yoga training for children and teenagers',
     detailedDescription: 'Introduce children to yoga with fun, engaging, and age-appropriate practices. This program helps kids develop focus, confidence, physical strength, and emotional intelligence. Through games, stories, and interactive practices, children learn ancient wisdom in a modern, relatable way. Reduces hyperactivity, improves concentration for studies, and builds character.',
     videoUrl: 'https://www.youtube.com/embed/8HWaFGJz6Yw',
@@ -167,7 +167,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'complete-health': {
     name: 'Complete Health Program',
     slug: 'complete-health',
-    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&h=600&fit=crop',
     description: 'Holistic cure for BP, diabetes, heart, liver, kidney, migraine & hormonal balance',
     detailedDescription: 'A comprehensive holistic healing program addressing all major health conditions including hypertension, diabetes, heart disease, liver and kidney issues, migraines, and hormonal imbalances. Using ancient yoga science combined with modern health understanding, this program facilitates natural healing and reversal of chronic diseases. Participants report significant improvement in symptoms, reduced medication dependency, and restored vitality.',
     videoUrl: 'https://www.youtube.com/embed/5jvJY-I7Vug',
@@ -195,7 +195,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'self-awareness': {
     name: 'Self Awareness Level-4',
     slug: 'self-awareness',
-    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1516762898482-f30e71e31c43?w=500&h=600&fit=crop',
     description: 'Ultimate self-discovery and spiritual transformation',
     detailedDescription: 'The pinnacle of self-discovery and spiritual transformation through intensive residential practice. This advanced Level-4 program facilitates profound shifts in consciousness and understanding of one\'s true nature. Experience direct realization of your authentic self beyond ego and conditioning. Suitable only for advanced practitioners committed to radical transformation.',
     videoUrl: 'https://www.youtube.com/embed/GNNmCPBSyv8',
@@ -223,7 +223,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'gurukul-training': {
     name: 'Gurukul Teachers Training',
     slug: 'gurukul-training',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=500&h=600&fit=crop',
     description: 'Comprehensive teacher training program in traditional Gurukul style',
     detailedDescription: 'Become a master teacher in the traditional Gurukul education system. This 90-day intensive residential program transmits the complete knowledge and skills needed to teach Swar Yoga and yoga science at the highest level. Includes extensive mentorship, practice, and teaching methodology. Produces qualified teachers capable of spreading these transformative teachings worldwide.',
     videoUrl: 'https://www.youtube.com/embed/XQ6MYL_rKgE',
@@ -237,7 +237,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'swy-teacher': {
     name: 'Swar Yoga Teachers Training',
     slug: 'swy-teacher',
-    image: 'https://images.unsplash.com/photo-1517457373614-b7152f800fd1?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1434737512033-ed2a68ad34f5?w=500&h=600&fit=crop',
     description: 'Become a certified Swar Yoga teacher and trainer',
     detailedDescription: 'Get certified to teach Swar Yoga to others and build a meaningful career. This comprehensive program covers theory, practice, teaching methodology, and business aspects. Learn how to effectively communicate these ancient techniques to modern practitioners. This certification is globally recognized and opens doors to teaching opportunities worldwide.',
     videoUrl: 'https://www.youtube.com/embed/7qTSVzR6gIc',
@@ -265,11 +265,11 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   naturopathy: {
     name: 'Naturopathy Treatment Program',
     slug: 'naturopathy',
-    image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1506784365847-bbad151ef362?w=500&h=600&fit=crop',
     description: 'Complete natural healing and naturopathy treatment protocols',
     detailedDescription: 'Master the ancient art and science of natural healing through this comprehensive naturopathy program. Learn to diagnose imbalances and apply natural treatments including herbs, diet, water therapy, and lifestyle modifications. This residential program teaches you to facilitate deep healing without pharmaceuticals. Ideal for practitioners seeking alternative medicine credentials.',
     videoUrl: 'https://www.youtube.com/embed/nGNnVhEhjPg',
-    duration: '30 days',
+    duration: '7 days',
     level: 'All Levels',
     category: 'Health',
     mode: ['Residential'],
