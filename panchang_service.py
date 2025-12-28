@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Fast Panchang Calculation Service
-Uses simplified but accurate astronomical calculations
-Avoids network calls and external dependencies
+Accurate Panchang Calculation Service using PyEphem
+Professional astronomical calculations
 """
 
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
+import ephem
 import math
 
-# Nakshatras (27 lunar mansions) with degree ranges
+# Nakshatras (27 lunar mansions)
 NAKSHATRAS = [
     {'name': 'Ashwini', 'start': 0, 'end': 13.33},
     {'name': 'Bharani', 'start': 13.33, 'end': 26.67},
@@ -85,107 +85,128 @@ RASHIS = [
     {'name': 'Pisces', 'symbol': '♓'},
 ]
 
-def get_julian_day(year, month, day):
-    """Calculate Julian Day Number"""
-    a = (14 - month) // 12
-    y = year + 4800 - a
-    m = month + 12 * a - 3
-    return day + (153 * m + 2) // 5 + 365 * y + y // 4 - y // 100 + y // 400 - 32045
+def normalize_angle(angle):
+    """Normalize angle to 0-360"""
+    return ((angle % 360) + 360) % 360
 
-def get_moon_longitude(jd):
-    """Get moon longitude using polynomial approximation"""
-    T = (jd - 2451545.0) / 36525.0
-    moon_mean = (218.3164477 + 481267.88123421 * T - 0.0015786 * T**2 + 
-                 T**3 / 538841 - T**4 / 65194000)
-    return (moon_mean % 360 + 360) % 360
+def deg_to_rad(deg):
+    return deg * math.pi / 180
 
-def get_sun_longitude(jd):
-    """Get sun longitude using polynomial approximation"""
-    T = (jd - 2451545.0) / 36525.0
-    sun_mean = (280.4664567 + 36000.76982779 * T + 0.0003032 * T**2 + 
-                T**3 / 49310 - T**4 / 15299 - T**5 / 11525600)
-    return (sun_mean % 360 + 360) % 360
+def rad_to_deg(rad):
+    return rad * 180 / math.pi
+
+def get_ecliptic_longitude(ra_rad, dec_rad):
+    """
+    Convert equatorial coordinates to ecliptic longitude
+    Obliquity of ecliptic (epsilon) ≈ 23.44°
+    """
+    epsilon = deg_to_rad(23.44)
+    lon = math.atan2(
+        math.sin(ra_rad) * math.cos(epsilon) + math.tan(dec_rad) * math.sin(epsilon),
+        math.cos(ra_rad)
+    )
+    return normalize_angle(rad_to_deg(lon))
 
 def calculate_panchang(date_str, latitude, longitude, timezone_offset):
-    """Calculate panchang data"""
+    """Calculate panchang using accurate astronomical data"""
     try:
         # Parse date
         date_obj = datetime.strptime(date_str, '%Y-%m-%d')
         
-        # Calculate Julian Day at noon
-        jd = get_julian_day(date_obj.year, date_obj.month, date_obj.day)
+        # Create observer at location, noon IST
+        observer = ephem.Observer()
+        observer.lat = str(latitude)
+        observer.lon = str(longitude)
+        # Adjust to noon IST for calculation
+        observer.date = ephem.Date(date_obj) + ephem.Date(0.5)  # add 12 hours (0.5 day)
         
-        # Get celestial longitudes
-        moon_lon = get_moon_longitude(jd)
-        sun_lon = get_sun_longitude(jd)
+        # Compute sun and moon positions
+        sun = ephem.Sun(observer)
+        moon = ephem.Moon(observer)
         
-        # Calculate Tithi
-        tithi_degree = (moon_lon - sun_lon) % 360
-        tithi = int(tithi_degree / 12) + 1
-        if tithi > 30:
-            tithi = 30
+        # Get ecliptic longitudes
+        sun_ecliptic_lon = get_ecliptic_longitude(sun.ra, sun.dec)
+        moon_ecliptic_lon = get_ecliptic_longitude(moon.ra, moon.dec)
+        
+        # Calculate Tithi (15° per day)
+        tithi_angle = normalize_angle(moon_ecliptic_lon - sun_ecliptic_lon)
+        tithi_index = int(tithi_angle / 12)  # 0-29 (30 tithis per month)
+        tithi = tithi_index + 1  # 1-30
         
         # Determine paksha
-        paksha = 'Shukla Paksha' if tithi <= 15 else 'Krishna Paksha'
+        if tithi_index < 15:
+            paksha = 'Shukla Paksha'
+        else:
+            paksha = 'Krishna Paksha'
+            tithi = tithi_index - 14  # Renumber 1-15 for krishna paksha
         
-        # Get nakshatra from moon longitude
-        nakshatra_name = 'Ashwini'
-        for nak in NAKSHATRAS:
-            if nak['start'] <= (moon_lon % 360) < nak['end']:
-                nakshatra_name = nak['name']
-                break
+        # Get nakshatra from moon longitude (27 nakshatras, 13.33° each)
+        moon_lon = normalize_angle(moon_ecliptic_lon)
+        nakshatra_index = int((moon_lon / 360) * 27) % 27
+        nakshatra_name = NAKSHATRAS[nakshatra_index]['name']
         
-        # Calculate Yoga
-        yoga_degree = (sun_lon + moon_lon) % 360
-        yoga_index = int(yoga_degree / 13.33) % 27
+        # Calculate Yoga (27 yogas, 13.33° sum of longitudes)
+        yoga_sum = normalize_angle(sun_ecliptic_lon + moon_ecliptic_lon)
+        yoga_index = int((yoga_sum / 360) * 27) % 27
         yoga_name = YOGAS[yoga_index]['name']
         yoga_effect = YOGAS[yoga_index]['effect']
         
         # Get rashis
-        sun_rashi_index = int(sun_lon / 30) % 12
-        moon_rashi_index = int(moon_lon / 30) % 12
+        sun_rashi_index = int((sun_ecliptic_lon / 360) * 12) % 12
+        moon_rashi_index = int((moon_ecliptic_lon / 360) * 12) % 12
         sun_rashi = RASHIS[sun_rashi_index]['name']
         moon_rashi = RASHIS[moon_rashi_index]['name']
         
-        # Simple sunrise calculation
-        sunrise_hour = 6
-        sunrise_minute = 30
+        # Calculate sunrise
+        observer_copy = ephem.Observer()
+        observer_copy.lat = str(latitude)
+        observer_copy.lon = str(longitude)
+        observer_copy.date = ephem.Date(date_obj)
+        
+        sunrise = observer_copy.next_rising(ephem.Sun())
+        sunrise_dt = ephem.Date(sunrise).datetime()
+        
+        # Convert to local timezone
+        sunrise_local = sunrise_dt.hour + sunrise_dt.minute / 60 + sunrise_dt.second / 3600
+        sunrise_local = (sunrise_local + timezone_offset) % 24
+        
+        sunrise_hour = int(sunrise_local)
+        sunrise_min = int((sunrise_local - sunrise_hour) * 60)
         
         return {
             'success': True,
             'date': date_str,
             'tithi': tithi,
-            'tithiName': get_tithi_name(tithi),
+            'tithiName': get_tithi_name(tithi, paksha),
             'paksha': paksha,
             'nakshatra': nakshatra_name,
             'yoga': yoga_name,
             'yogaEffect': yoga_effect,
             'sunRashi': sun_rashi,
             'moonRashi': moon_rashi,
-            'moonLongitude': round(moon_lon, 2),
-            'sunLongitude': round(sun_lon, 2),
-            'sunrise': f'{sunrise_hour:02d}:{sunrise_minute:02d}',
+            'moonLongitude': round(moon_ecliptic_lon, 2),
+            'sunLongitude': round(sun_ecliptic_lon, 2),
+            'sunrise': f'{sunrise_hour:02d}:{sunrise_min:02d}',
             'coordinates': {'latitude': latitude, 'longitude': longitude},
             'timezone': timezone_offset,
         }
     
     except Exception as e:
+        import traceback
         return {
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'trace': traceback.format_exc()
         }
 
-def get_tithi_name(tithi):
-    """Get tithi name"""
+def get_tithi_name(tithi, paksha):
+    """Get tithi name for given paksha"""
     names = [
         'Pratipada', 'Dwitiya', 'Tritiya', 'Chaturthi', 'Panchami',
         'Shashthi', 'Saptami', 'Ashtami', 'Navami', 'Dashami',
-        'Ekadashi', 'Dwadashi', 'Trayodashi', 'Chaturdashi', 'Purnima',
-        'Pratipada', 'Dwitiya', 'Tritiya', 'Chaturthi', 'Panchami',
-        'Shashthi', 'Saptami', 'Ashtami', 'Navami', 'Dashami',
-        'Ekadashi', 'Dwadashi', 'Trayodashi', 'Chaturdashi', 'Amavasya',
+        'Ekadashi', 'Dwadashi', 'Trayodashi', 'Chaturdashi', 'Purnima'
     ]
-    return names[min(tithi - 1, 29)]
+    return names[min(tithi - 1, 14)]
 
 if __name__ == '__main__':
     input_data = json.loads(sys.stdin.read())
@@ -196,4 +217,6 @@ if __name__ == '__main__':
         input_data['timezone']
     )
     print(json.dumps(result))
+
+
 
