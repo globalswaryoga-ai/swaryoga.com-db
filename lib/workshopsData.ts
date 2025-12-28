@@ -458,7 +458,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
   },
   'swar-yoga-level-1': {
     heroImage: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
-    introVideoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
     whatYouWillLearn: [
       'Understand the science of alternating nostril breathing',
       'Balance your body, mind, and energy through nasal breathing',
@@ -467,9 +467,9 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       'Enhance vitality, mental clarity, and decision-making abilities'
     ],
     highlightVideos: [
-      { title: 'Swar Yoga Introduction', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' },
-      { title: 'Nasal Breathing Techniques', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' },
-      { title: 'Real Results from Practitioners', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' }
+      { title: 'Swar Yoga Level-1 Complete Guide', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Nasal Breathing Techniques', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Real Results from Practitioners', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
     ],
     mentorInfo: 'Learn from experienced Swar Yoga teachers who have mastered the ancient science of nasal breathing. They will guide you through each technique with precision and care, ensuring you grasp the deeper principles.',
     testimonials: [
