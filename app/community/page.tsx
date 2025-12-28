@@ -77,6 +77,19 @@ export default function CommunityPage() {
   }, [selectedCategory]);
 
   const checkUserAuth = async () => {
+    // First, check if user data is stored in localStorage (from community join)
+    const communityUserStr = localStorage.getItem('community_user');
+    if (communityUserStr) {
+      try {
+        const communityUser = JSON.parse(communityUserStr);
+        setUser(communityUser);
+        return;
+      } catch (error) {
+        console.error('Error parsing community user:', error);
+      }
+    }
+
+    // Then check for auth token
     const token = localStorage.getItem('token');
     if (token) {
       try {
@@ -86,9 +99,13 @@ export default function CommunityPage() {
         if (response.ok) {
           const data = await response.json();
           setUser(data.data);
+        } else {
+          // Token is invalid, clear it
+          localStorage.removeItem('token');
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
+        localStorage.removeItem('token');
       }
     }
   };
