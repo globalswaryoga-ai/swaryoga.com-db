@@ -55,6 +55,10 @@ export default function CommunityPage() {
   const [joiningCommunity, setJoiningCommunity] = useState<any>(null);
   const [joinFormData, setJoinFormData] = useState({ name: '', email: '', mobile: '' });
   const [joiningLoading, setJoiningLoading] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestingCommunity, setRequestingCommunity] = useState<any>(null);
+  const [requestFormData, setRequestFormData] = useState({ name: '', email: '', mobile: '', workshopsCompleted: false, message: '' });
+  const [requestLoading, setRequestLoading] = useState(false);
 
   const categories = [
     { id: 'all', label: '✨ All Posts' },
@@ -160,6 +164,59 @@ export default function CommunityPage() {
       console.error(error);
     } finally {
       setJoiningLoading(false);
+    }
+  };
+
+  const handleRequestAccess = async () => {
+    if (!requestFormData.name || !requestFormData.email || !requestFormData.mobile) {
+      alert('Please fill all required fields');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requestFormData.email)) {
+      alert('Invalid email format');
+      return;
+    }
+
+    const cleanMobile = requestFormData.mobile.replace(/\D/g, '');
+    if (cleanMobile.length < 10) {
+      alert('Mobile number must be at least 10 digits');
+      return;
+    }
+
+    try {
+      setRequestLoading(true);
+      const userId = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+      
+      const response = await fetch('/api/community/request-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: requestFormData.name,
+          email: requestFormData.email,
+          mobile: requestFormData.mobile,
+          userId,
+          communityId: requestingCommunity.id,
+          communityName: requestingCommunity.name,
+          workshopsCompleted: requestFormData.workshopsCompleted,
+          message: requestFormData.message,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('❌ ' + (error.error || 'Failed to submit request'));
+        return;
+      }
+
+      alert('✅ Request submitted successfully! Admin will review and get back to you soon.');
+      setShowRequestModal(false);
+      setRequestFormData({ name: '', email: '', mobile: '', workshopsCompleted: false, message: '' });
+    } catch (error) {
+      alert('❌ Error submitting request');
+      console.error(error);
+    } finally {
+      setRequestLoading(false);
     }
   };
 
@@ -308,15 +365,27 @@ export default function CommunityPage() {
                   </div>
                 </div>
                 {!user && (
-                  <button
-                    onClick={() => {
-                      setJoiningCommunity(currentCommunity);
-                      setShowJoinModal(true);
-                    }}
-                    className="px-8 py-4 bg-white text-purple-600 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg"
-                  >
-                    + Join Now
-                  </button>
+                  currentCommunity?.isPublic ? (
+                    <button
+                      onClick={() => {
+                        setJoiningCommunity(currentCommunity);
+                        setShowJoinModal(true);
+                      }}
+                      className="px-8 py-4 bg-white text-purple-600 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg"
+                    >
+                      + Join Now
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setRequestingCommunity(currentCommunity);
+                        setShowRequestModal(true);
+                      }}
+                      className="px-8 py-4 bg-amber-400 text-amber-900 rounded-xl font-bold hover:bg-amber-300 transition-all transform hover:scale-105 shadow-lg"
+                    >
+                      📋 Request Access
+                    </button>
+                  )
                 )}
               </div>
             </div>
@@ -503,6 +572,117 @@ export default function CommunityPage() {
                     </>
                   ) : (
                     '✨ Join Now'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Request Access Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-amber-500/30 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            {/* Modal Header */}
+            <div className={`bg-gradient-to-r ${requestingCommunity?.gradient} p-6 text-white`}>
+              <div className="flex items-center gap-3">
+                <div className="text-5xl">{requestingCommunity?.icon}</div>
+                <div>
+                  <h2 className="text-2xl font-bold">Request Access</h2>
+                  <p className="text-sm opacity-90">{requestingCommunity?.name}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-8 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Info Box */}
+              <div className="bg-amber-500/20 border border-amber-500/30 rounded-lg p-4 mb-4">
+                <p className="text-amber-200 text-sm">
+                  ℹ️ This is a private community. Your request will be reviewed by our admin team.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-300 mb-2">👤 Full Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter your full name"
+                  value={requestFormData.name}
+                  onChange={(e) => setRequestFormData({...requestFormData, name: e.target.value})}
+                  className="w-full px-4 py-3 bg-slate-700 text-white border border-amber-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-300 mb-2">📧 Email Address</label>
+                <input
+                  type="email"
+                  placeholder="your.email@example.com"
+                  value={requestFormData.email}
+                  onChange={(e) => setRequestFormData({...requestFormData, email: e.target.value})}
+                  className="w-full px-4 py-3 bg-slate-700 text-white border border-amber-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-300 mb-2">📱 WhatsApp Number</label>
+                <input
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  value={requestFormData.mobile}
+                  onChange={(e) => setRequestFormData({...requestFormData, mobile: e.target.value})}
+                  className="w-full px-4 py-3 bg-slate-700 text-white border border-amber-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 bg-slate-700/50 p-4 rounded-lg border border-slate-600">
+                <input
+                  type="checkbox"
+                  id="workshops"
+                  checked={requestFormData.workshopsCompleted}
+                  onChange={(e) => setRequestFormData({...requestFormData, workshopsCompleted: e.target.checked})}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="workshops" className="text-sm text-slate-300 cursor-pointer flex-1">
+                  ✅ I have completed the required workshops
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-300 mb-2">💬 Message (Optional)</label>
+                <textarea
+                  placeholder="Tell us about your yoga journey and why you want to join this community..."
+                  value={requestFormData.message}
+                  onChange={(e) => setRequestFormData({...requestFormData, message: e.target.value})}
+                  className="w-full px-4 py-3 bg-slate-700 text-white border border-amber-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowRequestModal(false);
+                    setRequestFormData({ name: '', email: '', mobile: '', workshopsCompleted: false, message: '' });
+                  }}
+                  className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRequestAccess}
+                  disabled={requestLoading}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {requestLoading ? (
+                    <>
+                      <Loader size={16} className="animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    '📤 Submit Request'
                   )}
                 </button>
               </div>
