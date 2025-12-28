@@ -31,6 +31,34 @@ const HomePage = () => {
   return (
     <div className="bg-white">
       <Navigation />
+      
+      {/* Under Construction Banner */}
+      <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white py-3 overflow-hidden">
+        <div className="flex animate-scroll whitespace-nowrap">
+          <span className="inline-block px-8 text-sm sm:text-base font-semibold">
+            ⚠️ Site is under construction - Some features may not work as expected. We appreciate your patience!
+          </span>
+          <span className="inline-block px-8 text-sm sm:text-base font-semibold">
+            ⚠️ Site is under construction - Some features may not work as expected. We appreciate your patience!
+          </span>
+        </div>
+      </div>
+
+      {/* Add this to your global CSS or tailwind config */}
+      <style>{`
+        @keyframes scroll {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
+        .animate-scroll {
+          animation: scroll 20s linear infinite;
+        }
+      `}</style>
+
       {/* Hero Section */}
       <section className="relative h-[50vh] sm:h-[60vh] lg:h-[70vh] flex items-center">
         <div className="absolute inset-0 z-0">

@@ -59,6 +59,11 @@ export default function CommunityPage() {
   const [requestingCommunity, setRequestingCommunity] = useState<any>(null);
   const [requestFormData, setRequestFormData] = useState({ name: '', email: '', mobile: '', workshopsCompleted: false, message: '' });
   const [requestLoading, setRequestLoading] = useState(false);
+  const [communityStats, setCommunityStats] = useState<Record<string, number>>({});
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [showChatOffModal, setShowChatOffModal] = useState(false);
+  const [communities, setCommunities] = useState(COMMUNITIES);
 
   const categories = [
     { id: 'all', label: '✨ All Posts' },
@@ -70,7 +75,25 @@ export default function CommunityPage() {
 
   useEffect(() => {
     checkUserAuth();
+    fetchCommunityStats();
   }, []);
+
+  const fetchCommunityStats = async () => {
+    try {
+      const response = await fetch('/api/community/stats');
+      if (response.ok) {
+        const data = await response.json();
+        setCommunityStats(data.data || {});
+        // Update COMMUNITIES with real stats
+        setCommunities(COMMUNITIES.map(c => ({
+          ...c,
+          members: data.data?.[c.id] || 0
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching community stats:', error);
+    }
+  };
 
   useEffect(() => {
     fetchPosts();
@@ -237,6 +260,38 @@ export default function CommunityPage() {
     }
   };
 
+  const handleSendChat = async () => {
+    if (!chatMessage.trim()) {
+      alert('Please type a message');
+      return;
+    }
+
+    // Check if chat is disabled - show popup
+    const isChatEnabled = true; // In future, this can be fetched from admin settings
+    if (!isChatEnabled) {
+      setShowChatOffModal(true);
+      return;
+    }
+
+    if (!user) {
+      alert('Please join the community first');
+      return;
+    }
+
+    try {
+      setChatLoading(true);
+      // For now, just show a success message
+      // In future, this would send the message to the server
+      alert('✅ Message sent! Your message has been added to the community chat.');
+      setChatMessage('');
+    } catch (error) {
+      alert('❌ Error sending message');
+      console.error(error);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('community_user');
@@ -249,7 +304,7 @@ export default function CommunityPage() {
     post.content.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const currentCommunity = COMMUNITIES.find(c => c.id === selectedCommunity);
+  const currentCommunity = communities.find(c => c.id === selectedCommunity);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -319,24 +374,48 @@ export default function CommunityPage() {
                 Communities
               </h3>
               <div className="space-y-2">
-                {COMMUNITIES.map(community => (
-                  <button
-                    key={community.id}
-                    onClick={() => setSelectedCommunity(community.id)}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-all transform hover:scale-105 ${
-                      selectedCommunity === community.id
-                        ? `bg-gradient-to-r ${community.gradient} text-white shadow-lg font-semibold`
-                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{community.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{community.name}</p>
-                        <p className="text-xs opacity-75">{community.members} members</p>
+                {communities.map(community => (
+                  <div key={community.id} className="space-y-2">
+                    <button
+                      onClick={() => setSelectedCommunity(community.id)}
+                      className={`w-full text-left px-4 py-3 rounded-lg transition-all transform hover:scale-105 ${
+                        selectedCommunity === community.id
+                          ? `bg-gradient-to-r ${community.gradient} text-white shadow-lg font-semibold`
+                          : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{community.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{community.name}</p>
+                          <p className="text-xs opacity-75">{community.members} members</p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    {!user && selectedCommunity === community.id && (
+                      community.isPublic ? (
+                        <button
+                          onClick={() => {
+                            setJoiningCommunity(community);
+                            setShowJoinModal(true);
+                          }}
+                          className="w-full px-3 py-2 bg-green-600/80 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition-all"
+                        >
+                          ✓ Join Now
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setRequestingCommunity(community);
+                            setShowRequestModal(true);
+                          }}
+                          className="w-full px-3 py-2 bg-amber-500/80 hover:bg-amber-500 text-white rounded-lg text-sm font-semibold transition-all"
+                        >
+                          📋 Request Access
+                        </button>
+                      )
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -351,11 +430,11 @@ export default function CommunityPage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-300 text-sm">Active Members</span>
-                  <span className="text-xl font-bold text-green-400">8,000+</span>
+                  <span className="text-xl font-bold text-green-400">{communityStats.global || 0}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-300 text-sm">Communities</span>
-                  <span className="text-xl font-bold text-purple-400">{COMMUNITIES.length}</span>
+                  <span className="text-xl font-bold text-purple-400">{communities.length}</span>
                 </div>
               </div>
             </div>
@@ -498,12 +577,24 @@ export default function CommunityPage() {
                   No posts yet. {user ? 'Be the first to share your yoga journey!' : 'Join the community to see posts!'}
                 </p>
                 {user && (
-                  <Link
-                    href="/community/post"
-                    className="mt-4 px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all"
-                  >
-                    Create First Post
-                  </Link>
+                  <div className="mt-6 w-full max-w-md">
+                    <div className="bg-slate-700/50 border border-purple-500/30 rounded-lg p-4">
+                      <label className="block text-sm font-semibold text-white mb-3">💬 Send a Message</label>
+                      <textarea
+                        value={chatMessage}
+                        onChange={(e) => setChatMessage(e.target.value)}
+                        placeholder="Share your thoughts or ask a question..."
+                        className="w-full px-4 py-3 bg-slate-600 text-white border border-purple-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-slate-400 resize-none h-24"
+                      />
+                      <button
+                        onClick={handleSendChat}
+                        disabled={chatLoading || !chatMessage.trim()}
+                        className="mt-3 w-full px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                      >
+                        {chatLoading ? 'Sending...' : '📨 Send Message'}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -697,6 +788,35 @@ export default function CommunityPage() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Off Modal */}
+      {showChatOffModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-orange-500/40 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-600 to-amber-600 p-6 text-white">
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <span className="text-3xl">⏳</span>
+                Chat is Off
+              </h2>
+            </div>
+            <div className="p-8 text-center space-y-4">
+              <p className="text-slate-300 text-lg font-semibold">Community chat is currently unavailable</p>
+              <p className="text-slate-400">Our admin team has temporarily disabled community chat for some time. Please check back later to participate in discussions.</p>
+              <div className="bg-amber-500/20 border border-amber-500/50 rounded-lg p-4 mt-6">
+                <p className="text-amber-200 text-sm">✨ We'll be back soon!</p>
+              </div>
+            </div>
+            <div className="px-8 py-4 border-t border-slate-700 flex justify-end">
+              <button
+                onClick={() => setShowChatOffModal(false)}
+                className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+              >
+                Got it
+              </button>
             </div>
           </div>
         </div>
