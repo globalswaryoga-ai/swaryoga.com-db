@@ -200,6 +200,9 @@ export default function CommunityPage() {
       setUser({ name: joinFormData.name, email: joinFormData.email });
       setShowJoinModal(false);
       setJoinFormData({ name: '', email: '', mobile: '' });
+      
+      // Refresh community stats after joining
+      fetchCommunityStats();
     } catch (error) {
       alert('❌ Error joining community');
       console.error(error);
@@ -207,7 +210,6 @@ export default function CommunityPage() {
       setJoiningLoading(false);
     }
   };
-
   const handleRequestAccess = async () => {
     if (!requestFormData.name || !requestFormData.email || !requestFormData.mobile) {
       alert('Please fill all required fields');
@@ -245,7 +247,6 @@ export default function CommunityPage() {
       });
 
       const result = await response.json();
-
       if (!response.ok && response.status !== 200) {
         alert('❌ ' + (result.error || 'Failed to submit request'));
         return;
@@ -255,6 +256,9 @@ export default function CommunityPage() {
       alert('✅ ' + (result.message || 'Request submitted successfully!'));
       setShowRequestModal(false);
       setRequestFormData({ name: '', email: '', mobile: '', workshopsCompleted: false, message: '' });
+      
+      // Refresh community stats after submitting request
+      fetchCommunityStats();
     } catch (error) {
       alert('❌ Error submitting request');
       console.error(error);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Community } from '@/lib/db';
+import { connectDB, CommunityMember } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -12,8 +12,11 @@ export async function GET(request: NextRequest) {
     
     const stats = await Promise.all(
       communityIds.map(async (id) => {
-        const community = await Community.findOne({ name: mapIdToName(id) }).lean();
-        const memberCount = community?.members?.length || 0;
+        // Count members from CommunityMember collection (actual members)
+        const memberCount = await CommunityMember.countDocuments({ 
+          communityId: id,
+          status: 'active' // Only count active members
+        });
         return { id, count: memberCount };
       })
     );
@@ -34,16 +37,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-function mapIdToName(id: string): string {
-  const mapping: Record<string, string> = {
-    'global': 'Global Community',
-    'swar-yoga': 'Swar Yoga',
-    'aham-bramhasmi': 'Aham Bramhasmi',
-    'astavakra': 'Astavakra',
-    'shivoham': 'Shivoham',
-    'i-am-fit': 'I am Fit',
-  };
-  return mapping[id] || id;
 }
