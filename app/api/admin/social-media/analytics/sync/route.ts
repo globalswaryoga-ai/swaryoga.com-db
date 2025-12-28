@@ -44,6 +44,29 @@ function looksLikeYouTubeApiKey(token: string): boolean {
   return /^AIza[0-9A-Za-z\-_]{20,}$/.test(token);
 }
 
+function createUserFriendlyErrorMessage(error: string, platform: string, accountId: string): string {
+  // Handle Facebook/Instagram permission errors
+  if (error.includes('(#100)') || error.includes('does not exist')) {
+    return `⚠️ ${platform.toUpperCase()}: Missing permissions. Go to Admin → Social Media Setup → Facebook App → Permissions → Request "pages_read_engagement" and "Page Public Content Access" features. Account ID: ${accountId}`;
+  }
+  if (error.includes('fan_count') || error.includes('followers_count')) {
+    return `⚠️ ${platform.toUpperCase()}: Account ID format incorrect. Use numeric Page/Account ID only (not URL). Current: ${accountId}. Find your ID at findmyfbid.com`;
+  }
+  
+  // Handle YouTube errors
+  if (error.includes('youtube') || error.includes('YouTube')) {
+    if (error.includes('blocked') || error.includes('disabled')) {
+      return `⚠️ YOUTUBE: API is disabled or blocked. Enable YouTube Data API v3 in Google Cloud Console. Verify API Key at console.cloud.google.com`;
+    }
+    if (error.includes('subscriberCount') || error.includes('statistics')) {
+      return `⚠️ YOUTUBE: Channel stats hidden or credentials invalid. Ensure channel is set to public. Account ID: ${accountId}`;
+    }
+  }
+  
+  // Generic message
+  return `❌ ${platform.toUpperCase()}: ${error}`;
+}
+
 async function fetchYouTubeJson(url: string, bearerToken?: string): Promise<any> {
   const res = await fetch(url, {
     method: 'GET',
@@ -209,7 +232,8 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Sync failed';
-        results.push({ accountMongoId, platform, accountId, ok: false, error: message });
+        const friendlyMessage = createUserFriendlyErrorMessage(message, platform, accountId);
+        results.push({ accountMongoId, platform, accountId, ok: false, error: friendlyMessage });
       }
     }
 
