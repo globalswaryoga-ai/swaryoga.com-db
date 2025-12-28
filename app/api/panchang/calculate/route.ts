@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Call Python panchang service
+ * Call Python panchang service with timeout
  */
 function callPythonService(data: any): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -147,13 +147,25 @@ function callPythonService(data: any): Promise<any> {
       // Path to Python service
       const pythonScriptPath = path.join(process.cwd(), 'panchang_service.py');
       
+      // Get Python path from venv
+      const pythonPath = process.env.PYTHON_PATH || 'python3';
+      
       // Spawn Python process
-      const python = spawn('python3', [pythonScriptPath], {
+      const python = spawn(pythonPath, [pythonScriptPath], {
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 30000, // 30 second timeout
       });
 
       let output = '';
       let errorOutput = '';
+      let timedOut = false;
+
+      // Set timeout
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        python.kill();
+        reject(new Error('Python service timed out - calculation took too long'));
+      }, 25000);
 
       python.stdout.on('data', (data) => {
         output += data.toString();
@@ -163,9 +175,18 @@ function callPythonService(data: any): Promise<any> {
         errorOutput += data.toString();
       });
 
+      python.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(new Error(`Failed to start Python process: ${err.message}`));
+      });
+
       python.on('close', (code) => {
+        clearTimeout(timeout);
+        
+        if (timedOut) return; // Already rejected
+        
         if (code !== 0) {
-          reject(new Error(`Python service failed: ${errorOutput}`));
+          reject(new Error(`Python service error: ${errorOutput}`));
         } else {
           try {
             const result = JSON.parse(output);
