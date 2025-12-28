@@ -73,6 +73,7 @@ const SwarCalendar: React.FC = () => {
   const [selectedCapital, setSelectedCapital] = useState<string>('Mumbai');
   const [latitude, setLatitude] = useState<number>(19.0760);
   const [longitude, setLongitude] = useState<number>(72.8777);
+  const [timezone, setTimezone] = useState<number>(5.5); // UTC+5:30 for India
   const [showResults, setShowResults] = useState<boolean>(false);
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -281,7 +282,7 @@ const SwarCalendar: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude) return;
+    if (!selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude || timezone === null) return;
     
     setLoading(true);
     setConnectionError(null);
@@ -294,7 +295,7 @@ const SwarCalendar: React.FC = () => {
         throw new Error('Failed to calculate Hindu calendar data');
       }
       
-      // Then call the comprehensive Panchang API
+      // Then call the comprehensive Panchang API with timezone
       const panchangResponse = await fetch('/api/panchang/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -302,8 +303,8 @@ const SwarCalendar: React.FC = () => {
           date: selectedDate,
           latitude,
           longitude,
+          timezone,
           locationName: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
-          timezone: Math.round(longitude / 15)
         })
       });
 
@@ -315,7 +316,7 @@ const SwarCalendar: React.FC = () => {
         paksha: hinduData.paksha,
         tithi: hinduData.tithi,
         tithiName: hinduData.tithiName,
-        sunriseTime: hinduData.sunriseTime12,
+        sunriseTime: panchangData.data?.sunrise || hinduData.sunriseTime12,
         nadi: hinduData.nadi,
         location: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
         coordinates: {
@@ -556,11 +557,31 @@ const SwarCalendar: React.FC = () => {
                   Coordinates auto-fill from the selected city so sunrise time reflects the exact location.
                 </p>
               </div>
+
+              {/* Timezone */}
+              <div>
+                <label htmlFor="timezone" className="block text-sm font-medium text-swar-text mb-1">
+                  Timezone (UTC Offset) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  id="timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(parseFloat(e.target.value) || 0)}
+                  step="0.5"
+                  placeholder="e.g., 5.5 for UTC+5:30 (India)"
+                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                  required
+                />
+                <p className="text-xs text-swar-text-secondary mt-1">
+                  Enter timezone offset from UTC (e.g., 5.5 for India, -5 for EST, 0 for GMT)
+                </p>
+              </div>
             </div>
             
             <button
               type="submit"
-              disabled={loading || !selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude}
+              disabled={loading || !selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude || timezone === null}
               className="w-full bg-swar-primary hover:bg-swar-primary text-white py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
