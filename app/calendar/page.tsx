@@ -26,6 +26,7 @@ interface CalendarData {
     latitude: number;
     longitude: number;
   };
+  panchang?: any; // Comprehensive Panchang data
 }
 
 interface MonthlyCalendarData {
@@ -286,11 +287,27 @@ const SwarCalendar: React.FC = () => {
     setConnectionError(null);
     
     try {
+      // First get basic calendar data
       const hinduData = await calculateHinduCalendar(selectedDate, latitude, longitude);
       
       if (!hinduData) {
         throw new Error('Failed to calculate Hindu calendar data');
       }
+      
+      // Then call the comprehensive Panchang API
+      const panchangResponse = await fetch('/api/panchang/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: selectedDate,
+          latitude,
+          longitude,
+          locationName: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
+          timezone: Math.round(longitude / 15)
+        })
+      });
+
+      const panchangData = await panchangResponse.json();
       
       setCalendarData({
         date: selectedDate,
@@ -304,7 +321,9 @@ const SwarCalendar: React.FC = () => {
         coordinates: {
           latitude,
           longitude
-        }
+        },
+        // Add comprehensive Panchang data
+        panchang: panchangData.data
       });
       
       setShowResults(true);
@@ -572,7 +591,7 @@ const SwarCalendar: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-swar-text flex items-center space-x-2">
                 <Calendar className="w-6 h-6 text-swar-primary" />
-                <span>Hindu Calendar Results</span>
+                <span>Panchang Results</span>
               </h2>
               <button
                 onClick={() => setShowDownloadForm(true)}
@@ -582,76 +601,206 @@ const SwarCalendar: React.FC = () => {
                 <span>Download Monthly Calendar</span>
               </button>
             </div>
-            
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-swar-border overflow-hidden">
-              <div className="bg-swar-primary text-white px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Today's Hindu Calendar</h3>
-                  <div className="text-sm">
-                    <MapPin className="h-4 w-4 inline mr-1" />
-                    {calendarData.location}
+
+            {/* Location & Basic Info Card */}
+            <div className="bg-gradient-to-r from-swar-primary-light to-blue-50 rounded-2xl border border-swar-border p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <MapPin className="h-5 w-5 text-swar-primary" />
+                    <h3 className="text-lg font-semibold text-swar-text">{calendarData.location}</h3>
+                  </div>
+                  <div className="text-sm text-swar-text-secondary">
+                    <p>📅 {formatDate(calendarData.date)} | 🕐 {calendarData.day}</p>
+                    <p>📍 Lat: {calendarData.coordinates.latitude.toFixed(4)}, Lng: {calendarData.coordinates.longitude.toFixed(4)}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center space-x-2 text-orange-600">
+                    <Sun className="h-6 w-6" />
+                    <div>
+                      <div className="text-2xl font-bold">{calendarData.sunriseTime}</div>
+                      <div className="text-xs">Sunrise</div>
+                    </div>
                   </div>
                 </div>
               </div>
-              
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className="bg-swar-bg">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Date</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Day</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Paksha</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Tithi</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Sunrise Time</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-swar-text">Today's Nadi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white">
-                    <tr className="border-t border-swar-border">
-                      <td className="px-6 py-4 text-sm text-swar-text font-medium">
-                        {formatDate(calendarData.date)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-swar-text">
-                        {calendarData.day}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-swar-text">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-swar-primary-light text-swar-primary">
-                          {calendarData.paksha}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-swar-text">
-                        <div>
-                          <span className="font-semibold text-purple-600">{calendarData.tithi}</span>
-                          <div className="text-xs text-swar-text-secondary">{calendarData.tithiName}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-swar-text">
-                        <div className="flex items-center">
-                          <Sun className="w-4 h-4 text-orange-500 mr-1" />
-                          <span className="font-medium">{calendarData.sunriseTime}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-swar-text">
-                        <div className="flex items-center">
-                          <span className="mr-2 text-lg">{calendarData.nadi.symbol}</span>
-                          <div>
-                            <span className="font-medium">{calendarData.nadi.name}</span>
-                            <div className="text-xs text-swar-text-secondary">
-                              {calendarData.nadi.type === 'Sun' ? 'Sun Energy' : 'Moon Energy'}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+            </div>
+
+            {/* Warnings Section */}
+            {calendarData.panchang && (calendarData.panchang.vaidhriti || calendarData.panchang.vatiapat) && (
+              <div className="mb-6 space-y-3">
+                {calendarData.panchang.vaidhriti && (
+                  <div className="bg-red-50 border-l-4 border-red-600 p-4 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <span className="text-2xl">⚠️</span>
+                      <div>
+                        <h4 className="font-bold text-red-800">Vaidhriti Yoga - Avoid New Ventures</h4>
+                        <p className="text-sm text-red-700 mt-1">This yoga is inauspicious for starting new work or business. Good for meditation, yoga, and introspection only.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {calendarData.panchang.vatiapat && (
+                  <div className="bg-red-50 border-l-4 border-red-600 p-4 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <span className="text-2xl">🚫</span>
+                      <div>
+                        <h4 className="font-bold text-red-800">Vatiapat - Avoid Travel</h4>
+                        <p className="text-sm text-red-700 mt-1">Kritika Nakshatra in Krishna Paksha is inauspicious for long journeys. Plan your travels carefully.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              
-              <div className="px-6 py-4 bg-swar-bg border-t border-swar-border">
-                <div className="text-sm text-swar-text-secondary">
-                  <p><strong>Coordinates:</strong> Lat: {calendarData.coordinates.latitude.toFixed(6)}, Lng: {calendarData.coordinates.longitude.toFixed(6)}</p>
-                  <p className="mt-1"><strong>Nadi Logic:</strong> In {calendarData.paksha}, Tithi {calendarData.tithi} corresponds to {calendarData.nadi.name}</p>
+            )}
+
+            {/* Day Quality Indicator */}
+            {calendarData.panchang && (
+              <div className={`mb-6 rounded-2xl border-2 p-6 text-center ${
+                calendarData.panchang.dayQuality === 'Auspicious' 
+                  ? 'bg-green-50 border-green-500' 
+                  : calendarData.panchang.dayQuality === 'Inauspicious'
+                  ? 'bg-red-50 border-red-500'
+                  : 'bg-yellow-50 border-yellow-500'
+              }`}>
+                <div className="text-4xl mb-2">
+                  {calendarData.panchang.dayQuality === 'Auspicious' ? '✨' : calendarData.panchang.dayQuality === 'Inauspicious' ? '⚡' : '⚖️'}
                 </div>
+                <div className={`text-2xl font-bold ${
+                  calendarData.panchang.dayQuality === 'Auspicious' 
+                    ? 'text-green-800' 
+                    : calendarData.panchang.dayQuality === 'Inauspicious'
+                    ? 'text-red-800'
+                    : 'text-yellow-800'
+                }`}>
+                  Day is {calendarData.panchang.dayQuality}
+                </div>
+              </div>
+            )}
+
+            {/* Panchang Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              {/* Tithi Card */}
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl border border-purple-200 p-5 hover:shadow-lg transition-shadow">
+                <div className="text-sm font-semibold text-purple-700 mb-3">TITHI</div>
+                <div className="mb-3">
+                  <div className="text-3xl font-bold text-purple-800 mb-1">{calendarData.tithi}</div>
+                  <div className="text-sm text-purple-600">{calendarData.tithiName}</div>
+                </div>
+                <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-200 text-purple-800">
+                  {calendarData.paksha}
+                </div>
+              </div>
+
+              {/* Yoga Card */}
+              {calendarData.panchang?.yoga && (
+                <div className={`rounded-xl border-2 p-5 hover:shadow-lg transition-shadow ${
+                  calendarData.panchang.yoga.effect === 'Auspicious'
+                    ? 'bg-green-50 border-green-300'
+                    : 'bg-red-50 border-red-300'
+                }`}>
+                  <div className={`text-sm font-semibold mb-3 ${
+                    calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-green-700' : 'text-red-700'
+                  }`}>YOGA</div>
+                  <div className="mb-3">
+                    <div className={`text-3xl font-bold mb-1 ${
+                      calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-green-800' : 'text-red-800'
+                    }`}>{calendarData.panchang.yoga.symbol}</div>
+                    <div className={`text-sm font-medium ${
+                      calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-green-700' : 'text-red-700'
+                    }`}>{calendarData.panchang.yoga.name}</div>
+                    <div className={`text-xs mt-1 ${
+                      calendarData.panchang.yoga.effect === 'Auspicious' ? 'text-green-600' : 'text-red-600'
+                    }`}>{calendarData.panchang.yoga.effect}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Nakshatra Card */}
+              {calendarData.panchang?.nakshatra && (
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-200 p-5 hover:shadow-lg transition-shadow">
+                  <div className="text-sm font-semibold text-blue-700 mb-3">NAKSHATRA</div>
+                  <div className="mb-3">
+                    <div className="text-3xl font-bold text-blue-800 mb-1">{calendarData.panchang.nakshatra.symbol}</div>
+                    <div className="text-sm font-medium text-blue-700">{calendarData.panchang.nakshatra.name}</div>
+                    <div className="text-xs text-blue-600 mt-1">🔯 {calendarData.panchang.nakshatra.symbolText}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Karana Card */}
+              {calendarData.panchang?.karana && (
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl border border-orange-200 p-5 hover:shadow-lg transition-shadow">
+                  <div className="text-sm font-semibold text-orange-700 mb-3">KARANA</div>
+                  <div className="mb-3">
+                    <div className="text-3xl font-bold text-orange-800 mb-1">{calendarData.panchang.karana.symbol}</div>
+                    <div className="text-sm font-medium text-orange-700">{calendarData.panchang.karana.name}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Moon Rashi Card */}
+              {calendarData.panchang?.moonRashi && (
+                <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl border border-pink-200 p-5 hover:shadow-lg transition-shadow">
+                  <div className="text-sm font-semibold text-pink-700 mb-3">MOON RASHI</div>
+                  <div className="mb-3">
+                    <div className="text-3xl font-bold text-pink-800 mb-1">{calendarData.panchang.moonRashi.symbol}</div>
+                    <div className="text-sm font-medium text-pink-700">{calendarData.panchang.moonRashi.name}</div>
+                    <div className="text-xs text-pink-600 mt-1">🌙 {calendarData.panchang.moonRashi.element}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sun Rashi Card */}
+              {calendarData.panchang?.sunRashi && (
+                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl border border-yellow-200 p-5 hover:shadow-lg transition-shadow">
+                  <div className="text-sm font-semibold text-yellow-700 mb-3">SUN RASHI</div>
+                  <div className="mb-3">
+                    <div className="text-3xl font-bold text-yellow-800 mb-1">{calendarData.panchang.sunRashi.symbol}</div>
+                    <div className="text-sm font-medium text-yellow-700">{calendarData.panchang.sunRashi.name}</div>
+                    <div className="text-xs text-yellow-600 mt-1">☀️ {calendarData.panchang.sunRashi.element}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Recommendations Card */}
+            {calendarData.panchang?.recommendations && (
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200 p-6">
+                <h3 className="text-lg font-bold text-indigo-900 mb-4">📋 Today's Recommendations</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold text-red-700 mb-3">❌ Avoid Today</h4>
+                    <ul className="space-y-2">
+                      {calendarData.panchang.recommendations.avoid.map((item, idx) => (
+                        <li key={idx} className="text-sm text-gray-700 flex items-start">
+                          <span className="mr-2">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-green-700 mb-3">✅ Good For Today</h4>
+                    <ul className="space-y-2">
+                      {calendarData.panchang.recommendations.goodFor.map((item, idx) => (
+                        <li key={idx} className="text-sm text-gray-700 flex items-start">
+                          <span className="mr-2">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Nadi Info (Legacy) */}
+            <div className="mt-6 px-6 py-4 bg-swar-bg border-t border-swar-border rounded-lg">
+              <div className="text-sm text-swar-text-secondary">
+                <p className="flex items-center space-x-2"><span className="font-medium">Nadi Energy:</span> <span>{calendarData.nadi.symbol}</span> <span>{calendarData.nadi.name}</span> ({calendarData.nadi.type === 'Sun' ? 'Sun Energy ☀️' : 'Moon Energy 🌙'})</p>
+                <p className="mt-2 text-xs">In {calendarData.paksha}, Tithi {calendarData.tithi} corresponds to {calendarData.nadi.name} energy</p>
               </div>
             </div>
           </div>
