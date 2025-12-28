@@ -9,6 +9,33 @@ import {
 } from '@/lib/calendarCalculations';
 import { locationData } from '@/lib/locationData';
 
+// Timezone data with place names and UTC offsets
+const TIMEZONE_DATA = [
+  { name: 'London (GMT)', offset: 0 },
+  { name: 'Istanbul (+03:00)', offset: 3 },
+  { name: 'Cairo (+02:00)', offset: 2 },
+  { name: 'Dubai (+04:00)', offset: 4 },
+  { name: 'New Delhi/Kolkata (+05:30)', offset: 5.5 },
+  { name: 'Mumbai (+05:30)', offset: 5.5 },
+  { name: 'Bangalore (+05:30)', offset: 5.5 },
+  { name: 'Bangkok (+07:00)', offset: 7 },
+  { name: 'Hong Kong (+08:00)', offset: 8 },
+  { name: 'Singapore (+08:00)', offset: 8 },
+  { name: 'Tokyo (+09:00)', offset: 9 },
+  { name: 'Sydney (+10:00)', offset: 10 },
+  { name: 'New York (-05:00)', offset: -5 },
+  { name: 'Los Angeles (-08:00)', offset: -8 },
+  { name: 'Toronto (-05:00)', offset: -5 },
+  { name: 'Mexico City (-06:00)', offset: -6 },
+  { name: 'São Paulo (-03:00)', offset: -3 },
+  { name: 'Lagos (+01:00)', offset: 1 },
+  { name: 'Johannesburg (+02:00)', offset: 2 },
+  { name: 'Paris/Berlin (+01:00)', offset: 1 },
+  { name: 'Moscow (+03:00)', offset: 3 },
+  { name: 'Jakarta (+07:00)', offset: 7 },
+  { name: 'Manila (+08:00)', offset: 8 },
+];
+
 interface CalendarData {
   date: string;
   day: string;
@@ -22,6 +49,7 @@ interface CalendarData {
     name: string;
   };
   location: string;
+  timezone: string;
   coordinates: {
     latitude: number;
     longitude: number;
@@ -73,7 +101,7 @@ const SwarCalendar: React.FC = () => {
   const [selectedCapital, setSelectedCapital] = useState<string>('Mumbai');
   const [latitude, setLatitude] = useState<number>(19.0760);
   const [longitude, setLongitude] = useState<number>(72.8777);
-  const [timezone, setTimezone] = useState<number>(5.5); // UTC+5:30 for India
+  const [timezoneSelect, setTimezoneSelect] = useState<string>('Mumbai (+05:30)'); // Timezone name
   const [showResults, setShowResults] = useState<boolean>(false);
   const [calendarData, setCalendarData] = useState<CalendarData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -282,7 +310,11 @@ const SwarCalendar: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude || timezone === null) return;
+    if (!selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude || !timezoneSelect) return;
+    
+    // Get timezone offset from the selected timezone name
+    const timezoneData = TIMEZONE_DATA.find(tz => tz.name === timezoneSelect);
+    const timezone = timezoneData?.offset || 5.5;
     
     setLoading(true);
     setConnectionError(null);
@@ -319,6 +351,7 @@ const SwarCalendar: React.FC = () => {
         sunriseTime: panchangData.data?.sunrise || hinduData.sunriseTime12,
         nadi: hinduData.nadi,
         location: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
+        timezone: timezoneSelect,
         coordinates: {
           latitude,
           longitude
@@ -561,27 +594,31 @@ const SwarCalendar: React.FC = () => {
               {/* Timezone */}
               <div>
                 <label htmlFor="timezone" className="block text-sm font-medium text-swar-text mb-1">
-                  Timezone (UTC Offset) <span className="text-red-500">*</span>
+                  Timezone (Place + UTC) <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="number"
+                <select
                   id="timezone"
-                  value={timezone}
-                  onChange={(e) => setTimezone(parseFloat(e.target.value) || 0)}
-                  step="0.5"
-                  placeholder="e.g., 5.5 for UTC+5:30 (India)"
+                  value={timezoneSelect}
+                  onChange={(e) => setTimezoneSelect(e.target.value)}
                   className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
                   required
-                />
+                >
+                  <option value="">Select Your Timezone</option>
+                  {TIMEZONE_DATA.map((tz) => (
+                    <option key={tz.name} value={tz.name}>
+                      {tz.name}
+                    </option>
+                  ))}
+                </select>
                 <p className="text-xs text-swar-text-secondary mt-1">
-                  Enter timezone offset from UTC (e.g., 5.5 for India, -5 for EST, 0 for GMT)
+                  Select your city/timezone (e.g., Mumbai +05:30, New York -05:00)
                 </p>
               </div>
             </div>
             
             <button
               type="submit"
-              disabled={loading || !selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude || timezone === null}
+              disabled={loading || !selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude || !timezoneSelect}
               className="w-full bg-swar-primary hover:bg-swar-primary text-white py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -629,7 +666,7 @@ const SwarCalendar: React.FC = () => {
                 <div>
                   <div className="flex items-center space-x-2 mb-1">
                     <MapPin className="h-4 w-4 text-swar-primary" />
-                    <h3 className="text-base font-semibold text-swar-text">{calendarData.location}</h3>
+                    <h3 className="text-base font-semibold text-swar-text">{calendarData.location} • {calendarData.timezone}</h3>
                   </div>
                   <div className="text-xs text-swar-text-secondary">
                     <p>📅 {formatDate(calendarData.date)} | 🕐 {calendarData.day}</p>
