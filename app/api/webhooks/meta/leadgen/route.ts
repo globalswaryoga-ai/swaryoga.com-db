@@ -95,7 +95,7 @@ async function upsertLeadFromMeta(leadgenData: any) {
     // Check for duplicates (by phone, email, or metaLeadgenId)
     const existingLead = await Lead.findOne({
       $or: [
-        phone ? { phone } : null,
+        phone ? { phoneNumber: phone } : null,
         email ? { email } : null,
         { 'metadata.metaLeadgenId': metaLeadgenId },
       ].filter(Boolean),
@@ -115,7 +115,7 @@ async function upsertLeadFromMeta(leadgenData: any) {
     const leadNumber = await allocateNextLeadNumber();
     const newLead = await Lead.create({
       leadNumber,
-      phone: phone || undefined,
+      phoneNumber: phone || undefined,
       email: email || undefined,
       name: name || 'Instagram Lead',
       status: 'lead',
