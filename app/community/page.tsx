@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, MessageCircle, Share2, Search, Plus } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Search, Plus, AlertCircle } from 'lucide-react';
 
 interface Post {
   _id: string;
@@ -18,10 +19,13 @@ interface Post {
 }
 
 export default function CommunityPage() {
+  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [authorized, setAuthorized] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const categories = [
     { id: 'all', label: 'All Posts' },
@@ -32,8 +36,40 @@ export default function CommunityPage() {
   ];
 
   useEffect(() => {
-    fetchPosts();
-  }, [selectedCategory]);
+    checkAdmin();
+  }, []);
+
+  useEffect(() => {
+    if (authorized) {
+      fetchPosts();
+    }
+  }, [selectedCategory, authorized]);
+
+  const checkAdmin = async () => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      if (!token) {
+        router.push('/admin/login');
+        return;
+      }
+
+      const response = await fetch('/api/admin/dashboard/stats', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        localStorage.removeItem('admin_token');
+        router.push('/admin/login');
+        return;
+      }
+
+      setAuthorized(true);
+    } catch (error) {
+      router.push('/admin/login');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -54,6 +90,32 @@ export default function CommunityPage() {
     post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     post.content.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-swar-primary mx-auto mb-4"></div>
+          <p className="text-swar-text-secondary">Verifying admin access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authorized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+          <p className="text-gray-600 mb-6">You need admin access to view this page.</p>
+          <Link href="/admin/login" className="bg-swar-primary hover:bg-swar-primary-hover text-white px-6 py-2 rounded-lg transition-colors">
+            Go to Admin Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-swar-bg to-white">
