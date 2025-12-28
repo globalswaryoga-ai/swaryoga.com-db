@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Users, MessageSquare, Send, Mail, Phone, MoreVertical, Trash2, Edit, Shield,
   Search, ChevronDown, Plus, Filter, Download, ArrowRight, CheckCircle, AlertCircle,
-  Clock, User, Settings
+  Clock, User, Settings, Loader
 } from 'lucide-react';
 
 interface CommunityMember {
@@ -53,10 +53,15 @@ export default function AdminCommunityPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'banned'>('all');
   const [loading, setLoading] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<CommunityMember | null>(null);
   const [messageText, setMessageText] = useState('');
   const [actionDropdown, setActionDropdown] = useState<string | null>(null);
   const [approving, setApproving] = useState<string | null>(null);
+  const [searchUserQuery, setSearchUserQuery] = useState('');
+  const [foundUser, setFoundUser] = useState<any>(null);
+  const [searchingUser, setSearchingUser] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
 
   // Approve member for messaging in general community
   const approveMember = async (memberId: string) => {
@@ -90,6 +95,86 @@ export default function AdminCommunityPage() {
       console.error(err);
     } finally {
       setApproving(null);
+    }
+  };
+
+  // Search for user to add to community
+  const searchUser = async () => {
+    if (!searchUserQuery.trim()) {
+      alert('Enter a name, email, or user ID');
+      return;
+    }
+
+    try {
+      setSearchingUser(true);
+      setFoundUser(null);
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
+      
+      const response = await fetch(`/api/community/admin/find-user?q=${encodeURIComponent(searchUserQuery)}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('❌ ' + (error.error || 'User not found'));
+        return;
+      }
+
+      const data = await response.json();
+      setFoundUser(data.data);
+    } catch (err) {
+      alert('❌ Error searching for user');
+      console.error(err);
+    } finally {
+      setSearchingUser(false);
+    }
+  };
+
+  // Add member to community
+  const addMemberToCommunity = async () => {
+    if (!foundUser) {
+      alert('Search and select a user first');
+      return;
+    }
+
+    if (!selectedCommunity) {
+      alert('Select a community first');
+      return;
+    }
+
+    try {
+      setAddingMember(true);
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
+      
+      const response = await fetch('/api/community/admin/add-member', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          communityId: selectedCommunity, 
+          userId: foundUser.userId 
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('❌ ' + (error.error || 'Failed to add member'));
+        return;
+      }
+
+      alert('✅ Member added to community!');
+      setShowAddMemberModal(false);
+      setFoundUser(null);
+      setSearchUserQuery('');
+      // Reload members
+      // You may want to fetch members again here
+    } catch (err) {
+      alert('❌ Error adding member');
+      console.error(err);
+    } finally {
+      setAddingMember(false);
     }
   };
 
@@ -199,7 +284,9 @@ export default function AdminCommunityPage() {
                   <ChevronDown size={16} />
                 </button>
                 <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity">
-                  <button className="w-full text-left px-4 py-2 text-white hover:bg-gray-700 flex items-center gap-2 text-sm">
+                  <button 
+                    onClick={() => setShowAddMemberModal(true)}
+                    className="w-full text-left px-4 py-2 text-white hover:bg-gray-700 flex items-center gap-2 text-sm">
                     <Plus size={16} /> Add Member
                   </button>
                   <button className="w-full text-left px-4 py-2 text-white hover:bg-gray-700 flex items-center gap-2 text-sm border-t border-gray-700">
@@ -416,6 +503,81 @@ export default function AdminCommunityPage() {
                 >
                   <Send size={16} />
                   Send Message
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 border-b border-gray-700">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Plus size={24} />
+                Add Member to Community
+              </h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-white font-semibold mb-2 text-sm">Search User</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={searchUserQuery}
+                    onChange={(e) => setSearchUserQuery(e.target.value)}
+                    placeholder="Name, email, or user ID..."
+                    className="flex-1 px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={searchUser}
+                    disabled={searchingUser}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {searchingUser ? <Loader className="animate-spin" size={16} /> : <Search size={16} />}
+                    Search
+                  </button>
+                </div>
+              </div>
+
+              {foundUser && (
+                <div className="bg-gray-700 p-4 rounded-lg border border-gray-600">
+                  <p className="text-white font-semibold">{foundUser.name}</p>
+                  <p className="text-gray-300 text-sm">{foundUser.email}</p>
+                  <p className="text-gray-400 text-xs">ID: {foundUser.userId}</p>
+                </div>
+              )}
+
+              <div className="mt-6 flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowAddMemberModal(false);
+                    setFoundUser(null);
+                    setSearchUserQuery('');
+                  }}
+                  className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={addMemberToCommunity}
+                  disabled={!foundUser || addingMember}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {addingMember ? (
+                    <>
+                      <Loader className="animate-spin" size={16} />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} />
+                      Add Member
+                    </>
+                  )}
                 </button>
               </div>
             </div>
