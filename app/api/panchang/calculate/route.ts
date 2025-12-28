@@ -147,8 +147,8 @@ function callPythonService(data: any): Promise<any> {
       // Path to Python service
       const pythonScriptPath = path.join(process.cwd(), 'panchang_service.py');
       
-      // Get Python path from venv
-      const pythonPath = process.env.PYTHON_PATH || 'python3';
+      // Use venv Python for access to PyEphem library
+      const pythonPath = path.join(process.cwd(), '.venv', 'bin', 'python3');
       
       // Spawn Python process
       const python = spawn(pythonPath, [pythonScriptPath], {

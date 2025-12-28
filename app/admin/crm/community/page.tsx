@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Users, MessageSquare, Send, Mail, Phone, MoreVertical, Trash2, Edit, Shield,
   Search, ChevronDown, Plus, Filter, Download, ArrowRight, CheckCircle, AlertCircle,
-  Clock, User, Settings, Loader
+  Clock, User, Settings, Loader, Globe
 } from 'lucide-react';
 
 interface CommunityMember {
@@ -30,7 +30,7 @@ interface Community {
 }
 
 const COMMUNITIES: Community[] = [
-  { id: 'general', name: 'General Community', icon: '🌍', memberCount: 0 },
+  { id: 'general', name: 'Global Community for General', icon: '🌍', memberCount: 0 },
   { id: 'swar-yoga', name: 'Swar Yoga', icon: '🎵', memberCount: 0 },
   { id: 'aham-bramhasmi', name: 'Aham Bramhasmi', icon: '✨', memberCount: 0 },
   { id: 'astavakra', name: 'Astavakra', icon: '🧘', memberCount: 0 },
@@ -62,6 +62,13 @@ export default function AdminCommunityPage() {
   const [foundUser, setFoundUser] = useState<any>(null);
   const [searchingUser, setSearchingUser] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [postContent, setPostContent] = useState('');
+  const [postImages, setPostImages] = useState<File[]>([]);
+  const [postDocuments, setPostDocuments] = useState<File[]>([]);
+  const [editingCommunityName, setEditingCommunityName] = useState(false);
+  const [newCommunityName, setNewCommunityName] = useState('');
+  const [editedCommunities, setEditedCommunities] = useState<Record<string, string>>({});
 
   // Approve member for messaging in general community
   const approveMember = async (memberId: string) => {
@@ -178,6 +185,96 @@ export default function AdminCommunityPage() {
     }
   };
 
+  // Create admin post
+  const createAdminPost = async () => {
+    if (!postContent.trim() && postImages.length === 0 && postDocuments.length === 0) {
+      alert('Post content or files are required');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
+      const formData = new FormData();
+      
+      formData.append('communityId', selectedCommunity);
+      formData.append('content', postContent);
+      formData.append('isAdminPost', 'true');
+      
+      // Add images
+      postImages.forEach((img, idx) => {
+        formData.append(`images`, img);
+      });
+      
+      // Add documents
+      postDocuments.forEach((doc, idx) => {
+        formData.append(`documents`, doc);
+      });
+
+      const response = await fetch('/api/community/post/create', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('❌ ' + (error.error || 'Failed to create post'));
+        return;
+      }
+
+      alert('✅ Post published to community!');
+      setShowPostModal(false);
+      setPostContent('');
+      setPostImages([]);
+      setPostDocuments([]);
+    } catch (err) {
+      alert('❌ Error creating post');
+      console.error(err);
+    }
+  };
+
+  // Update community name
+  const updateCommunityName = async () => {
+    if (!newCommunityName.trim()) {
+      alert('Enter a new community name');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
+      
+      const response = await fetch(`/api/community/admin/${selectedCommunity}/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newCommunityName }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('❌ ' + (error.error || 'Failed to update community name'));
+        return;
+      }
+
+      // Update local state
+      setEditedCommunities(prev => ({
+        ...prev,
+        [selectedCommunity]: newCommunityName
+      }));
+      
+      alert('✅ Community name updated!');
+      setEditingCommunityName(false);
+      setNewCommunityName('');
+    } catch (err) {
+      alert('❌ Error updating community name');
+      console.error(err);
+    }
+  };
+
   // Fetch members when community changes
   useEffect(() => {
     const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
@@ -260,7 +357,9 @@ export default function AdminCommunityPage() {
             <div className="flex items-center gap-4">
               <span className="text-5xl">{currentCommunity?.icon}</span>
               <div>
-                <h1 className="text-3xl font-bold">{currentCommunity?.name}</h1>
+                <h1 className="text-3xl font-bold">
+                  {editedCommunities[selectedCommunity] || currentCommunity?.name}
+                </h1>
                 <p className="text-white/80 flex gap-4">
                   <span>👥 {memberCount} members</span>
                   <span>💬 {members.reduce((sum, m) => sum + m.messageCount, 0)} messages</span>
@@ -270,9 +369,20 @@ export default function AdminCommunityPage() {
 
             {/* Action Buttons */}
             <div className="flex gap-2">
-              <button className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition-all flex items-center gap-2">
-                <Mail size={18} />
-                Send Message
+              <button 
+                onClick={() => setShowPostModal(true)}
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition-all flex items-center gap-2">
+                <MessageSquare size={18} />
+                Create Post
+              </button>
+              <button 
+                onClick={() => {
+                  setEditingCommunityName(true);
+                  setNewCommunityName(currentCommunity?.name || '');
+                }}
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition-all flex items-center gap-2">
+                <Edit size={18} />
+                Edit Name
               </button>
               <button className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition-all flex items-center gap-2">
                 <Download size={18} />
@@ -578,6 +688,141 @@ export default function AdminCommunityPage() {
                       Add Member
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Post Modal */}
+      {showPostModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-lg shadow-2xl max-w-2xl w-full border border-gray-700">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <MessageSquare size={20} />
+                Create Community Post
+              </h3>
+              <button
+                onClick={() => {
+                  setShowPostModal(false);
+                  setPostContent('');
+                  setPostImages([]);
+                  setPostDocuments([]);
+                }}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-white font-semibold mb-2">Post Content</label>
+                <textarea
+                  value={postContent}
+                  onChange={(e) => setPostContent(e.target.value)}
+                  placeholder="Write your post message..."
+                  className="w-full h-32 px-4 py-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-white font-semibold mb-2">📸 Images</label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => setPostImages(Array.from(e.target.files || []))}
+                  className="w-full px-4 py-2 bg-gray-700 text-gray-300 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {postImages.length > 0 && (
+                  <p className="text-sm text-gray-400 mt-1">✓ {postImages.length} image(s) selected</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-white font-semibold mb-2">📹 Videos & Documents</label>
+                <input
+                  type="file"
+                  multiple
+                  accept="video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                  onChange={(e) => setPostDocuments(Array.from(e.target.files || []))}
+                  className="w-full px-4 py-2 bg-gray-700 text-gray-300 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {postDocuments.length > 0 && (
+                  <p className="text-sm text-gray-400 mt-1">✓ {postDocuments.length} file(s) selected</p>
+                )}
+              </div>
+
+              <div className="mt-6 flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowPostModal(false);
+                    setPostContent('');
+                    setPostImages([]);
+                    setPostDocuments([]);
+                  }}
+                  className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createAdminPost}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2"
+                >
+                  <Send size={16} />
+                  Publish Post
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Community Name Modal */}
+      {editingCommunityName && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-lg shadow-2xl max-w-md w-full border border-gray-700">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <Edit size={20} />
+                Edit Community Name
+              </h3>
+              <button
+                onClick={() => setEditingCommunityName(false)}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-white font-semibold mb-2">Community Name</label>
+                <input
+                  type="text"
+                  value={newCommunityName}
+                  onChange={(e) => setNewCommunityName(e.target.value)}
+                  placeholder="Enter new community name..."
+                  className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="mt-6 flex gap-3 justify-end">
+                <button
+                  onClick={() => setEditingCommunityName(false)}
+                  className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={updateCommunityName}
+                  className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2"
+                >
+                  <CheckCircle size={16} />
+                  Save Name
                 </button>
               </div>
             </div>
