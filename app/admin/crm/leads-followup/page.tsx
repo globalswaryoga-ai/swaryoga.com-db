@@ -4,6 +4,16 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
+// Hardcoded admin users list for admincrm
+const ADMIN_USERS = [
+  'admincrm',
+  'Turya Kalburgi',
+  'Aditya Yadav',
+  'Shekhar Suman',
+  'Navneet Kumar',
+  'Varun',
+];
+
 interface Lead {
   _id: string;
   leadNumber?: string;
@@ -241,15 +251,10 @@ export default function LeadsFollowupPage() {
         } as Lead));
         setFilteredLeads(mockLeads);
       } else if (searchFilterType === 'admin') {
-        // Get unique admin users from source field
-        const adminUsers = [...new Set(
-          allLeads
-            .map(l => l.source || 'Manual')
-            .filter(Boolean)
-        )].sort();
-        const mockLeads = adminUsers.map((admin, idx) => ({
+        // Use hardcoded admin users list
+        const mockLeads = ADMIN_USERS.map((admin, idx) => ({
           _id: `admin-${idx}`,
-          name: admin || '',
+          name: admin,
           phoneNumber: '',
           email: '',
           leadNumber: '',
@@ -289,15 +294,11 @@ export default function LeadsFollowupPage() {
       } as Lead));
       setFilteredLeads(mockLeads);
     } else if (searchFilterType === 'admin') {
-      const adminUsers = [...new Set(
-        allLeads
-          .map(l => l.source || 'Manual')
-          .filter(Boolean)
-      )].sort();
-      const filtered = adminUsers.filter(a => a.toLowerCase().includes(query));
+      // Filter from hardcoded admin users list
+      const filtered = ADMIN_USERS.filter(a => a.toLowerCase().includes(query));
       const mockLeads = filtered.map((admin, idx) => ({
         _id: `admin-${idx}`,
-        name: admin || '',
+        name: admin,
         phoneNumber: '',
         email: '',
         leadNumber: '',
