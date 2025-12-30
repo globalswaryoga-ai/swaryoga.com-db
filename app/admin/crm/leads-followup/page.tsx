@@ -909,62 +909,54 @@ export default function LeadsFollowupPage() {
             <div>
               <h2 className="text-lg font-bold text-slate-900 mb-4">Select Lead</h2>
 
-              {/* Search with Filter Button */}
-              <div className="relative" ref={dropdownRef}>
+              {/* Three Search Buttons for Admin */}
+              <div className="space-y-3">
+                {/* Button 1: Select Admin User */}
                 <button
-                  onClick={() => setShowSearchPanel(!showSearchPanel)}
+                  onClick={() => {
+                    setSearchFilterType('admin');
+                    setSearchQuery('');
+                    setShowSearchPanel(!showSearchPanel);
+                  }}
+                  className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-600 transition-all flex items-center gap-2 justify-between shadow-md"
+                >
+                  <span>�‍💼 Select Admin User</span>
+                  <span className={`transform transition-transform ${showSearchPanel && searchFilterType === 'admin' ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+
+                {/* Button 2: Select Workshop */}
+                <button
+                  onClick={() => {
+                    setSearchFilterType('workshop');
+                    setSearchQuery('');
+                    setShowSearchPanel(!showSearchPanel);
+                  }}
+                  className="w-full px-4 py-2 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-lg font-semibold hover:from-orange-700 hover:to-orange-600 transition-all flex items-center gap-2 justify-between shadow-md"
+                >
+                  <span>🏫 Select Workshop</span>
+                  <span className={`transform transition-transform ${showSearchPanel && searchFilterType === 'workshop' ? 'rotate-180' : ''}`}>▼</span>
+                </button>
+
+                {/* Button 3: Select Leads */}
+                <button
+                  onClick={() => {
+                    setSearchFilterType('lead');
+                    setSearchQuery('');
+                    setShowSearchPanel(!showSearchPanel);
+                  }}
                   className="w-full px-4 py-2 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-lg font-semibold hover:from-slate-800 hover:to-slate-700 transition-all flex items-center gap-2 justify-between shadow-md"
                 >
-                  <span>🔍 {searchFilterType === 'lead' ? 'Lead Search' : searchFilterType === 'workshop' ? 'Workshop Search' : 'Admin Search'}</span>
-                  <span className={`transform transition-transform ${showSearchPanel ? 'rotate-180' : ''}`}>▼</span>
+                  <span>👤 Select Leads</span>
+                  <span className={`transform transition-transform ${showSearchPanel && searchFilterType === 'lead' ? 'rotate-180' : ''}`}>▼</span>
                 </button>
+              </div>
+
+              {/* Search Dropdown Panel */}
+              <div className="relative mt-4" ref={dropdownRef}>
 
                 {/* Search Panel Dropdown */}
                 {showSearchPanel && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-300 rounded-lg shadow-lg z-50 p-4">
-                    {/* Filter Type Tabs */}
-                    <div className="flex gap-2 mb-4 border-b border-slate-200 pb-3">
-                      <button
-                        onClick={() => {
-                          setSearchFilterType('lead');
-                          setSearchQuery('');
-                        }}
-                        className={`px-3 py-1.5 rounded font-semibold text-sm transition-all ${
-                          searchFilterType === 'lead'
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        👤 Lead
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSearchFilterType('workshop');
-                          setSearchQuery('');
-                        }}
-                        className={`px-3 py-1.5 rounded font-semibold text-sm transition-all ${
-                          searchFilterType === 'workshop'
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        🏫 Workshop
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSearchFilterType('admin');
-                          setSearchQuery('');
-                        }}
-                        className={`px-3 py-1.5 rounded font-semibold text-sm transition-all ${
-                          searchFilterType === 'admin'
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        👨‍💼 Admin
-                      </button>
-                    </div>
-
                     {/* Search Input */}
                     <input
                       type="text"
