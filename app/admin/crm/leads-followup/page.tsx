@@ -172,6 +172,7 @@ export default function LeadsFollowupPage() {
   const [editStatus, setEditStatus] = useState<'open' | 'done' | string>('open');
   const [searchFilterType, setSearchFilterType] = useState<'lead' | 'admin' | 'workshop'>('lead');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showSearchPanel, setShowSearchPanel] = useState(false);
 
   // WhatsApp specific states
   const [whatsappType, setWhatsappType] = useState<'text' | 'image' | 'video' | 'document'>('text');
@@ -219,23 +220,94 @@ export default function LeadsFollowupPage() {
     fetchAllLeads();
   }, [token]);
 
-  // Filter leads
+  // Filter leads based on filter type
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setFilteredLeads(allLeads);
+      if (searchFilterType === 'lead') {
+        setFilteredLeads(allLeads);
+      } else if (searchFilterType === 'workshop') {
+        // Get unique workshops
+        const workshops = [...new Set(allLeads.map(l => l.workshopName).filter(Boolean))].sort();
+        const mockLeads = workshops.map((workshop, idx) => ({
+          _id: `workshop-${idx}`,
+          name: workshop || '',
+          phoneNumber: '',
+          email: '',
+          leadNumber: '',
+          status: 'lead',
+          labels: [],
+          workshopName: workshop,
+          createdAt: new Date().toISOString(),
+        } as Lead));
+        setFilteredLeads(mockLeads);
+      } else if (searchFilterType === 'admin') {
+        // Get unique admin users from source field
+        const adminUsers = [...new Set(
+          allLeads
+            .map(l => l.source || 'Manual')
+            .filter(Boolean)
+        )].sort();
+        const mockLeads = adminUsers.map((admin, idx) => ({
+          _id: `admin-${idx}`,
+          name: admin || '',
+          phoneNumber: '',
+          email: '',
+          leadNumber: '',
+          status: 'lead',
+          labels: [],
+          createdAt: new Date().toISOString(),
+        } as Lead));
+        setFilteredLeads(mockLeads);
+      }
       return;
     }
 
     const query = searchQuery.toLowerCase();
-    const filtered = allLeads.filter(
-      (lead) =>
-        lead.name.toLowerCase().includes(query) ||
-        lead.phoneNumber.toLowerCase().includes(query) ||
-        lead.email.toLowerCase().includes(query) ||
-        lead.leadNumber?.toLowerCase().includes(query)
-    );
-    setFilteredLeads(filtered);
-  }, [searchQuery, allLeads]);
+
+    if (searchFilterType === 'lead') {
+      const filtered = allLeads.filter(
+        (lead) =>
+          lead.name.toLowerCase().includes(query) ||
+          lead.phoneNumber.toLowerCase().includes(query) ||
+          lead.email.toLowerCase().includes(query) ||
+          lead.leadNumber?.toLowerCase().includes(query)
+      );
+      setFilteredLeads(filtered);
+    } else if (searchFilterType === 'workshop') {
+      const workshops = [...new Set(allLeads.map(l => l.workshopName).filter(Boolean))].sort();
+      const filtered = workshops.filter(w => w && w.toLowerCase().includes(query));
+      const mockLeads = filtered.map((workshop, idx) => ({
+        _id: `workshop-${idx}`,
+        name: workshop || '',
+        phoneNumber: '',
+        email: '',
+        leadNumber: '',
+        status: 'lead',
+        labels: [],
+        workshopName: workshop,
+        createdAt: new Date().toISOString(),
+      } as Lead));
+      setFilteredLeads(mockLeads);
+    } else if (searchFilterType === 'admin') {
+      const adminUsers = [...new Set(
+        allLeads
+          .map(l => l.source || 'Manual')
+          .filter(Boolean)
+      )].sort();
+      const filtered = adminUsers.filter(a => a.toLowerCase().includes(query));
+      const mockLeads = filtered.map((admin, idx) => ({
+        _id: `admin-${idx}`,
+        name: admin || '',
+        phoneNumber: '',
+        email: '',
+        leadNumber: '',
+        status: 'lead',
+        labels: [],
+        createdAt: new Date().toISOString(),
+      } as Lead));
+      setFilteredLeads(mockLeads);
+    }
+  }, [searchQuery, allLeads, searchFilterType]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -696,6 +768,18 @@ export default function LeadsFollowupPage() {
                   <path d="M9 22V12H15V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
+
+              {/* Mobile: Open Lead List Button */}
+              {!selectedLead && (
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="md:hidden px-3 py-1.5 bg-slate-900 text-white rounded-lg font-semibold text-sm hover:bg-slate-800 transition-colors"
+                  title="Open lead list"
+                >
+                  📋 Open Lead List
+                </button>
+              )}
+
               <div>
                 <h1 className="text-3xl font-bold text-slate-900">Lead Followup</h1>
                 <p className="text-sm text-slate-500 mt-1">Manage conversations and followups</p>
@@ -712,93 +796,91 @@ export default function LeadsFollowupPage() {
             )}
           </div>
 
-          {/* Action Buttons */}
-          {selectedLead && (
-            <div className="space-y-3">
-              <div className="flex gap-2 flex-wrap">
-                <button
-                  onClick={() => setActionMode('notes')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    actionMode === 'notes'
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
-                  }`}
-                >
-                  📝 Notes
-                </button>
-                <button
-                  onClick={() => setActionMode('whatsapp')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    actionMode === 'whatsapp'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-green-50 hover:bg-green-100 text-green-700'
-                  }`}
-                >
-                  💬 WhatsApp
-                </button>
-                <button
-                  onClick={() => setActionMode('email')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    actionMode === 'email'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
-                  }`}
-                >
-                  📧 Email
-                </button>
-                <button
-                  onClick={() => setActionMode('sms')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    actionMode === 'sms'
-                      ? 'bg-amber-600 text-white'
-                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800'
-                  }`}
-                >
-                  📱 SMS
-                </button>
-                <button
-                  onClick={() => setActionMode('todos')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    actionMode === 'todos'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-purple-50 hover:bg-purple-100 text-purple-700'
-                  }`}
-                >
-                  ✅ Todos
-                </button>
-                <button
-                  onClick={() => setActionMode('reminder')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    actionMode === 'reminder'
-                      ? 'bg-pink-600 text-white'
-                      : 'bg-pink-50 hover:bg-pink-100 text-pink-700'
-                  }`}
-                >
-                  🔔 Reminder
-                </button>
-                <button
-                  onClick={() => setActionMode('nextFollowup')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    actionMode === 'nextFollowup'
-                      ? 'bg-cyan-600 text-white'
-                      : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700'
-                  }`}
-                >
-                  📅 Next Followup
-                </button>
-                <button
-                  onClick={() => setActionMode('labels')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    actionMode === 'labels'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
-                  }`}
-                >
-                  🏷️ Labels
-                </button>
-              </div>
+          {/* Action Buttons - Always Visible */}
+          <div className="space-y-3">
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setActionMode('notes')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'notes'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+                }`}
+              >
+                📝 Notes
+              </button>
+              <button
+                onClick={() => setActionMode('whatsapp')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'whatsapp'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-green-50 hover:bg-green-100 text-green-700'
+                }`}
+              >
+                💬 WhatsApp
+              </button>
+              <button
+                onClick={() => setActionMode('email')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'email'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-50 hover:bg-blue-100 text-blue-700'
+                }`}
+              >
+                📧 Email
+              </button>
+              <button
+                onClick={() => setActionMode('sms')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'sms'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800'
+                }`}
+              >
+                📱 SMS
+              </button>
+              <button
+                onClick={() => setActionMode('todos')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'todos'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-purple-50 hover:bg-purple-100 text-purple-700'
+                }`}
+              >
+                ✅ Todos
+              </button>
+              <button
+                onClick={() => setActionMode('reminder')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'reminder'
+                    ? 'bg-pink-600 text-white'
+                    : 'bg-pink-50 hover:bg-pink-100 text-pink-700'
+                }`}
+              >
+                🔔 Reminder
+              </button>
+              <button
+                onClick={() => setActionMode('nextFollowup')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'nextFollowup'
+                    ? 'bg-cyan-600 text-white'
+                    : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700'
+                }`}
+              >
+                📅 Next Followup
+              </button>
+              <button
+                onClick={() => setActionMode('labels')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'labels'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
+                }`}
+              >
+                🏷️ Labels
+              </button>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -827,57 +909,134 @@ export default function LeadsFollowupPage() {
             <div>
               <h2 className="text-lg font-bold text-slate-900 mb-4">Select Lead</h2>
 
-              {/* Search with Filter Dropdown */}
+              {/* Search with Filter Button */}
               <div className="relative" ref={dropdownRef}>
-                <div className="flex gap-2">
-                  <select
-                    value={searchFilterType}
-                    onChange={(e) => {
-                      setSearchFilterType(e.target.value as any);
-                      setSearchQuery('');
-                    }}
-                    className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm bg-white font-medium text-slate-700"
-                  >
-                    <option value="lead">Lead Name/Mobile/ID</option>
-                    <option value="workshop">Workshop</option>
-                    <option value="admin">Admin User</option>
-                  </select>
-                  
-                  <input
-                    type="text"
-                    placeholder={
-                      searchFilterType === 'lead'
-                        ? "Search by name, mobile, or ID..."
-                        : searchFilterType === 'workshop'
-                          ? "Search by workshop name..."
-                          : "Search by admin user..."
-                    }
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() => setShowLeadDropdown(true)}
-                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
-                  />
-                </div>
+                <button
+                  onClick={() => setShowSearchPanel(!showSearchPanel)}
+                  className="w-full px-4 py-2 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-lg font-semibold hover:from-slate-800 hover:to-slate-700 transition-all flex items-center gap-2 justify-between shadow-md"
+                >
+                  <span>🔍 {searchFilterType === 'lead' ? 'Lead Search' : searchFilterType === 'workshop' ? 'Workshop Search' : 'Admin Search'}</span>
+                  <span className={`transform transition-transform ${showSearchPanel ? 'rotate-180' : ''}`}>▼</span>
+                </button>
 
-                {/* Dropdown */}
-                {showLeadDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-300 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
-                    {loadingLeads ? (
-                      <div className="px-4 py-6 text-center text-slate-500 text-sm">Loading leads...</div>
-                    ) : filteredLeads.length > 0 ? (
-                      filteredLeads.map((lead) => (
-                        <button
-                          key={lead._id}
-                          onClick={() => handleSelectLead(lead)}
-                          className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0 transition-colors"
-                        >
-                          <div className="font-semibold text-slate-900 text-sm">{lead.name}</div>
-                          <div className="text-xs text-slate-600">{lead.phoneNumber}</div>
-                          <div className="text-xs text-slate-500">{lead.email}</div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-6 text-center text-slate-500 text-sm">No results found</div>
+                {/* Search Panel Dropdown */}
+                {showSearchPanel && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-300 rounded-lg shadow-lg z-50 p-4">
+                    {/* Filter Type Tabs */}
+                    <div className="flex gap-2 mb-4 border-b border-slate-200 pb-3">
+                      <button
+                        onClick={() => {
+                          setSearchFilterType('lead');
+                          setSearchQuery('');
+                        }}
+                        className={`px-3 py-1.5 rounded font-semibold text-sm transition-all ${
+                          searchFilterType === 'lead'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        👤 Lead
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSearchFilterType('workshop');
+                          setSearchQuery('');
+                        }}
+                        className={`px-3 py-1.5 rounded font-semibold text-sm transition-all ${
+                          searchFilterType === 'workshop'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        🏫 Workshop
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSearchFilterType('admin');
+                          setSearchQuery('');
+                        }}
+                        className={`px-3 py-1.5 rounded font-semibold text-sm transition-all ${
+                          searchFilterType === 'admin'
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        👨‍💼 Admin
+                      </button>
+                    </div>
+
+                    {/* Search Input */}
+                    <input
+                      type="text"
+                      placeholder={
+                        searchFilterType === 'lead'
+                          ? "Search by name, mobile, or ID..."
+                          : searchFilterType === 'workshop'
+                            ? "Search by workshop name..."
+                            : "Search by admin user..."
+                      }
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onFocus={() => {}}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm mb-3"
+                      autoFocus
+                    />
+
+                    {/* Search Results */}
+                    <div className="max-h-72 overflow-y-auto">
+                      {loadingLeads ? (
+                        <div className="px-3 py-4 text-center text-slate-500 text-sm">Loading...</div>
+                      ) : filteredLeads.length > 0 ? (
+                        <div className="space-y-1">
+                          {filteredLeads.map((lead) => (
+                            <button
+                              key={lead._id}
+                              onClick={() => {
+                                // If searching for admin users, navigate to admin users page
+                                if (searchFilterType === 'admin') {
+                                  router.push('/admin/users');
+                                  return;
+                                }
+                                // Otherwise, select the lead normally
+                                handleSelectLead(lead);
+                                setShowSearchPanel(false);
+                              }}
+                              className={`w-full text-left px-3 py-2.5 hover:bg-slate-100 rounded transition-colors border border-transparent hover:border-slate-200 ${
+                                searchFilterType === 'admin' ? 'cursor-pointer hover:bg-blue-50' : ''
+                              }`}
+                            >
+                              <div className={`font-semibold text-sm ${
+                                searchFilterType === 'admin' ? 'text-blue-600' : 'text-slate-900'
+                              }`}>
+                                {searchFilterType === 'admin' ? `👨‍💼 ${lead.name}` : lead.name}
+                              </div>
+                              {searchFilterType === 'lead' && (
+                                <>
+                                  <div className="text-xs text-slate-600">{lead.phoneNumber}</div>
+                                  <div className="text-xs text-slate-500">{lead.email}</div>
+                                </>
+                              )}
+                              {searchFilterType === 'admin' && (
+                                <div className="text-xs text-blue-500 mt-1">Click to manage in Admin Users</div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-4 text-center text-slate-500 text-sm">
+                          {searchQuery ? 'No results found' : 'Start typing to search...'}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Action Button for Admin Users */}
+                    {searchFilterType === 'admin' && !showSearchPanel && (
+                      <button
+                        onClick={() => router.push('/admin/users')}
+                        className="w-full mt-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2 justify-center shadow-sm"
+                      >
+                        👨‍💼 Manage Admin Users
+                      </button>
                     )}
                   </div>
                 )}
