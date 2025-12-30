@@ -992,17 +992,12 @@ export default function LeadsFollowupPage() {
                             <button
                               key={lead._id}
                               onClick={() => {
-                                // If searching for admin users, navigate to admin users page
-                                if (searchFilterType === 'admin') {
-                                  router.push('/admin/users');
-                                  return;
-                                }
-                                // Otherwise, select the lead normally
+                                // Select the lead/admin/workshop normally
                                 handleSelectLead(lead);
                                 setShowSearchPanel(false);
                               }}
                               className={`w-full text-left px-3 py-2.5 hover:bg-slate-100 rounded transition-colors border border-transparent hover:border-slate-200 ${
-                                searchFilterType === 'admin' ? 'cursor-pointer hover:bg-blue-50' : ''
+                                searchFilterType === 'admin' ? 'hover:bg-blue-50' : ''
                               }`}
                             >
                               <div className={`font-semibold text-sm ${
@@ -1016,9 +1011,6 @@ export default function LeadsFollowupPage() {
                                   <div className="text-xs text-slate-500">{lead.email}</div>
                                 </>
                               )}
-                              {searchFilterType === 'admin' && (
-                                <div className="text-xs text-blue-500 mt-1">Click to manage in Admin Users</div>
-                              )}
                             </button>
                           ))}
                         </div>
@@ -1028,16 +1020,6 @@ export default function LeadsFollowupPage() {
                         </div>
                       )}
                     </div>
-
-                    {/* Quick Action Button for Admin Users */}
-                    {searchFilterType === 'admin' && !showSearchPanel && (
-                      <button
-                        onClick={() => router.push('/admin/users')}
-                        className="w-full mt-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2 justify-center shadow-sm"
-                      >
-                        👨‍💼 Manage Admin Users
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
