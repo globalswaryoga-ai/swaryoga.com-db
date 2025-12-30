@@ -1,0 +1,75 @@
+# Gradle# Gradle
+.gradle/
+build/
+*.apk
+*.aab
+
+# Local properties
+local.properties
+keystore/
+swar-yoga-release.keystore
+
+# Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+
+# Build
+.externalNativeBuild
+.cxx/
+CMakeFiles/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*~*.swo*.swp.vs/.vscode/# IDE.env.*.local.env.local.env# Environment*.log# LogsCMakeFiles/.cxx/.externalNativeBuild# Build.DS_Store*.ipr*.iws*.iml.idea/# Android Studioswar-yoga-release.keystorekeystore/local.properties# Local properties*.aab*.apkbuild/.gradle/

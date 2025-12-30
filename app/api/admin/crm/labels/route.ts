@@ -80,11 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { leadIds, label } = body;
-
-    if (!Array.isArray(leadIds) || leadIds.length === 0) {
-      return NextResponse.json({ error: 'No lead IDs provided' }, { status: 400 });
-    }
+    const { leadIds = [], label } = body;
 
     if (!label || typeof label !== 'string') {
       return NextResponse.json({ error: 'Invalid label' }, { status: 400 });
@@ -92,13 +88,24 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
+    // If no leadIds provided, just return success (creates the label by existing in the system)
+    if (!Array.isArray(leadIds) || leadIds.length === 0) {
+      return NextResponse.json(
+        { success: true, data: { modified: 0, matched: 0, label } },
+        { status: 200 }
+      );
+    }
+
     const objectIds = (leadIds as any[])
       .map((id) => String(id))
       .filter((id) => mongoose.Types.ObjectId.isValid(id))
       .map((id) => new mongoose.Types.ObjectId(id));
 
     if (objectIds.length === 0) {
-      return NextResponse.json({ error: 'No valid lead IDs provided' }, { status: 400 });
+      return NextResponse.json(
+        { success: true, data: { modified: 0, matched: 0, label } },
+        { status: 200 }
+      );
     }
 
     const result = await Lead.updateMany(
@@ -110,7 +117,7 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(
-      { success: true, data: { modified: result.modifiedCount, matched: result.matchedCount } },
+      { success: true, data: { modified: result.modifiedCount, matched: result.matchedCount, label } },
       { status: 200 }
     );
   } catch (error) {
@@ -133,8 +140,16 @@ export async function DELETE(request: NextRequest) {
     }
     const superAdmin = isSuperAdmin(decoded);
 
-    const url = new URL(request.url);
-    const label = url.searchParams.get('label');
+    // Try to get label from request body first, then from query params
+    let label: string | null = null;
+    try {
+      const body = await request.json();
+      label = body?.label;
+    } catch {
+      // If body parsing fails, try query params
+      const url = new URL(request.url);
+      label = url.searchParams.get('label');
+    }
 
     if (!label) {
       return NextResponse.json({ error: 'Label parameter required' }, { status: 400 });
@@ -148,7 +163,7 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json(
-      { success: true, data: { modified: result.modifiedCount } },
+      { success: true, data: { modified: result.modifiedCount, label } },
       { status: 200 }
     );
   } catch (error) {

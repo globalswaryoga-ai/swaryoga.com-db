@@ -163,8 +163,8 @@ export default function LeadsFollowupPage() {
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [activityError, setActivityError] = useState<string | null>(null);
-  const [showHeaderPreview, setShowHeaderPreview] = useState(false);
   const [showSavedItems, setShowSavedItems] = useState(true);
+  const [selectedActivityItem, setSelectedActivityItem] = useState<ActivityItem | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [editTitle, setEditTitle] = useState('');
@@ -299,7 +299,6 @@ export default function LeadsFollowupPage() {
     setActivityItems([]);
     setActivityError(null);
     setEditingKey(null);
-    setShowHeaderPreview(false);
     setShowSavedItems(true);
   };
 
@@ -702,56 +701,7 @@ export default function LeadsFollowupPage() {
                 <div className="text-right">
                   <p className="text-sm font-semibold text-slate-900">{selectedLead.name}</p>
                   <p className="text-xs text-slate-600 mt-1">{selectedLead.phoneNumber}</p>
-                  <div className="mt-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setShowHeaderPreview((v) => !v)}
-                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold"
-                      aria-expanded={showHeaderPreview}
-                    >
-                      {showHeaderPreview ? 'Hide Preview' : 'Show Preview'}
-                    </button>
-                  </div>
                 </div>
-
-                {/* Header-side preview (collapsible) */}
-                {showHeaderPreview && (
-                  <div className="w-[22rem] space-y-2">
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-bold text-slate-700">Preview</p>
-                        <p className="text-[11px] text-slate-500 truncate">{getActionLabel(actionMode)}</p>
-                      </div>
-                      {draftPreviewLines.length ? (
-                        <div className="mt-2 space-y-1">
-                          {draftPreviewLines.slice(0, 4).map((line, idx) => (
-                            <p key={idx} className="text-xs text-slate-700 leading-snug">
-                              {line}
-                            </p>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-xs text-slate-400">Start typing to see a preview here…</p>
-                      )}
-                    </div>
-
-                    {lastSavedPreview && lastSavedPreview.leadId === selectedLead._id && (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs font-bold text-emerald-800">Last saved</p>
-                          <p className="text-[11px] text-emerald-700 truncate">{lastSavedPreview.title}</p>
-                        </div>
-                        <div className="mt-2 space-y-1">
-                          {lastSavedPreview.lines.slice(0, 4).map((line, idx) => (
-                            <p key={idx} className="text-xs text-emerald-800 leading-snug">
-                              {line}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -920,7 +870,8 @@ export default function LeadsFollowupPage() {
                       return (
                         <div
                           key={key}
-                          className="min-w-[18rem] max-w-[18rem] bg-white border border-slate-200 rounded-xl p-3 shadow-sm"
+                          onClick={() => setSelectedActivityItem(item)}
+                          className="min-w-[18rem] max-w-[18rem] bg-white border border-slate-200 rounded-xl p-3 shadow-sm cursor-pointer hover:border-slate-400 hover:shadow-md transition-all"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div>
@@ -1025,7 +976,7 @@ export default function LeadsFollowupPage() {
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* Left Sidebar - Lead Selection */}
         <div className="w-80 border-r border-slate-200 bg-white overflow-y-auto">
           <div className="p-6 space-y-6">
             <div>
@@ -1105,8 +1056,8 @@ export default function LeadsFollowupPage() {
           </div>
         </div>
 
-        {/* Main Content Area - Chat Box */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Center - Main Content Area */}
+        <div className="flex-1 overflow-y-auto border-r border-slate-200">
           {!selectedLead ? (
             <div className="h-full flex items-center justify-center">
               <div className="text-center">
@@ -1738,6 +1689,157 @@ export default function LeadsFollowupPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Sidebar - Activity Preview */}
+        <div className="w-96 border-l border-slate-200 bg-gradient-to-b from-slate-50 to-white overflow-y-auto">
+          {!selectedLead ? (
+            <div className="h-full flex items-center justify-center p-4">
+              <div className="text-center">
+                <div className="text-4xl mb-3">📋</div>
+                <p className="text-sm font-semibold text-slate-600">Select a lead to see details</p>
+              </div>
+            </div>
+          ) : !selectedActivityItem ? (
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Activity Preview</h3>
+                <p className="text-xs text-slate-600">Click on an activity item in the list below to preview it here</p>
+              </div>
+
+              {/* Quick Lead Stats */}
+              <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-600">Total Activities</span>
+                  <span className="text-lg font-bold text-slate-900">{activityItems.length}</span>
+                </div>
+                {selectedLead.labels && selectedLead.labels.length > 0 && (
+                  <div className="border-t border-slate-200 pt-3">
+                    <p className="text-xs font-semibold text-slate-600 mb-2">Labels</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedLead.labels.map((label) => (
+                        <span key={label} className="bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-semibold">
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Activity List Summary */}
+              {activityItems.length > 0 && (
+                <div className="bg-white border border-slate-200 rounded-lg p-4">
+                  <p className="text-xs font-semibold text-slate-600 mb-3">Recent Activity (click to preview)</p>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {activityItems.slice(0, 10).map((item) => {
+                      const key = `${item.kind}:${item._id}`;
+                      const icon = item.kind === 'note' ? '📝' : '📅';
+                      const title = item.kind === 'note' ? truncateText(item.note, 50) : truncateText(item.title, 50);
+                      
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setSelectedActivityItem(item)}
+                          className="w-full text-left p-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all text-xs"
+                        >
+                          <p className="font-semibold text-slate-900">{icon} {title}</p>
+                          <p className="text-slate-500 text-[11px] mt-0.5">
+                            {item.kind === 'followup' && item.dueAt ? new Date(item.dueAt).toLocaleDateString() : item.kind === 'note' && item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Recently'}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-6 space-y-4">
+              <button
+                onClick={() => setSelectedActivityItem(null)}
+                className="text-sm text-slate-600 hover:text-slate-900 font-semibold flex items-center gap-2"
+              >
+                ← Back to list
+              </button>
+
+              {/* Activity Detail */}
+              <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+                {selectedActivityItem.kind === 'note' ? (
+                  <>
+                    <div>
+                      <p className="text-xs font-bold text-slate-600 uppercase mb-2">📝 Note</p>
+                      <h3 className="text-lg font-bold text-slate-900 mb-3">Note Details</h3>
+                    </div>
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedActivityItem.note}</p>
+                    </div>
+                    {selectedActivityItem.createdAt && (
+                      <div className="text-xs text-slate-600 border-t border-slate-200 pt-3">
+                        <span className="font-semibold">Created:</span> {new Date(selectedActivityItem.createdAt).toLocaleString()}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <p className="text-xs font-bold text-slate-600 uppercase mb-2">📅 Followup</p>
+                      <h3 className="text-lg font-bold text-slate-900">{selectedActivityItem.title}</h3>
+                    </div>
+
+                    {selectedActivityItem.description && (
+                      <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                        <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedActivityItem.description}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-3 border-t border-slate-200 pt-4">
+                      {selectedActivityItem.dueAt && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600">Due Date</p>
+                          <p className="text-sm font-semibold text-slate-900">{new Date(selectedActivityItem.dueAt).toLocaleString()}</p>
+                        </div>
+                      )}
+
+                      {selectedActivityItem.status && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600">Status</p>
+                          <div className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                            selectedActivityItem.status === 'completed' || selectedActivityItem.status === 'done'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {selectedActivityItem.status === 'completed' || selectedActivityItem.status === 'done' ? '✅ Completed' : '⏳ Pending'}
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedActivityItem.completedAt && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600">Completed At</p>
+                          <p className="text-sm text-slate-700">{new Date(selectedActivityItem.completedAt).toLocaleString()}</p>
+                        </div>
+                      )}
+
+                      {selectedActivityItem.createdAt && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600">Created At</p>
+                          <p className="text-sm text-slate-700">{new Date(selectedActivityItem.createdAt).toLocaleString()}</p>
+                        </div>
+                      )}
+
+                      {selectedActivityItem.updatedAt && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600">Updated At</p>
+                          <p className="text-sm text-slate-700">{new Date(selectedActivityItem.updatedAt).toLocaleString()}</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

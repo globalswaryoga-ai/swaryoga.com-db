@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 interface QRConnectionModalProps {
   isOpen: boolean;
@@ -22,29 +22,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
   const [maxQrAttempts] = useState(5);
   const wsRef = useRef<WebSocket | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) {
-      // Clean up WebSocket on close
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      return;
-    }
-
-    // Reset state when opened
-    setStatus('idle');
-    setErrorMsg(null);
-    setQrCode(null);
-    setQrAttempt(0);
-    setConnectionMode('qr');
-    setMessage('Connecting to WhatsApp Web...');
-
-    // Auto-connect to QR mode on open
-    connectQRMode();
-  }, [isOpen]);
-
-  const connectQRMode = () => {
+  const connectQRMode = useCallback(() => {
     setStatus('connecting');
     setMessage('Initializing WhatsApp Web connection...');
     
@@ -140,7 +118,29 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       setStatus('error');
       setErrorMsg('Failed to initialize WhatsApp connection');
     }
-  };
+  }, [status, onConnected, onClose, qrAttempt, maxQrAttempts]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      // Clean up WebSocket on close
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      return;
+    }
+
+    // Reset state when opened
+    setStatus('idle');
+    setErrorMsg(null);
+    setQrCode(null);
+    setQrAttempt(0);
+    setConnectionMode('qr');
+    setMessage('Connecting to WhatsApp Web...');
+
+    // Auto-connect to QR mode on open
+    connectQRMode();
+  }, [isOpen, connectQRMode]);
 
   const handleResetSession = async () => {
     setStatus('resetting');

@@ -19,6 +19,18 @@ export default function LabelsPage() {
   const [newLabel, setNewLabel] = useState('');
   const [addingLabel, setAddingLabel] = useState(false);
 
+  // Default labels for lead workflow
+  const defaultLabels = [
+    'New Lead',
+    'Whatsapp sent',
+    'Sadhak replied',
+    'Ready to call',
+    'Call complet',
+    'Redy to workshop',
+    'Pending',
+    'No any Reply',
+  ];
+
   // Fetch labels
   const fetchLabels = useCallback(async () => {
     if (!token) return;
@@ -45,6 +57,33 @@ export default function LabelsPage() {
     fetchLabels();
   }, [fetchLabels]);
 
+  const handleAddLabel = async (labelName: string) => {
+    if (!token || !labelName.trim()) return;
+
+    try {
+      setError(null);
+      const response = await fetch('/api/admin/crm/labels', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ leadIds: [], label: labelName.trim() }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to add label');
+      }
+
+      // Refresh labels
+      fetchLabels();
+      setNewLabel('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add label');
+    }
+  };
+
   const handleDeleteLabel = async (label: string) => {
     if (!token || !confirm(`Delete label "${label}"?`)) return;
 
@@ -63,6 +102,30 @@ export default function LabelsPage() {
       setLabels(labels.filter((l) => l._id !== label));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete label');
+    }
+  };
+
+  const handleInitializeDefaults = async () => {
+    if (!token) return;
+    
+    try {
+      setError(null);
+      setAddingLabel(true);
+      
+      for (const label of defaultLabels) {
+        // Check if label already exists
+        const exists = labels.some((l) => l._id.toLowerCase() === label.toLowerCase());
+        if (!exists) {
+          await handleAddLabel(label);
+        }
+      }
+      
+      // Refresh all labels
+      await fetchLabels();
+      setAddingLabel(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to initialize labels');
+      setAddingLabel(false);
     }
   };
 
@@ -94,32 +157,43 @@ export default function LabelsPage() {
         {/* Add Label Section */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-8">
           <h2 className="text-2xl font-bold text-slate-900 mb-4">Add New Label</h2>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="Enter label name..."
-              className="flex-1 px-4 py-3 border border-slate-300 rounded-lg text-slate-900 font-medium placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  setAddingLabel(true);
-                  // Would call API here
-                  setAddingLabel(false);
-                }
-              }}
-            />
-            <button
-              onClick={() => {
-                setAddingLabel(true);
-                // Would call API here
-                setAddingLabel(false);
-              }}
-              disabled={!newLabel.trim() || addingLabel}
-              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all"
-            >
-              {addingLabel ? 'Adding...' : '+ Add Label'}
-            </button>
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="Enter label name..."
+                className="flex-1 px-4 py-3 border border-slate-300 rounded-lg text-slate-900 font-medium placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAddLabel(newLabel);
+                  }
+                }}
+              />
+              <button
+                onClick={() => handleAddLabel(newLabel)}
+                disabled={!newLabel.trim() || addingLabel}
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all"
+              >
+                {addingLabel ? 'Adding...' : '+ Add Label'}
+              </button>
+            </div>
+
+            {/* Quick Initialize Defaults */}
+            <div className="pt-4 border-t border-slate-200">
+              <p className="text-sm text-slate-600 mb-3 font-medium">Or initialize default labels for lead workflow:</p>
+              <button
+                onClick={handleInitializeDefaults}
+                disabled={addingLabel || loading}
+                className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all text-sm"
+              >
+                {addingLabel ? 'Initializing...' : '🚀 Initialize Default Labels'}
+              </button>
+              <p className="text-xs text-slate-500 mt-2">
+                Default labels: New Lead, Whatsapp sent, Sadhak replied, Ready to call, Call complet, Redy to workshop, Pending, No any Reply
+              </p>
+            </div>
           </div>
         </div>
 

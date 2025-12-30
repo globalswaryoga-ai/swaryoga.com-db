@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,7 +37,7 @@ export default function ChatbotSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -48,7 +48,7 @@ export default function ChatbotSettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [crmFetch]);
 
   useEffect(() => {
     if (!token) {
@@ -56,7 +56,7 @@ export default function ChatbotSettingsPage() {
       return;
     }
     fetchSettings();
-  }, [token, router]);
+  }, [token, router, fetchSettings]);
 
   const saveSettings = async () => {
     try {

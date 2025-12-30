@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home } from 'lucide-react';
 
@@ -108,10 +108,6 @@ export default function CommunityPage() {
     }
   };
 
-  useEffect(() => {
-    fetchPosts();
-  }, [selectedCategory]);
-
   const checkUserAuth = async () => {
     // First, check if user data is stored in localStorage (from community join)
     const communityUserStr = localStorage.getItem('community_user');
@@ -146,7 +142,7 @@ export default function CommunityPage() {
     }
   };
 
-  const fetchPosts = async () => {
+  const fetchPosts = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/community/posts?category=' + selectedCategory);
@@ -159,7 +155,11 @@ export default function CommunityPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
 
   const handleJoinCommunity = async () => {
     if (!joinFormData.name || !joinFormData.email || !joinFormData.mobile) {
@@ -544,7 +544,6 @@ export default function CommunityPage() {
                       </>
                     )}
                   </div>
-                )}
                 )}
               </div>
             </div>

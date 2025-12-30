@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">swaryoga.com</domain>
+        <domain includeSubdomains="true">staging.swaryoga.com</domain>
+    </domain-config>
+</data-extraction-rules>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App strings -->
+    <string name="app_name">Swar Yoga</string>
+    <string name="app_description">Learn authentic yoga practices online and offline</string>
+    <string name="loading">Loading...</string>
+    <string name="error_loading_page">Error loading page</string>
+    <string name="retry">Retry</string>
+    <string name="exit">Exit</string>
+    <string name="share">Share</string>
+
+    <!-- Menu items -->
+    <string name="menu_home">Home</string>
+    <string name="menu_workshops">Workshops</string>
+    <string name="menu_planner">Life Planner</string>
+    <string name="menu_profile">Profile</string>
+    <string name="menu_logout">Logout</string>
+
+    <!-- Messages -->
+    <string name="no_internet">No internet connection</string>
+    <string name="session_expired">Your session has expired. Please login again.</string>
+    <string name="payment_processing">Processing payment...</string>
+    <string name="payment_success">Payment successful!</string>
+    <string name="payment_failed">Payment failed. Please try again.</string>
+</resources>
