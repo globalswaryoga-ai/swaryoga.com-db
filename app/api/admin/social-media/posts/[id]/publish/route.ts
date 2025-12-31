@@ -137,6 +137,221 @@ async function publishInstagramPost(args: {
   return igPostId;
 }
 
+async function publishXPost(args: {
+  bearerToken: string;
+  text: string;
+  imageUrls: string[];
+}): Promise<string> {
+  const { bearerToken, text, imageUrls } = args;
+
+  // Check token format
+  if (!bearerToken.startsWith('AAAA')) {
+    throw new Error('Invalid X/Twitter Bearer token. Must start with "AAAA".');
+  }
+
+  // X/Twitter API v2 text length limit
+  if (text.length > 280) {
+    throw new Error(`X/Twitter post exceeds 280 characters (${text.length} chars). Please shorten the text.`);
+  }
+
+  let mediaData: any = undefined;
+
+  // If there are images, upload them first and get media IDs
+  if (imageUrls.length > 0) {
+    const mediaIds: string[] = [];
+
+    for (const imageUrl of imageUrls) {
+      try {
+        // Fetch image as buffer
+        const imgRes = await fetch(imageUrl, { cache: 'no-store' });
+        if (!imgRes.ok) {
+          throw new Error(`Failed to fetch image: ${imgRes.statusText}`);
+        }
+
+        const imageBuffer = await imgRes.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+        // Upload media using v1.1 endpoint (v2 media upload is limited)
+        const mediaRes = await fetch('https://upload.twitter.com/1.1/media/upload.json', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${bearerToken}`,
+          },
+          body: new URLSearchParams({
+            media_data: base64Image,
+          }),
+          cache: 'no-store',
+        });
+
+        const mediaJson = await mediaRes.json().catch(() => ({}));
+        if (!mediaRes.ok) {
+          const err = mediaJson?.errors?.[0]?.message || mediaJson?.error || 'Media upload failed';
+          throw new Error(err);
+        }
+
+        const mediaId = String(mediaJson?.media_id_string || '').trim();
+        if (!mediaId) throw new Error('X/Twitter media upload returned no media_id');
+        mediaIds.push(mediaId);
+      } catch (e) {
+        throw new Error(`Failed to upload image to X/Twitter: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    mediaData = { media: { media_ids: mediaIds } };
+  }
+
+  // Post tweet using v2 API
+  const postBody: any = { text };
+  if (mediaData?.media?.media_ids?.length > 0) {
+    postBody.media = mediaData.media;
+  }
+
+  const postRes = await fetch('https://api.twitter.com/2/tweets', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${bearerToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(postBody),
+    cache: 'no-store',
+  });
+
+  const postJson = await postRes.json().catch(() => ({}));
+  if (!postRes.ok) {
+    const err =
+      postJson?.errors?.[0]?.message ||
+      postJson?.detail ||
+      postJson?.error ||
+      'Post failed';
+    throw new Error(err);
+  }
+
+  const tweetId = String(postJson?.data?.id || '').trim();
+  if (!tweetId) throw new Error('X/Twitter post succeeded but returned no tweet ID');
+  return tweetId;
+}
+
+async function publishLinkedInPost(args: {
+  accessToken: string;
+  companyId: string;
+  text: string;
+  imageUrls: string[];
+}): Promise<string> {
+  const { accessToken, companyId, text, imageUrls } = args;
+
+  if (!companyId || !/^\d+$/.test(companyId)) {
+    throw new Error('Invalid LinkedIn Company ID (must be numeric).');
+  }
+
+  const liHeaders = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'LinkedIn-Version': '202312',
+  };
+
+  let mediaAssets: any[] = [];
+
+  // Upload images if present
+  if (imageUrls.length > 0) {
+    for (const imageUrl of imageUrls) {
+      try {
+        // Register upload and get signed URL
+        const registerRes = await fetch('https://api.linkedin.com/v2/assets?action=registerUpload', {
+          method: 'POST',
+          headers: liHeaders,
+          body: JSON.stringify({
+            registerUploadRequest: {
+              recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
+              owner: `urn:li:organization:${companyId}`,
+              serviceRelationships: [{ relationshipType: 'OWNER', identifier: `urn:li:organization:${companyId}` }],
+            },
+          }),
+          cache: 'no-store',
+        });
+
+        const registerJson = await registerRes.json().catch(() => ({}));
+        if (!registerRes.ok) {
+          throw new Error(registerJson?.message || 'LinkedIn asset registration failed');
+        }
+
+        const uploadUrl = registerJson?.value?.uploadMechanism?.['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']?.uploadUrl;
+        const assetUrn = registerJson?.value?.asset;
+
+        if (!uploadUrl || !assetUrn) {
+          throw new Error('LinkedIn registration returned no upload URL or asset URN');
+        }
+
+        // Fetch and upload image
+        const imgRes = await fetch(imageUrl, { cache: 'no-store' });
+        if (!imgRes.ok) throw new Error(`Failed to fetch image: ${imgRes.statusText}`);
+
+        const imageBuffer = await imgRes.arrayBuffer();
+
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': imgRes.headers.get('content-type') || 'image/jpeg',
+          },
+          body: imageBuffer,
+          cache: 'no-store',
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error(`LinkedIn image upload failed: ${uploadRes.statusText}`);
+        }
+
+        mediaAssets.push({
+          status: 'READY',
+          media: assetUrn,
+        });
+      } catch (e) {
+        throw new Error(`Failed to upload image to LinkedIn: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+
+  // Create post
+  const postPayload: any = {
+    author: `urn:li:organization:${companyId}`,
+    lifecycleState: 'PUBLISHED',
+    specificContent: {
+      'com.linkedin.ugc.share': {
+        shareCommentary: {
+          text,
+        },
+        shareMediaCategory: mediaAssets.length > 0 ? 'IMAGE' : 'NONE',
+      },
+    },
+    visibility: {
+      'com.linkedin.ugc.share': {
+        visibilityType: 'PUBLIC',
+      },
+    },
+  };
+
+  if (mediaAssets.length > 0) {
+    postPayload.specificContent['com.linkedin.ugc.share'].media = mediaAssets;
+  }
+
+  const postRes = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+    method: 'POST',
+    headers: liHeaders,
+    body: JSON.stringify(postPayload),
+    cache: 'no-store',
+  });
+
+  const postJson = await postRes.json().catch(() => ({}));
+  if (!postRes.ok) {
+    const err = postJson?.message || postJson?.error?.message || 'LinkedIn post failed';
+    throw new Error(err);
+  }
+
+  const linkedInPostId = String(postJson?.id || '').trim();
+  if (!linkedInPostId) throw new Error('LinkedIn post succeeded but returned no post ID');
+  return linkedInPostId;
+}
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
@@ -232,6 +447,34 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           });
           platformPostIds.instagram = igId;
           results.push({ platform, ok: true, platformPostId: igId });
+          continue;
+        }
+
+        if (platform === 'x') {
+          const xId = await publishXPost({
+            bearerToken: accessToken,
+            text,
+            imageUrls,
+          });
+          platformPostIds.x = xId;
+          results.push({ platform, ok: true, platformPostId: xId });
+          continue;
+        }
+
+        if (platform === 'youtube') {
+          // YouTube posting is complex (requires video processing). For now, mark as not implemented.
+          throw new Error('YouTube publishing not implemented yet. Video upload requires special handling.');
+        }
+
+        if (platform === 'linkedin') {
+          const liId = await publishLinkedInPost({
+            accessToken,
+            companyId: accountId,
+            text,
+            imageUrls,
+          });
+          platformPostIds.linkedin = liId;
+          results.push({ platform, ok: true, platformPostId: liId });
           continue;
         }
 

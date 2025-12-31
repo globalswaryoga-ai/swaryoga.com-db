@@ -1,0 +1,140 @@
+#!/bin/bash
+
+# Gradle wrapper script for Swar Yoga Android App
+
+# Get the directory where this script is located
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Run gradle with the gradle wrapper jar
+exec java -jar "$DIR/gradle/wrapper/gradle-wrapper.jar" "$@"
+
+# Use the maximum available, or set MAX_FD != -1 to use that value.
+MAX_FD="maximum"
+
+warn () {
+    echo "$*"
+}
+
+die () {
+    echo
+    echo "$*"
+    echo
+    exit 1
+}
+
+# OS specific support (must be 'true' or 'false').
+cygwin=false
+msys=false
+darwin=false
+nonstop=false
+case "`uname`" in
+  CYGWIN* )
+    cygwin=true
+    ;;
+  Darwin* )
+    darwin=true
+    ;;
+  MSYS* | MINGW* )
+    msys=true
+    ;;
+  NONSTOP* )
+    nonstop=true
+    ;;
+esac
+
+# Determine the Java command to use to start the JVM.
+if [ -n "$JAVA_HOME" ] ; then
+    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
+        # IBM's JDK on AIX uses strange locations for the executables
+        JAVACMD="$JAVA_HOME/jre/sh/java"
+    else
+        JAVACMD="$JAVA_HOME/bin/java"
+    fi
+    if [ ! -x "$JAVACMD" ] ; then
+        die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
+    fi
+else
+    JAVACMD="java"
+    which java >/dev/null 2>&1 || die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+
+Please set the JAVA_HOME variable in your environment to match the
+location of your Java installation."
+fi
+
+# Increase the maximum file descriptors if we can.
+if [ "$cygwin" = "false" -a "$darwin" = "false" -a "$nonstop" = "false" ] ; then
+    MAX_FD_LIMIT=`ulimit -H -n`
+    if [ $? -eq 0 ] ; then
+        if [ "$MAX_FD" = "maximum" -o "$MAX_FD" = "max" ] ; then
+            MAX_FD="$MAX_FD_LIMIT"
+        fi
+        ulimit -n $MAX_FD
+        if [ $? -ne 0 ] ; then
+            warn "Could not set maximum file descriptor limit: $MAX_FD"
+        fi
+    else
+        warn "Could not query maximum file descriptor limit: $MAX_FD_LIMIT"
+    fi
+fi
+
+# For Darwin, add options to specify how the application appears in the dock
+if $darwin; then
+    GRADLE_OPTS="$GRADLE_OPTS \"-Xdock:name=$APP_NAME\" \"-Xdock:icon=$APP_HOME/media/gradle.icns\""
+fi
+
+# For Cygwin or MSYS, switch paths to Windows format before running java
+if [ "$cygwin" = "true" -o "$msys" = "true" ] ; then
+    APP_HOME=`cygpath --path --mixed "$APP_HOME"`
+    CLASSPATH=`cygpath --path --mixed "$CLASSPATH"`
+
+    JAVACMD=`cygpath --unix "$JAVACMD"`
+
+    # We build the pattern for arguments to be converted via cygpath
+    ROOTDIRSRAW=`find -L / -maxdepth 3 -type d -name gradle 2>/dev/null | head -n 1`
+    [ -z "$ROOTDIRSRAW" ] && ROOTDIRSRAW=`find -L / -maxdepth 3 -type d -name gradle 2>/dev/null | head -n 1`
+    [ -z "$ROOTDIRSRAW" ] && ROOTDIRSRAW=`find . -maxdepth 3 -type d -name gradle 2>/dev/null | head -n 1`
+    [ -z "$ROOTDIRSRAW" ] && ROOTDIRSRAW=`pwd`
+    ROOTDIRSRAW=`echo "$ROOTDIRSRAW" | grep gradle | cut -c1-`
+    if [ -z "$ROOTDIRSRAW" ] ; then
+        rootdir=`pwd`
+        rootdirpath=$rootdir
+    else
+        rootdir=`dirname "$ROOTDIRSRAW"`
+        rootdirpath="$rootdir/.."
+    fi
+    CLASSPATH="$rootdirpath/gradle/wrapper/gradle-wrapper.jar:$CLASSPATH"
+
+    WRAPPER_LAUNCHER=org.gradle.wrapper.GradleWrapperMain
+
+    # Determine if .conf exists and if execution is from MSys, as Groovy has trouble with backslashes and :classpath separators created in connection with -cp flag
+    WRAPPER_LAUNCHER=org.gradle.wrapper.GradleWrapperMain
+    CLASSPATH=$( cygpath --windows --path "$CLASSPATH" )
+
+    # For Mingw, ensure paths are in UNIX format before anything is touched
+    if $msys ; then
+        HOMEPATH=`(cd "$HOME"; pwd -W | sed 's|\\|/|g')`
+        TEMPDIR=`(cd "$TEMP"; pwd -W | sed 's|\\|/|g')`
+        CLASSPATH=`(cd "$CLASSPATH"; pwd -W | sed 's|\\|/|g')`
+    fi
+
+    # Classpath containing wrapper jars on Windows needs to be constructed differently
+    CLASSPATH="$rootdirpath/gradle/wrapper/gradle-wrapper.jar:$CLASSPATH"
+
+    WRAPPER_LAUNCHER=org.gradle.wrapper.GradleWrapperMain
+
+    # For Cygwin, switch paths to Windows format before running java
+    if $cygwin; then
+        APP_HOME=`(cd "$APP_HOME"; pwd -W)`
+        CLASSPATH=`(cd "$CLASSPATH"; pwd -W)`
+
+    fi
+
+    exec "$JAVACMD" $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS "-Dorg.gradle.appname=$APP_BASE_NAME" -classpath "$CLASSPATH" $WRAPPER_LAUNCHER "$@"
+
+else
+    exec "$JAVACMD" $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS "-Dorg.gradle.appname=$APP_BASE_NAME" -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+
+fi

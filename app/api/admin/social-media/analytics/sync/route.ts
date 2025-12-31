@@ -133,12 +133,20 @@ export async function POST(request: NextRequest) {
 
       try {
         if (platform === 'facebook') {
+          if (!decryptedAccessToken) {
+            throw new Error('Missing Facebook access token. Go to https://developers.facebook.com and create a long-lived token with pages_read_engagement,pages_read_user_content,instagram_basic scopes.');
+          }
+
+          if (!accountId || !/^\d+$/.test(accountId)) {
+            throw new Error('Invalid Facebook Page ID. Must be numeric. Find it at facebook.com/YOUR_PAGE/settings/page-info/');
+          }
+
           const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}?fields=fan_count,followers_count,name&access_token=${encodeURIComponent(decryptedAccessToken)}`;
           const data = await fetchGraphJson(url);
           const followers = asNumber(data?.fan_count) ?? asNumber(data?.followers_count);
 
           if (followers === undefined) {
-            throw new Error('Graph API did not return fan_count/followers_count for this page');
+            throw new Error('Graph API did not return fan_count. Check token permissions: pages_read_engagement,pages_read_user_content required.');
           }
 
           await SocialMediaAccount.updateOne(
@@ -157,12 +165,20 @@ export async function POST(request: NextRequest) {
         }
 
         if (platform === 'instagram') {
+          if (!decryptedAccessToken) {
+            throw new Error('Missing Instagram access token. Go to https://developers.facebook.com and create a long-lived token with instagram_basic,instagram_manage_insights scopes.');
+          }
+
+          if (!accountId || !/^\d+$/.test(accountId)) {
+            throw new Error('Invalid Instagram Business Account ID. Must be numeric. Find it via Facebook Graph API Explorer.');
+          }
+
           const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}?fields=followers_count,username&access_token=${encodeURIComponent(decryptedAccessToken)}`;
           const data = await fetchGraphJson(url);
           const followers = asNumber(data?.followers_count);
 
           if (followers === undefined) {
-            throw new Error('Graph API did not return followers_count for this IG business account');
+            throw new Error('Graph API did not return followers_count. Ensure: 1) Account is Business type, 2) Token has instagram_basic,instagram_manage_insights scopes, 3) Account is connected to this app.');
           }
 
           await SocialMediaAccount.updateOne(
@@ -184,10 +200,14 @@ export async function POST(request: NextRequest) {
           // accountId should be the Channel ID (recommended). If omitted, we can try mine=true for OAuth.
           const tokenValue = decryptedAccessToken;
 
+          if (!tokenValue) {
+            throw new Error('Missing YouTube credential. Go to https://console.cloud.google.com and create either: 1) API Key (+ enter Channel ID), or 2) OAuth token (auto-detect channel).');
+          }
+
           let data: any;
           if (looksLikeYouTubeApiKey(tokenValue)) {
             if (!accountId) {
-              throw new Error('Missing accountId (YouTube Channel ID). Please enter it in Social Media Setup.');
+              throw new Error('Missing accountId (YouTube Channel ID). Find it at youtube.com/@YOUR_CHANNEL/about and enter it in Social Media Setup.');
             }
             const url = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${encodeURIComponent(accountId)}&key=${encodeURIComponent(tokenValue)}`;
             data = await fetchYouTubeJson(url);
@@ -203,7 +223,7 @@ export async function POST(request: NextRequest) {
           const followers = asNumber(item?.statistics?.subscriberCount);
           if (followers === undefined) {
             throw new Error(
-              'YouTube API did not return subscriberCount (it may be hidden for this channel, or credentials are invalid).'
+              'YouTube API did not return subscriberCount. Possible reasons: 1) Channel subscriber count is hidden (make it public at youtube.com/channel/YOUR_ID/about), 2) Token is invalid or revoked, 3) API quota exceeded (wait 24h).'
             );
           }
 
@@ -222,13 +242,109 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Other platforms need additional API setup / scopes.
+        if (platform === 'x') {
+          // X/Twitter API v2 requires Bearer Token
+          const tokenValue = decryptedAccessToken;
+          if (!tokenValue || !tokenValue.startsWith('AAAA')) {
+            throw new Error('Invalid X/Twitter Bearer token. Go to https://developer.twitter.com and create a Bearer token with read:users scope.');
+          }
+
+          const url = 'https://api.twitter.com/2/users/me?user.fields=public_metrics';
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${tokenValue}`,
+              'Accept': 'application/json',
+            },
+            cache: 'no-store',
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const message = errorData?.detail || errorData?.error?.message || 'X/Twitter API error';
+            throw new Error(message);
+          }
+
+          const data = await response.json();
+          const followers = asNumber(data?.data?.public_metrics?.followers_count);
+
+          if (followers === undefined) {
+            throw new Error('X/Twitter API did not return followers_count. Ensure account is public.');
+          }
+
+          await SocialMediaAccount.updateOne(
+            { _id: acc._id },
+            {
+              $set: {
+                'metadata.followers': followers,
+                'metadata.lastSyncedAt': now,
+                updatedAt: now,
+              },
+            }
+          );
+
+          results.push({ accountMongoId, platform, accountId, ok: true, followers });
+          continue;
+        }
+
+        if (platform === 'linkedin') {
+          // LinkedIn API v2 requires Authorization header with Bearer token
+          const tokenValue = decryptedAccessToken;
+          if (!tokenValue) {
+            throw new Error('Missing LinkedIn access token. Go to https://www.linkedin.com/developers and create an OAuth token with r_liteprofile scope.');
+          }
+
+          // accountId should be the LinkedIn Company ID (numeric)
+          if (!accountId || !/^\d+$/.test(accountId)) {
+            throw new Error('Invalid LinkedIn Company ID. Must be numeric. Find it at linkedin.com/company/YOUR_COMPANY/about/');
+          }
+
+          const url = `https://api.linkedin.com/v2/organizations/${encodeURIComponent(accountId)}?projection=(id,localizedName,localizedDescription,followersCount)`;
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${tokenValue}`,
+              'Accept': 'application/json',
+              'LinkedIn-Version': '202312',
+            },
+            cache: 'no-store',
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const message = errorData?.message || errorData?.serviceErrorCode || 'LinkedIn API error';
+            throw new Error(message);
+          }
+
+          const data = await response.json();
+          const followers = asNumber(data?.followersCount);
+
+          if (followers === undefined) {
+            throw new Error('LinkedIn API did not return followersCount. Ensure token has correct permissions.');
+          }
+
+          await SocialMediaAccount.updateOne(
+            { _id: acc._id },
+            {
+              $set: {
+                'metadata.followers': followers,
+                'metadata.lastSyncedAt': now,
+                updatedAt: now,
+              },
+            }
+          );
+
+          results.push({ accountMongoId, platform, accountId, ok: true, followers });
+          continue;
+        }
+
+        // Unknown platform
         results.push({
           accountMongoId,
           platform,
           accountId,
           ok: false,
-          error: 'Auto-sync not configured for this platform yet (needs official API + scopes).',
+          error: `Platform "${platform}" is not supported yet.`,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Sync failed';
