@@ -52,19 +52,52 @@ function createUserFriendlyErrorMessage(error: string, platform: string, account
   if (error.includes('fan_count') || error.includes('followers_count')) {
     return `⚠️ ${platform.toUpperCase()}: Account ID format incorrect. Use numeric Page/Account ID only (not URL). Current: ${accountId}. Find your ID at findmyfbid.com`;
   }
+  if (error.includes('Invalid') && error.includes('token')) {
+    return `⚠️ ${platform.toUpperCase()}: Token has expired or is invalid. Go to Admin → Social Media Setup and reconnect the account.`;
+  }
   
   // Handle YouTube errors
   if (error.includes('youtube') || error.includes('YouTube')) {
     if (error.includes('blocked') || error.includes('disabled')) {
       return `⚠️ YOUTUBE: API is disabled or blocked. Enable YouTube Data API v3 in Google Cloud Console. Verify API Key at console.cloud.google.com`;
     }
-    if (error.includes('subscriberCount') || error.includes('statistics')) {
-      return `⚠️ YOUTUBE: Channel stats hidden or credentials invalid. Ensure channel is set to public. Account ID: ${accountId}`;
+    if (error.includes('subscriberCount') || error.includes('statistics') || error.includes('hidden')) {
+      return `⚠️ YOUTUBE: Channel stats hidden or credentials invalid. Ensure channel is set to public (youtube.com/@YOUR_CHANNEL/about → Visibility). Account ID: ${accountId}`;
+    }
+    if (error.includes('quota')) {
+      return `⚠️ YOUTUBE: API quota exceeded. Wait 24 hours and try again. Or upgrade your API quota at console.cloud.google.com`;
     }
   }
   
-  // Generic message
-  return `❌ ${platform.toUpperCase()}: ${error}`;
+  // Handle X/Twitter errors
+  if (error.includes('twitter') || error.includes('Twitter') || error.includes('X/Twitter')) {
+    if (error.includes('AAAA') || error.includes('Bearer')) {
+      return `⚠️ X/TWITTER: Invalid Bearer token format. Token must start with "AAAA". Go to Admin → Social Media Setup and reconnect with a valid X API v2 Bearer token.`;
+    }
+    if (error.includes('401') || error.includes('Unauthorized')) {
+      return `⚠️ X/TWITTER: Token is invalid or expired. Go to Admin → Social Media Setup → Reconnect X/Twitter account. Get token from https://developer.twitter.com`;
+    }
+    if (error.includes('429') || error.includes('rate limit')) {
+      return `⚠️ X/TWITTER: Rate limit exceeded. Wait a few minutes and try again.`;
+    }
+  }
+  
+  // Handle LinkedIn errors
+  if (error.includes('linkedin') || error.includes('LinkedIn')) {
+    if (error.includes('401') || error.includes('Unauthorized')) {
+      return `⚠️ LINKEDIN: Token is invalid or expired. Go to Admin → Social Media Setup → Reconnect LinkedIn account.`;
+    }
+    if (error.includes('numeric')) {
+      return `⚠️ LINKEDIN: Company ID must be numeric. Find it at linkedin.com/company/YOUR_COMPANY/about/. Current: ${accountId}`;
+    }
+    if (error.includes('permission') || error.includes('scope')) {
+      return `⚠️ LINKEDIN: Missing permissions. Ensure token has "r_organization_admin" and "w_organization_metadata" scopes.`;
+    }
+  }
+  
+  // Generic message with actionable hint
+  const hint = error.length > 100 ? error.substring(0, 100) + '...' : error;
+  return `❌ ${platform.toUpperCase()}: ${hint}. Check Admin → Social Media Setup → Reconnect this account or verify API credentials.`;
 }
 
 async function fetchYouTubeJson(url: string, bearerToken?: string): Promise<any> {

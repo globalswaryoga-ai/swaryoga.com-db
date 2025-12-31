@@ -11,6 +11,35 @@ type PublishResult = {
   error?: string;
 };
 
+function createFriendlyPublishErrorMessage(error: string, platform: string): string {
+  // Common error patterns with friendly explanations
+  if (error.includes('token') || error.includes('unauthorized') || error.includes('401')) {
+    return `❌ ${platform.toUpperCase()}: Token expired or invalid. Please reconnect this account in Admin → Social Media Setup.`;
+  }
+  if (error.includes('permission') || error.includes('scope')) {
+    return `❌ ${platform.toUpperCase()}: Missing permissions. Reconnect the account with proper scopes.`;
+  }
+  if (error.includes('rate limit') || error.includes('429')) {
+    return `❌ ${platform.toUpperCase()}: Rate limit exceeded. Wait a few minutes and retry.`;
+  }
+  if (error.includes('image') || error.includes('media') || error.includes('photo')) {
+    return `❌ ${platform.toUpperCase()}: Image/media upload failed. Ensure images are valid URLs and accessible. Max file size varies by platform (typically 100MB).`;
+  }
+  if (error.includes('text') || error.includes('caption') || error.includes('message')) {
+    return `❌ ${platform.toUpperCase()}: Text/caption issue. ${error}. Keep messages concise and remove special characters if needed.`;
+  }
+  if (error.includes('account') || error.includes('page') || error.includes('company')) {
+    return `❌ ${platform.toUpperCase()}: Account/Page ID invalid or inaccessible. Verify the account is connected and active.`;
+  }
+  if (error.includes('video') || error.includes('youtube')) {
+    return `❌ YOUTUBE: Video upload not yet supported through this interface. Please upload videos directly to YouTube.`;
+  }
+  
+  // Truncate long errors
+  const shortError = error.length > 80 ? error.substring(0, 80) + '...' : error;
+  return `❌ ${platform.toUpperCase()}: ${shortError}`;
+}
+
 async function graphPost(path: string, params: Record<string, string>): Promise<any> {
   const url = `https://graph.facebook.com/v20.0/${path}`;
   const body = new URLSearchParams(params);
@@ -485,7 +514,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         });
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Publish failed';
-        results.push({ platform, ok: false, error: message });
+        const friendlyError = createFriendlyPublishErrorMessage(message, platform);
+        results.push({ platform, ok: false, error: friendlyError });
       }
     }
 
