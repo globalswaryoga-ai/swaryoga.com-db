@@ -72,6 +72,11 @@ export default function LeadsPage() {
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateLead, setDuplicateLead] = useState<any>(null);
 
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [bulkAssignedToUserId, setBulkAssignedToUserId] = useState<string>('');
+  const [bulkWorkshopName, setBulkWorkshopName] = useState<string>('');
+  const [bulkActionBusy, setBulkActionBusy] = useState(false);
+
   const [backfillBusy, setBackfillBusy] = useState(false);
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -330,6 +335,33 @@ export default function LeadsPage() {
 
   const columns: LeadColumn[] = [
     {
+      key: '_select',
+      label: 'Select',
+      render: (_: any, lead: Lead) => {
+        const checked = selectedLeadIds.has(lead._id);
+        return (
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => {
+                e.stopPropagation();
+                setSelectedLeadIds((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(lead._id)) next.delete(lead._id);
+                  else next.add(lead._id);
+                  return next;
+                });
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4 w-4 accent-emerald-600 cursor-pointer"
+              aria-label={`Select lead ${lead.leadNumber || lead._id}`}
+            />
+          </div>
+        );
+      },
+    },
+    {
       key: 'leadNumber',
       label: 'Lead ID',
       render: (val: any) => (
@@ -419,6 +451,15 @@ export default function LeadsPage() {
           </button>
 
           <button
+            onClick={() => router.push(`/admin/crm/whatsapp?leadId=${encodeURIComponent(lead._id)}`)}
+            className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+            title="Open WhatsApp"
+          >
+            <span aria-hidden>🟢</span>
+            WhatsApp
+          </button>
+
+          <button
             onClick={() => router.push(`/admin/crm/leads-followup?leadId=${encodeURIComponent(lead._id)}`)}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
             title="Open lead followup"
@@ -437,6 +478,67 @@ export default function LeadsPage() {
       ),
     },
   ];
+
+  const allSelectedOnPage = leads.length > 0 && leads.every((l) => selectedLeadIds.has(l._id));
+  const someSelectedOnPage = leads.some((l) => selectedLeadIds.has(l._id));
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        leads.forEach((l) => next.delete(l._id));
+      } else {
+        leads.forEach((l) => next.add(l._id));
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedLeadIds(new Set());
+
+  const runBulkUpdate = async () => {
+    if (!token) {
+      setError('Please login again.');
+      return;
+    }
+    const ids = Array.from(selectedLeadIds);
+    if (ids.length === 0) return;
+
+    if (!bulkAssignedToUserId.trim() && !bulkWorkshopName.trim()) {
+      alert('Please set a User or Program/Workshop');
+      return;
+    }
+
+    try {
+      setBulkActionBusy(true);
+      setError(null);
+      const res = await fetch('/api/admin/crm/leads/bulk-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          leadIds: ids,
+          assignedToUserId: bulkAssignedToUserId.trim() || undefined,
+          workshopName: bulkWorkshopName.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Bulk update failed');
+
+      alert(`Updated ${data?.data?.modifiedCount ?? 0} leads.`);
+      setBulkAssignedToUserId('');
+      setBulkWorkshopName('');
+      clearSelection();
+      fetchMetadata();
+      fetchLeads();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bulk update failed');
+    } finally {
+      setBulkActionBusy(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 p-8">
@@ -625,6 +727,57 @@ export default function LeadsPage() {
           </div>
         ) : (
           <>
+            {/* Bulk Actions Bar */}
+            {selectedLeadIds.size > 0 && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="font-semibold text-emerald-900">
+                    Selected: {selectedLeadIds.size}
+                  </div>
+
+                  <button
+                    onClick={clearSelection}
+                    className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-100 transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-2 md:items-center">
+                  {isSuperAdmin && (
+                    <select
+                      value={bulkAssignedToUserId}
+                      onChange={(e) => setBulkAssignedToUserId(e.target.value)}
+                      className="bg-white border border-emerald-200 rounded-lg px-3 py-2 text-emerald-900 font-semibold"
+                    >
+                      <option value="">Assign User (optional)</option>
+                      {userOptions.map((u) => (
+                        <option key={u.userId} value={u.userId}>
+                          {u.email || u.userId}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <input
+                    type="text"
+                    value={bulkWorkshopName}
+                    onChange={(e) => setBulkWorkshopName(e.target.value)}
+                    placeholder="Set Program/Workshop (optional)"
+                    className="bg-white border border-emerald-200 rounded-lg px-3 py-2 text-emerald-900 font-semibold"
+                  />
+
+                  <button
+                    onClick={runBulkUpdate}
+                    disabled={bulkActionBusy}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold disabled:opacity-60"
+                  >
+                    {bulkActionBusy ? 'Updating…' : 'Apply Bulk Update'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Data Table - Professional Card */}
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-visible">
               <div className="overflow-x-auto">
@@ -636,7 +789,27 @@ export default function LeadsPage() {
                           key={col.key}
                           className="px-6 py-4 text-left text-sm font-bold text-slate-700 uppercase tracking-wider"
                         >
-                          {col.label}
+                          {col.key === '_select' ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={allSelectedOnPage}
+                                ref={(el) => {
+                                  if (el) el.indeterminate = !allSelectedOnPage && someSelectedOnPage;
+                                }}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectAllOnPage();
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-4 w-4 accent-emerald-600 cursor-pointer"
+                                aria-label="Select all leads on this page"
+                              />
+                              <span className="text-xs text-slate-600">All</span>
+                            </div>
+                          ) : (
+                            col.label
+                          )}
                         </th>
                       ))}
                     </tr>
@@ -861,6 +1034,44 @@ export default function LeadsPage() {
             <h2 className="text-xl font-bold text-green-700\">Bulk Import Leads</h2>
             
             <div className="space-y-4\">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-green-700 text-sm font-semibold">Download format (Excel template)</p>
+                <button
+                  onClick={async () => {
+                    if (!token) {
+                      alert('Please login again.');
+                      return;
+                    }
+
+                    try {
+                      const res = await fetch('/api/admin/crm/leads/template', {
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err?.error || 'Failed to download template');
+                      }
+
+                      const blob = await res.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'leads-import-template.xlsx';
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      window.URL.revokeObjectURL(url);
+                    } catch (e) {
+                      alert(e instanceof Error ? e.message : 'Failed to download template');
+                    }
+                  }}
+                  className="text-green-800 underline font-semibold hover:text-green-900"
+                >
+                  Download
+                </button>
+              </div>
+
               <div>
                 <label className="block text-green-700 text-sm mb-2 font-semibold\">Upload Excel File</label>
                 <input

@@ -5,6 +5,12 @@ import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import * as XLSX from 'xlsx';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
+function normalizePhone(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  // Keep digits only. This converts common Excel formats like "+91 93099 86820" to "919309986820".
+  return raw.replace(/\D+/g, '');
+}
+
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
 }
@@ -71,13 +77,14 @@ export async function POST(request: NextRequest) {
     for (const row of rawData) {
       try {
         // Handle different column names
-        const phoneNumber = String(
+        const phoneNumberRaw =
           (row as any).Phone ||
           (row as any)['Phone Number'] ||
           (row as any).phone ||
           (row as any)['phone number'] ||
-          ''
-        ).trim();
+          '';
+
+        const phoneNumber = normalizePhone(phoneNumberRaw);
 
         if (!phoneNumber) {
           results.skipped++;

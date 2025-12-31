@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
+import { QRConnectionModal } from '@/components/admin/crm/QRConnectionModal';
 
 type Step = 'initial' | 'loading' | 'qr-display' | 'scanning' | 'success' | 'error';
 
@@ -22,6 +23,10 @@ export default function QRLoginPage() {
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [provider, setProvider] = useState<string>('manual');
   const [countdown, setCountdown] = useState(900);
+
+  // Prefer the live WebSocket-based QR bridge flow.
+  // This page is kept for backwards compatibility, but we can open the live modal here too.
+  const [liveModalOpen, setLiveModalOpen] = useState(false);
 
   // Check authentication status
   useEffect(() => {
@@ -69,6 +74,11 @@ export default function QRLoginPage() {
       setError('Please enter an account name');
       return;
     }
+
+    // Default behavior: open the live QR modal (no browser extension needed).
+    // The actual QR image comes from the separate WhatsApp bridge WebSocket service.
+    setLiveModalOpen(true);
+    return;
 
     if (!token) {
       setError('Authentication token missing. Please login again.');
@@ -296,6 +306,13 @@ export default function QRLoginPage() {
                 🔲 Generate QR Code
               </button>
 
+              <button
+                onClick={() => setLiveModalOpen(true)}
+                className="w-full px-6 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-semibold transition-colors border border-emerald-200"
+              >
+                ⚡ Open Live QR (Recommended)
+              </button>
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
                   <strong>ℹ️ Instructions:</strong>
@@ -410,6 +427,15 @@ export default function QRLoginPage() {
             <p>Need help? <Link href="/admin/crm/whatsapp/settings" className="text-[#1E7F43] hover:underline font-semibold">Go to Settings</Link></p>
           </div>
         </div>
+
+        <QRConnectionModal
+          isOpen={liveModalOpen}
+          onClose={() => setLiveModalOpen(false)}
+          onConnected={() => {
+            setSuccess('✅ WhatsApp connected successfully!');
+            setTimeout(() => setSuccess(null), 2500);
+          }}
+        />
       </div>
     </div>
   );
