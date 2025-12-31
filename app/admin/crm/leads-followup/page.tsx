@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -141,7 +141,7 @@ const WHATSAPP_TEMPLATES = [
   'We would love to have you join us!',
 ];
 
-export default function LeadsFollowupPage() {
+function LeadsFollowupPageContent() {
   const router = useRouter();
   const token = useAuth();
 
@@ -1886,5 +1886,13 @@ export default function LeadsFollowupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LeadsFollowupPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+      <LeadsFollowupPageContent />
+    </Suspense>
   );
 }
