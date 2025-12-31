@@ -253,8 +253,19 @@ function LeadsFollowupPageContent() {
       if (searchFilterType === 'lead') {
         setFilteredLeads(allLeads);
       } else if (searchFilterType === 'workshop') {
-        // Get unique workshops
+        // Get unique workshops with "All Workshops" option
         const workshops = [...new Set(allLeads.map(l => l.workshopName).filter(Boolean))].sort();
+        const allOption = [{
+          _id: 'workshop-all',
+          name: '✅ All Workshops',
+          phoneNumber: '',
+          email: '',
+          leadNumber: '',
+          status: 'lead',
+          labels: [],
+          workshopName: 'ALL',
+          createdAt: new Date().toISOString(),
+        } as Lead];
         const mockLeads = workshops.map((workshop, idx) => ({
           _id: `workshop-${idx}`,
           name: workshop || '',
@@ -266,9 +277,19 @@ function LeadsFollowupPageContent() {
           workshopName: workshop,
           createdAt: new Date().toISOString(),
         } as Lead));
-        setFilteredLeads(mockLeads);
+        setFilteredLeads([...allOption, ...mockLeads]);
       } else if (searchFilterType === 'admin') {
-        // Use hardcoded admin users list
+        // Use hardcoded admin users list with "All" option
+        const allOption = [{
+          _id: 'admin-all',
+          name: '✅ All Admin Users',
+          phoneNumber: '',
+          email: '',
+          leadNumber: '',
+          status: 'lead',
+          labels: [],
+          createdAt: new Date().toISOString(),
+        } as Lead];
         const mockLeads = ADMIN_USERS.map((admin, idx) => ({
           _id: `admin-${idx}`,
           name: admin,
@@ -279,7 +300,7 @@ function LeadsFollowupPageContent() {
           labels: [],
           createdAt: new Date().toISOString(),
         } as Lead));
-        setFilteredLeads(mockLeads);
+        setFilteredLeads([...allOption, ...mockLeads]);
       }
       return;
     }
@@ -287,6 +308,17 @@ function LeadsFollowupPageContent() {
     const query = searchQuery.toLowerCase();
 
     if (searchFilterType === 'lead') {
+      // Add "All Leads" option
+      const allOption = [{
+        _id: 'lead-all',
+        name: '✅ All Leads',
+        phoneNumber: '',
+        email: '',
+        leadNumber: '',
+        status: 'lead',
+        labels: [],
+        createdAt: new Date().toISOString(),
+      } as Lead];
       const filtered = allLeads.filter(
         (lead) =>
           lead.name.toLowerCase().includes(query) ||
@@ -294,7 +326,12 @@ function LeadsFollowupPageContent() {
           lead.email.toLowerCase().includes(query) ||
           lead.leadNumber?.toLowerCase().includes(query)
       );
-      setFilteredLeads(filtered);
+      // Add "All Leads" option at the top if there are results and query includes 'all'
+      if (query === 'all' || query.includes('all')) {
+        setFilteredLeads([...allOption, ...filtered]);
+      } else {
+        setFilteredLeads(filtered);
+      }
     } else if (searchFilterType === 'workshop') {
       const workshops = [...new Set(allLeads.map(l => l.workshopName).filter(Boolean))].sort();
       const filtered = workshops.filter(w => w && w.toLowerCase().includes(query));
@@ -309,7 +346,23 @@ function LeadsFollowupPageContent() {
         workshopName: workshop,
         createdAt: new Date().toISOString(),
       } as Lead));
-      setFilteredLeads(mockLeads);
+      // Add "All Workshops" at the top if query includes 'all'
+      if (query === 'all' || query.includes('all')) {
+        const allOption = [{
+          _id: 'workshop-all',
+          name: '✅ All Workshops',
+          phoneNumber: '',
+          email: '',
+          leadNumber: '',
+          status: 'lead',
+          labels: [],
+          workshopName: 'ALL',
+          createdAt: new Date().toISOString(),
+        } as Lead];
+        setFilteredLeads([...allOption, ...mockLeads]);
+      } else {
+        setFilteredLeads(mockLeads);
+      }
     } else if (searchFilterType === 'admin') {
       // Filter from hardcoded admin users list
       const filtered = ADMIN_USERS.filter(a => a.toLowerCase().includes(query));
