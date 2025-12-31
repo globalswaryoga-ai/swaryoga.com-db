@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
 // Hardcoded admin users list for admincrm
@@ -229,6 +229,23 @@ export default function LeadsFollowupPage() {
 
     fetchAllLeads();
   }, [token]);
+
+  // Auto-select lead from URL query parameter
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (!searchParams || !allLeads || allLeads.length === 0) return;
+
+    const leadId = searchParams.get('leadId');
+    if (leadId && !selectedLead) {
+      // Find the lead with matching ID
+      const lead = allLeads.find(l => l._id === leadId);
+      if (lead) {
+        handleSelectLead(lead);
+        // Optionally scroll to top or focus on the lead details
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }, [searchParams, allLeads, selectedLead]);
 
   // Filter leads based on filter type
   useEffect(() => {

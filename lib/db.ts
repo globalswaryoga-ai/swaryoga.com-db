@@ -825,3 +825,269 @@ communityMemberSchema.index({ communityId: 1, joinedAt: -1 });
 communityMemberSchema.index({ email: 1, sparse: true });
 
 export const CommunityMember = mongoose.models.CommunityMember || mongoose.model('CommunityMember', communityMemberSchema);
+
+// ==================== RECORDED WORKSHOPS SCHEMA ====================
+const recordedWorkshopSchema = new mongoose.Schema({
+  // Basic Info
+  workshopSlug: { type: String, required: true, trim: true }, // e.g., 'breathwork', 'meditation'
+  title: { type: String, required: true, trim: true },
+  description: { type: String, trim: true },
+  instructorName: { type: String, required: true, trim: true },
+  instructorImage: { type: String }, // URL to instructor image
+  
+  // Language Variants (Hindi, English, Marathi)
+  languages: {
+    hindi: {
+      title: { type: String, trim: true },
+      description: { type: String, trim: true },
+      videoUrl: { type: String }, // Secure video URL with access token
+      subtitle: { type: String, trim: true },
+    },
+    english: {
+      title: { type: String, trim: true },
+      description: { type: String, trim: true },
+      videoUrl: { type: String },
+      subtitle: { type: String, trim: true },
+    },
+    marathi: {
+      title: { type: String, trim: true },
+      description: { type: String, trim: true },
+      videoUrl: { type: String },
+      subtitle: { type: String, trim: true },
+    },
+  },
+  
+  // Video & Content
+  thumbnailUrl: { type: String }, // Preview image
+  duration: { type: Number }, // in minutes
+  videoProvider: { type: String, enum: ['vimeo', 'youtube', 'custom'], default: 'custom' },
+  
+  // Pricing (per language can have different prices)
+  pricing: {
+    hindi: { type: Number, default: 0 }, // INR or other currency
+    english: { type: Number, default: 0 },
+    marathi: { type: Number, default: 0 },
+  },
+  currency: { type: String, default: 'INR' },
+  
+  // Access Control & Security
+  accessControl: {
+    deviceLimit: { type: Number, default: 3 }, // Max 3 devices
+    gapHours: { type: Number, default: 24 }, // 24-hour gap between device switches
+    requiresDeviceFingerprint: { type: Boolean, default: true },
+    maxDownloadsPerUser: { type: Number, default: 0 }, // 0 = no download allowed
+  },
+  
+  // Resources & Materials
+  materials: [{
+    type: { type: String, enum: ['pdf', 'ppt', 'notes', 'assignment'], required: true },
+    title: { type: String, required: true },
+    url: { type: String, required: true },
+    uploadedAt: { type: Date, default: Date.now },
+  }],
+  
+  // Certificates
+  certificateEnabled: { type: Boolean, default: true },
+  certificateTemplate: { type: String }, // URL to certificate template
+  
+  // Status & Publishing
+  isPublished: { type: Boolean, default: false },
+  status: { type: String, enum: ['draft', 'published', 'archived'], default: 'draft' },
+  publishedAt: { type: Date },
+  
+  // Analytics
+  viewCount: { type: Number, default: 0 },
+  purchaseCount: { type: Number, default: 0 },
+  rating: { type: Number, min: 0, max: 5, default: 0 },
+  reviews: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    rating: { type: Number, min: 1, max: 5 },
+    comment: { type: String, trim: true },
+    createdAt: { type: Date, default: Date.now },
+  }],
+  
+  // Metadata
+  category: { type: String, trim: true }, // e.g., 'beginner', 'advanced'
+  tags: [{ type: String }],
+  metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+  
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+recordedWorkshopSchema.index({ workshopSlug: 1, isPublished: 1 });
+recordedWorkshopSchema.index({ status: 1, publishedAt: -1 });
+recordedWorkshopSchema.index({ instructorName: 1 });
+
+export const RecordedWorkshop = mongoose.models.RecordedWorkshop || mongoose.model('RecordedWorkshop', recordedWorkshopSchema);
+
+// ==================== USER RECORDED WORKSHOP PROGRESS SCHEMA ====================
+const userWorkshopProgressSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  recordedWorkshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'RecordedWorkshop', required: true },
+  language: { type: String, enum: ['hindi', 'english', 'marathi'], required: true },
+  
+  // Purchase Info
+  purchasedAt: { type: Date, default: Date.now, index: true },
+  orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
+  
+  // Access & Device Tracking
+  registeredDevices: [{
+    deviceId: { type: String, required: true }, // Device fingerprint
+    deviceName: { type: String }, // e.g., 'iPhone 12', 'MacBook Pro'
+    firstAccessAt: { type: Date, default: Date.now },
+    lastAccessAt: { type: Date },
+    ipAddress: { type: String },
+    userAgent: { type: String },
+    isActive: { type: Boolean, default: true },
+  }],
+  
+  // Progress Tracking
+  watchProgress: {
+    totalDuration: { type: Number, default: 0 }, // Total minutes watched
+    completionPercentage: { type: Number, default: 0, min: 0, max: 100 },
+    lastWatchedAt: { type: Date },
+    lastWatchedPosition: { type: Number }, // in seconds
+  },
+  
+  // Materials & Assignments
+  downloadedMaterials: [{
+    materialId: { type: String, required: true },
+    downloadedAt: { type: Date, default: Date.now },
+  }],
+  assignments: [{
+    assignmentId: { type: String, required: true },
+    title: { type: String },
+    submittedAt: { type: Date },
+    submissionUrl: { type: String },
+    status: { type: String, enum: ['pending', 'submitted', 'reviewed', 'rejected'], default: 'pending' },
+    feedback: { type: String },
+    grade: { type: String }, // 'A', 'B', 'C', etc.
+  }],
+  
+  // Certificate
+  certificateStatus: { type: String, enum: ['not-eligible', 'eligible', 'issued', 'revoked'], default: 'not-eligible' },
+  certificateIssuedAt: { type: Date },
+  certificateUrl: { type: String },
+  certificateNumber: { type: String, unique: true, sparse: true },
+  
+  // Notes & Feedback
+  notes: { type: String, trim: true },
+  instructorFeedback: { type: String, trim: true },
+  
+  // Status
+  status: { type: String, enum: ['active', 'paused', 'completed', 'expired'], default: 'active' },
+  expiresAt: { type: Date }, // Access expiration date (if set)
+  
+  metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+  
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+userWorkshopProgressSchema.index({ userId: 1, recordedWorkshopId: 1, language: 1 }, { unique: true });
+userWorkshopProgressSchema.index({ userId: 1, status: 1, purchasedAt: -1 });
+userWorkshopProgressSchema.index({ certificateStatus: 1 });
+
+export const UserWorkshopProgress = mongoose.models.UserWorkshopProgress || mongoose.model('UserWorkshopProgress', userWorkshopProgressSchema);
+
+// ==================== MEDIA POST SCHEMA ====================
+const mediaPostSchema = new mongoose.Schema({
+  // Content Structure
+  title: { type: String, required: true, trim: true },
+  description: { type: String, trim: true },
+  
+  // Blocks - alternating layout (left-text/right-image or left-image/right-text)
+  blocks: [{
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+    type: { type: String, enum: ['left-text-right-image', 'left-image-right-text'], required: true },
+    
+    // Text/Heading Block
+    text: { type: String, trim: true },
+    heading: { type: String, trim: true },
+    
+    // Image/Video Block
+    media: {
+      url: { type: String }, // Image or video URL
+      type: { type: String, enum: ['image', 'video'], required: true },
+      altText: { type: String, trim: true },
+      caption: { type: String, trim: true },
+    },
+    
+    order: { type: Number }, // Display order
+  }],
+  
+  // Sidebars Content
+  leftSidebar: {
+    title: { type: String, trim: true },
+    items: [{
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+      label: { type: String, trim: true, required: true },
+      content: { type: String, trim: true },
+      icon: { type: String }, // Icon name/URL
+      order: { type: Number },
+    }],
+  },
+  rightSidebar: {
+    title: { type: String, trim: true },
+    items: [{
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+      label: { type: String, trim: true, required: true },
+      content: { type: String, trim: true },
+      icon: { type: String },
+      order: { type: Number },
+    }],
+  },
+  
+  // Publishing & Distribution
+  status: { type: String, enum: ['draft', 'scheduled', 'published', 'archived'], default: 'draft' },
+  publishedAt: { type: Date },
+  scheduledFor: { type: Date }, // For scheduled posts
+  
+  // Social Media Integration
+  socialMedia: {
+    postToWhatsApp: { type: Boolean, default: false },
+    postToFacebook: { type: Boolean, default: false },
+    postToInstagram: { type: Boolean, default: false },
+    postToTwitter: { type: Boolean, default: false },
+    postToCommunityGroups: { type: Boolean, default: false },
+  },
+  
+  // Community & Group Broadcasting
+  communityGroups: {
+    selectedGroups: [{ type: String }], // Group IDs to broadcast to
+    broadcastAt: { type: Date },
+    broadcastStatus: { type: String, enum: ['pending', 'in-progress', 'completed', 'failed'], default: 'pending' },
+  },
+  
+  // Social Media Links Generated
+  socialMediaLinks: {
+    whatsappLink: { type: String },
+    facebookLink: { type: String },
+    instagramLink: { type: String },
+    twitterLink: { type: String },
+  },
+  
+  // Analytics
+  views: { type: Number, default: 0 },
+  clicks: { type: Number, default: 0 },
+  shares: { type: Number, default: 0 },
+  reactions: { type: Number, default: 0 },
+  
+  // Metadata
+  category: { type: String, enum: ['update', 'highlight', 'testimony', 'program', 'event'], default: 'update' },
+  tags: [{ type: String }],
+  author: { type: String }, // Admin name
+  featured: { type: Boolean, default: false },
+  pinnedOn: { type: Date }, // When it was pinned
+  metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+  
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+mediaPostSchema.index({ status: 1, publishedAt: -1 });
+mediaPostSchema.index({ category: 1, publishedAt: -1 });
+mediaPostSchema.index({ featured: 1, publishedAt: -1 });
+
+export const MediaPost = mongoose.models.MediaPost || mongoose.model('MediaPost', mediaPostSchema);

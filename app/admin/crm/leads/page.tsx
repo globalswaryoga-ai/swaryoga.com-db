@@ -419,7 +419,7 @@ export default function LeadsPage() {
           </button>
 
           <button
-            onClick={() => router.push('/admin/crm/leads-followup')}
+            onClick={() => router.push(`/admin/crm/leads-followup?leadId=${encodeURIComponent(lead._id)}`)}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
             title="Open lead followup"
           >
