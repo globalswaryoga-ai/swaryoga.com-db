@@ -193,8 +193,8 @@ export async function POST(request: NextRequest) {
         const friendly =
           msg.includes('Cloud API is not configured') || msg.includes('Web bridge') || msg.includes('WHATSAPP')
             ? `WhatsApp sending failed: ${msg}. ` +
-              `If using WhatsApp Web QR (connected above), ensure bridge URLs are configured in env (WHATSAPP_BRIDGE_HTTP_URL, etc). ` +
-              `Otherwise, configure Cloud API: WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID.`
+              `Option 1: Send via WhatsApp Web QR - use /api/admin/crm/whatsapp/qr and /api/admin/crm/whatsapp/send endpoints. ` +
+              `Option 2: Configure Cloud API - set WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID.`
             : msg;
         await WhatsAppMessage.updateOne(
           { _id: message._id },

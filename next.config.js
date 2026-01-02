@@ -164,7 +164,18 @@ const nextConfig = {
       config.externals = config.externals || {};
       config.externals['swisseph'] = 'commonjs2 swisseph';
       config.externals['@bidyashish/panchang'] = 'commonjs2 @bidyashish/panchang';
+      // WhatsApp Web is server-only - completely exclude from client bundle
+      config.externals['whatsapp-web.js'] = 'commonjs2 whatsapp-web.js';
+      config.externals['puppeteer'] = 'commonjs2 puppeteer';
+      config.externals['qrcode'] = 'commonjs2 qrcode';
+    } else {
+      // On server side, also mark these as external to prevent webpack analysis
+      config.externals = config.externals || {};
+      config.externals['whatsapp-web.js'] = 'commonjs2 whatsapp-web.js';
+      config.externals['puppeteer'] = 'commonjs2 puppeteer';
+      config.externals['qrcode'] = 'commonjs2 qrcode';
     }
+    
     return config;
   },
   typescript: {
