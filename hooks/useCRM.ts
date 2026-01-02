@@ -1,4 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+class CRMUnauthorizedError extends Error {
+  readonly name = 'CRMUnauthorizedError';
+}
 
 interface UseCRMOptions {
   token?: string | null;
@@ -33,6 +37,21 @@ export function useCRM(options: UseCRMOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
 
+  // Callers sometimes pass fresh inline callbacks (and even the entire options
+  // object) on every render. If we depend on those identities, our `fetch`
+  // callback becomes unstable and can accidentally trigger effect loops.
+  // Keep latest callbacks in refs so `fetch` doesn't need to depend on them.
+  const onSuccessRef = useRef<UseCRMOptions['onSuccess']>(options.onSuccess);
+  const onErrorRef = useRef<UseCRMOptions['onError']>(options.onError);
+
+  useEffect(() => {
+    onSuccessRef.current = options.onSuccess;
+  }, [options.onSuccess]);
+
+  useEffect(() => {
+    onErrorRef.current = options.onError;
+  }, [options.onError]);
+
   const handleUnauthorized = () => {
     if (typeof window === 'undefined') return;
     // Clear both legacy + current token keys used across the repo.
@@ -40,8 +59,6 @@ export function useCRM(options: UseCRMOptions = {}) {
     localStorage.removeItem('admin_token');
     localStorage.removeItem('adminUser');
     localStorage.removeItem('admin_user');
-    // Force user back to login.
-    window.location.href = '/admin/login';
   };
 
   const fetch = useCallback(
@@ -77,7 +94,7 @@ export function useCRM(options: UseCRMOptions = {}) {
           if (response.status === 401) {
             // Token missing/expired/invalid. Clear local storage and redirect.
             handleUnauthorized();
-            throw new Error('Session expired. Please login again.');
+            throw new CRMUnauthorizedError('Session expired. Please login again.');
           }
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `API error: ${response.statusText}`);
@@ -87,7 +104,7 @@ export function useCRM(options: UseCRMOptions = {}) {
 
         if (result.success || result.data) {
           setData(result.data || result);
-          options.onSuccess?.(result.data || result);
+          onSuccessRef.current?.(result.data || result);
           return result.data || result;
         } else {
           throw new Error(result.error || 'API returned unsuccessful response');
@@ -95,7 +112,7 @@ export function useCRM(options: UseCRMOptions = {}) {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
         setError(errorMessage);
-        options.onError?.(errorMessage);
+        onErrorRef.current?.(errorMessage);
         throw err;
       } finally {
         setLoading(false);
@@ -104,7 +121,7 @@ export function useCRM(options: UseCRMOptions = {}) {
     // IMPORTANT: do not depend on the `options` object identity because callers often
     // pass a new object literal on every render. That would recreate `fetch` and can
     // trigger re-fetch loops + UI "vibration".
-    [options.token, options.onSuccess, options.onError]
+    [options.token]
   );
 
   return {

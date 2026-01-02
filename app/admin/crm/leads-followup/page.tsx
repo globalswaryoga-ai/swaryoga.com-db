@@ -991,7 +991,7 @@ function LeadsFollowupPageContent() {
                   }}
                   className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-600 transition-all flex items-center gap-2 justify-between shadow-md"
                 >
-                  <span>�‍💼 Select Admin User</span>
+                  <span>👨‍💼 Select Admin User</span>
                   <span className={`transform transition-transform ${showSearchPanel && searchFilterType === 'admin' ? 'rotate-180' : ''}`}>▼</span>
                 </button>
 

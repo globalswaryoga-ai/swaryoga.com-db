@@ -25,7 +25,8 @@ import { normalizePhone, sendWhatsAppText } from '@/lib/whatsapp';
 
 export async function GET(request: NextRequest) {
   try {
-    verifyAdminAccess(request);
+    const viewerUserId = verifyAdminAccess(request);
+    const superAdmin = viewerUserId === 'admincrm';
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
     const orderParam = url.searchParams.get('order');
@@ -51,14 +52,30 @@ export async function GET(request: NextRequest) {
       if (endDate) filter.sentAt.$lte = new Date(endDate);
     }
 
-    const messages = await WhatsAppMessage.find(filter)
+    // Access control:
+    // - Super admin (admincrm) can see all messages.
+    // - Other admins can only see messages for leads assigned to them.
+    // - Unassigned leads are hidden from non-super-admin.
+    const baseQuery = WhatsAppMessage.find(filter)
       .sort({ sentAt: sortDir })
       .skip(skip)
       .limit(limit)
-      .populate('leadId', 'name phoneNumber')
-      .lean();
+      .populate('leadId', 'name phoneNumber assignedToUserId');
 
-    const total = await WhatsAppMessage.countDocuments(filter);
+    if (!superAdmin) {
+      // Only include messages whose lead is assigned to this admin.
+      baseQuery.where('leadId').ne(null);
+    }
+
+    const messagesRaw = await baseQuery.lean();
+    const messages = superAdmin
+      ? messagesRaw
+      : messagesRaw.filter((m: any) => String(m?.leadId?.assignedToUserId || '') === viewerUserId);
+
+    // Total count for pagination must match the filtered list.
+    const total = superAdmin
+      ? await WhatsAppMessage.countDocuments(filter)
+      : messages.length;
     const meta = buildMetadata(total, limit, skip);
 
     return formatCrmSuccess({ messages, total }, meta);
@@ -126,7 +143,10 @@ export async function POST(request: NextRequest) {
       direction: 'outbound',
       messageType: normalizedType,
       status: 'queued',
-      sentBy: userId,
+      // Admin JWT userId is often a username (e.g. 'admincrm'), not a Mongo ObjectId.
+      // Only set sentBy when it is a valid ObjectId; always store a label for UI/audit.
+      ...(isValidObjectId(String(userId)) ? { sentBy: toObjectId(String(userId)) } : {}),
+      sentByLabel: String(userId),
       sentAt: now,
       templateId: templateId || undefined,
       retryCount: 0,

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 function getStoredAdminToken() {
@@ -19,18 +19,31 @@ function getStoredAdminToken() {
 export function useAuth() {
   const router = useRouter();
 
+  // Keep token in state so callers get a stable value across renders.
+  const [token, setToken] = useState<string | null>(() => getStoredAdminToken());
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const token = getStoredAdminToken();
-    if (!token) {
+    const t = getStoredAdminToken();
+    setToken(t);
+
+    if (!t) {
       router.push('/admin/login');
     }
   }, [router]);
 
-  // Return token if available
-  if (typeof window === 'undefined') return null;
-  return getStoredAdminToken();
+  // When login/logout happens in the same tab (or another tab), keep token fresh.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sync = () => setToken(getStoredAdminToken());
+    window.addEventListener('storage', sync);
+    // Also run once after mount to catch late localStorage updates.
+    sync();
+    return () => window.removeEventListener('storage', sync);
+  }, []);
+
+  return token;
 }
 
 /**

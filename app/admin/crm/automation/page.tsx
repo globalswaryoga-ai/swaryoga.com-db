@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -44,7 +44,20 @@ interface BroadcastList {
 export default function AutomationPage() {
   const router = useRouter();
   const token = useAuth();
-  const crm = useCRM({ token });
+  // Ensure we don't recreate the `useCRM` options object every render.
+  const crmOptions = useMemo(() => ({ token }), [token]);
+  const crm = useCRM(crmOptions);
+
+  // Prevent overlapping requests (can cause loading flicker + request storms).
+  const inFlightRef = useRef<null | 'rules' | 'scheduled' | 'broadcast'>(null);
+
+  // Guard against React StrictMode double-invoking effects in dev and any
+  // accidental rerender loops. We only allow a fetch if (token, tab) changed.
+  const lastFetchKeyRef = useRef<string>('');
+
+  // Avoid redirecting during hydration. Wait for first client paint.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [activeTab, setActiveTab] = useState<'welcome' | 'keywords' | 'scheduled' | 'broadcast'>('welcome');
   const [rules, setRules] = useState<AutomationRule[]>([]);
@@ -60,6 +73,8 @@ export default function AutomationPage() {
   const [newRuleContent, setNewRuleContent] = useState('');
 
   const fetchRules = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = 'rules';
     try {
       setLoading(true);
       const result = await crm.fetch('/api/admin/crm/automations', {
@@ -70,10 +85,13 @@ export default function AutomationPage() {
       setError(err instanceof Error ? err.message : 'Failed to fetch rules');
     } finally {
       setLoading(false);
+      inFlightRef.current = null;
     }
   }, [crm]);
 
   const fetchScheduledMessages = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = 'scheduled';
     try {
       setLoading(true);
       const result = await crm.fetch('/api/admin/crm/scheduled-messages', {
@@ -84,10 +102,13 @@ export default function AutomationPage() {
       setError(err instanceof Error ? err.message : 'Failed to fetch scheduled messages');
     } finally {
       setLoading(false);
+      inFlightRef.current = null;
     }
   }, [crm]);
 
   const fetchBroadcastLists = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = 'broadcast';
     try {
       setLoading(true);
       const result = await crm.fetch('/api/admin/crm/broadcast-lists', {
@@ -98,22 +119,34 @@ export default function AutomationPage() {
       setError(err instanceof Error ? err.message : 'Failed to fetch broadcast lists');
     } finally {
       setLoading(false);
+      inFlightRef.current = null;
     }
   }, [crm]);
 
   useEffect(() => {
+    if (!mounted) return;
     if (!token) {
       router.push('/admin/login');
       return;
     }
-    fetchRules();
-  }, [token, router, fetchRules]);
+
+    const key = `${token}:welcome`;
+    if (lastFetchKeyRef.current === key) return;
+    lastFetchKeyRef.current = key;
+    void fetchRules();
+  }, [mounted, token, router, fetchRules]);
 
   const handleTabChange = (tab: typeof activeTab) => {
     setActiveTab(tab);
-    if (tab === 'scheduled') fetchScheduledMessages();
-    else if (tab === 'broadcast') fetchBroadcastLists();
-    else fetchRules();
+    if (!token) return;
+
+    const key = `${token}:${tab}`;
+    if (lastFetchKeyRef.current === key) return;
+    lastFetchKeyRef.current = key;
+
+    if (tab === 'scheduled') void fetchScheduledMessages();
+    else if (tab === 'broadcast') void fetchBroadcastLists();
+    else void fetchRules();
   };
 
   const handleCreateRule = async (e: React.FormEvent) => {

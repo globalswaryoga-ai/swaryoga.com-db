@@ -6,8 +6,83 @@ const qrcode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 
+function getNextBaseUrl() {
+  const raw =
+    process.env.NEXT_BASE_URL ||
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    'http://localhost:3001';
+  return String(raw).replace(/\/+$/, '');
+}
+
+async function postInboundToCrm({ from, body, timestamp, waMessageId }) {
+  const secret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
+  if (!secret) {
+    console.log('⚠️ WHATSAPP_WEB_BRIDGE_SECRET not set; inbound messages will not be saved to CRM');
+    return;
+  }
+
+  const url = `${getNextBaseUrl()}/api/admin/crm/whatsapp/inbound`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WhatsApp-Bridge-Secret': secret,
+      },
+      body: JSON.stringify({ from, body, timestamp, waMessageId }),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      console.error(`❌ Failed to post inbound to CRM (${res.status}): ${txt.slice(0, 300)}`);
+    }
+  } catch (e) {
+    console.error('❌ Failed to post inbound to CRM:', e.message);
+  }
+}
+
 // Create Express app
 const app = express();
+
+// CORS (needed because Next dev server runs on a different port, e.g. 3000-3010)
+// Allow explicit origins via env, otherwise allow any localhost origin.
+const allowedOrigins = (process.env.WHATSAPP_WEB_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  let allowOrigin = '';
+  if (origin) {
+    const isLocalhost = /^https?:\/\/localhost(?::\d+)?$/i.test(origin);
+    if (allowedOrigins.length > 0) {
+      if (allowedOrigins.includes(origin)) allowOrigin = origin;
+    } else if (isLocalhost) {
+      // Default: permissive for local dev across ports (safe enough for localhost only)
+      allowOrigin = origin;
+    }
+  }
+
+  if (allowOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  next();
+});
+
 app.use(express.json());
 
 // Create HTTP server for WebSocket
@@ -281,6 +356,16 @@ function initializeClient() {
       body: msg.body,
       timestamp: msg.timestamp,
     });
+
+    // Save inbound messages into CRM so they show up from today onward.
+    // Note: msg.from includes the WhatsApp suffix (e.g. 9198...@c.us). We'll pass it through;
+    // the ingestion endpoint normalizes.
+    postInboundToCrm({
+      from: msg.from,
+      body: msg.body,
+      timestamp: msg.timestamp,
+      waMessageId: msg.id ? (msg.id._serialized || msg.id.id || null) : null,
+    });
   });
 
   // Initialize client and start listening for WhatsApp
@@ -319,6 +404,29 @@ function broadcastMessage(message) {
   });
 }
 
+function getConnectedAccountInfo() {
+  try {
+    if (!client) return null;
+    // whatsapp-web.js exposes basic info after auth
+    const info = client.info;
+    if (!info) return null;
+
+    const wid = info.wid;
+    const user = wid && typeof wid === 'object' ? wid.user : undefined;
+    const server = wid && typeof wid === 'object' ? wid.server : undefined;
+    const phone = user && server ? `${user}@${server}` : user || null;
+
+    return {
+      pushname: info.pushname || null,
+      wid: wid ? (typeof wid === 'string' ? wid : (wid._serialized || null)) : null,
+      phone,
+      platform: info.platform || null,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 // WebSocket connection handler
 wss.on('connection', (ws) => {
   console.log(`\n📲 WebSocket client connected`);
@@ -336,6 +444,7 @@ wss.on('connection', (ws) => {
     connecting: clientConnecting,
     hasQR: !!currentQR,
     clientInitialized: !!client,
+    account: isAuthenticated ? getConnectedAccountInfo() : null,
     message: isAuthenticated ? '✅ Already authenticated' : clientConnecting ? '⏳ Initializing...' : '🔄 Ready for QR scan',
     timestamp: new Date().toISOString(),
   };
@@ -390,6 +499,53 @@ wss.on('connection', (ws) => {
       
       if (msg.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+      } else if (msg.type === 'init') {
+        // Initialize WhatsApp client so it can emit a QR.
+        // (Without this, clients will connect and only see status updates.)
+        if (!client) {
+          console.log('🚀 Initializing WhatsApp client (requested via WebSocket init)');
+          try {
+            initializeClient();
+          } catch (err) {
+            console.error('❌ Failed to initialize client:', err.message);
+            ws.send(JSON.stringify({
+              type: 'error',
+              error: 'Failed to initialize WhatsApp client: ' + err.message,
+              timestamp: new Date().toISOString(),
+            }));
+          }
+        } else {
+          console.log('ℹ️ WhatsApp client already initialized');
+        }
+      } else if (msg.type === 'disconnect') {
+        console.log('🧹 Disconnect requested via WebSocket');
+        try {
+          if (client) {
+            client.destroy();
+            client = null;
+          }
+          isAuthenticated = false;
+          currentQR = null;
+          clientConnecting = false;
+
+          broadcastMessage({
+            type: 'disconnected',
+            reason: 'User requested disconnect',
+            timestamp: new Date().toISOString(),
+          });
+
+          ws.send(JSON.stringify({
+            type: 'disconnected_ack',
+            success: true,
+            timestamp: new Date().toISOString(),
+          }));
+        } catch (err) {
+          ws.send(JSON.stringify({
+            type: 'error',
+            error: 'Failed to disconnect: ' + (err?.message || String(err)),
+            timestamp: new Date().toISOString(),
+          }));
+        }
       }
     } catch (err) {
       console.error('Failed to parse WebSocket message:', err.message);
@@ -438,6 +594,7 @@ app.get('/api/status', (req, res) => {
     connecting: clientConnecting,
     hasQR: !!currentQR,
     connectedClients: connectedClients.size,
+    account: isAuthenticated ? getConnectedAccountInfo() : null,
     timestamp: new Date().toISOString(),
   });
 });

@@ -6,6 +6,17 @@ const cors = require('cors');
 // Initialize WhatsApp client (starts QR flow / session restore)
 require('./whatsappClient');
 
+// Also start the WebSocket QR bridge on the same port.
+// The admin UI (`QRConnectionModal`) connects to ws://localhost:3333 by default.
+// Historically this lived in `qrServer.js`; wiring it here avoids having to run
+// two separate servers during local development.
+try {
+  // eslint-disable-next-line global-require
+  require('./qrServer');
+} catch (err) {
+  console.warn('⚠️ Failed to load qrServer bridge:', err?.message || err);
+}
+
 const app = express();
 const port = Number(process.env.PORT || 4010);
 

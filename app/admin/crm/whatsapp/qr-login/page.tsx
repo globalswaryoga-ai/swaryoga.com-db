@@ -77,8 +77,19 @@ export default function QRLoginPage() {
 
     // Default behavior: open the live QR modal (no browser extension needed).
     // The actual QR image comes from the separate WhatsApp bridge WebSocket service.
+    // If the bridge isn't running/accessible, we automatically fall back to the legacy API flow.
+    setError(null);
+    setSuccess(null);
+    setStep('loading');
     setLiveModalOpen(true);
-    return;
+
+    // If no QR arrives / connection fails, the modal may not be useful.
+    // Give it a few seconds, then proceed with legacy REST flow.
+    const fallbackTimer = window.setTimeout(() => {
+      setLiveModalOpen(false);
+      setStep('loading');
+      setError('WhatsApp QR service not reachable (WebSocket). Using fallback QR flow…');
+    }, 6000);
 
     if (!token) {
       setError('Authentication token missing. Please login again.');
@@ -87,8 +98,8 @@ export default function QRLoginPage() {
       return;
     }
 
-    setStep('loading');
-    setError(null);
+  // Legacy generate endpoint (REST). Keep as fallback.
+  setError(null);
 
     try {
       const response = await fetch('/api/admin/crm/whatsapp/qr-login/generate', {
@@ -115,7 +126,10 @@ export default function QRLoginPage() {
       setStep('qr-display');
       setSuccess('QR code generated! Scan with your WhatsApp number.');
       setTimeout(() => setSuccess(null), 3000);
+
+      window.clearTimeout(fallbackTimer);
     } catch (err) {
+      window.clearTimeout(fallbackTimer);
       setError(err instanceof Error ? err.message : 'Failed to generate QR code');
       setStep('error');
     }
@@ -430,7 +444,11 @@ export default function QRLoginPage() {
 
         <QRConnectionModal
           isOpen={liveModalOpen}
-          onClose={() => setLiveModalOpen(false)}
+          onClose={() => {
+            setLiveModalOpen(false);
+            // If modal closes without connecting (common when bridge is down), keep user on the fallback view.
+            if (step === 'initial') setStep('loading');
+          }}
           onConnected={() => {
             setSuccess('✅ WhatsApp connected successfully!');
             setTimeout(() => setSuccess(null), 2500);

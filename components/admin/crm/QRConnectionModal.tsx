@@ -27,14 +27,32 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
     setMessage('Initializing WhatsApp Web connection...');
     
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // In production (e.g. Vercel), the WhatsApp Web bridge cannot run inside Next.js.
-      // Configure a separate bridge service and point this UI to it.
-      // Expected format: ws(s)://host[:port]
-      const envWsUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL;
-      const wsUrl = envWsUrl && envWsUrl.trim().length > 0
-        ? envWsUrl
-        : `${protocol}//${window.location.hostname}:3333`;
+      // IMPORTANT:
+      // - The WhatsApp Web bridge (qrServer.js) is a separate Node service.
+      // - It should NOT be exposed on your production domain (security + infra).
+      // - In development, we default to localhost.
+      // - In production, you *must* explicitly set NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL.
+      const envWsUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL?.trim();
+
+      let wsUrl: string;
+      if (envWsUrl) {
+        wsUrl = envWsUrl;
+      } else {
+        const isLocalhost =
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1' ||
+          window.location.hostname === '0.0.0.0';
+
+        if (isLocalhost) {
+          wsUrl = 'ws://localhost:3333';
+        } else {
+          // Prevent accidental attempts to connect to (e.g.) wss://swaryoga.com:3333
+          // which will always fail unless you deployed a bridge service there.
+          throw new Error(
+            'WhatsApp bridge URL not configured. Set NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL to your bridge WebSocket URL.'
+          );
+        }
+      }
       
       console.log('🔌 Connecting to WebSocket at:', wsUrl);
       const ws = new WebSocket(wsUrl);
@@ -42,6 +60,14 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       ws.onopen = () => {
         console.log('✅ WebSocket connected, waiting for QR code...');
         setMessage('Waiting for QR code... (this may take 10-30 seconds)');
+
+        // Trigger QR generation / client initialization on the bridge.
+        // The bridge only starts the WhatsApp client after receiving an init request.
+        try {
+          ws.send(JSON.stringify({ type: 'init' }));
+        } catch (e) {
+          console.warn('⚠️ Failed to send init message to WhatsApp bridge:', e);
+        }
       };
 
       ws.onmessage = (event) => {
@@ -100,7 +126,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
         setErrorMsg(
           envWsUrl
             ? 'Failed to connect to WhatsApp bridge service. Please verify NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL.'
-            : 'Failed to connect to WhatsApp service. Is the server running on port 3333?'
+            : 'Failed to connect to WhatsApp bridge service on localhost:3333. Is qrServer.js running?'
         );
       };
 

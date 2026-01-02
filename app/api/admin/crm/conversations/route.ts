@@ -15,7 +15,8 @@ import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
  */
 export async function GET(request: NextRequest) {
   try {
-    verifyAdminAccess(request);
+    const viewerUserId = verifyAdminAccess(request);
+    const superAdmin = viewerUserId === 'admincrm';
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
 
@@ -60,6 +61,14 @@ export async function GET(request: NextRequest) {
       },
     });
     pipeline.push({ $unwind: { path: '$lead', preserveNullAndEmptyArrays: true } });
+
+    // Access control:
+    // - Super admin (admincrm) can see all conversations.
+    // - Other admins can only see leads assigned to them.
+    // - Unassigned leads are hidden from non-super-admin.
+    if (!superAdmin) {
+      pipeline.push({ $match: { 'lead.assignedToUserId': viewerUserId } });
+    }
 
     const postMatch: any = {};
     if (status) postMatch['lead.status'] = status;
