@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  whatsapp-web-bridge:
+    build: .
+    container_name: whatsapp-web-bridge
+    restart: unless-stopped
+    environment:
+      # Port the Node process listens on inside the container
+      WHATSAPP_WEB_PORT: "3333"
+
+      # Strongly recommended in production
+      WHATSAPP_CLIENT_ID: "crm-whatsapp-session"
+      WHATSAPP_WEB_ALLOWED_ORIGINS: "https://swaryoga.com,https://www.swaryoga.com"
+
+      # Optional but recommended for inbound ingestion to Next.js
+      NEXT_BASE_URL: "https://swaryoga.com"
+      WHATSAPP_WEB_BRIDGE_SECRET: "CHANGE_ME"
+
+      # Some hosts require this for stable Puppeteer
+      PUPPETEER_EXECUTABLE_PATH: "/usr/bin/chromium"
+    volumes:
+      # Persist QR session so you don't need to scan on every restart
+      - ./data/.wwebjs_auth:/app/.wwebjs_auth
+      - ./data/.wwebjs_cache:/app/.wwebjs_cache
+    ports:
+      # Expose bridge on the host. Put a reverse proxy in front for HTTPS/WSS.
+      - "3333:3333"

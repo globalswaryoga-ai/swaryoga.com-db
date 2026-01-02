@@ -20,7 +20,16 @@ export async function POST(request: NextRequest) {
 
     // Connect to WhatsApp Web QR server to get the current QR
     try {
-      const base = (process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333').replace(/\/+$/, '');
+      const base = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').replace(/\/+$/, '');
+      if (!base) {
+        return NextResponse.json(
+          {
+            error:
+              'WhatsApp bridge is not configured. Set WHATSAPP_BRIDGE_HTTP_URL to the public bridge base URL (e.g. https://wa-bridge.swaryoga.com).',
+          },
+          { status: 400 }
+        );
+      }
       const qrResponse = await fetch(`${base}/api/status`);
       const qrStatus = await qrResponse.json();
 

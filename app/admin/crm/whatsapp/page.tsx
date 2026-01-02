@@ -144,6 +144,20 @@ const SYMBOLS_DATA = {
   special: ['©', '®', '™', '℠', '€', '¢', '£', '¥', '§', '¶', '†', '‡', '•', '‰', '′', '″', '‴', '※', '‼', '⁈', '⁉', '⁏'],
 };
 
+function getBridgeHttpBase(): string {
+  if (typeof window === 'undefined') return '';
+
+  const host = window.location.hostname;
+  const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
+  const envUrl = (process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || '').trim();
+
+  // Local dev can default to localhost.
+  if (isLocal) return envUrl || 'http://localhost:3333';
+
+  // Production must be explicit.
+  return envUrl || '';
+}
+
 export default function WhatsAppChatDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -217,6 +231,8 @@ export default function WhatsAppChatDashboardPage() {
   const [isWhatsAppConnected, setIsWhatsAppConnected] = useState(false);
   const [senderLabel, setSenderLabel] = useState<string>('');
 
+  const bridgeHttpBase = useMemo(() => getBridgeHttpBase(), []);
+
   const [actionModal, setActionModal] = useState<null | 'assign' | 'broadcast' | 'status' | 'export' | 'schedule' | 'delay'>(null);
   const [broadcastLists, setBroadcastLists] = useState<Array<{ _id: string; name: string }>>([]);
   const [broadcastListId, setBroadcastListId] = useState('');
@@ -238,8 +254,15 @@ export default function WhatsAppChatDashboardPage() {
   useEffect(() => {
     let cancelled = false;
     const fetchStatus = async () => {
+      if (!bridgeHttpBase) {
+        // Hosted bridge isn't configured for this environment.
+        // Avoid fetching localhost from production domains.
+        setSenderLabel('');
+        setIsWhatsAppConnected(false);
+        return;
+      }
       try {
-        const res = await fetch('http://localhost:3333/api/status', { cache: 'no-store' });
+        const res = await fetch(`${bridgeHttpBase.replace(/\/$/, '')}/api/status`, { cache: 'no-store' });
         const data = await res.json().catch(() => null);
         if (cancelled || !data) return;
 
@@ -262,7 +285,7 @@ export default function WhatsAppChatDashboardPage() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [bridgeHttpBase]);
 
   // Keep filters in a ref so the fetch callback stays stable (prevents UI vibration)
   const filtersRef = useRef({ q: '', status: '', label: '' });

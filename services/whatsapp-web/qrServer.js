@@ -46,8 +46,9 @@ async function postInboundToCrm({ from, body, timestamp, waMessageId }) {
 // Create Express app
 const app = express();
 
-// CORS (needed because Next dev server runs on a different port, e.g. 3000-3010)
-// Allow explicit origins via env, otherwise allow any localhost origin.
+// CORS (browser access from CRM UI)
+// - In production: set WHATSAPP_WEB_ALLOWED_ORIGINS (https://swaryoga.com,...)
+// - In local dev: if allowlist isn't set, allow localhost origins across ports.
 const allowedOrigins = (process.env.WHATSAPP_WEB_ALLOWED_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
@@ -61,7 +62,7 @@ app.use((req, res, next) => {
     const isLocalhost = /^https?:\/\/localhost(?::\d+)?$/i.test(origin);
     if (allowedOrigins.length > 0) {
       if (allowedOrigins.includes(origin)) allowOrigin = origin;
-    } else if (isLocalhost) {
+    } else if ((process.env.NODE_ENV || '') !== 'production' && isLocalhost) {
       // Default: permissive for local dev across ports (safe enough for localhost only)
       allowOrigin = origin;
     }
