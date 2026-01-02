@@ -190,12 +190,16 @@ export async function POST(request: NextRequest) {
         return formatCrmSuccess(updated || message);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'WhatsApp send failed';
+        const friendly =
+          msg.includes('Cloud API is not configured') || msg.includes('WHATSAPP_ACCESS_TOKEN')
+            ? `${msg} If you're using WhatsApp Web (QR) in the CRM UI, send via the Web bridge instead, or configure the Cloud API env vars.`
+            : msg;
         await WhatsAppMessage.updateOne(
           { _id: message._id },
           {
             $set: {
               status: 'failed',
-              failureReason: String(msg),
+              failureReason: String(friendly),
               updatedAt: new Date(),
             },
           }
@@ -203,7 +207,7 @@ export async function POST(request: NextRequest) {
 
         // Bubble up a clear error for the UI.
         const status = typeof (err as any)?.status === 'number' ? (err as any).status : 502;
-        return NextResponse.json({ error: msg }, { status });
+        return NextResponse.json({ error: friendly }, { status });
       }
     }
 

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Order, CommunityMember } from '@/lib/db';
 
+type OrderLean = {
+  _id?: unknown;
+  shippingAddress?: {
+    email?: string;
+    phone?: string;
+  };
+};
+
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
@@ -50,7 +58,7 @@ export async function POST(request: NextRequest) {
         { 'shippingAddress.phone': { $regex: cleanMobile + '$' } },
       ],
       paymentStatus: { $in: ['completed', 'pending_manual'] }, // Only completed or pending manual orders
-    }).lean();
+    }).lean<OrderLean>();
 
     if (!order) {
       return NextResponse.json(
@@ -88,7 +96,7 @@ export async function POST(request: NextRequest) {
           orderFound: true,
           verifiedEmail: emailMatch,
           verifiedMobile: mobileMatch,
-          orderId: order._id,
+          orderId: order._id ? String(order._id) : undefined,
           // Don't expose full order details for privacy
         },
       },

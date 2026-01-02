@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { DeletedLead, Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
+import { normalizePhoneStrict } from '@/lib/crm/phone';
 
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
@@ -70,12 +71,14 @@ export async function POST(request: NextRequest) {
 
       for (const leadData of leads) {
         try {
-          const phoneNumber = String(leadData.phoneNumber || '').trim();
-          if (!phoneNumber) {
+          const normalized = normalizePhoneStrict(leadData.phoneNumber, { defaultCountryCode: '91' });
+          if (!normalized.ok) {
             results.skipped++;
-            results.errors.push({ phoneNumber: 'N/A', reason: 'Missing phone number' });
+            results.errors.push({ phoneNumber: String(leadData.phoneNumber ?? 'N/A'), reason: normalized.error });
             continue;
           }
+
+          const phoneNumber = normalized.phone;
 
           if (seenPhones.has(phoneNumber)) {
             results.skipped++;

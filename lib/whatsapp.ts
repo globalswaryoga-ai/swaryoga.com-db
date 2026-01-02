@@ -20,9 +20,17 @@ function getWhatsAppEnv() {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER;
 
   if (!accessToken || !phoneNumberId) {
+    // IMPORTANT:
+    // This repo supports two WhatsApp sending modes:
+    // 1) WhatsApp Cloud API (Meta Graph) -> requires these env vars.
+    // 2) WhatsApp Web (QR bridge) -> does NOT require these env vars.
+    //
+    // If the UI is using WhatsApp Web successfully, we don't want a scary generic error.
+    // We still throw (because Cloud API send can't proceed), but make the message explicit.
     throw new Error(
-      'Missing WhatsApp env vars. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID (preferred), ' +
-        'or WHATSAPP_BUSINESS_TOKEN and WHATSAPP_BUSINESS_PHONE_NUMBER (legacy).'
+      'Meta WhatsApp Cloud API is not configured on this server. ' +
+        'Set WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID (preferred), ' +
+        'or WHATSAPP_BUSINESS_TOKEN + WHATSAPP_BUSINESS_PHONE_NUMBER (legacy).'
     );
   }
 

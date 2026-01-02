@@ -308,7 +308,9 @@ export default function AdminCommunityPage() {
   });
 
   const currentCommunity = COMMUNITIES.find(c => c.id === selectedCommunity);
-  const memberCount = members.filter(m => m.communityId === selectedCommunity).length;
+  // Members are fetched per-community for this page.
+  // If/when we fetch a mixed list, CommunityMember does have `communityId` in the DB schema.
+  const memberCount = members.length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex">

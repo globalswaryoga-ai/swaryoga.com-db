@@ -1083,12 +1083,16 @@ export default function LeadsPage() {
                 <p className="text-green-600 text-xs mt-2\">
                   Format: Name, Email, Phone, Status, Source, Workshop/Program
                 </p>
+                <p className="text-green-600 text-xs mt-1\">
+                  Phone must be digits with country code (no plus): <span className="font-semibold">919309986820</span>
+                </p>
               </div>
 
               <div className="bg-green-50 rounded-lg p-3 text-green-700 text-sm border-2 border-green-200">
                 <p className="font-semibold mb-2">Instructions:</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>Required: Name, Email, Phone</li>
+                  <li>Phone must be <span className="font-semibold">91 + 10 digits</span> (example: 919309986820)</li>
                   <li>Optional: Status (lead/prospect/customer/inactive)</li>
                   <li>Optional: Source (website/referral/social/event)</li>
                   <li>Optional: Workshop/Program name</li>

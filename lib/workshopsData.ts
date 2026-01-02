@@ -563,10 +563,10 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     ],
     mentorInfo: 'Our weight loss specialists combine ancient Swar Yoga science with modern nutritional understanding. They provide personalized guidance for sustainable, healthy weight transformation.',
     testimonials: [
-      'Lost 15 kg naturally without any side effects!',
-      'No more yo-yo dieting - weight stayed off permanently.',
-      'My entire health improved, not just weight.',
-      'Finally, a method that works with my body, not against it!'
+      { quote: 'Lost 15 kg naturally without any side effects!', name: 'Participant', place: 'India' },
+      { quote: 'No more yo-yo dieting - weight stayed off permanently.', name: 'Participant', place: 'India' },
+      { quote: 'My entire health improved, not just weight.', name: 'Participant', place: 'India' },
+      { quote: 'Finally, a method that works with my body, not against it!', name: 'Participant', place: 'India' }
     ],
     videoTestimonials: [
       { name: 'Swati - Lost 20kg', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
@@ -593,10 +593,10 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     ],
     mentorInfo: 'Learn from experienced meditation teachers who guide students into profound states of consciousness. Progressive practices ensure success at every level.',
     testimonials: [
-      'Found the peace I\'ve been searching for my whole life.',
-      'My mind is clearer and my thoughts more positive.',
-      'Sleep quality improved dramatically.',
-      'Meditation became my favorite part of the day!'
+      { quote: 'Found the peace I\'ve been searching for my whole life.', name: 'Participant', place: 'India' },
+      { quote: 'My mind is clearer and my thoughts more positive.', name: 'Participant', place: 'India' },
+      { quote: 'Sleep quality improved dramatically.', name: 'Participant', place: 'India' },
+      { quote: 'Meditation became my favorite part of the day!', name: 'Participant', place: 'India' }
     ],
     videoTestimonials: [
       { name: 'Ashok - Retired Executive', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },

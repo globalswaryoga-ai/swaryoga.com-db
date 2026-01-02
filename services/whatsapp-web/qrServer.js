@@ -675,7 +675,21 @@ app.get('/health', (req, res) => {
 });
 
 // Start server
-const PORT = process.env.WHATSAPP_WEB_PORT || 3333;
+// Prefer explicit WHATSAPP_WEB_PORT for this service, but also accept generic PORT
+// (useful on some container hosts).
+const PORT = Number(process.env.WHATSAPP_WEB_PORT || process.env.PORT || 3333);
+
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    console.error(`\n❌ Port ${PORT} is already in use.`);
+    console.error('   Another instance of the WhatsApp bridge may already be running.');
+    console.error('   Stop that process or set WHATSAPP_WEB_PORT/PORT to a different value.');
+    process.exit(1);
+  }
+  console.error('\n❌ Server error:', err);
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`\n${'='.repeat(70)}`);
   console.log('🚀 WhatsApp Web Bridge Server Started Successfully');

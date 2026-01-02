@@ -27,6 +27,20 @@ interface Lead {
   createdAt: string;
 }
 
+type ChatMessage = {
+  _id: string;
+  leadId: string;
+  phoneNumber: string;
+  direction: 'inbound' | 'outbound';
+  messageType?: string;
+  messageContent?: string;
+  status?: string;
+  sentAt?: string;
+  deliveredAt?: string;
+  readAt?: string;
+  createdAt?: string;
+};
+
 type ActionMode = 'notes' | 'whatsapp' | 'email' | 'sms' | 'todos' | 'reminder' | 'nextFollowup' | 'labels';
 
 type HeaderPreview = {
@@ -183,6 +197,11 @@ function LeadsFollowupPageContent() {
   const [searchFilterType, setSearchFilterType] = useState<'lead' | 'admin' | 'workshop'>('lead');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSearchPanel, setShowSearchPanel] = useState(false);
+
+  // WhatsApp chat history for selected lead (stored in MongoDB via WhatsAppMessage)
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   // WhatsApp specific states
   const [whatsappType, setWhatsappType] = useState<'text' | 'image' | 'video' | 'document'>('text');
@@ -520,9 +539,58 @@ function LeadsFollowupPageContent() {
     }
   };
 
+  const fetchLeadChat = async (lead: Lead) => {
+    if (!token) return;
+    setChatError(null);
+    setChatLoading(true);
+    try {
+      const url = new URL('/api/admin/crm/messages', window.location.origin);
+      url.searchParams.set('leadId', lead._id);
+      url.searchParams.set('limit', '100');
+      url.searchParams.set('skip', '0');
+      url.searchParams.set('order', 'asc');
+
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || 'Failed to load chat');
+
+      const raw = Array.isArray(json?.data?.messages) ? json.data.messages : [];
+      const msgs: ChatMessage[] = raw
+        .map((m: any) => ({
+          _id: String(m?._id || ''),
+          leadId: String(m?.leadId?._id || m?.leadId || lead._id),
+          phoneNumber: String(m?.phoneNumber || lead.phoneNumber || ''),
+          direction: m?.direction === 'inbound' ? 'inbound' : 'outbound',
+          messageType: m?.messageType,
+          messageContent: m?.messageContent,
+          status: m?.status,
+          sentAt: m?.sentAt,
+          deliveredAt: m?.deliveredAt,
+          readAt: m?.readAt,
+          createdAt: m?.createdAt,
+        }))
+        .filter((m: ChatMessage) => Boolean(m._id));
+
+      setChatMessages(msgs);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : 'Failed to load chat');
+      setChatMessages([]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!token || !selectedLead?._id) return;
     fetchLeadActivity(selectedLead._id);
+    fetchLeadChat(selectedLead);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, selectedLead?._id]);
 
@@ -1248,6 +1316,65 @@ function LeadsFollowupPageContent() {
                   {/* WhatsApp Form */}
                   {actionMode === 'whatsapp' && (
                     <div className="space-y-6">
+                      {/* Chat History (from MongoDB) */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between gap-4 mb-3">
+                          <div>
+                            <h3 className="text-sm font-semibold text-slate-900">Chat history</h3>
+                            <p className="text-xs text-slate-600">Stored in MongoDB (WhatsAppMessage)</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => selectedLead && fetchLeadChat(selectedLead)}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:bg-slate-100"
+                            disabled={chatLoading}
+                          >
+                            {chatLoading ? 'Refreshing…' : 'Refresh'}
+                          </button>
+                        </div>
+
+                        {chatError && (
+                          <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2 mb-3">
+                            {chatError}
+                          </div>
+                        )}
+
+                        {!chatLoading && chatMessages.length === 0 && (
+                          <div className="text-xs text-slate-600">No messages yet for this lead.</div>
+                        )}
+
+                        <div className="max-h-64 overflow-y-auto space-y-2">
+                          {chatMessages.map((m) => {
+                            const isInbound = m.direction === 'inbound';
+                            const ts = m.sentAt || m.createdAt;
+                            return (
+                              <div
+                                key={m._id}
+                                className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}
+                              >
+                                <div
+                                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm border shadow-sm ${
+                                    isInbound
+                                      ? 'bg-white border-slate-200 text-slate-900'
+                                      : 'bg-green-600 border-green-700 text-white'
+                                  }`}
+                                >
+                                  <div className="whitespace-pre-wrap break-words">{m.messageContent || ''}</div>
+                                  <div
+                                    className={`mt-1 text-[11px] ${
+                                      isInbound ? 'text-slate-500' : 'text-white/80'
+                                    }`}
+                                  >
+                                    {ts ? new Date(ts).toLocaleString() : ''}
+                                    {m.status ? `        | ${m.status}` : ''}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       {/* Message Type Tabs */}
                       <div className="flex gap-2 flex-wrap border-b border-slate-200 pb-4">
                         <button

@@ -56,7 +56,7 @@ class CacheManager {
 
   cleanup(): void {
     const now = Date.now();
-    const keysToDelete = [];
+    const keysToDelete: string[] = [];
 
     for (const [key, entry] of this.cache.entries()) {
       if (now > entry.expiry) {

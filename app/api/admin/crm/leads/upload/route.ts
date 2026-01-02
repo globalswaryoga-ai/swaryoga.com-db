@@ -4,12 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import * as XLSX from 'xlsx';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
-
-function normalizePhone(value: unknown): string {
-  const raw = String(value ?? '').trim();
-  // Keep digits only. This converts common Excel formats like "+91 93099 86820" to "919309986820".
-  return raw.replace(/\D+/g, '');
-}
+import { normalizePhoneStrict } from '@/lib/crm/phone';
 
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
@@ -84,13 +79,14 @@ export async function POST(request: NextRequest) {
           (row as any)['phone number'] ||
           '';
 
-        const phoneNumber = normalizePhone(phoneNumberRaw);
-
-        if (!phoneNumber) {
+        const normalized = normalizePhoneStrict(phoneNumberRaw, { defaultCountryCode: '91' });
+        if (!normalized.ok) {
           results.skipped++;
-          results.errors.push({ phone: 'N/A', reason: 'Missing phone number' });
+          results.errors.push({ phone: String(phoneNumberRaw ?? 'N/A'), reason: normalized.error });
           continue;
         }
+
+        const phoneNumber = normalized.phone;
 
         if (seenPhones.has(phoneNumber)) {
           results.skipped++;

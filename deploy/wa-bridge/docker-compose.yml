@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  wa-bridge:
+    # Build from this repo's whatsapp-web service
+    build:
+      context: ../../services/whatsapp-web
+      dockerfile: Dockerfile
+    container_name: wa-bridge
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Port inside container (the service listens on this)
+      WHATSAPP_WEB_PORT: "3333"
+
+      # Important: allow your CRM domains to call the bridge from the browser
+      # Example:
+      # WHATSAPP_WEB_ALLOWED_ORIGINS: "https://crm.swaryoga.com,https://swaryoga.com,https://www.swaryoga.com"
+      WHATSAPP_WEB_ALLOWED_ORIGINS: "${WHATSAPP_WEB_ALLOWED_ORIGINS}"
+
+      # Optional: enables saving inbound messages into CRM
+      # NEXT_BASE_URL: "https://crm.swaryoga.com"
+      NEXT_BASE_URL: "${NEXT_BASE_URL}"
+
+      # Optional: protect inbound posting endpoint
+      WHATSAPP_WEB_BRIDGE_SECRET: "${WHATSAPP_WEB_BRIDGE_SECRET}"
+
+      # Optional: multiple accounts/sessions
+      WHATSAPP_CLIENT_ID: "${WHATSAPP_CLIENT_ID:-crm-whatsapp-session}"
+    volumes:
+      # Persist WhatsApp sessions across restarts
+      - wa_auth:/app/.wwebjs_auth
+      - wa_cache:/app/.wwebjs_cache
+    ports:
+      # Expose only locally on the VPS; Nginx will terminate TLS and proxy to this.
+      - "127.0.0.1:3333:3333"
+
+volumes:
+  wa_auth:
+  wa_cache:

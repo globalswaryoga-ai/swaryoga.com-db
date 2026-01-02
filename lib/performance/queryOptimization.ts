@@ -15,17 +15,16 @@ class QueryProfiler {
 
   async profileQuery<T>(
     name: string,
-    query: () => Promise<{ lean?: () => unknown; exec?: () => Promise<unknown> }>,
+    query: () => { lean?: () => unknown; exec?: () => Promise<unknown> } | Promise<{ lean?: () => unknown; exec?: () => Promise<unknown> }>,
     shouldLean: boolean = true
   ): Promise<{ data: T; stats: QueryStats }> {
     const startTime = performance.now();
 
     try {
-      let result = query();
-      if (shouldLean) {
-        result = (await result).lean?.() || result;
-      }
-      const data = await result;
+      const q = await query();
+      // Support both Mongoose Query objects and promise-returning query factories.
+      const maybeLeaned = shouldLean ? (q.lean ? q.lean() : q) : q;
+      const data = (maybeLeaned as any).exec ? await (maybeLeaned as any).exec() : await (maybeLeaned as any);
 
       const executionTime = performance.now() - startTime;
       const stats: QueryStats = {

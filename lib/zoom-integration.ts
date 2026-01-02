@@ -75,6 +75,9 @@ async function getZoomAccessToken(): Promise<string> {
     tokenExpiresAt = now + (response.data.expires_in * 1000);
 
     console.log('✅ Zoom OAuth Token Acquired');
+    if (!accessToken) {
+      throw new Error('Zoom access token missing in response');
+    }
     return accessToken;
   } catch (error) {
     console.error('❌ Zoom OAuth Error:', error);

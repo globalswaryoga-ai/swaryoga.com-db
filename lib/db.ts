@@ -822,7 +822,7 @@ const communityMemberSchema = new mongoose.Schema({
 // Unique index: one user per community (by mobile)
 communityMemberSchema.index({ mobile: 1, communityId: 1 }, { unique: true });
 communityMemberSchema.index({ communityId: 1, joinedAt: -1 });
-communityMemberSchema.index({ email: 1, sparse: true });
+communityMemberSchema.index({ email: 1 }, { sparse: true });
 
 export const CommunityMember = mongoose.models.CommunityMember || mongoose.model('CommunityMember', communityMemberSchema);
 

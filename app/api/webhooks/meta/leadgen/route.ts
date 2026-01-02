@@ -73,6 +73,9 @@ async function upsertLeadFromMeta(leadgenData: any) {
   try {
     const fieldData = leadgenData.field_data || [];
 
+    const leadgenId = leadgenData.id;
+    const metaLeadgenId = `meta_${leadgenId}`;
+
     // Extract phone and email
     let phone = pickFieldValue(fieldData, 'phone_number') || pickFieldValue(fieldData, 'phone');
     let email = pickFieldValue(fieldData, 'email');
@@ -89,17 +92,13 @@ async function upsertLeadFromMeta(leadgenData: any) {
       return { success: false, error: 'No contact info' };
     }
 
-    const leadgenId = leadgenData.id;
-    const metaLeadgenId = `meta_${leadgenId}`;
-
     // Check for duplicates (by phone, email, or metaLeadgenId)
-    const existingLead = await Lead.findOne({
-      $or: [
-        phone ? { phoneNumber: phone } : null,
-        email ? { email } : null,
-        { 'metadata.metaLeadgenId': metaLeadgenId },
-      ].filter(Boolean),
-    });
+    const orFilters: Record<string, unknown>[] = [];
+    if (phone) orFilters.push({ phoneNumber: phone });
+    if (email) orFilters.push({ email });
+    orFilters.push({ 'metadata.metaLeadgenId': metaLeadgenId });
+
+    const existingLead = await Lead.findOne({ $or: orFilters });
 
     if (existingLead) {
       // Update existing lead with Meta metadata
