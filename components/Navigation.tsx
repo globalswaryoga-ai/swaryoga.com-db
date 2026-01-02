@@ -23,6 +23,7 @@ export default function Navigation() {
     { name: 'Blog', href: '/blog' },
     { name: 'Community', href: '/community' },
     { name: 'Contact', href: '/contact' },
+    { name: 'Media', href: '/media' },
   ];
 
   // Handle scroll effect

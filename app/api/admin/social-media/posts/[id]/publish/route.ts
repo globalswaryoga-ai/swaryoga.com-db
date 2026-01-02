@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { connectDB, SocialMediaAccount, SocialMediaPost } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { decryptCredential } from '@/lib/encryption';
+import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
 
 type PublishResult = {
   platform: string;
@@ -541,6 +542,22 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         },
       }
     );
+
+    // Mirror into MediaPost (published only if we managed to publish to at least one platform).
+    // If everything failed, mark draft so it doesn't appear publicly.
+    await upsertMediaPostFromSocialPost({
+      socialPost: {
+        ...postDoc,
+        status: okAny ? 'published' : 'failed',
+        publishedAt: okAny ? now : null,
+        platformPostIds: {
+          ...(postDoc.platformPostIds || {}),
+          ...platformPostIds,
+        },
+      },
+      status: okAny ? 'published' : 'draft',
+      author: decoded.username || decoded.userId || 'Admin',
+    });
 
     return NextResponse.json({
       success: true,

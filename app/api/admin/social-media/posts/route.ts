@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, SocialMediaPost, SocialMediaAccount } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
 
 export async function GET(request: NextRequest) {
   try {
@@ -79,6 +80,13 @@ export async function POST(request: NextRequest) {
     });
 
     await newPost.save();
+
+    // Mirror into MediaPost so it shows on frontend /media (draft/scheduled for now).
+    await upsertMediaPostFromSocialPost({
+      socialPost: newPost.toObject(),
+      status: (newPost.status === 'scheduled' ? 'scheduled' : 'draft') as any,
+      author: decoded.username || decoded.userId || 'Admin',
+    });
 
     return NextResponse.json(
       {
