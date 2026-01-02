@@ -20,41 +20,78 @@ function getWhatsAppEnv() {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER;
 
   if (!accessToken || !phoneNumberId) {
-    // IMPORTANT:
-    // This repo supports two WhatsApp sending modes:
-    // 1) WhatsApp Cloud API (Meta Graph) -> requires these env vars.
-    // 2) WhatsApp Web (QR bridge) -> does NOT require these env vars.
-    //
-    // If the UI is using WhatsApp Web successfully, we don't want a scary generic error.
-    // We still throw (because Cloud API send can't proceed), but make the message explicit.
-    throw new Error(
-      'Meta WhatsApp Cloud API is not configured on this server. ' +
-        'Set WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID (preferred), ' +
-        'or WHATSAPP_BUSINESS_TOKEN + WHATSAPP_BUSINESS_PHONE_NUMBER (legacy).'
-    );
+    return null; // Cloud API not configured; fallback to Web bridge
   }
 
   return { accessToken, phoneNumberId };
 }
 
 export async function sendWhatsAppText(toRaw: string, body: string): Promise<WhatsAppSendTextResult> {
-  const { accessToken, phoneNumberId } = getWhatsAppEnv();
-  const to = normalizePhone(toRaw);
+  const env = getWhatsAppEnv();
 
-  const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
-  const res = await fetch(url, {
+  // If Cloud API is configured, use it
+  if (env) {
+    const { accessToken, phoneNumberId } = env;
+    const to = normalizePhone(toRaw);
+
+    const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'text',
+        text: { body },
+      }),
+      cache: 'no-store',
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const message =
+        data?.error?.message || data?.error?.error_user_msg || data?.error || 'WhatsApp API error';
+      const err = new Error(String(message));
+      (err as any).status = res.status;
+      (err as any).data = data;
+      throw err;
+    }
+
+    const waMessageId =
+      Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+
+    return { waMessageId, raw: data };
+  }
+
+  // Fallback: Cloud API not configured → use WhatsApp Web bridge
+  const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL;
+  if (!bridgeUrl) {
+    throw new Error(
+      'WhatsApp sending unavailable: ' +
+        'Cloud API not configured (missing WHATSAPP_ACCESS_TOKEN) ' +
+        'and no Web bridge URL set (WHATSAPP_BRIDGE_HTTP_URL). ' +
+        'Either configure Cloud API or set bridge URLs to use WhatsApp Web QR.'
+    );
+  }
+
+  const to = normalizePhone(toRaw);
+  const sendUrl = `${bridgeUrl}/send`;
+  const bridgeSecret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (bridgeSecret) {
+    headers['X-Bridge-Secret'] = bridgeSecret;
+  }
+
+  const res = await fetch(sendUrl, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body },
-    }),
+    headers,
+    body: JSON.stringify({ to, message: body }),
     cache: 'no-store',
   });
 
@@ -62,15 +99,14 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
 
   if (!res.ok) {
     const message =
-      data?.error?.message || data?.error?.error_user_msg || data?.error || 'WhatsApp API error';
+      data?.error || data?.message || `WhatsApp Web bridge error (HTTP ${res.status})`;
     const err = new Error(String(message));
     (err as any).status = res.status;
     (err as any).data = data;
     throw err;
   }
 
-  const waMessageId =
-    Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
-
+  // Bridge typically returns { success: true, messageId?: "..." }
+  const waMessageId = data?.messageId || data?.waMessageId;
   return { waMessageId, raw: data };
 }
