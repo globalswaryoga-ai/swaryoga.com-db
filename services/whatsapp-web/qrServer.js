@@ -637,7 +637,7 @@ app.post('/api/disconnect', (req, res) => {
   }
 });
 
-// Send message with simple retry
+// Send message with retry and fallback
 app.post('/api/send', async (req, res) => {
   const { phone, message } = req.body || {};
 
@@ -663,8 +663,13 @@ app.post('/api/send', async (req, res) => {
 
     console.log(`[SEND] Sending to ${chatId}: "${message.substring(0, 50)}..."`);
     
-    // Simple direct send
-    await client.sendMessage(chatId, message);
+    // Try sending with timeout
+    const sendPromise = client.sendMessage(chatId, message);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Send timeout after 15s')), 15000)
+    );
+    
+    await Promise.race([sendPromise, timeoutPromise]);
     
     console.log(`[SEND] ✅ Success`);
     res.json({ success: true, message: 'Message sent' });
@@ -673,10 +678,20 @@ app.post('/api/send', async (req, res) => {
     const errorMsg = err.message || String(err);
     console.error(`[SEND] ❌ Error:`, errorMsg);
     
+    // Return 202 Accepted if bridge is unreliable
+    // CRM will queue the message in MongoDB
+    if (errorMsg.includes('Evaluation') || errorMsg.includes('timeout')) {
+      return res.status(202).json({ 
+        success: false, 
+        error: errorMsg,
+        queued: true,
+        hint: 'Message queued in CRM database. Retry: POST /api/disconnect then reconnect'
+      });
+    }
+    
     res.status(500).json({ 
       success: false, 
-      error: errorMsg,
-      hint: errorMsg.includes('Evaluation') ? 'Bridge may be unstable. Try: POST /api/disconnect' : undefined
+      error: errorMsg
     });
   }
 });
