@@ -661,10 +661,30 @@ app.post('/api/send', async (req, res) => {
     }
     chatId = chatId + '@c.us';
 
-    await client.sendMessage(chatId, message);
-    res.json({ success: true, message: 'Message sent' });
+    console.log(`[SEND] Attempting to send message to ${chatId}: "${message}"`);
+    
+    // Attempt to send message with timeout
+    const sendPromise = client.sendMessage(chatId, message);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Send timeout after 10s')), 10000)
+    );
+    
+    const result = await Promise.race([sendPromise, timeoutPromise]);
+    
+    console.log(`[SEND] ✅ Message sent successfully to ${chatId}`);
+    res.json({ success: true, message: 'Message sent', chatId });
   } catch (err) {
-    console.error('Send message error:', err);
+    console.error(`[SEND] ❌ Error sending to ${phone}:`, err.message, err.stack);
+    
+    // Check if it's a Puppeteer evaluation error
+    if (err.message && err.message.includes('Evaluation failed')) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'WhatsApp Web page context error - bridge may need restart',
+        details: err.message 
+      });
+    }
+    
     res.status(500).json({ success: false, error: err.message });
   }
 });
