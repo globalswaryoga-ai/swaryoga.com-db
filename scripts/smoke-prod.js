@@ -15,6 +15,8 @@
 const BASE_URL = (process.env.BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const args = new Set(process.argv.slice(2));
+const HEALTH_ONLY = args.has('--health-only') || args.has('-h');
 
 function redact(value) {
   if (!value) return value;
@@ -52,6 +54,12 @@ async function main() {
   }
 
   // If no creds, we're done.
+  if (HEALTH_ONLY) {
+    console.log(`ℹ️  Health-only mode (--health-only). Skipping auth checks.`);
+    console.log(`⏱️  Done in ${Date.now() - started}ms\n`);
+    return;
+  }
+
   if (!ADMIN_USER_ID || !ADMIN_PASSWORD) {
     console.log(`ℹ️  Skipping admin login (set ADMIN_USER_ID + ADMIN_PASSWORD to test protected routes).`);
     console.log(`⏱️  Done in ${Date.now() - started}ms\n`);
@@ -97,6 +105,9 @@ async function main() {
     if (!res.ok) {
       console.error(`❌ Protected leads call failed: ${res.status} ${res.statusText}`);
       console.error(json);
+      console.error(
+        `\nNext steps:\n- Check server logs for /api/admin/crm/leads\n- Most common causes: MongoDB connection hiccup, token rejected, or runtime error in route\n`
+      );
       process.exitCode = 1;
       return;
     }

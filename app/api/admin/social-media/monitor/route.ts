@@ -7,6 +7,9 @@ import {
 } from '@/lib/socialMediaErrorLogger';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * Social Media Monitoring & Metrics Dashboard Endpoint
  * 

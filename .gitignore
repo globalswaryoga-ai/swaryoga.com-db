@@ -37,4 +37,6 @@ coverage/
 **/.wwebjs_cache/
 
 # Ignore markdown documentation files (generated/docs)
-*.md
+# NOTE: We commit project docs (README, deployment guides, etc.).
+# Only ignore generated markdown (if any) under known generated folders.
+docs/generated/**/*.md

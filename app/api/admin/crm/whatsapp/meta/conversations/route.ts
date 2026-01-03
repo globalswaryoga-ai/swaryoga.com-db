@@ -3,6 +3,9 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { WhatsAppMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/admin/crm/whatsapp/meta/conversations
  * Fetch all conversations from WhatsApp messages grouped by leadId

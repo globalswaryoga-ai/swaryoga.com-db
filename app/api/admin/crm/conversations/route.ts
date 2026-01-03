@@ -9,6 +9,9 @@ import {
 } from '@/lib/crm-handlers';
 import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * Conversations API
  * Returns one row per leadId with last message + unread count.

@@ -3,6 +3,9 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/admin/crm/whatsapp/meta/messages
  * Fetch all messages for a specific phone number
