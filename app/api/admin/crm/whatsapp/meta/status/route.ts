@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * GET /api/admin/crm/whatsapp/meta/status
  * Check Meta WhatsApp API connection status
- * Returns: { status: 'connected'|'error', message: string, meta?: object }
+ * Returns standard response format with success and data fields
  */
 export async function GET(request: NextRequest) {
   try {
@@ -23,11 +23,15 @@ export async function GET(request: NextRequest) {
     if (!accessToken || !phoneNumberId) {
       return NextResponse.json(
         {
-          status: 'error',
-          message: 'Meta API credentials not configured',
-          meta: {
-            accessTokenSet: !!accessToken,
-            phoneNumberIdSet: !!phoneNumberId,
+          success: true,
+          data: {
+            status: 'error',
+            connected: false,
+            message: 'Meta API credentials not configured',
+            credentialsSet: {
+              accessTokenSet: !!accessToken,
+              phoneNumberIdSet: !!phoneNumberId,
+            },
           },
         },
         { status: 200 }
@@ -46,9 +50,13 @@ export async function GET(request: NextRequest) {
       if (!response.ok) {
         return NextResponse.json(
           {
-            status: 'error',
-            message: data?.error?.message || 'Failed to connect to Meta API',
-            meta: data?.error || null,
+            success: true,
+            data: {
+              status: 'error',
+              connected: false,
+              message: data?.error?.message || 'Failed to connect to Meta API',
+              error: data?.error || null,
+            },
           },
           { status: 200 }
         );
@@ -56,12 +64,16 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json(
         {
-          status: 'connected',
-          message: 'Meta WhatsApp API is connected',
-          meta: {
-            phoneNumberId: data.id,
-            displayPhoneNumber: data.display_phone_number,
-            qualityRating: data.quality_rating,
+          success: true,
+          data: {
+            status: 'connected',
+            connected: true,
+            message: 'Meta WhatsApp API is connected',
+            phoneNumber: {
+              id: data.id,
+              displayPhone: data.display_phone_number,
+              qualityRating: data.quality_rating,
+            },
           },
         },
         { status: 200 }
@@ -69,8 +81,12 @@ export async function GET(request: NextRequest) {
     } catch (fetchError) {
       return NextResponse.json(
         {
-          status: 'error',
-          message: `Network error: ${String(fetchError)}`,
+          success: true,
+          data: {
+            status: 'error',
+            connected: false,
+            message: `Network error: ${String(fetchError)}`,
+          },
         },
         { status: 200 }
       );
@@ -78,8 +94,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       {
-        status: 'error',
-        message: String(error),
+        success: false,
+        error: String(error),
       },
       { status: 500 }
     );
