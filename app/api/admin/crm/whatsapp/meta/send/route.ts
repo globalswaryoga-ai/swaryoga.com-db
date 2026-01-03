@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { normalizePhoneForMeta } from '@/lib/utils/phone';
 
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -57,13 +58,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalize phone: remove non-digits, ensure no + prefix for API
-    let normalizedPhone = String(phoneNumber).replace(/\D/g, '');
-    if (normalizedPhone.startsWith('91')) {
-      // Indian number - good
-    } else if (normalizedPhone.length === 10) {
-      // Add country code for 10-digit India numbers
-      normalizedPhone = '91' + normalizedPhone;
+    // Normalize phone: digits-only; if 10 digits assume India and prefix 91.
+    const normalizedPhone = normalizePhoneForMeta(phoneNumber);
+
+    if (!normalizedPhone) {
+      return NextResponse.json(
+        { error: 'Invalid phoneNumber' },
+        { status: 400 }
+      );
     }
 
     console.log(`[META] Sending to ${normalizedPhone}: "${messageContent}"`);

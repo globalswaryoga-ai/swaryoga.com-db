@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
+import { normalizePhoneForMeta } from '@/lib/utils/phone';
 import {
   DataTable,
   FormModal,
@@ -857,6 +858,10 @@ export default function SalesPage() {
                   type="text"
                   value={formData.customerPhone}
                   onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                  onBlur={(e) => {
+                    const normalized = normalizePhoneForMeta(e.target.value);
+                    if (normalized) setFormData({ ...formData, customerPhone: normalized });
+                  }}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
                   placeholder="Phone number"
                 />
@@ -1080,6 +1085,10 @@ export default function SalesPage() {
                   type="text"
                   value={editData.customerPhone}
                   onChange={(e) => setEditData({ ...editData, customerPhone: e.target.value })}
+                  onBlur={(e) => {
+                    const normalized = normalizePhoneForMeta(e.target.value);
+                    if (normalized) setEditData({ ...editData, customerPhone: normalized });
+                  }}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
                 />
               </div>

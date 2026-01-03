@@ -8,6 +8,7 @@ import { useSearch } from '@/hooks/useSearch';
 import { useModal } from '@/hooks/useModal';
 import { useForm } from '@/hooks/useForm';
 import * as XLSX from 'xlsx';
+import { normalizePhoneForMeta } from '@/lib/utils/phone';
 import {
   DataTable,
   FormModal,
@@ -940,6 +941,10 @@ export default function LeadsPage() {
                 name="phoneNumber"
                 value={form.values.phoneNumber}
                 onChange={form.handleChange}
+                onBlur={(e) => {
+                  const normalized = normalizePhoneForMeta(e.target.value);
+                  if (normalized) form.setFieldValue('phoneNumber', normalized);
+                }}
                 className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
                 placeholder="+919876543210"
               />

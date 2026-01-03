@@ -1,21 +1,11 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { PageHeader, LoadingSpinner, AlertBox, StatusBadge } from '@/components/admin/crm';
-
-function normalizePhoneForMeta(input?: string): string {
-  const digits = String(input || '').replace(/\D/g, '');
-  if (!digits) return '';
-
-  // For India, if 10 digits assume +91.
-  if (digits.length === 10) return `91${digits}`;
-
-  // If it already starts with 91 and is 12 digits, keep.
-  return digits;
-}
+import { normalizePhoneForMeta } from '@/lib/utils/phone';
 
 interface Lead {
   _id: string;
@@ -36,16 +26,6 @@ interface Lead {
   metadata?: any;
 }
 
-interface MetaMessage {
-  _id: string;
-  phoneNumber: string;
-  messageContent: string;
-  direction: 'inbound' | 'outbound';
-  status: string;
-  createdAt: string;
-  waMessageId?: string;
-}
-
 export default function LeadDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -58,61 +38,6 @@ export default function LeadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Lead>>({});
-
-  // Meta WhatsApp Chat states
-  const [messages, setMessages] = useState<MetaMessage[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [sendingMessage, setSendingMessage] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Fetch messages for Meta WhatsApp
-  const fetchMetaMessages = async (phoneNumber: string) => {
-    try {
-      const normalized = normalizePhoneForMeta(phoneNumber);
-      if (!normalized) return;
-
-      setChatError(null);
-      const res = await crm.fetch('/api/admin/crm/whatsapp/meta/messages', {
-        method: 'GET',
-        params: { phoneNumber: normalized },
-      });
-      setMessages(res || []);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } catch (err) {
-      console.error('Failed to fetch messages:', err);
-      setChatError(err instanceof Error ? err.message : 'Failed to fetch messages');
-    }
-  };
-
-  // Send Meta WhatsApp message
-  const handleSendMetaMessage = async () => {
-    if (!lead?.phoneNumber || !newMessage.trim()) return;
-
-    try {
-      setSendingMessage(true);
-      setChatError(null);
-
-      const res = await crm.fetch('/api/admin/crm/whatsapp/meta/send', {
-        method: 'POST',
-        body: {
-          phoneNumber: normalizePhoneForMeta(lead.phoneNumber),
-          messageContent: newMessage,
-        },
-      });
-
-      if (res?.messageId) {
-        setNewMessage('');
-        await fetchMetaMessages(lead.phoneNumber);
-      } else {
-        throw new Error(res?.error || 'Failed to send message');
-      }
-    } catch (err) {
-      setChatError(err instanceof Error ? err.message : 'Send failed');
-    } finally {
-      setSendingMessage(false);
-    }
-  };
 
   // Fetch lead details
   useEffect(() => {
@@ -137,10 +62,6 @@ export default function LeadDetailPage() {
         if (data.data) {
           setLead(data.data);
           setEditForm(data.data);
-          // Fetch Meta messages for this lead
-          if (data.data.phoneNumber) {
-            await fetchMetaMessages(data.data.phoneNumber);
-          }
         } else {
           throw new Error('Invalid response format');
         }
@@ -152,21 +73,7 @@ export default function LeadDetailPage() {
     };
 
     fetchLead();
-    
-    // Auto-refresh messages every 5 seconds
-    if (lead?.phoneNumber) {
-      const interval = setInterval(() => fetchMetaMessages(lead.phoneNumber), 5000);
-      return () => clearInterval(interval);
-    }
   }, [id, token]);
-
-  // Refresh messages when lead phone changes
-  useEffect(() => {
-    if (lead?.phoneNumber) {
-      const interval = setInterval(() => fetchMetaMessages(lead.phoneNumber), 5000);
-      return () => clearInterval(interval);
-    }
-  }, [lead?.phoneNumber]);
 
   const handleStatusChange = async (newStatus: Lead['status']) => {
     if (!lead || !token) return;
@@ -298,11 +205,8 @@ export default function LeadDetailPage() {
           </div>
         </div>
 
-        {/* Two Column Layout */}
-        <div className="grid grid-cols-2 gap-6 h-[calc(100vh-180px)]">
-          
-          {/* LEFT: Lead Details */}
-          <div className="bg-white rounded-xl shadow-lg overflow-y-auto">
+        {/* Single Column Layout (details only) */}
+        <div className="bg-white rounded-xl shadow-lg overflow-y-auto">
             <div className="p-8">
               {error && (
                 <AlertBox type="error" message={error} onClose={() => setError(null)} />
@@ -453,89 +357,6 @@ export default function LeadDetailPage() {
                 )}
               </div>
             </div>
-          </div>
-
-          {/* RIGHT: Meta WhatsApp Chat */}
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col">
-            {/* Chat Header */}
-            <div className="bg-gradient-to-r from-teal-700 via-cyan-600 to-sky-600 text-white px-6 py-4 border-b border-cyan-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold">WhatsApp Meta Chat</h2>
-                  <p className="text-white/80 text-sm">{lead.phoneNumber}</p>
-                </div>
-                <div className="text-xs bg-black/20 px-3 py-1 rounded-full border border-white/20">
-                  {messages.length} messages
-                </div>
-              </div>
-            </div>
-
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-slate-50 via-white to-slate-50">
-              {messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-gray-500">
-                  <p className="text-center">
-                    <p className="text-4xl mb-2">💬</p>
-                    <p>No messages yet</p>
-                  </p>
-                </div>
-              ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg._id}
-                    className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs px-4 py-2 rounded-lg ${
-                        msg.direction === 'outbound'
-                          ? 'bg-gradient-to-br from-teal-700 via-cyan-600 to-sky-600 text-white shadow-md'
-                          : 'bg-white text-gray-900 border border-slate-200 shadow-sm'
-                      }`}
-                    >
-                      <p className="break-words text-sm">{msg.messageContent}</p>
-                      <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-white/80' : 'text-slate-500'}`}>
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Error Message */}
-            {chatError && (
-              <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-red-700 text-sm">
-                {chatError}
-              </div>
-            )}
-
-            {/* Message Input */}
-            <div className="border-t border-gray-200 bg-white p-4">
-              <div className="flex gap-2">
-                <textarea
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  rows={2}
-                  className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-none text-sm"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && e.ctrlKey) {
-                      handleSendMetaMessage();
-                    }
-                  }}
-                />
-                <button
-                  onClick={handleSendMetaMessage}
-                  disabled={sendingMessage || !newMessage.trim()}
-                  className="px-4 py-2 bg-gradient-to-r from-teal-700 via-cyan-600 to-sky-600 text-white rounded-lg hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors h-fit"
-                >
-                  {sendingMessage ? '...' : '✓'}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">Ctrl+Enter to send</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

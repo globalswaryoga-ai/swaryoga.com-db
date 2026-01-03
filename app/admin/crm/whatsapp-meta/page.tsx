@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
+import CreateLeadModal from '@/components/admin/crm/CreateLeadModal';
 
 interface MetaMessage {
   _id: string;
@@ -78,6 +79,7 @@ export default function MetaWhatsAppPage() {
 
   const [conversations, setConversations] = useState<MetaConversation[]>([]);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+  const [createLeadOpen, setCreateLeadOpen] = useState(false);
   const [selected, setSelected] = useState<MetaConversation | null>(null);
   const [messages, setMessages] = useState<MetaMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -398,6 +400,14 @@ export default function MetaWhatsAppPage() {
           </div>
           <div className="flex gap-3 items-center">
             <button
+              type="button"
+              onClick={() => setCreateLeadOpen(true)}
+              title="Create lead"
+              className="h-10 w-10 rounded-full bg-red-600 text-white text-2xl font-extrabold shadow hover:bg-red-700 flex items-center justify-center"
+            >
+              +
+            </button>
+            <button
               onClick={checkMetaConnection}
               disabled={connectionStatus === 'checking'}
               className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
@@ -423,6 +433,13 @@ export default function MetaWhatsAppPage() {
           </div>
         </div>
       </div>
+
+      <CreateLeadModal
+        isOpen={createLeadOpen}
+        token={token}
+        onClose={() => setCreateLeadOpen(false)}
+        initialPhone={selectedPhone || ''}
+      />
 
       {/* Main 3-Column Layout */}
       <div className="flex flex-1 overflow-hidden">

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
+import { normalizePhoneForMeta } from '@/lib/utils/phone';
 
 interface SaleRecord {
   _id: string;
@@ -228,7 +229,12 @@ export default function SaleDetailPage() {
           {/* Action Buttons - Compact */}
           <div className="flex gap-2 pt-3 border-t border-slate-200">
             <button
-              onClick={() => router.push(`/admin/crm/whatsapp?leadId=${encodeURIComponent(sale.leadId || '')}&phone=${encodeURIComponent(sale.customerPhone || '')}`)}
+              onClick={() => {
+                const normalized = normalizePhoneForMeta(sale.customerPhone || '');
+                router.push(
+                  `/admin/crm/whatsapp?leadId=${encodeURIComponent(sale.leadId || '')}&phone=${encodeURIComponent(normalized)}`
+                );
+              }}
               className="flex-1 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded transition-colors"
             >
               💬 WhatsApp

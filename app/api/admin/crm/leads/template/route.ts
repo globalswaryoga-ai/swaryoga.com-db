@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       {
         'Name': 'Rajesh Kumar',
         'Email': 'rajesh@example.com',
-        'Phone Number': '+91 98765 43210',
+        'Phone Number': '919876543210',
         'Status': 'lead',
         'Source': 'website',
         'Workshop/Program': 'Beginner Yoga',
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       {
         'Name': 'Priya Singh',
         'Email': 'priya@example.com',
-        'Phone Number': '+91 87654 32109',
+        'Phone Number': '918765432109',
         'Status': 'prospect',
         'Source': 'referral',
         'Workshop/Program': 'Advanced Pranayama',
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       {
         'Name': 'Amit Patel',
         'Email': 'amit@example.com',
-        'Phone Number': '+91 76543 21098',
+        'Phone Number': '917654321098',
         'Status': 'customer',
         'Source': 'social',
         'Workshop/Program': 'Meditation Intensive',
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       {
         'Name': 'Sneha Desai',
         'Email': 'sneha@example.com',
-        'Phone Number': '+91 65432 10987',
+        'Phone Number': '916543210987',
         'Status': 'lead',
         'Source': 'event',
         'Workshop/Program': 'Yoga for Wellness',
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       {
         'Name': 'Vikram Sharma',
         'Email': 'vikram@example.com',
-        'Phone Number': '+91 54321 09876',
+        'Phone Number': '915432109876',
         'Status': 'prospect',
         'Source': 'website',
         'Workshop/Program': 'Residential Retreat',
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     const instructionData = [
       { Field: 'Name', Required: 'Yes', Description: 'Full name of the lead', Example: 'Rajesh Kumar' },
       { Field: 'Email', Required: 'Yes', Description: 'Email address', Example: 'rajesh@example.com' },
-      { Field: 'Phone Number', Required: 'Yes', Description: 'Phone number with country code', Example: '+91 98765 43210' },
+  { Field: 'Phone Number', Required: 'Yes', Description: 'Phone number (digits only, with country code)', Example: '919876543210' },
       { Field: 'Status', Required: 'No', Description: 'lead / prospect / customer / inactive', Example: 'lead' },
       { Field: 'Source', Required: 'No', Description: 'website / referral / social / event / import', Example: 'website' },
       { Field: 'Workshop/Program', Required: 'No', Description: 'Name of workshop or program', Example: 'Beginner Yoga' },

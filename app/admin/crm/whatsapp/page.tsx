@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
 import { QRConnectionModal } from '@/components/admin/crm/QRConnectionModal';
+import CreateLeadModal from '@/components/admin/crm/CreateLeadModal';
 import { whatsappSetupLinks } from './page-links';
 
 type ConversationRow = {
@@ -175,6 +176,8 @@ export default function WhatsAppChatDashboardPage() {
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
+  const [createLeadOpen, setCreateLeadOpen] = useState(false);
+
   const [waDiagnostics, setWaDiagnostics] = useState<any>(null);
   const [waDiagnosticsLoading, setWaDiagnosticsLoading] = useState(false);
   const [waDiagnosticsError, setWaDiagnosticsError] = useState<string | null>(null);
@@ -246,6 +249,8 @@ export default function WhatsAppChatDashboardPage() {
   const [senderLabel, setSenderLabel] = useState<string>('');
 
   const bridgeHttpBase = useMemo(() => getBridgeHttpBase(), []);
+
+  const createLeadInitialPhone = selected?.phoneNumber || '';
 
   const [actionModal, setActionModal] = useState<null | 'assign' | 'broadcast' | 'status' | 'export' | 'schedule' | 'delay'>(null);
   const [broadcastLists, setBroadcastLists] = useState<Array<{ _id: string; name: string }>>([]);
@@ -1296,6 +1301,27 @@ export default function WhatsAppChatDashboardPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => setCreateLeadOpen(true)}
+              title="Create lead"
+              style={{
+                height: 38,
+                width: 38,
+                borderRadius: 999,
+                background: '#DC2626',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 20,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 6px 16px rgba(220,38,38,0.25)',
+              }}
+            >
+              +
+            </button>
+
             <Link
               href="/admin/crm/chatbots"
               style={{
@@ -2951,6 +2977,13 @@ export default function WhatsAppChatDashboardPage() {
         isOpen={showQRModal}
         onClose={() => setShowQRModal(false)}
         onConnected={() => setIsWhatsAppConnected(true)}
+      />
+
+      <CreateLeadModal
+        isOpen={createLeadOpen}
+        token={token}
+        onClose={() => setCreateLeadOpen(false)}
+        initialPhone={createLeadInitialPhone}
       />
     </div>
   );
