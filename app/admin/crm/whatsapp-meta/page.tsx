@@ -99,6 +99,44 @@ export default function MetaWhatsAppPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
+  const conversationsDeduped = useMemo(() => {
+    const seen = new Set<string>();
+    const unique: MetaConversation[] = [];
+
+    for (const conv of conversations) {
+      const phoneKey = String(conv?.phoneNumber || '').replace(/\D+/g, '');
+      const key = phoneKey || String(conv?._id || '');
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(conv);
+    }
+
+    // Prefer the newest lastMessageTime first when available
+    unique.sort((a, b) => {
+      const at = a?.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+      const bt = b?.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+      return bt - at;
+    });
+
+    return unique;
+  }, [conversations]);
+
+  const messagesDeduped = useMemo(() => {
+    const seen = new Set<string>();
+    const unique: MetaMessage[] = [];
+    for (const msg of messages) {
+      const key = String(msg.waMessageId || msg._id || '');
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(msg);
+    }
+
+    unique.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return unique;
+  }, [messages]);
+
   // Fetch conversations (Meta only)
   const fetchConversations = useCallback(async () => {
     try {
@@ -106,7 +144,8 @@ export default function MetaWhatsAppPage() {
       const res = await crm.fetch('/api/admin/crm/whatsapp/meta/conversations', {
         method: 'GET',
       });
-      setConversations(res || []);
+      setError(null);
+      setConversations(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
       setError(err instanceof Error ? err.message : 'Failed to load conversations');
@@ -119,11 +158,12 @@ export default function MetaWhatsAppPage() {
   const fetchMessages = useCallback(async (phoneNumber: string) => {
     try {
       setLoadingMessages(true);
+      setError(null);
       const res = await crm.fetch('/api/admin/crm/whatsapp/meta/messages', {
         method: 'GET',
         params: { phoneNumber },
       });
-      setMessages(res || []);
+      setMessages(Array.isArray(res) ? res : []);
       
       // Load lead details if leadId is available
       if (selected?.leadId) {
@@ -140,6 +180,7 @@ export default function MetaWhatsAppPage() {
       });
     } catch (err) {
       console.error('Failed to fetch messages:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load messages');
     } finally {
       setLoadingMessages(false);
       setLoadingTools(false);
@@ -365,10 +406,13 @@ export default function MetaWhatsAppPage() {
     }
     if (!token) return;
     void fetchConversations();
+    // Avoid repeated server error spam: if we have an error, stop polling until the
+    // user refreshes or the next page load.
+    if (error) return;
     const interval = setInterval(fetchConversations, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, error, fetchConversations, router]);
 
   // Auto-select phone from query parameter
   useEffect(() => {
@@ -400,14 +444,6 @@ export default function MetaWhatsAppPage() {
           </div>
           <div className="flex gap-3 items-center">
             <button
-              type="button"
-              onClick={() => setCreateLeadOpen(true)}
-              title="Create lead"
-              className="h-10 w-10 rounded-full bg-red-600 text-white text-2xl font-extrabold shadow hover:bg-red-700 flex items-center justify-center"
-            >
-              +
-            </button>
-            <button
               onClick={checkMetaConnection}
               disabled={connectionStatus === 'checking'}
               className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
@@ -430,6 +466,15 @@ export default function MetaWhatsAppPage() {
             >
               ← Back to Leads
             </Link>
+
+            <button
+              type="button"
+              onClick={() => setCreateLeadOpen(true)}
+              title="Create lead"
+              className="h-10 w-10 rounded-full bg-red-600 text-white text-2xl font-extrabold shadow hover:bg-red-700 flex items-center justify-center"
+            >
+              +
+            </button>
           </div>
         </div>
       </div>
@@ -460,7 +505,7 @@ export default function MetaWhatsAppPage() {
               <div className="p-4 text-center text-gray-500">No conversations</div>
             ) : (
               <div className="divide-y">
-                {conversations.map((conv) => (
+                {conversationsDeduped.map((conv) => (
                   <button
                     key={conv._id}
                     onClick={() => handleSelect(conv)}
@@ -516,7 +561,7 @@ export default function MetaWhatsAppPage() {
                 ) : messages.length === 0 ? (
                   <div className="text-center text-gray-500 py-8">Start a conversation</div>
                 ) : (
-                  messages.map((msg) => (
+                  messagesDeduped.map((msg) => (
                     <div
                       key={msg._id}
                       className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}

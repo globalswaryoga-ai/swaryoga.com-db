@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
@@ -7,7 +8,7 @@ import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 function normalizePhone(raw: string): string {
   return String(raw || '')
     .trim()
-    .replace(/[\s\-()]/g, '');
+    .replace(/\D/g, '');
 }
 
 function extractTextMessageBody(msg: any): string {
@@ -49,10 +50,49 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Recommended: verify Meta webhook signature if APP_SECRET is available.
+    // This protects against random internet POSTs that would otherwise be accepted.
+    const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
+    if (appSecret) {
+      const signatureHeader = request.headers.get('x-hub-signature-256') || '';
+      // Expected format: "sha256=<hex>"
+      const provided = signatureHeader.startsWith('sha256=') ? signatureHeader.slice('sha256='.length) : '';
+      if (!provided) {
+        return NextResponse.json({ error: 'Missing x-hub-signature-256' }, { status: 401 });
+      }
+
+      const rawBody = await request.text();
+      const expected = crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex');
+      const ok = crypto.timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
+      if (!ok) {
+        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+      }
+
+      // Re-parse the JSON from the already-read raw body.
+      const payload = JSON.parse(rawBody);
+      // Continue below using this payload.
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      return await handleWebhookPayload(payload);
+    }
+
     const payload = await request.json().catch(() => null);
     if (!payload) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
+
+    return await handleWebhookPayload(payload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Webhook handler error';
+
+    // Avoid throwing here; webhook responses must be fast and resilient.
+    console.error('WhatsApp webhook processing failed:', message);
+
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function handleWebhookPayload(payload: any) {
+  try {
 
     // Meta sends events with object: 'whatsapp_business_account'.
     // We accept others too, but ignore unknown shapes safely.
@@ -167,10 +207,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook handler error';
-
-    // Avoid throwing here; webhook responses must be fast and resilient.
     console.error('WhatsApp webhook processing failed:', message);
-
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

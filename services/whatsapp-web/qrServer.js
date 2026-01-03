@@ -75,7 +75,11 @@ app.use((req, res, next) => {
   }
 
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  // Include our custom auth header so browser preflights succeed when the CRM UI calls the bridge.
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Requested-With, X-WhatsApp-Bridge-Secret'
+  );
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end();

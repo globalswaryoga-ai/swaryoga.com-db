@@ -19,16 +19,45 @@ export async function POST(request: NextRequest) {
   try {
     const expected = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
     if (!expected) {
-      return NextResponse.json({ error: 'WHATSAPP_WEB_BRIDGE_SECRET is not set' }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: 'WHATSAPP_WEB_BRIDGE_SECRET is not set',
+          debug: {
+            ok: false,
+            reason: 'missing_env',
+          },
+        },
+        { status: 500 }
+      );
     }
 
     const secret = request.headers.get('x-whatsapp-bridge-secret');
     if (!secret || secret !== expected) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          error: 'Unauthorized',
+          debug: {
+            ok: false,
+            reason: 'bad_secret',
+            hasHeader: Boolean(secret),
+          },
+        },
+        { status: 401 }
+      );
     }
 
     const body = await request.json().catch(() => null);
-    if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    if (!body)
+      return NextResponse.json(
+        {
+          error: 'Invalid JSON body',
+          debug: {
+            ok: false,
+            reason: 'invalid_json',
+          },
+        },
+        { status: 400 }
+      );
 
     const fromRaw = body.from;
     const text = body.body;
@@ -37,7 +66,16 @@ export async function POST(request: NextRequest) {
 
     const from = normalizePhone(String(fromRaw || ''));
     if (!from) {
-      return NextResponse.json({ error: 'Missing/invalid: from' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'Missing/invalid: from',
+          debug: {
+            ok: false,
+            reason: 'missing_from',
+          },
+        },
+        { status: 400 }
+      );
     }
 
     await connectDB();
@@ -58,7 +96,11 @@ export async function POST(request: NextRequest) {
     if (waMessageId) {
       const existing = await WhatsAppMessage.findOne({ waMessageId: String(waMessageId) }).select('_id').lean();
       if (existing) {
-        return NextResponse.json({ success: true, data: { skipped: true, reason: 'duplicate_waMessageId' } });
+        return NextResponse.json({
+          success: true,
+          data: { skipped: true, reason: 'duplicate_waMessageId' },
+          debug: { ok: true },
+        });
       }
     }
 
@@ -87,10 +129,23 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    return NextResponse.json({ success: true, data: { leadId: String(lead._id), messageId: String(msgDoc._id) } });
+    return NextResponse.json({
+      success: true,
+      data: { leadId: String(lead._id), messageId: String(msgDoc._id) },
+      debug: { ok: true },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('[whatsapp-inbound] error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: message,
+        debug: {
+          ok: false,
+          reason: 'exception',
+        },
+      },
+      { status: 500 }
+    );
   }
 }

@@ -1301,27 +1301,6 @@ export default function WhatsAppChatDashboardPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={() => setCreateLeadOpen(true)}
-              title="Create lead"
-              style={{
-                height: 38,
-                width: 38,
-                borderRadius: 999,
-                background: '#DC2626',
-                color: '#fff',
-                fontWeight: 800,
-                fontSize: 20,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 6px 16px rgba(220,38,38,0.25)',
-              }}
-            >
-              +
-            </button>
-
             <Link
               href="/admin/crm/chatbots"
               style={{
@@ -1441,6 +1420,28 @@ export default function WhatsAppChatDashboardPage() {
               }}
             >
               🔄
+            </button>
+
+            {/* Create lead button (placed next to refresh, near customer number) */}
+            <button
+              type="button"
+              onClick={() => setCreateLeadOpen(true)}
+              title="Create lead"
+              style={{
+                height: 34,
+                width: 34,
+                borderRadius: 999,
+                background: '#DC2626',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 6px 16px rgba(220,38,38,0.25)',
+              }}
+            >
+              +
             </button>
           </div>
         </div>

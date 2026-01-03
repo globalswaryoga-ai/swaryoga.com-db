@@ -4,9 +4,16 @@
  */
 
 export function normalizePhone(raw: string): string {
+  // IMPORTANT: We standardize phone numbers across the app as **digits-only**.
+  // This avoids mismatches between:
+  // - Lead storage (Mongo unique index)
+  // - Meta Cloud API `to` format
+  // - WhatsApp Web bridge formats
+  // Common inbound formats include: "+91 98...", "0091 98...", "(98) ...".
+  // We remove everything except digits.
   return String(raw || '')
     .trim()
-    .replace(/[\s\-()]/g, '');
+    .replace(/\D/g, '');
 }
 
 export type WhatsAppSendTextResult = {
@@ -69,7 +76,7 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
   }
 
   // Fallback: Cloud API not configured → use WhatsApp Web bridge
-  const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL;
+  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
   if (!bridgeUrl) {
     throw new Error(
       'WhatsApp sending unavailable: ' +
@@ -80,18 +87,18 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
   }
 
   const to = normalizePhone(toRaw);
-  const sendUrl = `${bridgeUrl}/send`;
-  const bridgeSecret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
+  const sendUrl = `${bridgeUrl.replace(/\/+$/, '')}/api/send`;
+  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (bridgeSecret) {
-    headers['X-Bridge-Secret'] = bridgeSecret;
+    headers['X-WhatsApp-Bridge-Secret'] = bridgeSecret;
   }
 
   const res = await fetch(sendUrl, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ to, message: body }),
+    body: JSON.stringify({ phone: to, message: body }),
     cache: 'no-store',
   });
 
@@ -105,7 +112,6 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
     (err as any).data = data;
     throw err;
   }
-
   // Bridge typically returns { success: true, messageId?: "..." }
   const waMessageId = data?.messageId || data?.waMessageId;
   return { waMessageId, raw: data };

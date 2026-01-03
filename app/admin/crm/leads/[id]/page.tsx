@@ -147,11 +147,22 @@ export default function LeadDetailPage() {
     );
   }
 
+  const displayPhone = normalizePhoneForMeta(lead.phoneNumber || '');
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 p-6 lead-print-root">
+      <style jsx global>{`
+        @media print {
+          body { background: #fff !important; }
+          .lead-print-root { padding: 0 !important; background: #fff !important; }
+          .lead-print-hide { display: none !important; }
+          .lead-print-card { break-inside: avoid; page-break-inside: avoid; }
+          .lead-print-grid { gap: 12px !important; }
+        }
+      `}</style>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6 flex justify-between items-center">
+        <div className="mb-6 flex justify-between items-center lead-print-hide">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/admin/crm')}
@@ -163,11 +174,13 @@ export default function LeadDetailPage() {
                 <path d="M9 22V12H15V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
+
             <div>
               <h1 className="text-3xl font-bold text-slate-900">{lead.name || 'Unnamed Lead'}</h1>
-              <p className="text-slate-600">{lead.phoneNumber}</p>
+              <p className="text-slate-600">{displayPhone || lead.phoneNumber}</p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
             {isEditing ? (
               <>
@@ -205,17 +218,202 @@ export default function LeadDetailPage() {
           </div>
         </div>
 
-        {/* Single Column Layout (details only) */}
-        <div className="bg-white rounded-xl shadow-lg overflow-y-auto">
-            <div className="p-8">
-              {error && (
-                <AlertBox type="error" message={error} onClose={() => setError(null)} />
-              )}
+        {/* Printable A4-style layout (ID left, details right, 4 cards) */}
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="p-8">
+            {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
 
-              {/* Status Section */}
-              <div className="mb-8 pb-8 border-b-2 border-slate-200">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Status</h2>
-                <div className="flex gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lead-print-grid">
+              <div className="lg:col-span-1 lead-print-card">
+                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-purple-50 to-white p-6">
+                    <div className="text-xs font-semibold tracking-wider text-purple-700 uppercase">Lead ID</div>
+                    <div className="mt-2 text-3xl font-black text-slate-900 break-words">
+                      {lead.leadNumber || lead._id}
+                    </div>
+                    <div className="mt-4 text-xs text-slate-500">Source: {lead.source || '-'}</div>
+                    <div className="mt-2 text-xs text-slate-500">Assigned: {lead.assignedToUserId || '-'}</div>
+                  </div>
+                </div>
+
+                {/* RIGHT: name + quick info */}
+              <div className="lg:col-span-2 lead-print-card">
+                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-emerald-50 to-white p-6 flex flex-col gap-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-semibold tracking-wider text-emerald-700 uppercase">Lead</div>
+                        <div className="mt-1 text-3xl font-extrabold text-slate-900">
+                          {lead.name || 'Unnamed Lead'}
+                        </div>
+                        <div className="mt-1 text-slate-700 font-semibold">
+                          {displayPhone || lead.phoneNumber || '-'}
+                        </div>
+                        {lead.email ? <div className="mt-1 text-slate-600">{lead.email}</div> : null}
+                      </div>
+
+                      <div className="flex items-center gap-2 lead-print-hide">
+                        {isEditing ? (
+                          <>
+                            <button
+                              onClick={handleSaveChanges}
+                              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsEditing(false);
+                                setEditForm(lead);
+                              }}
+                              className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setIsEditing(true)}
+                            className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
+                          >
+                            Edit
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => router.back()}
+                          className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-semibold transition-colors"
+                        >
+                          ← Back
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-slate-900 text-white px-3 py-1 text-xs font-semibold">
+                        Status: {lead.status}
+                      </span>
+                      {lead.workshopName ? (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-900 px-3 py-1 text-xs font-semibold border border-amber-200">
+                          Workshop: {lead.workshopName}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* Editable fields */}
+                    {isEditing ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lead-print-hide">
+                        <div>
+                          <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Email</div>
+                          <input
+                            type="email"
+                            value={editForm.email || ''}
+                            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                            className="mt-2 w-full px-4 py-2 border-2 border-slate-300 rounded-lg text-slate-900 focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Phone (digits only)</div>
+                          <input
+                            type="tel"
+                            value={editForm.phoneNumber || ''}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, phoneNumber: normalizePhoneForMeta(e.target.value) })
+                            }
+                            className="mt-2 w-full px-4 py-2 border-2 border-slate-300 rounded-lg text-slate-900 focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Workshop</div>
+                          <input
+                            type="text"
+                            value={editForm.workshopName || ''}
+                            onChange={(e) => setEditForm({ ...editForm, workshopName: e.target.value })}
+                            className="mt-2 w-full px-4 py-2 border-2 border-slate-300 rounded-lg text-slate-900 focus:border-emerald-500 focus:outline-none"
+                            placeholder="e.g., Yoga Retreat 2025"
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* CARD 3: Labels */}
+              <div className="lg:col-span-1 lead-print-card">
+                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-orange-50 to-white p-6 h-full">
+                    <div className="text-xs font-semibold tracking-wider text-orange-700 uppercase">Labels</div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {lead.labels && lead.labels.length > 0 ? (
+                        lead.labels.map((label) => (
+                          <span
+                            key={label}
+                            className="bg-orange-100 text-orange-900 px-3 py-1 rounded-full font-semibold text-xs border border-orange-200"
+                          >
+                            {label}
+                          </span>
+                        ))
+                      ) : (
+                        <div className="text-slate-500 italic">No labels</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* CARD 4: Timeline */}
+              <div className="lg:col-span-2 lead-print-card">
+                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 h-full">
+                    <div className="text-xs font-semibold tracking-wider text-slate-700 uppercase">Timeline</div>
+
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white/70 p-4 rounded-xl border border-slate-200">
+                        <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Created</div>
+                        <div className="mt-2 text-slate-900 font-semibold">
+                          {new Date(lead.createdAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </div>
+                        <div className="text-xs text-slate-500">{new Date(lead.createdAt).toLocaleTimeString()}</div>
+                      </div>
+
+                      <div className="bg-white/70 p-4 rounded-xl border border-slate-200">
+                        <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Updated</div>
+                        <div className="mt-2 text-slate-900 font-semibold">
+                          {new Date(lead.updatedAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </div>
+                        <div className="text-xs text-slate-500">{new Date(lead.updatedAt).toLocaleTimeString()}</div>
+                      </div>
+
+                      <div className="bg-white/70 p-4 rounded-xl border border-slate-200">
+                        <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Last message</div>
+                        <div className="mt-2 text-slate-900 font-semibold">
+                          {lead.lastMessageAt
+                            ? new Date(lead.lastMessageAt).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : '-'}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {lead.lastMessageAt ? new Date(lead.lastMessageAt).toLocaleTimeString() : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+            </div>
+
+              {/* Status quick actions */}
+              <div className="mt-6 lead-print-hide">
+                <div className="text-sm font-bold text-slate-900 mb-3">Quick status</div>
+                <div className="flex flex-wrap gap-3">
                   {(['lead', 'prospect', 'customer', 'inactive'] as const).map((status) => (
                     <button
                       key={status}
@@ -231,134 +429,11 @@ export default function LeadDetailPage() {
                   ))}
                 </div>
               </div>
-
-              {/* Contact Information */}
-              <div className="mb-8 pb-8 border-b-2 border-slate-200">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Contact Information</h2>
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-slate-600 text-sm font-semibold uppercase mb-2">Email Address</p>
-                    {isEditing ? (
-                      <input
-                        type="email"
-                        value={editForm.email || ''}
-                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                        className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg text-slate-900 focus:border-emerald-500 focus:outline-none"
-                      />
-                    ) : (
-                      <p className="text-slate-900 text-lg font-semibold">{lead.email || '-'}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="text-slate-600 text-sm font-semibold uppercase mb-2">Phone Number</p>
-                    {isEditing ? (
-                      <input
-                        type="tel"
-                        value={editForm.phoneNumber || ''}
-                        onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })}
-                        className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg text-slate-900 focus:border-emerald-500 focus:outline-none"
-                      />
-                    ) : (
-                      <p className="text-slate-900 text-lg font-semibold">{lead.phoneNumber || '-'}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Workshop Info */}
-              <div className="mb-8 pb-8 border-b-2 border-slate-200">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Program / Workshop</h2>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={editForm.workshopName || ''}
-                    onChange={(e) => setEditForm({ ...editForm, workshopName: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg text-slate-900 focus:border-emerald-500 focus:outline-none"
-                    placeholder="e.g., Yoga Retreat 2025"
-                  />
-                ) : (
-                  <p className="text-slate-900 text-lg font-semibold">{lead.workshopName || 'Not specified'}</p>
-                )}
-              </div>
-
-              {/* Labels */}
-              <div className="mb-8 pb-8 border-b-2 border-slate-200">
-                <h3 className="text-lg font-bold text-slate-900 mb-4">Labels</h3>
-                <div className="flex flex-wrap gap-3">
-                  {lead.labels && lead.labels.length > 0 ? (
-                    lead.labels.map((label) => (
-                      <span
-                        key={label}
-                        className="bg-orange-100 text-orange-800 px-4 py-2 rounded-full font-semibold text-sm border border-orange-300"
-                      >
-                        {label}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-slate-500 italic">No labels assigned</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Timeline */}
-              <div className="mb-8">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Timeline</h2>
-                <div className="space-y-4">
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                    <p className="text-slate-600 text-xs font-semibold uppercase">Created Date</p>
-                    <p className="text-slate-900 font-semibold mt-1">{new Date(lead.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    <p className="text-slate-500 text-xs">{new Date(lead.createdAt).toLocaleTimeString()}</p>
-                  </div>
-
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                    <p className="text-slate-600 text-xs font-semibold uppercase">Last Updated</p>
-                    <p className="text-slate-900 font-semibold mt-1">{new Date(lead.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    <p className="text-slate-500 text-xs">{new Date(lead.updatedAt).toLocaleTimeString()}</p>
-                  </div>
-
-                  {lead.lastMessageAt && (
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                      <p className="text-slate-600 text-xs font-semibold uppercase">Last Message</p>
-                      <p className="text-slate-900 font-semibold mt-1">{new Date(lead.lastMessageAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                      <p className="text-slate-500 text-xs">{new Date(lead.lastMessageAt).toLocaleTimeString()}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 flex-wrap">
-                {isEditing ? (
-                  <>
-                    <button
-                      onClick={handleSaveChanges}
-                      className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-semibold transition-colors"
-                    >
-                      Save Changes
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditForm(lead);
-                      }}
-                      className="px-6 py-2 bg-slate-400 hover:bg-slate-500 text-white rounded-lg font-semibold transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="px-6 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold transition-colors"
-                  >
-                    Edit Details
-                  </button>
-                )}
-              </div>
-            </div>
+          </div>
         </div>
+
       </div>
+
     </div>
   );
 }
