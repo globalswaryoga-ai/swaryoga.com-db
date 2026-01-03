@@ -622,6 +622,14 @@ export default function WhatsAppChatDashboardPage() {
       setError(null);
       setSending(true);
 
+      if (!token) {
+        setError('Session expired. Please refresh the page or login again.');
+        setSending(false);
+        return;
+      }
+
+      console.log('📤 Sending message:', { leadId: selected.leadId, phone: selected.phoneNumber, text });
+
       // Send via CRM endpoint (handles bridge + fallback queue)
       const res = await crmFetch('/api/admin/crm/whatsapp/send', {
         method: 'POST',
@@ -632,6 +640,8 @@ export default function WhatsAppChatDashboardPage() {
         },
       });
 
+      console.log('✅ Response received:', res);
+
       if (res?.success || res?.data) {
         setComposer('');
         
@@ -641,15 +651,20 @@ export default function WhatsAppChatDashboardPage() {
         
         if (messageStatus === 'queued' && warning) {
           // Message was queued, show info instead of error
+          console.log('⏳ Message queued:', warning);
           setError(`✓ Message queued - ${warning}`);
+        } else if (messageStatus === 'sent') {
+          console.log('✨ Message sent successfully');
         }
         
         // Refresh thread to show message
         await fetchThread(selected.leadId);
       } else {
+        console.error('❌ Unexpected response:', res);
         throw new Error(res?.error || 'Failed to send message');
       }
     } catch (err) {
+      console.error('❌ Send error:', err);
       setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setSending(false);
