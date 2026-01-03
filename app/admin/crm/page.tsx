@@ -126,10 +126,7 @@ export default function CRMDashboard() {
               { href: '/admin/crm/messages', label: 'Messages', icon: '💬' },
               { href: '/admin/crm/labels', label: 'Labels', icon: '🏷️' },
               { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
-              { href: '/admin/crm/templates', label: 'Templates', icon: '📝' },
               { href: '/admin/crm/permissions', label: 'Consent', icon: '✅' },
-              { href: '/admin/crm/chatbot-builder', label: 'Chatbot Flows', icon: '🤖' },
-              { href: '/admin/crm/chatbot-settings', label: 'Chatbot Settings', icon: '⚙️' },
             ].map((item) => (
               <Link
                 key={item.href}

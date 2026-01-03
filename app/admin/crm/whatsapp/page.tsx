@@ -175,6 +175,10 @@ export default function WhatsAppChatDashboardPage() {
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
+  const [waDiagnostics, setWaDiagnostics] = useState<any>(null);
+  const [waDiagnosticsLoading, setWaDiagnosticsLoading] = useState(false);
+  const [waDiagnosticsError, setWaDiagnosticsError] = useState<string | null>(null);
+
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<string>('');
   const [label, setLabel] = useState<string>('');
@@ -1045,6 +1049,35 @@ export default function WhatsAppChatDashboardPage() {
     await fetchFollowUps(selected.leadId);
   };
 
+  const fetchWhatsAppDiagnostics = useCallback(async () => {
+    if (!token) {
+      setWaDiagnosticsError('Missing admin token');
+      return;
+    }
+
+    setWaDiagnosticsLoading(true);
+    setWaDiagnosticsError(null);
+    try {
+      const res = await fetch('/api/admin/crm/whatsapp/diagnostics', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setWaDiagnostics(null);
+        setWaDiagnosticsError(data?.error || 'Failed to load diagnostics');
+        return;
+      }
+      setWaDiagnostics(data?.data || data);
+    } catch (e) {
+      setWaDiagnostics(null);
+      setWaDiagnosticsError(e instanceof Error ? e.message : 'Diagnostics request failed');
+    } finally {
+      setWaDiagnosticsLoading(false);
+    }
+  }, [token]);
+
   return (
     <div className="whatsapp-crm">
       {/* LEFT SIDEBAR (CRM + WhatsApp) */}
@@ -1058,6 +1091,50 @@ export default function WhatsAppChatDashboardPage() {
               {l.label}
             </Link>
           ))}
+        </div>
+
+        <div
+          style={{
+            margin: '8px 0 12px',
+            padding: 10,
+            border: '1px solid #E5E7EB',
+            borderRadius: 10,
+            background: '#fff',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>WhatsApp diagnostics</div>
+            <button
+              type="button"
+              onClick={fetchWhatsAppDiagnostics}
+              disabled={waDiagnosticsLoading}
+              style={{ fontSize: 12, padding: '4px 8px' }}
+            >
+              {waDiagnosticsLoading ? 'Checking…' : 'Run'}
+            </button>
+          </div>
+
+          {waDiagnosticsError ? (
+            <div style={{ marginTop: 8, fontSize: 12, color: '#B91C1C' }}>{waDiagnosticsError}</div>
+          ) : null}
+
+          {waDiagnostics ? (
+            <div style={{ marginTop: 8, fontSize: 12, color: '#374151', display: 'grid', gap: 6 }}>
+              <div>
+                <strong>Meta:</strong>{' '}
+                {String(waDiagnostics?.meta?.connected ?? waDiagnostics?.metaConnected ?? 'unknown')}
+                {waDiagnostics?.meta?.message ? ` — ${waDiagnostics.meta.message}` : ''}
+              </div>
+              <div>
+                <strong>Bridge:</strong>{' '}
+                {String(waDiagnostics?.bridge?.reachable ?? waDiagnostics?.bridgeReachable ?? 'unknown')}
+                {waDiagnostics?.bridge?.authenticated != null
+                  ? ` (authenticated: ${String(waDiagnostics.bridge.authenticated)})`
+                  : ''}
+                {waDiagnostics?.bridge?.message ? ` — ${waDiagnostics.bridge.message}` : ''}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {[

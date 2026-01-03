@@ -22,7 +22,7 @@ async function sendViaMeta(phoneNumber: string, message: string): Promise<{ succ
 
   try {
     const response = await fetch(
-      `https://graph.instagram.com/v18.0/${META_PHONE_NUMBER_ID}/messages`,
+      `https://graph.facebook.com/v18.0/${META_PHONE_NUMBER_ID}/messages`,
       {
         method: 'POST',
         headers: {
@@ -42,12 +42,12 @@ async function sendViaMeta(phoneNumber: string, message: string): Promise<{ succ
       }
     );
 
-    const data = await response.json();
+    const data = await response.json().catch(() => null);
 
     if (!response.ok) {
       return {
         success: false,
-        error: data?.error?.message || 'Meta API error',
+        error: data?.error?.message || data?.message || `Meta API error (HTTP ${response.status})`,
       };
     }
 

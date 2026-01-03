@@ -350,7 +350,7 @@ async function publishToWhatsApp(post: any, account: any): Promise<string> {
   const businessToken = account.access_token;
 
   const response = await fetch(
-    `https://graph.instagram.com/v18.0/${phoneNumberId}/messages`,
+    `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
     {
       method: 'POST',
       headers: {

@@ -67,6 +67,12 @@ interface SalesSummary {
   targetAchieved: number;
 }
 
+const SALE_STATUS_OPTIONS = ['completed', 'pending', 'refunded', 'cancelled', 'failed'] as const;
+
+// NOTE: Until we have a dedicated API endpoint for listing CRM admins, keep a small fallback list.
+// If your deployment uses different admin userIds, update this list (or we can add an API later).
+const ADMIN_USERID_OPTIONS = ['admin', 'admincrm'] as const;
+
 type SalesAggRow = {
   _id: string;
   totalSales: number;
@@ -100,6 +106,7 @@ export default function SalesPage() {
     reportedByUserId: '',
     status: 'completed',
     labelsText: '',
+    targetAchieved: false,
   });
 
   const [draftFilters, setDraftFilters] = useState({
@@ -131,7 +138,51 @@ export default function SalesPage() {
     paymentMode: 'payu',
     status: 'completed',
     labelsText: '',
+    targetAchieved: false,
+    reportedByUserId: '',
   });
+
+  const [workshopOptions, setWorkshopOptions] = useState<string[]>([]);
+  const [labelOptions, setLabelOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (token === null || !token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/crm/leads/metadata', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const json = await res.json().catch(() => null);
+        if (cancelled) return;
+        const workshops = Array.isArray(json?.data?.workshops) ? json.data.workshops.map((w: any) => String(w)) : [];
+        setWorkshopOptions(workshops);
+      } catch {
+        // Non-blocking
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    // Use whatever labels already exist in loaded sales as suggestions.
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of sales) {
+      for (const l of Array.isArray(s.labels) ? s.labels : []) {
+        const v = String(l || '').trim();
+        if (!v) continue;
+        const key = v.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(v);
+      }
+    }
+    setLabelOptions(out.sort((a, b) => a.localeCompare(b)));
+  }, [sales]);
 
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMsg, setLookupMsg] = useState<string>('');
@@ -193,8 +244,10 @@ export default function SalesPage() {
           batchDate: formData.batchDate || undefined,
           saleAmount: formData.saleAmount,
           paymentMode: formData.paymentMode,
+          reportedByUserId: formData.reportedByUserId || undefined,
           status: formData.status || undefined,
           labels: parseLabelsText(formData.labelsText),
+          targetAchieved: Boolean(formData.targetAchieved),
         },
       });
 
@@ -210,6 +263,8 @@ export default function SalesPage() {
         paymentMode: 'payu',
         status: 'completed',
         labelsText: '',
+        targetAchieved: false,
+        reportedByUserId: '',
       });
       setLookupMsg('');
       fetchSalesData();
@@ -293,6 +348,7 @@ export default function SalesPage() {
       reportedByUserId: sale.reportedByUserId || '',
       status: sale.status || 'completed',
       labelsText: Array.isArray(sale.labels) ? sale.labels.join(', ') : '',
+      targetAchieved: (sale as any).targetAchieved ? true : false,
     });
     setShowEditModal(true);
   };
@@ -315,6 +371,7 @@ export default function SalesPage() {
           reportedByUserId: editData.reportedByUserId || undefined,
           status: editData.status || undefined,
           labels: parseLabelsText(editData.labelsText),
+          targetAchieved: Boolean((editData as any).targetAchieved),
         },
       });
       setShowEditModal(false);
@@ -806,13 +863,18 @@ export default function SalesPage() {
               </div>
               <div>
                 <label className="block text-purple-200 text-sm mb-2">Workshop Name</label>
-                <input
-                  type="text"
+                <select
                   value={formData.workshopName}
                   onChange={(e) => setFormData({ ...formData, workshopName: e.target.value })}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                  placeholder="Workshop"
-                />
+                >
+                  <option value="">(select)</option>
+                  {workshopOptions.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-purple-200 text-sm mb-2">Batch Date</label>
@@ -850,6 +912,19 @@ export default function SalesPage() {
               </select>
             </div>
 
+            <div className="flex items-center gap-3">
+              <input
+                id="targetAchieved"
+                type="checkbox"
+                checked={Boolean(formData.targetAchieved)}
+                onChange={(e) => setFormData({ ...formData, targetAchieved: e.target.checked })}
+                className="h-4 w-4"
+              />
+              <label htmlFor="targetAchieved" className="text-purple-200 text-sm">
+                Target achieved
+              </label>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-purple-200 text-sm mb-2">Status</label>
@@ -858,23 +933,44 @@ export default function SalesPage() {
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
                 >
-                  <option value="completed">Completed</option>
-                  <option value="pending">Pending</option>
-                  <option value="refunded">Refunded</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="failed">Failed</option>
+                  {SALE_STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Labels (comma separated)</label>
-                <input
-                  type="text"
+                <label className="block text-purple-200 text-sm mb-2">Label</label>
+                <select
                   value={formData.labelsText}
                   onChange={(e) => setFormData({ ...formData, labelsText: e.target.value })}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                  placeholder="e.g., offline, referral"
-                />
+                >
+                  <option value="">(select)</option>
+                  {labelOptions.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-purple-200 text-sm mb-2">Admin User (Reported by)</label>
+              <select
+                value={formData.reportedByUserId}
+                onChange={(e) => setFormData({ ...formData, reportedByUserId: e.target.value })}
+                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+              >
+                <option value="">(use logged-in admin)</option>
+                {ADMIN_USERID_OPTIONS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </FormModal>
@@ -952,13 +1048,19 @@ export default function SalesPage() {
                 />
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Reported By (super admin only)</label>
-                <input
-                  type="text"
+                <label className="block text-purple-200 text-sm mb-2">Admin User (Reported by)</label>
+                <select
                   value={editData.reportedByUserId}
                   onChange={(e) => setEditData({ ...editData, reportedByUserId: e.target.value })}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                />
+                >
+                  <option value="">(use logged-in admin)</option>
+                  {ADMIN_USERID_OPTIONS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -983,12 +1085,18 @@ export default function SalesPage() {
               </div>
               <div>
                 <label className="block text-purple-200 text-sm mb-2">Workshop Name</label>
-                <input
-                  type="text"
+                <select
                   value={editData.workshopName}
                   onChange={(e) => setEditData({ ...editData, workshopName: e.target.value })}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                />
+                >
+                  <option value="">(select)</option>
+                  {workshopOptions.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-purple-200 text-sm mb-2">Batch Date</label>
@@ -999,6 +1107,19 @@ export default function SalesPage() {
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                id="targetAchievedEdit"
+                type="checkbox"
+                checked={Boolean((editData as any).targetAchieved)}
+                onChange={(e) => setEditData({ ...(editData as any), targetAchieved: e.target.checked })}
+                className="h-4 w-4"
+              />
+              <label htmlFor="targetAchievedEdit" className="text-purple-200 text-sm">
+                Target achieved
+              </label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1045,22 +1166,27 @@ export default function SalesPage() {
                   onChange={(e) => setEditData({ ...editData, status: e.target.value })}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
                 >
-                  <option value="completed">Completed</option>
-                  <option value="pending">Pending</option>
-                  <option value="refunded">Refunded</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="failed">Failed</option>
+                  {SALE_STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Labels (comma separated)</label>
-                <input
-                  type="text"
+                <label className="block text-purple-200 text-sm mb-2">Label</label>
+                <select
                   value={editData.labelsText}
                   onChange={(e) => setEditData({ ...editData, labelsText: e.target.value })}
                   className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                  placeholder="e.g., offline, referral"
-                />
+                >
+                  <option value="">(select)</option>
+                  {labelOptions.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

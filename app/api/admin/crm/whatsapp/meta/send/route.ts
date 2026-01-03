@@ -7,6 +7,14 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const META_GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v19.0';
 
+async function safeReadJson(res: Response): Promise<any> {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * POST /api/admin/crm/whatsapp/meta/send
  * Send message via Meta WhatsApp Cloud API
@@ -76,7 +84,9 @@ export async function POST(request: NextRequest) {
     });
 
     // 6. Send via Meta API
-    const metaUrl = `https://graph.instagram.com/${META_GRAPH_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  // WhatsApp Cloud API is served from graph.facebook.com (Meta Graph API).
+  // Using graph.instagram.com can cause 400/500 depending on infra.
+  const metaUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
     const metaPayload = {
       messaging_product: 'whatsapp',
@@ -99,23 +109,28 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(metaPayload),
     });
 
-    const metaData = await metaRes.json();
+    const metaData = await safeReadJson(metaRes);
 
-    console.log(`[META] Response: ${metaRes.status}`, metaData);
+  console.log(`[META] Response: ${metaRes.status}`, metaData || '(non-json response)');
 
     if (!metaRes.ok) {
-      console.error(`[META] ❌ API Error:`, metaData);
+      console.error(`[META] ❌ API Error:`, metaData || '(non-json response)');
 
       // Update message status to failed
+      const errMessage =
+        metaData?.error?.message ||
+        metaData?.message ||
+        (metaRes.status ? `HTTP ${metaRes.status}` : 'Unknown error');
+
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'failed',
-        errorMessage: metaData.error?.message || `HTTP ${metaRes.status}`,
+        errorMessage: errMessage,
       });
 
       return NextResponse.json(
         {
           error: 'Failed to send via Meta API',
-          details: metaData.error?.message || metaData.message || 'Unknown error',
+          details: errMessage,
         },
         { status: metaRes.status || 500 }
       );
@@ -145,9 +160,9 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: any) {
-    console.error('[META] Error:', error.message);
+    console.error('[META] Error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

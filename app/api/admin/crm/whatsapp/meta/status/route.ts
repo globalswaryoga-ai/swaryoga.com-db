@@ -41,11 +41,11 @@ export async function GET(request: NextRequest) {
     // Test connection to Meta API
     try {
       const response = await fetch(
-        `https://graph.instagram.com/v18.0/${phoneNumberId}?fields=id,phone_number_id,display_phone_number,quality_rating&access_token=${accessToken}`,
+        `https://graph.facebook.com/v18.0/${phoneNumberId}?fields=id,display_phone_number,quality_rating&access_token=${accessToken}`,
         { method: 'GET' }
       );
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
         return NextResponse.json(
@@ -71,8 +71,8 @@ export async function GET(request: NextRequest) {
             message: 'Meta WhatsApp API is connected',
             phoneNumber: {
               id: data.id,
-              displayPhone: data.display_phone_number,
-              qualityRating: data.quality_rating,
+              displayPhone: data?.display_phone_number,
+              qualityRating: data?.quality_rating,
             },
           },
         },

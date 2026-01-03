@@ -210,23 +210,27 @@ export default function AdminDashboard() {
   const fetchDashboardData = async (token: string) => {
     try {
       setLoading(true);
+      setError('');
       const response = await fetch('/api/admin/dashboard', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data');
+        const errorMsg = result?.error || 'Failed to fetch dashboard data';
+        throw new Error(errorMsg);
       }
 
-      const result = await response.json();
       if (result.success) {
         setDashboardData(result.data);
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
-      setError('Failed to load dashboard data');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load dashboard data';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

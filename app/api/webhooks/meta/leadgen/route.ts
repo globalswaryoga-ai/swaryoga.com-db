@@ -25,7 +25,7 @@ function verifySignature(payload: string, signature: string): boolean {
  */
 async function fetchLeadgenDetails(leadgenId: string) {
   try {
-    const url = `https://graph.instagram.com/${GRAPH_API_VERSION}/${leadgenId}`;
+    const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${leadgenId}`;
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${PAGE_ACCESS_TOKEN}`,
