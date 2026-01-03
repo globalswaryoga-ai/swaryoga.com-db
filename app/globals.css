@@ -680,6 +680,8 @@ button, .btn {
   flex-direction: column;
   background: #ffffff;
   min-width: 0;
+  overflow: hidden;
+  height: 100%;
 }
 
 .chat-header {
@@ -691,6 +693,7 @@ button, .btn {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .chat-header .sub {
@@ -756,9 +759,12 @@ button, .btn {
   flex: 1;
   padding: 16px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  gap: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .day-divider {
@@ -816,6 +822,7 @@ button, .btn {
   background: #ffffff;
   overflow-y: auto;
   max-height: 200px;
+  flex-shrink: 0;
 }
 
 .chat-composer > div:first-child {
