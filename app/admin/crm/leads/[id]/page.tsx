@@ -6,6 +6,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { PageHeader, LoadingSpinner, AlertBox, StatusBadge } from '@/components/admin/crm';
 
+function normalizePhoneForMeta(input?: string): string {
+  const digits = String(input || '').replace(/\D/g, '');
+  if (!digits) return '';
+
+  // For India, if 10 digits assume +91.
+  if (digits.length === 10) return `91${digits}`;
+
+  // If it already starts with 91 and is 12 digits, keep.
+  return digits;
+}
+
 interface Lead {
   _id: string;
   leadNumber?: string;
@@ -58,14 +69,19 @@ export default function LeadDetailPage() {
   // Fetch messages for Meta WhatsApp
   const fetchMetaMessages = async (phoneNumber: string) => {
     try {
+      const normalized = normalizePhoneForMeta(phoneNumber);
+      if (!normalized) return;
+
+      setChatError(null);
       const res = await crm.fetch('/api/admin/crm/whatsapp/meta/messages', {
         method: 'GET',
-        params: { phoneNumber },
+        params: { phoneNumber: normalized },
       });
       setMessages(res || []);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
+      setChatError(err instanceof Error ? err.message : 'Failed to fetch messages');
     }
   };
 
@@ -80,7 +96,7 @@ export default function LeadDetailPage() {
       const res = await crm.fetch('/api/admin/crm/whatsapp/meta/send', {
         method: 'POST',
         body: {
-          phoneNumber: lead.phoneNumber,
+          phoneNumber: normalizePhoneForMeta(lead.phoneNumber),
           messageContent: newMessage,
         },
       });
@@ -245,12 +261,41 @@ export default function LeadDetailPage() {
               <p className="text-slate-600">{lead.phoneNumber}</p>
             </div>
           </div>
-          <button
-            onClick={() => router.back()}
-            className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-semibold transition-colors"
-          >
-            ← Back
-          </button>
+          <div className="flex items-center gap-3">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={handleSaveChanges}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditForm(lead);
+                  }}
+                  className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                Edit
+              </button>
+            )}
+
+            <button
+              onClick={() => router.back()}
+              className="px-6 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              ← Back
+            </button>
+          </div>
         </div>
 
         {/* Two Column Layout */}
@@ -413,20 +458,20 @@ export default function LeadDetailPage() {
           {/* RIGHT: Meta WhatsApp Chat */}
           <div className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col">
             {/* Chat Header */}
-            <div className="bg-gradient-to-r from-cyan-600 to-cyan-500 text-white px-6 py-4 border-b border-cyan-700">
+            <div className="bg-gradient-to-r from-teal-700 via-cyan-600 to-sky-600 text-white px-6 py-4 border-b border-cyan-700">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold">WhatsApp Meta Chat</h2>
-                  <p className="text-cyan-100 text-sm">{lead.phoneNumber}</p>
+                  <p className="text-white/80 text-sm">{lead.phoneNumber}</p>
                 </div>
-                <div className="text-xs bg-cyan-700 px-3 py-1 rounded-full">
+                <div className="text-xs bg-black/20 px-3 py-1 rounded-full border border-white/20">
                   {messages.length} messages
                 </div>
               </div>
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-slate-50 via-white to-slate-50">
               {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <p className="text-center">
@@ -443,12 +488,12 @@ export default function LeadDetailPage() {
                     <div
                       className={`max-w-xs px-4 py-2 rounded-lg ${
                         msg.direction === 'outbound'
-                          ? 'bg-cyan-600 text-white'
-                          : 'bg-white text-gray-900 border border-gray-200 shadow-sm'
+                          ? 'bg-gradient-to-br from-teal-700 via-cyan-600 to-sky-600 text-white shadow-md'
+                          : 'bg-white text-gray-900 border border-slate-200 shadow-sm'
                       }`}
                     >
                       <p className="break-words text-sm">{msg.messageContent}</p>
-                      <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-cyan-100' : 'text-gray-500'}`}>
+                      <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-white/80' : 'text-slate-500'}`}>
                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
@@ -473,7 +518,7 @@ export default function LeadDetailPage() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type a message..."
                   rows={2}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none text-sm"
+                  className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-none text-sm"
                   onKeyPress={(e) => {
                     if (e.key === 'Enter' && e.ctrlKey) {
                       handleSendMetaMessage();
@@ -483,7 +528,7 @@ export default function LeadDetailPage() {
                 <button
                   onClick={handleSendMetaMessage}
                   disabled={sendingMessage || !newMessage.trim()}
-                  className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors h-fit"
+                  className="px-4 py-2 bg-gradient-to-r from-teal-700 via-cyan-600 to-sky-600 text-white rounded-lg hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors h-fit"
                 >
                   {sendingMessage ? '...' : '✓'}
                 </button>
