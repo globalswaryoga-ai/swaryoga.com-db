@@ -19,6 +19,18 @@ let isConnecting = false;
 let lastConnectionStatus = 'Not Connected';
 
 export const connectDB = async () => {
+  const connectOnce = async () => {
+    // Safe because we always guard for missing MONGODB_URI before calling connectOnce().
+    const conn = await mongoose.connect(MONGODB_URI as string, {
+      dbName: MAIN_DB_NAME,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      tls: true,
+      retryWrites: true,
+    });
+    return conn;
+  };
+
   try {
     if (!MONGODB_URI) {
       const msg = 'MongoDB URI is not configured (set MONGODB_URI_MAIN or MONGODB_URI)';
@@ -41,11 +53,26 @@ export const connectDB = async () => {
     isConnecting = true;
     lastConnectionStatus = 'Connecting...';
     console.log('🔄 Attempting to connect to MongoDB...');
-    const conn = await mongoose.connect(MONGODB_URI, {
-      dbName: MAIN_DB_NAME,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-    });
+    let conn;
+    try {
+      conn = await connectOnce();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // We've observed intermittent TLS/pool-reset errors on some networks.
+      // A single retry (after resetting the pool) often succeeds, and avoids
+      // locking the whole admin UI behind a transient handshake failure.
+      const isTlsLike = /tlsv1 alert internal error|ERR_SSL|SSL routines/i.test(msg);
+      console.warn('⚠️  MongoDB first connect attempt failed:', msg);
+      if (!isTlsLike) throw err;
+
+      try {
+        await mongoose.disconnect();
+      } catch (_e) {
+        // ignore
+      }
+      console.log('🔁 Retrying MongoDB connection once...');
+      conn = await connectOnce();
+    }
     isConnecting = false;
     const actualDbName = conn.connection?.db?.databaseName;
     console.log(`✅ Successfully connected to MongoDB (db: ${actualDbName || 'unknown'})`);

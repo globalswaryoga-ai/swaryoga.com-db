@@ -163,7 +163,9 @@ function getBridgeHttpBase(): string {
   const envUrl = (process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || '').trim();
 
   // Local dev can default to localhost.
-  if (isLocal) return envUrl || 'http://localhost:3333';
+  // Don't assume a local bridge is running. If the env var isn't set,
+  // we return empty so the UI doesn't spam ERR_CONNECTION_REFUSED.
+  if (isLocal) return envUrl || '';
 
   // Production must be explicit.
   return envUrl || '';
@@ -281,14 +283,41 @@ export default function WhatsAppChatDashboardPage() {
         return;
       }
       try {
-        const res = await fetch(`${bridgeHttpBase.replace(/\/$/, '')}/api/status`, { cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (cancelled || !data) return;
+        const base = bridgeHttpBase.replace(/\/$/, '');
 
-        const acct = data.account;
-        const phone = acct?.phone || acct?.wid || acct?.pushname;
-        setSenderLabel(phone ? String(phone) : '');
-        setIsWhatsAppConnected(Boolean(data.authenticated));
+        // Many bridge builds expose GET /api/status, but some don't.
+        // Try status first; if not found, do a lightweight probe against the send endpoint.
+        const res = await fetch(`${base}/api/status`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (cancelled || !data) return;
+
+          const acct = data.account;
+          const phone = acct?.phone || acct?.wid || acct?.pushname;
+          setSenderLabel(phone ? String(phone) : '');
+          setIsWhatsAppConnected(Boolean(data.authenticated));
+          return;
+        }
+
+        if (res.status === 404) {
+          // Probe: if the send route exists and returns a structured error, the bridge is up.
+          // We intentionally send invalid input so no message is sent.
+          const probe = await fetch(`${base}/api/whatsapp/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: '', message: '' }),
+          });
+
+          if (cancelled) return;
+
+          // If the route exists, we'll typically get 400/401/422, not 404.
+          if (probe.status !== 404) {
+            setSenderLabel('');
+            // We can't reliably know authentication status from probe.
+            // Mark as "available" so UI doesn't look broken.
+            setIsWhatsAppConnected(true);
+          }
+        }
       } catch {
         if (!cancelled) {
           setSenderLabel('');
@@ -441,6 +470,10 @@ export default function WhatsAppChatDashboardPage() {
 
   const fetchNotes = useCallback(
     async (leadId: string) => {
+      if (!leadId || leadId === 'null' || leadId === 'undefined') {
+        setNotes([]);
+        return;
+      }
       const res = await crmFetch(`/api/admin/crm/leads/${leadId}/notes`, {
         params: { limit: 50, skip: 0 },
       });
@@ -451,6 +484,10 @@ export default function WhatsAppChatDashboardPage() {
 
   const fetchFollowUps = useCallback(
     async (leadId: string) => {
+      if (!leadId || leadId === 'null' || leadId === 'undefined') {
+        setFollowups([]);
+        return;
+      }
       const res = await crmFetch(`/api/admin/crm/leads/${leadId}/followups`, {
         params: { limit: 50, skip: 0, status: 'all' },
       });
@@ -462,6 +499,12 @@ export default function WhatsAppChatDashboardPage() {
   const fetchThread = useCallback(
     async (leadId: string) => {
       try {
+        if (!leadId || leadId === 'null' || leadId === 'undefined') {
+          setMessages([]);
+          setNotes([]);
+          setFollowups([]);
+          return;
+        }
         setError(null);
         setLoadingMessages(true);
 

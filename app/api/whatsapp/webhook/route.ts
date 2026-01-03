@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
-import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { Lead, WhatsAppMessage, WhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 
 function normalizePhone(raw: string): string {
@@ -58,13 +58,44 @@ export async function POST(request: NextRequest) {
       // Expected format: "sha256=<hex>"
       const provided = signatureHeader.startsWith('sha256=') ? signatureHeader.slice('sha256='.length) : '';
       if (!provided) {
+        await logWebhookEvent({
+          kind: 'error',
+          ok: false,
+          message: 'Missing x-hub-signature-256',
+        });
         return NextResponse.json({ error: 'Missing x-hub-signature-256' }, { status: 401 });
+      }
+
+      // Basic validation: invalid hex or wrong length should fail safely.
+      if (provided.length !== 64 || !/^[0-9a-fA-F]+$/.test(provided)) {
+        await logWebhookEvent({
+          kind: 'error',
+          ok: false,
+          message: 'Invalid webhook signature format',
+        });
+        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
       }
 
       const rawBody = await request.text();
       const expected = crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex');
-      const ok = crypto.timingSafeEqual(Buffer.from(provided, 'hex'), Buffer.from(expected, 'hex'));
+      // timingSafeEqual throws if buffer lengths differ, so keep it defensive.
+      const providedBuf = Buffer.from(provided, 'hex');
+      const expectedBuf = Buffer.from(expected, 'hex');
+      if (providedBuf.length !== expectedBuf.length) {
+        await logWebhookEvent({
+          kind: 'error',
+          ok: false,
+          message: 'Invalid webhook signature length',
+        });
+        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+      }
+      const ok = crypto.timingSafeEqual(providedBuf, expectedBuf);
       if (!ok) {
+        await logWebhookEvent({
+          kind: 'error',
+          ok: false,
+          message: 'Invalid webhook signature (HMAC mismatch)',
+        });
         return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
       }
 
@@ -77,6 +108,11 @@ export async function POST(request: NextRequest) {
 
     const payload = await request.json().catch(() => null);
     if (!payload) {
+      await logWebhookEvent({
+        kind: 'error',
+        ok: false,
+        message: 'Invalid JSON body',
+      });
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
@@ -87,7 +123,41 @@ export async function POST(request: NextRequest) {
     // Avoid throwing here; webhook responses must be fast and resilient.
     console.error('WhatsApp webhook processing failed:', message);
 
+    await logWebhookEvent({
+      kind: 'error',
+      ok: false,
+      message,
+    });
+
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function logWebhookEvent(event: {
+  kind: 'verify' | 'inbound_message' | 'status_update' | 'error' | 'unknown';
+  ok?: boolean;
+  message?: string;
+  phoneNumber?: string;
+  waMessageId?: string;
+  status?: string;
+  sample?: any;
+}) {
+  try {
+    // This route should be resilient: never break the webhook path due to logging.
+    await connectDB();
+    await WhatsAppWebhookEvent.create({
+      source: 'meta',
+      kind: event.kind,
+      ok: event.ok ?? true,
+      message: event.message,
+      phoneNumber: event.phoneNumber,
+      waMessageId: event.waMessageId,
+      status: event.status,
+      sample: event.sample,
+      receivedAt: new Date(),
+    });
+  } catch {
+    // swallow
   }
 }
 
@@ -98,6 +168,15 @@ async function handleWebhookPayload(payload: any) {
     // We accept others too, but ignore unknown shapes safely.
     const entries = Array.isArray(payload?.entry) ? payload.entry : [];
     if (entries.length === 0) {
+      await logWebhookEvent({
+        kind: 'unknown',
+        ok: true,
+        message: 'No entries in webhook payload',
+        sample: {
+          object: payload?.object,
+          hasEntry: Array.isArray(payload?.entry),
+        },
+      });
       return NextResponse.json({ success: true }, { status: 200 });
     }
 
@@ -135,7 +214,23 @@ async function handleWebhookPayload(payload: any) {
             update.failureReason = msg ? String(msg) : 'Failed';
           }
 
-          await WhatsAppMessage.updateOne({ waMessageId }, { $set: update });
+          // We may store Meta's id in different fields depending on the send path.
+          await WhatsAppMessage.updateOne(
+            { $or: [{ waMessageId }, { externalMessageId: waMessageId }] },
+            { $set: update }
+          );
+
+          await logWebhookEvent({
+            kind: 'status_update',
+            ok: true,
+            waMessageId,
+            status,
+            phoneNumber: st?.recipient_id ? normalizePhone(String(st.recipient_id)) : undefined,
+            sample: {
+              ts: st?.timestamp,
+              hasErrors: Array.isArray(st?.errors) && st.errors.length > 0,
+            },
+          });
         }
 
         // 2) Inbound messages (from user to us)
@@ -146,6 +241,19 @@ async function handleWebhookPayload(payload: any) {
 
           const body = extractTextMessageBody(msg);
           if (!body) continue;
+
+          await logWebhookEvent({
+            kind: 'inbound_message',
+            ok: true,
+            phoneNumber: from,
+            waMessageId: msg?.id ? String(msg.id) : undefined,
+            sample: {
+              type: msg?.type,
+              ts: msg?.timestamp,
+              // store tiny preview to avoid PII bloat
+              preview: body.slice(0, 80),
+            },
+          });
 
           // Ensure a Lead exists
           let lead: { _id: unknown } | null = (await Lead.findOne({ phoneNumber: from }).lean()) as { _id: unknown } | null;
@@ -208,6 +316,12 @@ async function handleWebhookPayload(payload: any) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook handler error';
     console.error('WhatsApp webhook processing failed:', message);
+
+    await logWebhookEvent({
+      kind: 'error',
+      ok: false,
+      message,
+    });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

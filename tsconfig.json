@@ -46,6 +46,7 @@
     "server/**/*",
     "server",
     "src/**/*",
-    "tests/**/*"
+    "tests/**/*",
+    "deploy/**/*"
   ]
 }

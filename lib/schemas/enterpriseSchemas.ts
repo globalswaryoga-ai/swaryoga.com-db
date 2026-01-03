@@ -114,7 +114,9 @@ DeletedLeadSchema.index({ deletedByUserId: 1, deletedAt: -1 });
 // ============================================================================
 const WhatsAppMessageSchema = new mongoose.Schema(
   {
-    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    // leadId is optional because admin ad-hoc sends and some inbound messages
+    // may not map to a Lead record.
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: false, index: true },
     phoneNumber: { type: String, required: true, index: true },
     direction: {
       type: String,
@@ -158,6 +160,40 @@ WhatsAppMessageSchema.index({ phoneNumber: 1, status: 1 });
 WhatsAppMessageSchema.index({ sentBy: 1, sentAt: -1 });
 WhatsAppMessageSchema.index({ waMessageId: 1 });
 WhatsAppMessageSchema.index({ direction: 1, sentAt: -1 });
+
+// ============================================================================
+// 1b. WHATSAPP WEBHOOK EVENTS — Store recent webhook summaries for debugging
+// ==========================================================================
+// This is intentionally small: we store a compact summary (not the full payload)
+// so admins can confirm whether Meta is calling the webhook in production.
+const WhatsAppWebhookEventSchema = new mongoose.Schema(
+  {
+    source: { type: String, enum: ['meta'], default: 'meta', index: true },
+    kind: {
+      type: String,
+      enum: ['verify', 'inbound_message', 'status_update', 'error', 'unknown'],
+      required: true,
+      index: true,
+    },
+
+    // A few helpful correlation fields
+    phoneNumber: { type: String, trim: true, index: true },
+    waMessageId: { type: String, trim: true, index: true },
+    status: { type: String, trim: true, index: true },
+
+    // Admin-facing diagnostics
+    ok: { type: Boolean, default: true, index: true },
+    message: { type: String, trim: true },
+
+    // Tiny sample, never full payload
+    sample: mongoose.Schema.Types.Mixed,
+
+    receivedAt: { type: Date, default: Date.now, index: true },
+  },
+  { timestamps: true, collection: 'whatsapp_webhook_events' }
+);
+
+WhatsAppWebhookEventSchema.index({ receivedAt: -1, kind: 1 });
 
 // ============================================================================
 // 2. USER CONSENT SCHEMA - Track opt-in/opt-out status per lead
@@ -932,6 +968,8 @@ export const Lead = crmDb.models.Lead || crmDb.model('Lead', LeadSchema);
 export const CrmCounter = crmDb.models.CrmCounter || crmDb.model('CrmCounter', CrmCounterSchema);
 export const DeletedLead = crmDb.models.DeletedLead || crmDb.model('DeletedLead', DeletedLeadSchema);
 export const WhatsAppMessage = crmDb.models.WhatsAppMessage || crmDb.model('WhatsAppMessage', WhatsAppMessageSchema);
+export const WhatsAppWebhookEvent =
+  crmDb.models.WhatsAppWebhookEvent || crmDb.model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
 export const WhatsAppAccount = crmDb.models.WhatsAppAccount || crmDb.model('WhatsAppAccount', WhatsAppAccountSchema);
 export const UserConsent = crmDb.models.UserConsent || crmDb.model('UserConsent', UserConsentSchema);
 export const MessageStatus = crmDb.models.MessageStatus || crmDb.model('MessageStatus', MessageStatusSchema);

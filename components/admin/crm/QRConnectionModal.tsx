@@ -22,6 +22,29 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
   const [maxQrAttempts] = useState(5);
   const wsRef = useRef<WebSocket | null>(null);
 
+  const resolveBridgeWsUrl = useCallback((): string | null => {
+    const envWsUrl = (process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL || '').trim();
+    if (!envWsUrl) return null;
+
+    // Guard against placeholder values like ws://localhost:YOUR_PORT
+    if (envWsUrl.includes('YOUR_PORT')) return null;
+
+    // Basic validation: must be ws:// or wss:// and parseable.
+    try {
+      const parsed = new URL(envWsUrl);
+      if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') return null;
+    } catch {
+      return null;
+    }
+
+    return envWsUrl;
+
+    // We intentionally do NOT default to localhost anymore.
+    // Auto-connecting to ws://localhost:3333 creates noisy console errors
+    // (and "connection lost" loops) for most users.
+    return null;
+  }, []);
+
   const connectQRMode = useCallback(() => {
     setStatus('connecting');
     setMessage('Initializing WhatsApp Web connection...');
@@ -32,26 +55,14 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       // - It should NOT be exposed on your production domain (security + infra).
       // - In development, we default to localhost.
       // - In production, you *must* explicitly set NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL.
-      const envWsUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL?.trim();
-
-      let wsUrl: string;
-      if (envWsUrl) {
-        wsUrl = envWsUrl;
-      } else {
-        const isLocalhost =
-          window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1' ||
-          window.location.hostname === '0.0.0.0';
-
-        if (isLocalhost) {
-          wsUrl = 'ws://localhost:3333';
-        } else {
-          // Prevent accidental attempts to connect to (e.g.) wss://swaryoga.com:3333
-          // which will always fail unless you deployed a bridge service there.
-          throw new Error(
-            'WhatsApp bridge URL not configured. Set NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL to your bridge WebSocket URL.'
-          );
-        }
+      const wsUrl = resolveBridgeWsUrl();
+      if (!wsUrl) {
+        setStatus('idle');
+        setErrorMsg(
+          'WhatsApp Web QR requires the separate bridge service (qrServer.js). Set NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL to a valid ws:// or wss:// URL (example: ws://localhost:3333).'
+        );
+        setMessage('Bridge not configured. Enter the bridge URL in env and click Connect.');
+        return;
       }
       
       console.log('🔌 Connecting to WebSocket at:', wsUrl);
@@ -123,11 +134,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       ws.onerror = (error) => {
         console.error('❌ WebSocket error:', error);
         setStatus('error');
-        setErrorMsg(
-          envWsUrl
-            ? 'Failed to connect to WhatsApp bridge service. Please verify NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL.'
-            : 'Failed to connect to WhatsApp bridge service on localhost:3333. Is qrServer.js running?'
-        );
+        setErrorMsg('Failed to connect to WhatsApp bridge service. Verify NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL and that the bridge is running.');
       };
 
       ws.onclose = () => {
@@ -144,7 +151,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       setStatus('error');
       setErrorMsg('Failed to initialize WhatsApp connection');
     }
-  }, [status, onConnected, onClose, qrAttempt, maxQrAttempts]);
+  }, [status, onConnected, onClose, qrAttempt, maxQrAttempts, resolveBridgeWsUrl]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -164,9 +171,8 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
     setConnectionMode('qr');
     setMessage('Connecting to WhatsApp Web...');
 
-    // Auto-connect to QR mode on open
-    connectQRMode();
-  }, [isOpen, connectQRMode]);
+    // Do not auto-connect. This prevents noisy reconnect loops when the bridge isn't configured.
+  }, [isOpen]);
 
   const handleResetSession = async () => {
     setStatus('resetting');
@@ -287,7 +293,6 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
           <button
             onClick={() => {
               setConnectionMode('qr');
-              connectQRMode();
             }}
             className={`px-4 py-2 font-semibold transition-colors ${
               connectionMode === 'qr'
@@ -373,7 +378,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
                   </p>
                 ) : (
                   <p className="text-xs text-red-600 mb-3">
-                    The system will attempt to reconnect automatically...
+                    Click Connect to retry.
                   </p>
                 )}
               </div>
@@ -398,6 +403,18 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
               >
                 Close
               </button>
+              <button
+                type="button"
+                onClick={connectQRMode}
+                disabled={status === 'connecting' || status === 'resetting'}
+                className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-colors ${
+                  status === 'connecting' || status === 'resetting'
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+              >
+                {status === 'connecting' ? '⏳ Connecting...' : '🔌 Connect'}
+              </button>
               {(status === 'error' || errorMsg) && (
                 <button
                   type="button"
@@ -417,7 +434,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
             {/* Info */}
             <div className="mt-6 p-4 rounded-lg bg-amber-50 border border-amber-200">
               <p className="text-xs text-amber-700">
-                <strong>ℹ️ Note:</strong> WhatsApp Web requires a real browser. If issues persist, clear your browser cache and restart.
+                <strong>ℹ️ Note:</strong> QR login requires the separate WhatsApp Web bridge (qrServer.js). For most setups, Meta Business API is recommended.
               </p>
             </div>
           </>

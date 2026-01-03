@@ -75,8 +75,10 @@ export async function POST(request: NextRequest) {
 
     // 5. Create message record
     const now = new Date();
+    // WhatsAppMessage schema requires leadId currently.
+    // For ad-hoc sends (no leadId provided), allow storing without leadId.
     const messageRecord = await WhatsAppMessage.create({
-      leadId: leadId || null,
+      ...(leadId ? { leadId } : {}),
       phoneNumber: normalizedPhone,
       messageContent: String(messageContent),
       direction: 'outbound',

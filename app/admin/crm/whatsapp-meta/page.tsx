@@ -75,7 +75,11 @@ export default function MetaWhatsAppPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
-  const crm = useCRM({ token });
+  // IMPORTANT: memoize the object passed into useCRM.
+  // Passing a fresh object each render can cause unnecessary churn.
+  const crm = useCRM(useMemo(() => ({ token }), [token]));
+  // Use a stable alias so hooks can depend on a function, not the entire crm object.
+  const crmFetch = crm.fetch;
 
   const [conversations, setConversations] = useState<MetaConversation[]>([]);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
@@ -95,9 +99,30 @@ export default function MetaWhatsAppPage() {
   const [newLabel, setNewLabel] = useState('');
   const [newFollowUpTitle, setNewFollowUpTitle] = useState('');
   const [newFollowUpDueAt, setNewFollowUpDueAt] = useState('');
+
+  // Webhook diagnostics (Meta inbound delivery)
+  const [webhookStatus, setWebhookStatus] = useState<
+    | {
+        verifyTokenSet: boolean;
+        appSecretSet: boolean;
+        callbackUrl: string | null;
+      }
+    | null
+  >(null);
+  const [webhookEvents, setWebhookEvents] = useState<any[]>([]);
+  const [webhookLoading, setWebhookLoading] = useState(false);
   
   const listRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+
+  // Prevent overlapping polls / duplicated effects from causing request storms.
+  const conversationsFetchInFlightRef = useRef(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Avoid callback dependency chains causing re-renders / TDZ issues.
+  // We keep the latest tool loaders in refs and call them from fetchMessages.
+  const fetchNotesRef = useRef<(leadId: string) => Promise<void>>(async () => {});
+  const fetchFollowUpsRef = useRef<(leadId: string) => Promise<void>>(async () => {});
 
   const conversationsDeduped = useMemo(() => {
     const seen = new Set<string>();
@@ -139,9 +164,11 @@ export default function MetaWhatsAppPage() {
 
   // Fetch conversations (Meta only)
   const fetchConversations = useCallback(async () => {
+    if (conversationsFetchInFlightRef.current) return;
     try {
+      conversationsFetchInFlightRef.current = true;
       setLoading(true);
-      const res = await crm.fetch('/api/admin/crm/whatsapp/meta/conversations', {
+      const res = await crmFetch('/api/admin/crm/whatsapp/meta/conversations', {
         method: 'GET',
       });
       setError(null);
@@ -151,15 +178,46 @@ export default function MetaWhatsAppPage() {
       setError(err instanceof Error ? err.message : 'Failed to load conversations');
     } finally {
       setLoading(false);
+      conversationsFetchInFlightRef.current = false;
     }
-  }, [crm]);
+  }, [crmFetch]);
+
+  const fetchNotes = useCallback(async (leadId: string) => {
+    try {
+      const res = await crmFetch(`/api/admin/crm/leads/${leadId}/notes`, {
+        params: { limit: 50, skip: 0 },
+      });
+      setNotes(res?.notes || []);
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+    }
+  }, [crmFetch]);
+
+  useEffect(() => {
+    fetchNotesRef.current = fetchNotes;
+  }, [fetchNotes]);
+
+  const fetchFollowUps = useCallback(async (leadId: string) => {
+    try {
+      const res = await crmFetch(`/api/admin/crm/leads/${leadId}/followups`, {
+        params: { limit: 50, skip: 0, status: 'all' },
+      });
+      setFollowups(res?.followups || []);
+    } catch (err) {
+      console.error('Failed to fetch followups:', err);
+    }
+  }, [crmFetch]);
+
+  useEffect(() => {
+    fetchFollowUpsRef.current = fetchFollowUps;
+  }, [fetchFollowUps]);
 
   // Fetch messages for selected conversation
   const fetchMessages = useCallback(async (phoneNumber: string) => {
     try {
       setLoadingMessages(true);
       setError(null);
-      const res = await crm.fetch('/api/admin/crm/whatsapp/meta/messages', {
+      const res = await crmFetch('/api/admin/crm/whatsapp/meta/messages', {
         method: 'GET',
         params: { phoneNumber },
       });
@@ -169,8 +227,8 @@ export default function MetaWhatsAppPage() {
       if (selected?.leadId) {
         setLoadingTools(true);
         await Promise.all([
-          fetchNotes(selected.leadId),
-          fetchFollowUps(selected.leadId)
+          fetchNotesRef.current(selected.leadId),
+          fetchFollowUpsRef.current(selected.leadId)
         ]);
       }
       
@@ -185,35 +243,13 @@ export default function MetaWhatsAppPage() {
       setLoadingMessages(false);
       setLoadingTools(false);
     }
-  }, [crm, selected]);
-
-  const fetchNotes = useCallback(async (leadId: string) => {
-    try {
-      const res = await crm.fetch(`/api/admin/crm/leads/${leadId}/notes`, {
-        params: { limit: 50, skip: 0 },
-      });
-      setNotes(res?.notes || []);
-    } catch (err) {
-      console.error('Failed to fetch notes:', err);
-    }
-  }, [crm]);
-
-  const fetchFollowUps = useCallback(async (leadId: string) => {
-    try {
-      const res = await crm.fetch(`/api/admin/crm/leads/${leadId}/followups`, {
-        params: { limit: 50, skip: 0, status: 'all' },
-      });
-      setFollowups(res?.followups || []);
-    } catch (err) {
-      console.error('Failed to fetch followups:', err);
-    }
-  }, [crm]);
+  }, [crmFetch, selected?.leadId]);
 
   const createNote = useCallback(async () => {
     if (!selected?.leadId || !newNote.trim()) return;
     try {
       setError(null);
-      await crm.fetch(`/api/admin/crm/leads/${selected.leadId}/notes`, {
+      await crmFetch(`/api/admin/crm/leads/${selected.leadId}/notes`, {
         method: 'POST',
         body: { note: newNote },
       });
@@ -222,13 +258,13 @@ export default function MetaWhatsAppPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create note');
     }
-  }, [crm, selected?.leadId, newNote, fetchNotes]);
+  }, [crmFetch, selected?.leadId, newNote, fetchNotes]);
 
   const createFollowUp = useCallback(async () => {
     if (!selected?.leadId || !newFollowUpTitle.trim() || !newFollowUpDueAt) return;
     try {
       setError(null);
-      await crm.fetch(`/api/admin/crm/leads/${selected.leadId}/followups`, {
+      await crmFetch(`/api/admin/crm/leads/${selected.leadId}/followups`, {
         method: 'POST',
         body: { title: newFollowUpTitle, dueAt: newFollowUpDueAt },
       });
@@ -238,13 +274,13 @@ export default function MetaWhatsAppPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create followup');
     }
-  }, [crm, selected?.leadId, newFollowUpTitle, newFollowUpDueAt, fetchFollowUps]);
+  }, [crmFetch, selected?.leadId, newFollowUpTitle, newFollowUpDueAt, fetchFollowUps]);
 
   const updateLeadStatus = useCallback(
     async (next: string) => {
       if (!selected?.leadId) return;
       try {
-        const res = await crm.fetch(`/api/admin/crm/leads/${selected.leadId}`, {
+        const res = await crmFetch(`/api/admin/crm/leads/${selected.leadId}`, {
           method: 'PUT',
           body: { status: next },
         });
@@ -257,19 +293,19 @@ export default function MetaWhatsAppPage() {
         setError(err instanceof Error ? err.message : 'Failed to update status');
       }
     },
-    [crm, selected?.leadId]
+    [crmFetch, selected?.leadId]
   );
 
   const updateFollowUpStatus = useCallback(
     async (followUpId: string, newStatus: string) => {
       try {
-        await crm.fetch(`/api/admin/crm/leads/${selected?.leadId}/followups/${followUpId}`, {
+        await crmFetch(`/api/admin/crm/leads/${selected?.leadId}/followups/${followUpId}`, {
           method: 'PUT',
           body: { status: newStatus },
         });
         // Refresh followups
         if (selected?.leadId) {
-          const res = await crm.fetch(`/api/admin/crm/leads/${selected.leadId}/followups`, {
+          const res = await crmFetch(`/api/admin/crm/leads/${selected.leadId}/followups`, {
             params: { limit: 50, skip: 0, status: 'all' },
           });
           setFollowups(res?.followups || []);
@@ -278,7 +314,7 @@ export default function MetaWhatsAppPage() {
         console.error('Failed to update followup status:', err);
       }
     },
-    [crm, selected?.leadId]
+    [crmFetch, selected?.leadId]
   );
 
   const upsertLabels = useCallback(
@@ -286,7 +322,7 @@ export default function MetaWhatsAppPage() {
       if (!selected?.leadId) return;
       try {
         const cleaned = Array.from(new Set(nextLabels.map((x) => String(x || '').trim()).filter(Boolean)));
-        const res = await crm.fetch(`/api/admin/crm/leads/${selected.leadId}`, {
+        const res = await crmFetch(`/api/admin/crm/leads/${selected.leadId}`, {
           method: 'PUT',
           body: { labels: cleaned },
         });
@@ -299,7 +335,7 @@ export default function MetaWhatsAppPage() {
         setError(err instanceof Error ? err.message : 'Failed to update labels');
       }
     },
-    [crm, selected?.leadId]
+    [crmFetch, selected?.leadId]
   );
 
   const addLabelToSelected = useCallback(async () => {
@@ -324,7 +360,7 @@ export default function MetaWhatsAppPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add label');
     }
-  }, [selected, newLabel, upsertLabels]);
+  }, [selected?.leadId, selected?.labels, newLabel, upsertLabels]);
 
   const removeLabelFromSelected = useCallback(
     async (labelToRemove: string) => {
@@ -337,7 +373,7 @@ export default function MetaWhatsAppPage() {
         setError(err instanceof Error ? err.message : 'Failed to remove label');
       }
     },
-    [selected?.leadId, upsertLabels]
+    [selected?.leadId, selected?.labels, upsertLabels]
   );
 
   // Send message via Meta
@@ -348,7 +384,7 @@ export default function MetaWhatsAppPage() {
       setSending(true);
       setError(null);
 
-      const res = await crm.fetch('/api/admin/crm/whatsapp/meta/send', {
+      const res = await crmFetch('/api/admin/crm/whatsapp/meta/send', {
         method: 'POST',
         body: {
           phoneNumber: selectedPhone,
@@ -367,13 +403,13 @@ export default function MetaWhatsAppPage() {
     } finally {
       setSending(false);
     }
-  }, [crm, selectedPhone, newMessage, fetchMessages]);
+  }, [crmFetch, selectedPhone, newMessage, fetchMessages]);
 
   // Check Meta API connection
   const checkMetaConnection = useCallback(async () => {
     try {
       setConnectionStatus('checking');
-      const res = await crm.fetch('/api/admin/crm/whatsapp/meta/status', {
+      const res = await crmFetch('/api/admin/crm/whatsapp/meta/status', {
         method: 'GET',
       });
 
@@ -388,7 +424,42 @@ export default function MetaWhatsAppPage() {
       setConnectionStatus('disconnected');
       setError(err instanceof Error ? err.message : 'Failed to check connection');
     }
-  }, [crm]);
+  }, [crmFetch]);
+
+  const fetchWebhookDiagnostics = useCallback(async () => {
+    try {
+      setWebhookLoading(true);
+      const statusRes = await crmFetch('/api/admin/crm/whatsapp/webhook-status', { method: 'GET' });
+      setWebhookStatus(
+        statusRes?.callbackUrl
+          ? {
+              verifyTokenSet: !!statusRes?.verifyTokenSet,
+              appSecretSet: !!statusRes?.appSecretSet,
+              callbackUrl: statusRes?.callbackUrl || null,
+            }
+          : {
+              verifyTokenSet: !!statusRes?.verifyTokenSet,
+              appSecretSet: !!statusRes?.appSecretSet,
+              callbackUrl: statusRes?.callbackUrl || null,
+            }
+      );
+
+      const eventsRes = await crmFetch('/api/admin/crm/whatsapp/webhook-events', {
+        method: 'GET',
+        params: { limit: 15 },
+      });
+      setWebhookEvents(Array.isArray(eventsRes?.events) ? eventsRes.events : []);
+    } catch (err) {
+      console.error('Failed to load webhook diagnostics:', err);
+    } finally {
+      setWebhookLoading(false);
+    }
+  }, [crmFetch]);
+
+  useEffect(() => {
+    if (!token) return;
+    void fetchWebhookDiagnostics();
+  }, [token, fetchWebhookDiagnostics]);
 
   const handleSelect = useCallback(
     async (row: MetaConversation) => {
@@ -405,13 +476,40 @@ export default function MetaWhatsAppPage() {
       return;
     }
     if (!token) return;
+
+    // Initial load
     void fetchConversations();
-    // Avoid repeated server error spam: if we have an error, stop polling until the
-    // user refreshes or the next page load.
+
+    // Stop polling when we already have an error (prevents request spam) or when
+    // the tab is hidden (reduces resource usage / "vibrating").
     if (error) return;
-    const interval = setInterval(fetchConversations, 10000); // Refresh every 10 seconds
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const startPolling = () => {
+      if (pollIntervalRef.current) return;
+      pollIntervalRef.current = setInterval(() => {
+        if (document.visibilityState !== 'visible') return;
+        void fetchConversations();
+      }, 10000);
+    };
+
+    const stopPolling = () => {
+      if (!pollIntervalRef.current) return;
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    };
+
+    startPolling();
+
+    const onVis = () => {
+      if (document.visibilityState === 'visible' && !error) startPolling();
+      else stopPolling();
+    };
+    document.addEventListener('visibilitychange', onVis);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [token, error, fetchConversations, router]);
 
   // Auto-select phone from query parameter
@@ -441,6 +539,58 @@ export default function MetaWhatsAppPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">WhatsApp Meta Inbox</h1>
             <p className="text-sm text-gray-600">Official Business Number Messages</p>
+
+            {/* Webhook diagnostics strip */}
+            <div className="mt-2 text-xs text-gray-700">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-semibold">Inbound Webhook:</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full border ${
+                    webhookStatus?.verifyTokenSet ? 'bg-green-50 border-green-300 text-green-700' : 'bg-red-50 border-red-300 text-red-700'
+                  }`}
+                >
+                  verify token {webhookStatus?.verifyTokenSet ? 'set' : 'missing'}
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded-full border ${
+                    webhookStatus?.appSecretSet ? 'bg-green-50 border-green-300 text-green-700' : 'bg-yellow-50 border-yellow-300 text-yellow-700'
+                  }`}
+                >
+                  signature {webhookStatus?.appSecretSet ? 'enabled' : 'not enabled'}
+                </span>
+                <span className="truncate max-w-[520px]">
+                  callback: <span className="font-mono">{webhookStatus?.callbackUrl || 'unknown'}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={fetchWebhookDiagnostics}
+                  disabled={webhookLoading}
+                  className={`px-2 py-1 rounded border text-xs ${webhookLoading ? 'opacity-50' : 'hover:bg-gray-50'}`}
+                >
+                  {webhookLoading ? 'Refreshing…' : 'Refresh'}
+                </button>
+              </div>
+
+              {webhookEvents.length === 0 ? (
+                <div className="mt-1 text-gray-500">
+                  No webhook events logged yet. If messages are sent but not received, Meta is likely not hitting the callback URL.
+                </div>
+              ) : (
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {webhookEvents.slice(0, 5).map((e) => (
+                    <span
+                      key={String(e?._id || e?.receivedAt || Math.random())}
+                      className={`px-2 py-0.5 rounded border ${
+                        e?.ok === false ? 'bg-red-50 border-red-300 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-700'
+                      }`}
+                      title={String(e?.message || '')}
+                    >
+                      {String(e?.kind || 'event')} {e?.phoneNumber ? `• ${String(e.phoneNumber).slice(-6)}` : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex gap-3 items-center">
             <button

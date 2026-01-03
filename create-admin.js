@@ -1,5 +1,17 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const path = require('path');
+
+// Load env vars from .env / .env.local for local/dev usage.
+// (Next.js loads these automatically, but plain Node scripts do not.)
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config({ path: path.join(process.cwd(), '.env') });
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config({ path: path.join(process.cwd(), '.env.local') });
+} catch (_e) {
+  // dotenv is optional; script can still run with exported env vars.
+}
 
 // NOTE:
 // This script intentionally does NOT hardcode any credentials.
@@ -27,10 +39,17 @@ async function createAdmin() {
     }
 
     console.log('🔗 Connecting to MongoDB (URI hidden)...');
+    // Notes on TLS:
+    // - Atlas requires TLS.
+    // - Some local environments (corporate proxies / antivirus / old OpenSSL) can cause
+    //   TLS handshake failures that surface as "tlsv1 alert internal error".
+    // - We explicitly enable TLS and keep timeouts modest for faster feedback.
     await mongoose.connect(mongoUri, {
       dbName,
       serverSelectionTimeoutMS: 8000,
       socketTimeoutMS: 45000,
+      tls: true,
+      retryWrites: true,
     });
     console.log('✅ Connected!');
 
@@ -118,7 +137,13 @@ async function createAdmin() {
     await mongoose.disconnect();
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    const msg = error?.message || String(error);
+    console.error('❌ Error:', msg);
+    // Helpful context without leaking secrets
+    console.error('   Debug hints:');
+    console.error('   - Confirm Atlas Network Access allows your IP (0.0.0.0/0 for testing).');
+    console.error('   - If you are on VPN/corporate Wi‑Fi, try switching networks/hotspot.');
+    console.error('   - Ensure Node is modern (>= 18) so it has up-to-date TLS support.');
     await mongoose.disconnect();
     process.exit(1);
   }
