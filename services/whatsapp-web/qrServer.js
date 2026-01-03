@@ -637,7 +637,7 @@ app.post('/api/disconnect', (req, res) => {
   }
 });
 
-// Send message with retry and page health check
+// Send message with simple retry
 app.post('/api/send', async (req, res) => {
   const { phone, message } = req.body || {};
 
@@ -661,69 +661,23 @@ app.post('/api/send', async (req, res) => {
     }
     chatId = chatId + '@c.us';
 
-    console.log(`[SEND] Attempting to send message to ${chatId}: "${message}"`);
+    console.log(`[SEND] Sending to ${chatId}: "${message.substring(0, 50)}..."`);
     
-    // Try to get the chat first to validate page state
-    let chat = null;
-    try {
-      console.log(`[SEND] Getting chat instance for ${chatId}...`);
-      chat = await client.getChatById(chatId);
-      console.log(`[SEND] ✅ Chat found, proceeding with send`);
-    } catch (chatErr) {
-      console.warn(`[SEND] ⚠️ Chat not found, attempting send anyway:`, chatErr.message);
-    }
-
-    // Attempt to send message with timeout (retry logic)
-    let lastError = null;
-    const maxRetries = 2;
+    // Simple direct send
+    await client.sendMessage(chatId, message);
     
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`[SEND] Attempt ${attempt}/${maxRetries} to send message...`);
-        
-        const sendPromise = client.sendMessage(chatId, message);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Send timeout after 15s')), 15000)
-        );
-        
-        const result = await Promise.race([sendPromise, timeoutPromise]);
-        
-        console.log(`[SEND] ✅ Message sent successfully on attempt ${attempt}`);
-        return res.json({ success: true, message: 'Message sent', chatId, attempt });
-      } catch (err) {
-        lastError = err;
-        console.error(`[SEND] Attempt ${attempt} failed:`, err.message);
-        
-        // If it's a page context error, try waiting and retrying
-        if (err.message && err.message.includes('Evaluation failed')) {
-          console.log(`[SEND] Page context issue detected, waiting 2s before retry...`);
-          if (attempt < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-        } else {
-          // For other errors, fail immediately
-          throw err;
-        }
-      }
-    }
-    
-    // All retries exhausted
-    throw lastError;
+    console.log(`[SEND] ✅ Success`);
+    res.json({ success: true, message: 'Message sent' });
     
   } catch (err) {
-    console.error(`[SEND] ❌ Final error sending to ${phone}:`, err.message);
+    const errorMsg = err.message || String(err);
+    console.error(`[SEND] ❌ Error:`, errorMsg);
     
-    // Check if it's a Puppeteer evaluation error
-    if (err.message && err.message.includes('Evaluation failed')) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'WhatsApp Web page context error - browser session unstable',
-        hint: 'Try: POST /api/disconnect then rescan QR code',
-        details: err.message 
-      });
-    }
-    
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ 
+      success: false, 
+      error: errorMsg,
+      hint: errorMsg.includes('Evaluation') ? 'Bridge may be unstable. Try: POST /api/disconnect' : undefined
+    });
   }
 });
 
