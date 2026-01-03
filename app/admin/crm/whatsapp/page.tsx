@@ -624,7 +624,7 @@ export default function WhatsAppChatDashboardPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            number: selected.phoneNumber,
+            phone: selected.phoneNumber,
             message: text,
           }),
         });
