@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 
+// WhatsApp Bridge URL - used to send messages via whatsapp-web.js
 const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'https://wa-bridge.swaryoga.com';
 
 export async function POST(request: NextRequest) {
