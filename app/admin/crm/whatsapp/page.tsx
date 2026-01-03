@@ -642,12 +642,13 @@ export default function WhatsAppChatDashboardPage() {
 
       console.log('✅ Response received:', res);
 
-      if (res?.success || res?.data) {
+      // useCRM hook returns just the data object, so we check for messageId
+      if (res?.messageId) {
         setComposer('');
         
         // Check if message is queued (bridge unavailable) or actually sent
-        const messageStatus = res?.data?.status;
-        const warning = res?.data?.warning;
+        const messageStatus = res?.status;
+        const warning = res?.warning;
         
         if (messageStatus === 'queued' && warning) {
           // Message was queued, show info instead of error
@@ -655,6 +656,7 @@ export default function WhatsAppChatDashboardPage() {
           setError(`✓ Message queued - ${warning}`);
         } else if (messageStatus === 'sent') {
           console.log('✨ Message sent successfully');
+          setError(null);
         }
         
         // Refresh thread to show message
