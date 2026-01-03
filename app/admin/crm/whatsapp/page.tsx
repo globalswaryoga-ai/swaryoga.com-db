@@ -630,6 +630,17 @@ export default function WhatsAppChatDashboardPage() {
 
       if (res?.success || res?.data) {
         setComposer('');
+        
+        // Check if message is queued (bridge unavailable) or actually sent
+        const messageStatus = res?.data?.status;
+        const warning = res?.data?.warning;
+        
+        if (messageStatus === 'queued' && warning) {
+          // Message was queued, show info instead of error
+          setError(`✓ Message queued - ${warning}`);
+        }
+        
+        // Refresh thread to show message
         await fetchThread(selected.leadId);
       } else {
         throw new Error(res?.error || 'Failed to send message');
