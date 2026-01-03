@@ -35,3 +35,6 @@ coverage/
 .wwebjs_cache/
 **/.wwebjs_auth/
 **/.wwebjs_cache/
+
+# Ignore markdown documentation files (generated/docs)
+*.md
