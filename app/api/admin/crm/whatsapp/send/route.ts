@@ -4,18 +4,10 @@ import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 
-/**
- * Send WhatsApp message via QR bridge
- * POST /api/admin/crm/whatsapp/send
- * 
- * This endpoint:
- * 1. Verifies admin auth
- * 2. Creates message record in DB
- * 3. Sends via WhatsApp Web bridge
- */
+const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'https://wa-bridge.swaryoga.com';
+
 export async function POST(request: NextRequest) {
   try {
-    // Verify admin auth
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     
@@ -24,93 +16,67 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => null);
-    if (!body) {
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
+    if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
     const { leadId, phoneNumber, messageContent } = body;
-
-    if (!leadId || !phoneNumber || !messageContent) {
-      return NextResponse.json(
-        { error: 'Missing: leadId, phoneNumber, messageContent' },
-        { status: 400 }
-      );
+    if (!phoneNumber || !messageContent) {
+      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
     await connectDB();
 
-    // Verify lead exists
-    const lead = await Lead.findById(leadId);
+    let lead = leadId ? await Lead.findById(leadId) : null;
     if (!lead) {
-      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+      lead = await Lead.findOne({ phoneNumber: normalizePhone(String(phoneNumber)) });
+    }
+    if (!lead) {
+      lead = await Lead.create({
+        phoneNumber: normalizePhone(String(phoneNumber)),
+        source: 'crm',
+        status: 'lead',
+        labels: [],
+      });
     }
 
     const to = normalizePhone(String(phoneNumber));
-    if (!to) {
-      return NextResponse.json({ error: 'Invalid phoneNumber' }, { status: 400 });
-    }
-
-    // Create message record first
-    const now = new Date();
-    const message = await WhatsAppMessage.create({
-      leadId,
+    const messageRecord = await WhatsAppMessage.create({
+      leadId: lead._id,
       phoneNumber: to,
       messageContent: String(messageContent),
       direction: 'outbound',
-      messageType: 'text',
-      status: 'queued', // Will update after bridge sends
-      sentAt: now,
+      status: 'queued',
+      sentAt: new Date(),
     });
 
-    // Send via bridge
-    const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').replace(/\/+$/, '');
-    if (!bridgeUrl) {
-      return NextResponse.json(
-        { error: 'WhatsApp bridge not configured' },
-        { status: 400 }
-      );
-    }
-
     try {
-      const bridgeRes = await fetch(`${bridgeUrl}/api/send`, {
+      const res = await fetch(`${BRIDGE_URL}/api/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: to,
-          message: String(messageContent),
-        }),
+        body: JSON.stringify({ phone: to, message: messageContent }),
+        signal: AbortSignal.timeout(10000),
       });
 
-      if (bridgeRes.ok) {
-        // Update status to sent
-        await WhatsAppMessage.findByIdAndUpdate(message._id, { status: 'sent' });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, { status: 'sent' });
         return NextResponse.json({
           success: true,
-          data: { messageId: message._id, status: 'sent' },
+          data: { messageId: messageRecord._id, status: 'sent', via: 'bridge' },
         });
       } else {
-        // Bridge failed, but message is queued
-        const err = await bridgeRes.json().catch(() => ({}));
-        console.error('Bridge error:', err);
         return NextResponse.json({
-          success: false,
-          error: `Bridge error: ${err.error || 'Unknown error'}`,
-          data: { messageId: message._id, status: 'queued' },
-        }, { status: 500 });
+          success: true,
+          data: { messageId: messageRecord._id, status: 'queued', warning: 'Bridge unavailable' },
+        }, { status: 202 });
       }
-    } catch (bridgeError) {
-      console.error('Bridge connection error:', bridgeError);
+    } catch (err: any) {
       return NextResponse.json({
-        success: false,
-        error: 'Failed to connect to WhatsApp bridge',
-        data: { messageId: message._id, status: 'queued' },
-      }, { status: 500 });
+        success: true,
+        data: { messageId: messageRecord._id, status: 'queued', warning: 'Bridge offline' },
+      }, { status: 202 });
     }
-  } catch (error) {
-    console.error('Send error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Send failed' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
