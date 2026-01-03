@@ -611,6 +611,10 @@ export default function WhatsAppChatDashboardPage() {
 
   const handleSend = async () => {
     if (!selected) return;
+    if (!token) {
+      setError('Session expired. Please refresh the page or login again.');
+      return;
+    }
     const text = composer.trim();
     if (!text) return;
 

@@ -73,6 +73,11 @@ export function useCRM(options: UseCRMOptions = {}) {
         setLoading(true);
         setError(null);
 
+        // CRITICAL: Token must be available before making requests
+        if (!options.token) {
+          throw new CRMUnauthorizedError('No authentication token available. Please login.');
+        }
+
         // Build URL with query params
         const url = new URL(endpoint, typeof window !== 'undefined' ? window.location.origin : '');
         Object.entries(params).forEach(([key, value]) => {
@@ -84,7 +89,7 @@ export function useCRM(options: UseCRMOptions = {}) {
         const response = await window.fetch(url.toString(), {
           method,
           headers: {
-            'Authorization': `Bearer ${options.token || ''}`,
+            'Authorization': `Bearer ${options.token}`,
             'Content-Type': 'application/json',
           },
           body: body ? JSON.stringify(body) : undefined,
