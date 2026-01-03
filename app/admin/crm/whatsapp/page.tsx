@@ -620,6 +620,18 @@ export default function WhatsAppChatDashboardPage() {
 
       // If QR bridge is connected, send via bridge (QR WhatsApp Web)
       if (isWhatsAppConnected && bridgeHttpBase) {
+        // First, save message to DB (outbound via bridge)
+        await crmFetch('/api/admin/crm/messages', {
+          method: 'POST',
+          body: {
+            leadId: selected.leadId,
+            phoneNumber: selected.phoneNumber,
+            messageContent: text,
+            messageType: 'text',
+          },
+        });
+
+        // Then, send via bridge
         const res = await fetch(`${bridgeHttpBase.replace(/\/$/, '')}/api/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
