@@ -617,15 +617,33 @@ export default function WhatsAppChatDashboardPage() {
     try {
       setError(null);
       setSending(true);
-      await crmFetch('/api/admin/crm/messages', {
-        method: 'POST',
-        body: {
-          leadId: selected.leadId,
-          phoneNumber: selected.phoneNumber,
-          messageContent: text,
-          messageType: 'text',
-        },
-      });
+
+      // If QR bridge is connected, send via bridge (QR WhatsApp Web)
+      if (isWhatsAppConnected && bridgeHttpBase) {
+        const res = await fetch(`${bridgeHttpBase.replace(/\/$/, '')}/api/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: selected.phoneNumber,
+            message: text,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Bridge send failed');
+        }
+      } else {
+        // Fallback to Meta Cloud API
+        await crmFetch('/api/admin/crm/messages', {
+          method: 'POST',
+          body: {
+            leadId: selected.leadId,
+            phoneNumber: selected.phoneNumber,
+            messageContent: text,
+            messageType: 'text',
+          },
+        });
+      }
 
       setComposer('');
       await fetchThread(selected.leadId);
