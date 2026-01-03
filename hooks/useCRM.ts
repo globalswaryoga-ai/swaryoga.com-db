@@ -90,7 +90,8 @@ export function useCRM(options: UseCRMOptions = {}) {
           body: body ? JSON.stringify(body) : undefined,
         });
 
-        if (!response.ok) {
+        // Treat 2xx status codes as success (200, 201, 202 Accepted, etc.)
+        if (response.status < 200 || response.status >= 300) {
           if (response.status === 401) {
             // Token missing/expired/invalid. Clear local storage and redirect.
             handleUnauthorized();
