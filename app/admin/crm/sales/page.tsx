@@ -169,6 +169,9 @@ export default function SalesPage() {
   }, [crmFetch, view, appliedFilters]);
 
   useEffect(() => {
+    // Don't attempt fetch if token isn't loaded yet (null = loading, empty string = not authenticated)
+    if (token === null) return;
+    
     if (!token) {
       router.push('/admin/login');
       return;

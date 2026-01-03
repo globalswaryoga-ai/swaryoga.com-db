@@ -1,21 +1,110 @@
 # Swar Yoga Web — Copilot Instructions
 
-## Architecture Overview
-**Next.js 14 App Router** + **MongoDB/Mongoose**. The app blends e-commerce (workshops, courses, payments), lifestyle (life planner, panchang calendar), and admin tools (CRM dashboard). All user-facing features require JWT auth; admin endpoints require `decoded.isAdmin`.
+## Quick Start for AI Agents
 
-## Project Structure Essentials
-- **`app/api/**/route.ts`**: API endpoints. Use `@/` imports (path alias).
-- **`lib/db.ts`**: All Mongoose schemas & models centralized (~780 lines). Add new schemas there.
-- **`lib/auth.ts`**: JWT sign/verify. Payload includes `userId` (user) or `username`/`isAdmin` (admin).
-- **`lib/payments/payu.ts`**: PayU SHA512 hashing + sanitization.
-- **`lib/rateLimit.ts`** + **`lib/rateLimitManager.ts`**: In-memory throttling per userId+IP.
-- **`app/**`**: Next.js pages & components. Client components use `'use client'`.
-- **Legacy artifacts** (`server.js`, `api/` folder): Avoid unless explicitly needed.
+**Tech Stack:** Next.js 14 (App Router) + Mongoose + MongoDB + PayU (payments) + Meta WhatsApp Cloud API  
+**Key Commands:**  
+- `npm run dev` (starts Next.js + health check)
+- `npm run build && npm run type-check` (verify before push)
+- `npm run pm2:{start,stop,restart,logs}` (self-hosted with ecosystem.config.js)
 
-## Commands & Development
-- **Dev:** `npm run dev` (includes health check; use `npm run dev:no-check` to skip)
-- **Build:** `npm run build` → verify with `npm run type-check` + `npm run lint` (build ignores TS/ESLint by config)
-- **PM2 (self-hosted):** `npm run pm2:{start,stop,restart,logs}` (see `ecosystem.config.js`)
+## Architecture: Three Pillars
+
+### 1. E-Commerce (Workshops)
+- **Workshop Data:** Static metadata in `lib/workshopsData.ts` (pricing, instructor, lang support)
+- **Schedules:** Dynamic MongoDB docs via `WorkshopSchedule` (dates, capacity)
+- **Seat Inventory:** Per-schedule tracking via `WorkshopSeatInventory` (idempotent: checked flag `Order.seatInventoryAdjusted`)
+- **Payments:** PayU integration with SHA512 hash validation + 3.3% platform fee (server-side)
+- **Nepal Fallback:** Orders from Nepal skip PayU → `paymentStatus: 'pending_manual'` (manual reconciliation)
+
+### 2. Auth & Admin System
+- **User Auth:** JWT token (`generateToken()` / `verifyToken()`) with `userId` payload
+- **Admin Auth:** Separate flow using `userId` field (not email) + `isAdmin: true` + bcrypt password hashing
+- **Route Protection Pattern:** Every API route checks JWT header + validates `decoded.userId` (users) or `decoded.isAdmin` (admins)
+- **Token Lifetime:** 7 days; stored client-side in `localStorage.admin_token`
+
+### 3. CRM & WhatsApp
+- **Leads Database:** Unique phone constraint; supports bulk import with deduplication (E11000 gotcha)
+- **Messaging:** Meta Cloud API (primary) OR WhatsApp Web bridge (legacy fallback)
+- **Message Tracking:** `WhatsAppMessage` schema links to `Lead` via `leadId`; includes status enum (queued → sent → delivered/read)
+
+## Core File Reference
+
+**Always Read/Edit These:**
+- `lib/db.ts` — 1000+ line monolith with all Mongoose schemas; add new models here
+- `lib/auth.ts` — JWT sign/verify logic (backward compatible with string payloads)
+- `lib/whatsapp.ts` — `normalizePhone()`, `sendWhatsAppText()` helpers; bridges both Meta + Web QR
+- `middleware.ts` — CORS handling + OPTIONS preflight requests
+
+**Utility Libraries:**
+- `lib/rateLimit.ts` — in-memory throttling (Map-based, per IP)
+- `lib/payments/payu.ts` — SHA512 field-order + UDF placeholder logic (strict!)
+- `lib/schemas/enterpriseSchemas.ts` — CRM schemas (Lead, WhatsAppMessage, templates)
+- `lib/logging.ts` — Structured logging (Timer, logRequest, logResponse, etc.)
+- `lib/requestBaseUrl.ts` — Auto-detects redirect base URL (respects localhost env vars in dev)
+
+## Directory Layout
+
+```
+app/
+  api/                 # All API endpoints (Next.js App Router)
+    admin/            # Admin-only endpoints (check decoded.isAdmin)
+      crm/            # CRM endpoints (leads, messages, templates, labels, consent)
+      auth/           # Admin login
+      dashboard/      # Stats & purge tools
+    auth/             # User auth (login, signup)
+    payments/         # PayU integration
+    workshops/        # Workshop queries & orders
+    webhooks/         # PayU callbacks
+  admin/              # Admin UI pages (login, dashboard, CRM)
+  api/                # Legacy API (avoid)
+  page.tsx            # Landing page
+
+lib/
+  db.ts               # Mongoose models + connectDB()
+  auth.ts             # JWT utilities
+  whatsapp.ts         # WhatsApp helpers (Meta + fallback)
+  rateLimit.ts        # Rate limiting
+  payments/
+    payu.ts           # PayU SHA512 + field order
+  schemas/
+    enterpriseSchemas.ts  # CRM schemas (Lead, WhatsAppMessage, etc.)
+  
+components/           # React components (use 'use client' for interactive)
+public/              # Static assets
+types/               # TypeScript interfaces
+
+## Standard Endpoint Boilerplate
+
+**User Endpoint (requires `userId`):**
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { connectDB, Model } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
+
+export async function POST(request: NextRequest) {
+  try {
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    if (!decoded?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    await connectDB();
+    // Your logic here
+    return NextResponse.json({ success: true, data: { /* ... */ } }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}
+```
+
+**Admin Endpoint (requires `isAdmin`):**
+```typescript
+if (!decoded?.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+```
+
+**Response Format (mandatory):**
+- **Success:** `{ success: true, data: { ...payload }, message?: 'Optional confirmation' }` — status 200/201
+- **Error:** `{ error: 'Human-readable message' }` — status 400/401/403/429/500 (no `success` field)
 
 ## Core Patterns: Auth, Responses, Database
 
@@ -87,6 +176,72 @@ Payment callback (`app/api/payments/payu/callback/route.ts`) checks `Order.seatI
 - MongoDB connection → `node test-mongodb.js`.
 - Full PayU flow → `DEBUG_PAYU=1 node debug-payu-advanced.js`.
 
+## WhatsApp Integration — Meta Cloud API
+
+The system supports **two messaging paths**: Meta Cloud API (recommended for Vercel) and WhatsApp Web QR (requires self-hosted bridge).
+
+### Meta Cloud API (Primary)
+Configured via environment variables on Vercel. **No QR scanning required.**
+
+**Environment Variables:**
+- `WHATSAPP_ACCESS_TOKEN` — Meta API token (from Meta Business → WhatsApp → API Setup)
+- `WHATSAPP_PHONE_NUMBER_ID` — WhatsApp Business account phone number ID (find in Meta)
+- `META_GRAPH_API_VERSION` — Graph API version (default: v19.0)
+
+**Sending Messages Flow:**
+```
+CRM UI → POST /api/admin/crm/whatsapp/meta/send
+   ↓
+lib/whatsapp.ts: sendWhatsAppText()
+   ↓
+fetch() to Meta Graph API (https://graph.instagram.com/v19.0/{phoneId}/messages)
+   ↓
+WhatsAppMessage record created with status='queued', then updated to 'sent'
+```
+
+**Key Implementation Details:**
+- Phone normalization: `normalizePhone()` removes non-digits, prepends country code if needed (e.g., 10-digit India numbers get +91)
+- Message stored in `WhatsAppMessage` schema before sending (idempotent if retry needed)
+- Status tracking: queued → sent → delivered/read or failed
+- External message ID stored in `externalMessageId` field for webhook tracking
+
+**Status Check Endpoint:**
+- `GET /api/admin/crm/whatsapp/meta/status` — Verifies credentials and connection to Meta API
+- Returns: `{ success, data: { status, connected, message, credentialsSet } }`
+
+### WhatsApp Web QR (Legacy/Fallback)
+Self-hosted Node.js bridge using `whatsapp-web.js`. Requires separate deployment.
+
+**Bridge URL:** `process.env.WHATSAPP_BRIDGE_HTTP_URL` (e.g., https://wa-bridge.swaryoga.com)
+- Endpoint: `POST /api/send` with `{ phone, message }`
+- Requires `x-api-key` header if `WHATSAPP_WEB_BRIDGE_SECRET` is set
+- Cannot be automated; best for manual messages only
+
+**When to use:**
+- Meta API not configured or testing before setup
+- Single messages from admin (not bulk automation)
+- Development on localhost
+
+### Message Status Tracking
+`WhatsAppMessage` schema (`lib/schemas/enterpriseSchemas.ts`):
+```typescript
+WhatsAppMessage {
+  leadId: ObjectId (ref to Lead)
+  phoneNumber: String (normalized, required)
+  messageContent: String
+  direction: 'inbound' | 'outbound'
+  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
+  sentAt: Date
+  externalMessageId: String (Meta's wamid or bridge ID)
+  errorMessage?: String
+  method?: 'meta' | 'bridge' | 'web'
+  retryCount?: Number
+  nextRetryAt?: Date
+  bulkBatchId?: String
+  timestamps: true
+}
+```
+
 ## Environment & Configuration
 
 ### Required Env Variables
@@ -97,6 +252,8 @@ Payment callback (`app/api/payments/payu/callback/route.ts`) checks `Order.seatI
 
 ### Optional but Important
 - `.env.payment` file (evaluated at build time) → sets `NEXT_PUBLIC_PAYMENT_OVERRIDES` for workshop payment links. **Restart dev server or rebuild after changes.**
+- `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` — Meta Cloud API (recommended for messaging)
+- `WHATSAPP_BRIDGE_HTTP_URL` — WhatsApp Web bridge URL (fallback if Meta not configured)
 - `DEBUG_PAYU=1` — enables PayU logging in scripts
 
 ### Base URL Resolution
@@ -104,13 +261,23 @@ Payment callback (`app/api/payments/payu/callback/route.ts`) checks `Order.seatI
 - Production: uses real request hostname (ignores localhost env vars)
 - Development: respects env vars if request is from localhost
 
-## Testing & Validation
-- **`node test-api.js`** — generic API tester
-- **`node test-payu-integration.js`** — full PayU flow (TEST mode)
-- **`node test-mongodb.js`** — DB connection check
-- No Jest config found → tests are manual scripts (review `tests/` folder for patterns)
+## Testing & Quick Diagnostics
 
-## Common Gotchas
+**Manual Test Scripts** (no Jest):
+- **`node test-mongodb.js`** — Verify DB connection + read schema count
+- **`node test-payu-integration.js`** — Full PayU flow (TEST mode)
+- **`node test-api.js`** — Generic API endpoint tester
+- **`DEBUG_PAYU=1 node debug-payu-advanced.js`** — PayU hash debugging
+- **`node create-admin.js`** — Create admin user (one-time setup)
+
+**Vercel Deployment:**
+- Build uses `npm run vercel-build` → `next build`
+- Start uses `npm run vercel-start` → `next start`
+- Auto-fails on TypeScript/lint errors if `--strict` configured (currently disabled; fix ignored)
+- Check `.vercelignore` for excluded paths
+
+## Common Gotchas & Pitfalls
+
 1. **PayU field order matters.** SHA512 hash requires exact field sequence + UDF placeholder logic (see `lib/payments/payu.ts`).
 2. **`connectDB()` state is not per-request.** Mongoose caches connections; multiple calls are safe but check `mongoose.connection.readyState`.
 3. **Seat inventory is per (workshopSlug, scheduleId) tuple.** Querying only by scheduleId can fail if multiple workshops share IDs.
@@ -118,6 +285,12 @@ Payment callback (`app/api/payments/payu/callback/route.ts`) checks `Order.seatI
 5. **Nepal orders skip PayU.** Set `paymentMethod: 'nepal_qr'` + `paymentStatus: 'pending_manual'` (manual admin reconciliation later).
 6. **3.3% fee is non-negotiable.** Added server-side; hidden from user until confirmation.
 7. **Legacy `Order.findById(txnid)` fallback exists.** Older flows stored Mongo `_id` as txnid; newer flows use `payuTxnId`.
+8. **E11000 duplicate key on Lead.phoneNumber.** Bulk import must deduplicate within batch using `Set<string>` before inserts. Always deduplicate **before** inserting (not after).
+9. **WhatsApp phone normalization is strict.** Always use `normalizePhone()` from `lib/whatsapp.ts` before sending; format must match Meta expectations.
+10. **Meta API messages need test recipients in TEST mode.** If app is in TEST mode, recipient phone must be explicitly added in Meta dashboard.
+11. **Path aliases use `@/`** not relative paths (e.g., `@/lib/db` not `../../lib/db`).
+12. **Admin dashboard uses `localStorage.admin_token`**, not session storage—token persists across page reloads.
+13. **Multiple MongoDB databases may exist.** Check `.env` for `MONGODB_URI_MAIN` vs legacy `MONGODB_URI` (primary is `MONGODB_URI_MAIN`).
 
 ## CRM Leads System — Structure & Data Flow
 
@@ -260,7 +433,7 @@ User {
 Use the script: `node create-admin.js`
 - Connects to MongoDB
 - Creates user with `userId: 'admincrm'`, `isAdmin: true`
-- Default password: **`Turya@#$4596`** (change after first login)
+- Default password set in script (change after first login)
 - Stores hashed password using bcrypt
 
 ### Admin Auth Endpoints

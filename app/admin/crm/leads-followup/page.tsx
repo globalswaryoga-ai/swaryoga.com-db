@@ -41,7 +41,7 @@ type ChatMessage = {
   createdAt?: string;
 };
 
-type ActionMode = 'notes' | 'whatsapp' | 'email' | 'sms' | 'todos' | 'reminder' | 'nextFollowup' | 'labels';
+type ActionMode = 'notes' | 'whatsapp' | 'meta' | 'email' | 'sms' | 'todos' | 'reminder' | 'nextFollowup' | 'labels';
 
 type HeaderPreview = {
   leadId: string;
@@ -80,6 +80,8 @@ function getActionLabel(mode: ActionMode): string {
       return '📝 Notes';
     case 'whatsapp':
       return '💬 WhatsApp';
+    case 'meta':
+      return '📱 Meta';
     case 'email':
       return '📧 Email';
     case 'sms':
@@ -203,6 +205,11 @@ function LeadsFollowupPageContent() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
+  // Meta chat history for selected lead
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaError, setMetaError] = useState<string | null>(null);
+  const [metaMessages, setMetaMessages] = useState<ChatMessage[]>([]);
+
   // WhatsApp specific states
   const [whatsappType, setWhatsappType] = useState<'text' | 'image' | 'video' | 'document'>('text');
   const [whatsappScheduled, setWhatsappScheduled] = useState(false);
@@ -220,6 +227,9 @@ function LeadsFollowupPageContent() {
 
   // Fetch all leads
   useEffect(() => {
+    // Don't attempt fetch if token isn't loaded yet (null = loading, empty string = not authenticated)
+    if (token === null) return;
+    
     const fetchAllLeads = async () => {
       if (!token) return;
 
@@ -587,6 +597,56 @@ function LeadsFollowupPageContent() {
     }
   };
 
+  const fetchMetaMessages = async (lead: Lead) => {
+    if (!token) return;
+    setMetaError(null);
+    setMetaLoading(true);
+    try {
+      console.log('[Followup] Fetching Meta messages for lead:', lead._id);
+      const url = new URL('/api/admin/crm/messages', window.location.origin);
+      url.searchParams.set('leadId', lead._id);
+      url.searchParams.set('messageType', 'meta');
+      url.searchParams.set('limit', '100');
+      url.searchParams.set('skip', '0');
+      url.searchParams.set('order', 'asc');
+
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || 'Failed to load Meta messages');
+
+      const raw = Array.isArray(json?.data?.messages) ? json.data.messages : [];
+      const msgs: ChatMessage[] = raw
+        .map((m: any) => ({
+          _id: String(m?._id || ''),
+          leadId: String(m?.leadId?._id || m?.leadId || lead._id),
+          phoneNumber: String(m?.phoneNumber || lead.phoneNumber || ''),
+          direction: m?.direction === 'inbound' ? 'inbound' : 'outbound',
+          messageType: m?.messageType,
+          messageContent: m?.messageContent,
+          status: m?.status,
+          sentAt: m?.sentAt,
+          deliveredAt: m?.deliveredAt,
+          readAt: m?.readAt,
+          createdAt: m?.createdAt,
+        }))
+        .filter((m: ChatMessage) => Boolean(m._id));
+
+      setMetaMessages(msgs);
+    } catch (err) {
+      setMetaError(err instanceof Error ? err.message : 'Failed to load Meta messages');
+      setMetaMessages([]);
+    } finally {
+      setMetaLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!token || !selectedLead?._id) return;
     fetchLeadActivity(selectedLead._id);
@@ -926,10 +986,30 @@ function LeadsFollowupPageContent() {
             </div>
 
             {selectedLead && (
-              <div className="flex flex-col items-end gap-2 max-w-md">
+              <div className="flex items-center gap-4">
                 <div className="text-right">
                   <p className="text-sm font-semibold text-slate-900">{selectedLead.name}</p>
                   <p className="text-xs text-slate-600 mt-1">{selectedLead.phoneNumber}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => router.push(`/admin/crm/whatsapp?leadId=${encodeURIComponent(selectedLead._id)}`)}
+                    className="p-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors shadow-sm"
+                    title="Open WhatsApp"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.67-.51-.173-.008-.371 0-.57 0-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.076 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421-7.403h-.004a9.87 9.87 0 00-9.746 9.798c0 2.719.738 5.378 2.138 7.709L2.821 23.63l8.239-2.164c2.256 1.226 4.787 1.873 7.402 1.873 5.364 0 9.856-4.46 9.888-9.948.01-2.644-.795-5.127-2.3-7.233-1.504-2.105-3.627-3.61-5.996-4.413-2.368-.804-4.895-.953-7.252-.54z"/>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => router.push(`/admin/crm/whatsapp-meta?phone=${(selectedLead.phoneNumber || '').replace(/\D/g, '')}`)}
+                    className="p-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors shadow-sm"
+                    title="Open Meta WhatsApp"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.474-2.23-1.661-2.23-1.252-1.752-2.05-2.744-2.05-2.744-1.556 0-2.831.787-3.56 1.871-1.129 1.559-1.807 3.509-1.807 5.556v3.116h-3.565V9h3.565v1.542c.7-1.079 1.898-2.57 3.986-2.57.703 0 1.463.12 2.19.35z"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
             )}
@@ -939,7 +1019,10 @@ function LeadsFollowupPageContent() {
           <div className="space-y-3">
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => setActionMode('notes')}
+                onClick={() => {
+                  console.log('[Followup] Clicking Notes button');
+                  setActionMode('notes');
+                }}
                 className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
                   actionMode === 'notes'
                     ? 'bg-slate-900 text-white'
@@ -949,7 +1032,10 @@ function LeadsFollowupPageContent() {
                 📝 Notes
               </button>
               <button
-                onClick={() => setActionMode('whatsapp')}
+                onClick={() => {
+                  console.log('[Followup] Clicking WhatsApp button');
+                  setActionMode('whatsapp');
+                }}
                 className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
                   actionMode === 'whatsapp'
                     ? 'bg-green-600 text-white'
@@ -957,6 +1043,22 @@ function LeadsFollowupPageContent() {
                 }`}
               >
                 💬 WhatsApp
+              </button>
+              <button
+                onClick={() => {
+                  console.log('[Followup] Clicking Meta button');
+                  setActionMode('meta');
+                  if (selectedLead) {
+                    fetchMetaMessages(selectedLead);
+                  }
+                }}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                  actionMode === 'meta'
+                    ? 'bg-cyan-600 text-white'
+                    : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700'
+                }`}
+              >
+                📱 Meta
               </button>
               <button
                 onClick={() => setActionMode('email')}
@@ -1721,6 +1823,83 @@ function LeadsFollowupPageContent() {
                     </div>
                   )}
 
+                  {/* Meta Messages Form */}
+                  {actionMode === 'meta' && (
+                    <div className="space-y-6">
+                      {/* Chat History (Meta Messages) */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between gap-4 mb-3">
+                          <div>
+                            <h3 className="text-sm font-semibold text-slate-900">Meta chat history</h3>
+                            <p className="text-xs text-slate-600">Messages from Meta WhatsApp platform</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => selectedLead && fetchMetaMessages(selectedLead)}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:bg-slate-100"
+                            disabled={metaLoading}
+                          >
+                            {metaLoading ? 'Refreshing…' : 'Refresh'}
+                          </button>
+                        </div>
+
+                        {metaError && (
+                          <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2 mb-3">
+                            {metaError}
+                          </div>
+                        )}
+
+                        {!metaLoading && metaMessages.length === 0 && (
+                          <div className="text-xs text-slate-600">No Meta messages yet for this lead.</div>
+                        )}
+
+                        <div className="max-h-64 overflow-y-auto space-y-2">
+                          {metaMessages.map((m) => {
+                            const isInbound = m.direction === 'inbound';
+                            const ts = m.sentAt || m.createdAt;
+                            return (
+                              <div
+                                key={m._id}
+                                className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}
+                              >
+                                <div
+                                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm border shadow-sm ${
+                                    isInbound
+                                      ? 'bg-white border-slate-200 text-slate-900'
+                                      : 'bg-cyan-600 border-cyan-700 text-white'
+                                  }`}
+                                >
+                                  <div className="whitespace-pre-wrap break-words">{m.messageContent || ''}</div>
+                                  <div
+                                    className={`mt-1 text-[11px] ${
+                                      isInbound ? 'text-slate-500' : 'text-white/80'
+                                    }`}
+                                  >
+                                    {ts ? new Date(ts).toLocaleString() : ''}
+                                    {m.status ? `        | ${m.status}` : ''}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Meta Message Form */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-900 mb-3">Send Meta Message</label>
+                        <textarea
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                          placeholder="Type your Meta WhatsApp message here..."
+                          className="w-full px-4 py-4 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none text-sm"
+                          rows={6}
+                        />
+                        <div className="mt-2 text-xs text-slate-500 text-right">{message.length} characters</div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Email Form */}
                   {actionMode === 'email' && (
                     <div>
@@ -1819,6 +1998,37 @@ function LeadsFollowupPageContent() {
                   {/* Labels Form */}
                   {actionMode === 'labels' && (
                     <>
+                      {/* Existing Labels from All Leads */}
+                      {(() => {
+                        const existingLabels = [...new Set(allLeads.flatMap(l => l.labels || []))].sort();
+                        return existingLabels.length > 0 ? (
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-900 mb-3">Existing Labels - Click to Select</label>
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              {existingLabels.map((label) => (
+                                <button
+                                  key={label}
+                                  onClick={() => {
+                                    if (!selectedLabels.includes(label)) {
+                                      setSelectedLabels([...selectedLabels, label]);
+                                    }
+                                  }}
+                                  disabled={selectedLabels.includes(label)}
+                                  className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                                    selectedLabels.includes(label)
+                                      ? 'bg-indigo-600 text-white cursor-default'
+                                      : 'bg-slate-200 hover:bg-slate-300 text-slate-900 cursor-pointer'
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* Create New Label */}
                       <div>
                         <label className="block text-sm font-semibold text-slate-900 mb-3">Add New Label</label>
                         <div className="flex gap-2">
@@ -1826,7 +2036,7 @@ function LeadsFollowupPageContent() {
                             type="text"
                             value={newLabel}
                             onChange={(e) => setNewLabel(e.target.value)}
-                            placeholder="Enter label name..."
+                            placeholder="Enter new label name..."
                             className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter' && newLabel.trim()) {
@@ -1849,6 +2059,7 @@ function LeadsFollowupPageContent() {
                         </div>
                       </div>
 
+                      {/* Selected Labels */}
                       {selectedLabels.length > 0 && (
                         <div>
                           <label className="block text-sm font-semibold text-slate-900 mb-3">Selected Labels</label>

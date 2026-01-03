@@ -97,6 +97,16 @@ function formatDay(dateLike?: string) {
   return d.toLocaleDateString();
 }
 
+// Helper to calculate followup status
+function getFollowUpStatus(dueAt: string, currentStatus?: string): string {
+  if (currentStatus === 'done') return 'done';
+  const now = new Date();
+  const due = new Date(dueAt);
+  const daysOverdue = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysOverdue >= 5) return 'overdue';
+  return currentStatus || 'pending';
+}
+
 // Simple spell check - detects basic misspellings
 function checkSpelling(text: string): Array<{ word: string; index: number }> {
   const commonMisspellings: Record<string, boolean> = {
@@ -609,6 +619,34 @@ export default function WhatsAppChatDashboardPage() {
     })();
   }, [conversations, crmFetch, handleSelect, searchParams]);
 
+  // Setup card toggle handlers when component mounts
+  useEffect(() => {
+    const toggleCardContent = (cardId: string) => {
+      const btn = document.getElementById(cardId);
+      const content = document.getElementById(`${cardId}-content`);
+      if (!btn || !content) return;
+
+      // Set initial display state based on data-open attribute
+      const isOpen = btn.getAttribute('data-open') === 'true';
+      content.style.display = isOpen ? 'flex' : 'none';
+
+      // Add click handler
+      const handleClick = () => {
+        const currentOpen = btn.getAttribute('data-open') === 'true';
+        btn.setAttribute('data-open', currentOpen ? 'false' : 'true');
+        content.style.display = currentOpen ? 'none' : 'flex';
+      };
+
+      btn.addEventListener('click', handleClick);
+      return () => btn.removeEventListener('click', handleClick);
+    };
+
+    toggleCardContent('followup-card');
+    toggleCardContent('notes-card');
+    toggleCardContent('labels-card');
+    toggleCardContent('status-card');
+  }, []);
+
   const handleSend = async () => {
     if (!selected) return;
     if (!token) {
@@ -720,6 +758,27 @@ export default function WhatsAppChatDashboardPage() {
       );
     },
     [crmFetch, selected]
+  );
+
+  const updateFollowUpStatus = useCallback(
+    async (followUpId: string, newStatus: string) => {
+      try {
+        await crmFetch(`/api/admin/crm/leads/${selected?.leadId}/followups/${followUpId}`, {
+          method: 'PUT',
+          body: { status: newStatus },
+        });
+        // Refresh followups
+        if (selected?.leadId) {
+          const res = await crmFetch(`/api/admin/crm/leads/${selected.leadId}/followups`, {
+            params: { limit: 50, skip: 0, status: 'all' },
+          });
+          setFollowups(res?.followups || []);
+        }
+      } catch (err) {
+        console.error('Failed to update followup status:', err);
+      }
+    },
+    [crmFetch, selected?.leadId]
   );
 
   const exportChat = useCallback(() => {
@@ -2373,196 +2432,441 @@ export default function WhatsAppChatDashboardPage() {
         )}
       </main>
 
-      {/* RIGHT SIDEBAR (All actions & tools) */}
-      <aside className="tools-sidebar">
-        <h3>Tools</h3>
+      {/* RIGHT SIDEBAR - Card-based design with collapsible sections */}
+      <aside className="tools-sidebar" style={{ display: 'flex', flexDirection: 'column', padding: '0' }}>
+        {/* Header */}
+        <div style={{ padding: '16px', borderBottom: '1px solid #E5E7EB', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#1F2937' }}>Lead Tools</h3>
+        </div>
 
-        {!selected ? (
-          <div style={{ color: '#6B7280', fontSize: 13 }}>Select a conversation to use tools.</div>
-        ) : loadingTools ? (
-          <LoadingSpinner />
-        ) : (
-          <>
-            <details className="tools-section" open>
-              <summary>
-                Follow-ups <span style={{ color: '#6B7280', fontSize: 12 }}>{followups.length}</span>
-              </summary>
-              <div className="content">
-                <div className="tools-row">
-                  <input value={newFollowUpTitle} onChange={(e) => setNewFollowUpTitle(e.target.value)} />
-                </div>
-                <div className="tools-row">
-                  <input type="datetime-local" value={newFollowUpDueAt} onChange={(e) => setNewFollowUpDueAt(e.target.value)} />
-                </div>
-                <div className="tools-row">
-                  <button type="button" onClick={createFollowUp} style={{ width: '100%' }}>
-                    Create follow-up
-                  </button>
-                </div>
+        {/* Content - Scrollable */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {!selected ? (
+            <div style={{ color: '#6B7280', fontSize: '13px', padding: '16px', textAlign: 'center' }}>
+              Select a conversation to use tools
+            </div>
+          ) : loadingTools ? (
+            <div style={{ color: '#6B7280', fontSize: '13px', padding: '16px', textAlign: 'center' }}>
+              Loading...
+            </div>
+          ) : (
+            <>
+              {/* FOLLOW-UPS CARD */}
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', background: '#fff', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const card = document.getElementById('followup-card');
+                    if (card) card.setAttribute('data-open', card.getAttribute('data-open') === 'true' ? 'false' : 'true');
+                  }}
+                  id="followup-card"
+                  data-open="true"
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px 16px', 
+                    background: '#F3F4F6', 
+                    border: 'none', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: '600',
+                    color: '#1F2937',
+                    fontSize: '14px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                >
+                  <span style={{ fontSize: '16px' }}>■</span>
+                  Follow-ups
+                  <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
+                    {followups.length}
+                  </span>
+                </button>
+                <div id="followup-card-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Create Follow-up Form */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <input 
+                      type="text"
+                      value={newFollowUpTitle} 
+                      onChange={(e) => setNewFollowUpTitle(e.target.value)}
+                      placeholder="Title"
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                    <input 
+                      type="datetime-local"
+                      value={newFollowUpDueAt} 
+                      onChange={(e) => setNewFollowUpDueAt(e.target.value)}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                    <button 
+                      type="button" 
+                      onClick={createFollowUp}
+                      style={{
+                        padding: '8px 12px',
+                        background: '#3B82F6',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '13px',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#2563EB')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#3B82F6')}
+                    >
+                      Add Follow-up
+                    </button>
+                  </div>
 
-                {followups.length ? (
-                  <div style={{ display: 'grid', gap: 10 }}>
-                    {followups.map((f) => (
-                      <div key={f._id} style={{ padding: 12, borderRadius: 12, border: '1px solid #E5E7EB', background: '#fff' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                          <div>
-                            <div style={{ fontWeight: 800, color: '#1F2937', fontSize: 13 }}>{f.title || 'Follow up'}</div>
-                            <div style={{ color: '#6B7280', fontSize: 12 }}>
-                              Due: {formatDay(f.dueAt)} • {formatTime(f.dueAt)}
+                  {/* Follow-ups List */}
+                  {followups.length ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {followups.map((f) => {
+                        const status = getFollowUpStatus(f.dueAt, f.status);
+                        const statusColor = status === 'done' ? '#10B981' : status === 'in-progress' ? '#F59E0B' : status === 'overdue' ? '#EF4444' : '#6B7280';
+                        const statusBg = status === 'done' ? '#ECFDF5' : status === 'in-progress' ? '#FFFBEB' : status === 'overdue' ? '#FEF2F2' : '#F3F4F6';
+                        return (
+                          <div key={f._id} style={{ 
+                            padding: '12px', 
+                            background: statusBg,
+                            border: `1px solid ${statusColor}`,
+                            borderRadius: '8px'
+                          }}>
+                            <div style={{ fontWeight: '600', color: '#1F2937', fontSize: '13px', marginBottom: '6px' }}>
+                              {f.title || 'Follow-up'}
                             </div>
+                            <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '8px' }}>
+                              Due: {formatDay(f.dueAt)} {formatTime(f.dueAt)}
+                            </div>
+                            <select 
+                              value={status}
+                              onChange={(e) => updateFollowUpStatus(f._id, e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '6px 8px',
+                                border: `1px solid ${statusColor}`,
+                                borderRadius: '4px',
+                                background: '#fff',
+                                color: statusColor,
+                                fontWeight: '600',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="in-progress">In Progress</option>
+                              <option value="done">Done</option>
+                              <option value="overdue">Overdue</option>
+                            </select>
                           </div>
-                          <span className="chip">{String(f.status || 'open')}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ color: '#6B7280', fontSize: 12 }}>No follow-ups.</div>
-                )}
-              </div>
-            </details>
-
-            <details className="tools-section">
-              <summary>
-                Notes <span style={{ color: '#6B7280', fontSize: 12 }}>{notes.length}</span>
-              </summary>
-              <div className="content">
-                <div className="tools-row">
-                  <input
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Write a note"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        createNote();
-                      }
-                    }}
-                  />
-                  <button type="button" onClick={createNote} style={{ background: '#1F7A5B' }}>
-                    Save
-                  </button>
-                </div>
-                {notes.length ? (
-                  <div style={{ display: 'grid', gap: 10 }}>
-                    {notes.map((n) => (
-                      <div key={n._id} style={{ padding: 12, borderRadius: 12, border: '1px solid #E5E7EB', background: '#fff' }}>
-                        <div style={{ color: '#1F2937', fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.note}</div>
-                        <div style={{ marginTop: 6, color: '#6B7280', fontSize: 12 }}>
-                          {formatDay(n.createdAt)} • {formatTime(n.createdAt)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ color: '#6B7280', fontSize: 12 }}>No notes.</div>
-                )}
-              </div>
-            </details>
-
-            <details className="tools-section" open>
-              <summary>
-                Tags / Labels <span style={{ color: '#6B7280', fontSize: 12 }}>{(selected?.labels || []).length}</span>
-              </summary>
-              <div className="content">
-                <div className="tools-row" style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    placeholder="Add label"
-                    style={{ flex: 1 }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        void addLabelToSelected();
-                      }
-                    }}
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => void addLabelToSelected()}
-                    style={{
-                      background: '#1E7F43',
-                      color: '#fff',
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      fontSize: '12px',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    Add
-                  </button>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: '12px' }}>
-                  {(selected?.labels || []).length ? (
-                    (selected?.labels || []).map((l) => (
-                      <button 
-                        key={l} 
-                        type="button" 
-                        onClick={() => void removeLabelFromSelected(String(l))}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '6px 12px',
-                          borderRadius: '20px',
-                          background: '#FEE2E2',
-                          color: '#DC2626',
-                          border: '1px solid #FECACA',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#FECACA';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#FEE2E2';
-                        }}
-                      >
-                        {l} <span style={{ fontWeight: 'bold', fontSize: '14px' }}>×</span>
-                      </button>
-                    ))
+                        );
+                      })}
+                    </div>
                   ) : (
-                    <div style={{ color: '#6B7280', fontSize: 12 }}>No labels yet.</div>
+                    <div style={{ color: '#9CA3AF', fontSize: '13px', textAlign: 'center', padding: '16px' }}>
+                      No follow-ups yet
+                    </div>
                   )}
                 </div>
               </div>
-            </details>
 
-            <details className="tools-section">
-              <summary>Consent Status</summary>
-              <div className="content">
-                <div style={{ color: '#6B7280', fontSize: 12, marginBottom: 8 }}>
-                  Consent tracking is managed in Settings.
-                </div>
-                <div className="tools-row">
-                  <Link href="/admin/crm/permissions" style={{ textDecoration: 'underline', color: '#1F7A5B' }}>
-                    Open Consent Settings
-                  </Link>
+              {/* NOTES CARD */}
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', background: '#fff', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const card = document.getElementById('notes-card');
+                    if (card) card.setAttribute('data-open', card.getAttribute('data-open') === 'true' ? 'false' : 'true');
+                  }}
+                  id="notes-card"
+                  data-open="false"
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px 16px', 
+                    background: '#F3F4F6', 
+                    border: 'none', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: '600',
+                    color: '#1F2937',
+                    fontSize: '14px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                >
+                  <span style={{ fontSize: '16px' }}>■</span>
+                  Notes
+                  <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
+                    {notes.length}
+                  </span>
+                </button>
+                <div id="notes-card-content" style={{ padding: '16px', display: 'none', flexDirection: 'column', gap: '12px' }}>
+                  {/* Create Note Form */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      type="text"
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Write a note..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          createNote();
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                    <button 
+                      type="button" 
+                      onClick={createNote}
+                      style={{
+                        padding: '8px 12px',
+                        background: '#10B981',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '13px',
+                        whiteSpace: 'nowrap',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#059669')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#10B981')}
+                    >
+                      Save
+                    </button>
+                  </div>
+
+                  {/* Notes List */}
+                  {notes.length ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {notes.map((n) => (
+                        <div key={n._id} style={{ 
+                          padding: '12px', 
+                          background: '#F9FAFB',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px'
+                        }}>
+                          <div style={{ color: '#1F2937', fontSize: '13px', whiteSpace: 'pre-wrap', marginBottom: '6px' }}>
+                            {n.note}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#9CA3AF' }}>
+                            {formatDay(n.createdAt)} {formatTime(n.createdAt)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ color: '#9CA3AF', fontSize: '13px', textAlign: 'center', padding: '16px' }}>
+                      No notes yet
+                    </div>
+                  )}
                 </div>
               </div>
-            </details>
 
-            {/* Remaining WATI-level tools — placeholders, but properly organized */}
-            {[
-              'To-Do',
-              'AI Suggestions',
-              'Conversation History',
-            ].map((title) => (
-              <details key={title} className="tools-section">
-                <summary>{title}</summary>
-                <div className="content">
-                  <div style={{ color: '#6B7280', fontSize: 12 }}>Coming soon (UI section is ready).</div>
+              {/* LABELS CARD */}
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', background: '#fff', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const card = document.getElementById('labels-card');
+                    if (card) card.setAttribute('data-open', card.getAttribute('data-open') === 'true' ? 'false' : 'true');
+                  }}
+                  id="labels-card"
+                  data-open="true"
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px 16px', 
+                    background: '#F3F4F6', 
+                    border: 'none', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: '600',
+                    color: '#1F2937',
+                    fontSize: '14px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                >
+                  <span style={{ fontSize: '16px' }}>■</span>
+                  Labels
+                  <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
+                    {(selected?.labels || []).length}
+                  </span>
+                </button>
+                <div id="labels-card-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Add Label Form */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      type="text"
+                      value={newLabel}
+                      onChange={(e) => setNewLabel(e.target.value)}
+                      placeholder="Add label..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void addLabelToSelected();
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontFamily: 'inherit'
+                      }}
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => void addLabelToSelected()}
+                      style={{
+                        padding: '8px 12px',
+                        background: '#10B981',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        fontSize: '13px',
+                        whiteSpace: 'nowrap',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#059669')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#10B981')}
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {/* Labels List */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {(selected?.labels || []).length ? (
+                      (selected?.labels || []).map((l) => (
+                        <button 
+                          key={l} 
+                          type="button"
+                          onClick={() => void removeLabelFromSelected(String(l))}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 12px',
+                            background: '#FEE2E2',
+                            color: '#DC2626',
+                            border: '1px solid #FECACA',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#FCA5A5';
+                            e.currentTarget.style.borderColor = '#DC2626';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = '#FEE2E2';
+                            e.currentTarget.style.borderColor = '#FECACA';
+                          }}
+                        >
+                          {l}
+                          <span style={{ fontWeight: 'bold' }}>x</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div style={{ color: '#9CA3AF', fontSize: '13px', width: '100%', textAlign: 'center', padding: '16px' }}>
+                        No labels yet
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </details>
-            ))}
-          </>
-        )}
+              </div>
+
+              {/* STATUS CARD */}
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', background: '#fff', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const card = document.getElementById('status-card');
+                    if (card) card.setAttribute('data-open', card.getAttribute('data-open') === 'true' ? 'false' : 'true');
+                  }}
+                  id="status-card"
+                  data-open="false"
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px 16px', 
+                    background: '#F3F4F6', 
+                    border: 'none', 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: '600',
+                    color: '#1F2937',
+                    fontSize: '14px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                >
+                  <span style={{ fontSize: '16px' }}>■</span>
+                  Status
+                </button>
+                <div id="status-card-content" style={{ padding: '16px', display: 'none', flexDirection: 'column', gap: '12px' }}>
+                  <select 
+                    value={selected?.status || 'lead'}
+                    onChange={(e) => updateLeadStatus(e.target.value)}
+                    style={{
+                      padding: '10px 12px',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '6px',
+                      background: '#fff',
+                      color: '#1F2937',
+                      fontWeight: '600',
+                      fontSize: '13px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="lead">Lead</option>
+                    <option value="prospect">Prospect</option>
+                    <option value="customer">Customer</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </aside>
 
       {/* NEW: WhatsApp Web QR Modal */}

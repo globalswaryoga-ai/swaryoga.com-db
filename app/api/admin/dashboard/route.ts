@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 import { connectDB, User, Order, Signin, Message } from '@/lib/db';
-
-// Verify JWT token
-const verifyToken = (token: string): { valid: boolean; decoded?: any } => {
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    return { valid: true, decoded };
-  } catch {
-    return { valid: false };
-  }
-};
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,16 +10,30 @@ export async function GET(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '') || '';
 
+    if (!token) {
+      return NextResponse.json({ error: 'No authorization token provided' }, { status: 401 });
+    }
+
     // Verify authentication
-    const { valid, decoded } = verifyToken(token);
-    if (!valid || !decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const decoded = verifyToken(token);
+    
+    if (!decoded) {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+    }
+
+    if (!decoded.isAdmin) {
+      console.warn('Dashboard access denied - not an admin. Token payload:', {
+        userId: decoded.userId,
+        isAdmin: decoded.isAdmin,
+        permissions: decoded.permissions,
+      });
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     // Super admin gate: dashboard is for the main admin only.
-    const isSuperAdmin = decoded?.userId === 'admin' || (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
+    const isSuperAdmin = decoded.userId === 'admin' || (Array.isArray(decoded.permissions) && decoded.permissions.includes('all'));
     if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.json({ error: 'Super admin access required' }, { status: 403 });
     }
 
     await connectDB();

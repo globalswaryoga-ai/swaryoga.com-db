@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -92,6 +92,24 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Connect Accounts',
       href: '/admin/social-media-setup',
       color: 'text-cyan-500'
+    },
+    {
+      icon: MessageSquare,
+      label: 'CRM Leads',
+      href: '/admin/crm/leads',
+      color: 'text-emerald-600'
+    },
+    {
+      icon: MessageSquare,
+      label: 'Lead Followup',
+      href: '/admin/crm/leads-followup',
+      color: 'text-violet-600'
+    },
+    {
+      icon: MessageCircle,
+      label: 'Meta WhatsApp',
+      href: '/admin/crm/whatsapp-meta',
+      color: 'text-cyan-600'
     }
   ];
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CRMStats {
   totalLeads: number;
@@ -13,51 +14,78 @@ interface CRMStats {
 
 export default function CRMDashboard() {
   const router = useRouter();
+  const token = useAuth();
   const [stats, setStats] = useState<CRMStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Don't attempt fetch if token isn't loaded yet
+    if (token === null) return;
+
     const fetchStats = async () => {
+      if (!token) {
+        setLoading(false);
+        setError('Authentication required');
+        return;
+      }
+
       try {
         setLoading(true);
-        const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
-        if (!token) {
-          router.push('/admin/login');
-          return;
-        }
-
+        setError(null);
+        
+        console.log('[CRM Dashboard] Fetching analytics with token:', token.substring(0, 20) + '...');
+        
         const response = await fetch('/api/admin/crm/analytics?view=overview', {
-          headers: { 'Authorization': `Bearer ${token}` },
+          method: 'GET',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
         });
 
+        console.log('[CRM Dashboard] Analytics API response status:', response.status);
+
         if (!response.ok) {
-          throw new Error('Failed to fetch stats');
+          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+          console.error('[CRM Dashboard] Analytics API error:', { status: response.status, data: errorData });
+          throw new Error(errorData.error || `HTTP ${response.status}`);
         }
 
         const data = await response.json();
-        if (data.success && data.data.overview) {
-          const overview = data.data.overview;
-          const totalCustomers = overview.leadsByStatus?.customer || 0;
-          const totalLeads = overview.totalLeads || 0;
-          const conversionRate = totalLeads > 0 ? ((totalCustomers / totalLeads) * 100).toFixed(1) : '0';
-
-          setStats({
-            totalLeads: overview.totalLeads,
-            totalSales: overview.totalSales || 0,
-            totalMessages: overview.totalMessages || 0,
-            conversionRate: parseFloat(conversionRate as string),
-          });
+        console.log('[CRM Dashboard] Analytics response data:', data);
+        
+        // Check if response has the expected structure
+        if (!data.data || !data.data.overview) {
+          console.warn('[CRM Dashboard] Unexpected response structure:', data);
+          setError('Analytics data unavailable. Please refresh.');
+          setLoading(false);
+          return;
         }
+
+        const overview = data.data.overview;
+        const totalCustomers = overview.leadsByStatus?.customer || 0;
+        const totalLeads = overview.totalLeads || 0;
+        const conversionRate = totalLeads > 0 ? ((totalCustomers / totalLeads) * 100).toFixed(1) : '0';
+
+        setStats({
+          totalLeads: overview.totalLeads,
+          totalSales: overview.totalSales || 0,
+          totalMessages: overview.totalMessages || 0,
+          conversionRate: parseFloat(conversionRate as string),
+        });
+        setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error('[CRM Dashboard] Fetch error:', errorMessage, err);
+        setError(errorMessage || 'Failed to load dashboard stats');
       } finally {
         setLoading(false);
       }
     };
 
     fetchStats();
-  }, [router]);
+  }, [token]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -131,8 +159,28 @@ export default function CRMDashboard() {
               ))}
             </div>
           ) : error ? (
-            <div className="bg-red-900/50 border border-red-500/50 rounded-xl p-6 mb-8 text-red-200">
-              Error loading stats: {error}
+            <div className="bg-red-950 border-2 border-red-500 rounded-xl p-6 mb-8">
+              <div className="flex items-start gap-4">
+                <div className="text-3xl">⚠️</div>
+                <div className="flex-1">
+                  <h3 className="text-red-200 font-semibold mb-2">Failed to Load Dashboard Stats</h3>
+                  <p className="text-red-300 text-sm mb-4">{error}</p>
+                  <div className="text-red-400 text-xs mb-4">
+                    <p>💡 Tips:</p>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      <li>Check your browser console (F12) for detailed error logs</li>
+                      <li>Ensure the API server is running</li>
+                      <li>Try refreshing the page</li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+                  >
+                    🔄 Retry
+                  </button>
+                </div>
+              </div>
             </div>
           ) : stats ? (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
