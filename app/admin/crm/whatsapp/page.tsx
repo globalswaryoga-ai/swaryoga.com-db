@@ -618,47 +618,22 @@ export default function WhatsAppChatDashboardPage() {
       setError(null);
       setSending(true);
 
-      // If QR bridge is connected, send via bridge (QR WhatsApp Web)
-      if (isWhatsAppConnected && bridgeHttpBase) {
-        // First, save message to DB (outbound via bridge)
-        await crmFetch('/api/admin/crm/messages', {
-          method: 'POST',
-          body: {
-            leadId: selected.leadId,
-            phoneNumber: selected.phoneNumber,
-            messageContent: text,
-            messageType: 'text',
-          },
-        });
+      // Send via CRM endpoint (handles bridge + fallback queue)
+      const res = await crmFetch('/api/admin/crm/whatsapp/send', {
+        method: 'POST',
+        body: {
+          leadId: selected.leadId,
+          phoneNumber: selected.phoneNumber,
+          messageContent: text,
+        },
+      });
 
-        // Then, send via bridge
-        const res = await fetch(`${bridgeHttpBase.replace(/\/$/, '')}/api/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: selected.phoneNumber,
-            message: text,
-          }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'Bridge send failed');
-        }
+      if (res?.success || res?.data) {
+        setComposer('');
+        await fetchThread(selected.leadId);
       } else {
-        // Fallback to Meta Cloud API
-        await crmFetch('/api/admin/crm/messages', {
-          method: 'POST',
-          body: {
-            leadId: selected.leadId,
-            phoneNumber: selected.phoneNumber,
-            messageContent: text,
-            messageType: 'text',
-          },
-        });
+        throw new Error(res?.error || 'Failed to send message');
       }
-
-      setComposer('');
-      await fetchThread(selected.leadId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
