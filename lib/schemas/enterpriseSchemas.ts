@@ -161,6 +161,10 @@ WhatsAppMessageSchema.index({ sentBy: 1, sentAt: -1 });
 WhatsAppMessageSchema.index({ waMessageId: 1 });
 WhatsAppMessageSchema.index({ direction: 1, sentAt: -1 });
 
+// Idempotency for inbound webhook retries: meta message IDs (waMessageId) should not create duplicate
+// rows for the same direction. Sparse so older docs without waMessageId are allowed.
+WhatsAppMessageSchema.index({ waMessageId: 1, direction: 1 }, { unique: true, sparse: true });
+
 // ============================================================================
 // 1b. WHATSAPP WEBHOOK EVENTS — Store recent webhook summaries for debugging
 // ==========================================================================

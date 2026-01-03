@@ -5,10 +5,11 @@ import { ConsentManager } from '@/lib/consentManager';
 import { Lead, WhatsAppMessage, WhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 
+import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
+
 function normalizePhone(raw: string): string {
-  return String(raw || '')
-    .trim()
-    .replace(/\D/g, '');
+  // Keep local helper for backward-compat, but delegate to shared digits-only normalizer.
+  return normalizePhoneDigits(raw);
 }
 
 function extractTextMessageBody(msg: any): string {
@@ -242,6 +243,8 @@ async function handleWebhookPayload(payload: any) {
           const body = extractTextMessageBody(msg);
           if (!body) continue;
 
+          const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
+
           await logWebhookEvent({
             kind: 'inbound_message',
             ok: true,
@@ -284,22 +287,52 @@ async function handleWebhookPayload(payload: any) {
           }
 
           // Store inbound as a WhatsAppMessage record for a unified thread view.
-          await WhatsAppMessage.create({
-            leadId: lead._id,
-            phoneNumber: from,
-            direction: 'inbound',
-            messageType: 'text',
-            messageContent: body,
-            status: 'delivered',
-            deliveredAt: now,
-            metadata: {
-              webhook: {
-                messageId: msg?.id,
-                timestamp: msg?.timestamp,
-                rawType: msg?.type,
+          // Idempotency: Meta retries webhooks. Prevent duplicate inbound rows by upserting on waMessageId.
+          // If Meta doesn't provide an id (rare), we fall back to create (best-effort).
+          if (inboundWaMessageId) {
+            await WhatsAppMessage.updateOne(
+              { waMessageId: inboundWaMessageId, direction: 'inbound' },
+              {
+                $setOnInsert: {
+                  leadId: lead._id,
+                  phoneNumber: from,
+                  direction: 'inbound',
+                  messageType: 'text',
+                  messageContent: body,
+                  status: 'delivered',
+                  deliveredAt: now,
+                  sentAt: now,
+                  waMessageId: inboundWaMessageId,
+                  metadata: {
+                    webhook: {
+                      messageId: inboundWaMessageId,
+                      timestamp: msg?.timestamp,
+                      rawType: msg?.type,
+                    },
+                  },
+                },
               },
-            },
-          });
+              { upsert: true }
+            );
+          } else {
+            await WhatsAppMessage.create({
+              leadId: lead._id,
+              phoneNumber: from,
+              direction: 'inbound',
+              messageType: 'text',
+              messageContent: body,
+              status: 'delivered',
+              deliveredAt: now,
+              sentAt: now,
+              metadata: {
+                webhook: {
+                  messageId: msg?.id,
+                  timestamp: msg?.timestamp,
+                  rawType: msg?.type,
+                },
+              },
+            });
+          }
 
           // Run automations (welcome/greetings/chatbot/AI). Best-effort: failures are swallowed.
           handleInboundWhatsAppAutomations({
