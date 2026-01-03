@@ -1949,15 +1949,15 @@ export default function WhatsAppChatDashboardPage() {
               <div className="saved-modal-body">
                 <label>
                   Title
-                  <input value={qrTitle} onChange={(e) => setQrTitle(e.target.value)} placeholder="Eg: Pricing" />
+                  <input id="qr-title" name="qr-title" value={qrTitle} onChange={(e) => setQrTitle(e.target.value)} placeholder="Eg: Pricing" />
                 </label>
                 <label>
                   Shortcut (optional)
-                  <input value={qrShortcut} onChange={(e) => setQrShortcut(e.target.value)} placeholder="Eg: /pricing" />
+                  <input id="qr-shortcut" name="qr-shortcut" value={qrShortcut} onChange={(e) => setQrShortcut(e.target.value)} placeholder="Eg: /pricing" />
                 </label>
                 <label>
                   Message
-                  <textarea value={qrContent} onChange={(e) => setQrContent(e.target.value)} rows={4} placeholder="Write the reply…" />
+                  <textarea id="qr-content" name="qr-content" value={qrContent} onChange={(e) => setQrContent(e.target.value)} rows={4} placeholder="Write the reply…" />
                 </label>
               </div>
               <div className="saved-modal-actions">
@@ -1975,6 +1975,8 @@ export default function WhatsAppChatDashboardPage() {
         <div className="chat-composer">
           <div style={{ position: 'relative', width: '100%' }}>
             <textarea
+              id="message-composer"
+              name="message-composer"
               ref={composerRef}
               value={composer}
               onChange={(e) => handleComposerChange(e.target.value)}
