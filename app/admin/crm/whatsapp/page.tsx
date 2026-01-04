@@ -2180,7 +2180,17 @@ export default function WhatsAppChatDashboardPage() {
                 </label>
                 <label>
                   Message
-                  <textarea id="qr-content" name="qr-content" value={qrContent} onChange={(e) => setQrContent(e.target.value)} rows={4} placeholder="Write the reply…" />
+                  <textarea
+                    id="qr-content"
+                    name="qr-content"
+                    value={qrContent}
+                    onChange={(e) => setQrContent(e.target.value)}
+                    rows={4}
+                    placeholder="Write the reply…"
+                    spellCheck={true}
+                    autoCorrect="on"
+                    autoCapitalize="sentences"
+                  />
                 </label>
               </div>
               <div className="saved-modal-actions">
@@ -2206,6 +2216,9 @@ export default function WhatsAppChatDashboardPage() {
               placeholder={selected ? 'Type a message…' : 'Select a conversation to start'}
               disabled={!selected || sending}
               rows={2}
+              spellCheck={true}
+              autoCorrect="on"
+              autoCapitalize="sentences"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
