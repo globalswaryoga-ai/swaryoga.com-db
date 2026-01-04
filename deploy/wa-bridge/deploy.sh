@@ -50,4 +50,8 @@ docker compose build --no-cache wa-bridge
 echo "==> Restarting container"
 docker compose up -d --force-recreate wa-bridge
 
+echo "==> Smoke-checking qrServer.js syntax inside container"
+# Fails fast if the image/container contains a broken qrServer.js.
+docker compose exec -T wa-bridge node -c /app/qrServer.js
+
 echo "==> Done"
