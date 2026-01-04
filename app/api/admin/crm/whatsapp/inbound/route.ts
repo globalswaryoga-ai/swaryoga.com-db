@@ -15,13 +15,23 @@ export const revalidate = 0;
  * - The local WhatsApp Web bridge (services/whatsapp-web/qrServer.js) calls it.
  * - Auth uses a shared secret header: X-WhatsApp-Bridge-Secret.
  *
- * Required env:
- * - WHATSAPP_WEB_BRIDGE_SECRET
+ * Required env (set on the CRM server runtime, e.g. Vercel Project → Environment Variables):
+ * - WHATSAPP_WEB_BRIDGE_SECRET (preferred)
+ * - WHATSAPP_BRIDGE_SECRET (fallback)
  */
 
 export async function POST(request: NextRequest) {
   try {
-    const expected = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
+    const secretCandidates: Array<[key: string, value: string | undefined]> = [
+      ['WHATSAPP_WEB_BRIDGE_SECRET', process.env.WHATSAPP_WEB_BRIDGE_SECRET],
+      // Back-compat / alternate naming that may exist in some deployments.
+      ['WHATSAPP_BRIDGE_SECRET', process.env.WHATSAPP_BRIDGE_SECRET],
+    ];
+
+    const found = secretCandidates.find(([, value]) => (value || '').trim().length > 0);
+    const expected = (found?.[1] || '').trim();
+    const expectedKey = found?.[0] || null;
+
     if (!expected) {
       return NextResponse.json(
         {
@@ -29,21 +39,23 @@ export async function POST(request: NextRequest) {
           debug: {
             ok: false,
             reason: 'missing_env',
+            checkedKeys: secretCandidates.map(([k]) => k),
           },
         },
         { status: 500 }
       );
     }
 
-    const secret = request.headers.get('x-whatsapp-bridge-secret');
-    if (!secret || secret !== expected) {
+    const provided = (request.headers.get('x-whatsapp-bridge-secret') || '').trim();
+    if (!provided || provided !== expected) {
       return NextResponse.json(
         {
           error: 'Unauthorized',
           debug: {
             ok: false,
             reason: 'bad_secret',
-            hasHeader: Boolean(secret),
+            hasHeader: Boolean(provided),
+            expectedKey,
           },
         },
         { status: 401 }

@@ -16,13 +16,19 @@ export async function GET(request: NextRequest) {
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const secret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
+    const secretCandidates: Array<[key: string, value: string | undefined]> = [
+      ['WHATSAPP_WEB_BRIDGE_SECRET', process.env.WHATSAPP_WEB_BRIDGE_SECRET],
+      ['WHATSAPP_BRIDGE_SECRET', process.env.WHATSAPP_BRIDGE_SECRET],
+    ];
+    const found = secretCandidates.find(([, value]) => (value || '').trim().length > 0);
+    const secret = (found?.[1] || '').trim();
 
     return NextResponse.json(
       {
         success: true,
         data: {
           bridgeSecretSet: Boolean(secret),
+          keyUsed: found?.[0] || null,
         },
       },
       { status: 200 }
