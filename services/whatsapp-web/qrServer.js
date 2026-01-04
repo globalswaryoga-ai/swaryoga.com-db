@@ -335,9 +335,8 @@ function initializeClient() {
         // to reuse persisted profile + locks.
         '--no-service-autorun',
       ],
-      // Critical: keep Chromium's browser profile in /tmp so it won't persist lock files
-      // across container restarts. WhatsApp auth is persisted separately via LocalAuth.
-      userDataDir: CHROME_USER_DATA_DIR,
+      // NOTE: LocalAuth is not compatible with puppeteer.userDataDir.
+      // We still enforce an ephemeral profile using the Chromium flag above.
       timeout: 60000, // 60 second timeout for browser launch
     },
   });
