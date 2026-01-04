@@ -13,6 +13,8 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ isOpen = true, onClose = () => {} }: AdminSidebarProps) {
   const router = useRouter();
 
+  const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
+
   const handleNavClick = () => {
     // Auto-close sidebar on mobile when a link is clicked
     if (window.innerWidth < 768) {
@@ -113,6 +115,10 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     }
   ];
 
+  const visibleMenuItems = enableMetaWhatsApp
+    ? menuItems
+    : menuItems.filter((item) => item.href !== '/admin/crm/whatsapp-meta');
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -177,7 +183,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
 
         {/* Navigation Menu */}
         <nav className="flex-1 p-4 sm:p-6 space-y-1 sm:space-y-2 overflow-y-auto">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link

@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function isMetaDisabled(): boolean {
+  return [
+    process.env.WHATSAPP_DISABLE_META_UI,
+    process.env.WHATSAPP_DISABLE_META_SEND,
+    process.env.WHATSAPP_DISABLE_CLOUD_SEND,
+    process.env.WHATSAPP_FORCE_WEB_BRIDGE,
+    process.env.WHATSAPP_DISABLE_CLOUD,
+  ].some((v) => String(v || '').toLowerCase() === 'true');
+}
+
 /**
  * GET /api/admin/crm/whatsapp/meta/status
  * Check Meta WhatsApp API connection status
@@ -7,6 +17,13 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function GET(request: NextRequest) {
   try {
+    if (isMetaDisabled()) {
+      return NextResponse.json(
+        { error: 'Meta WhatsApp is disabled on this server' },
+        { status: 403 }
+      );
+    }
+
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     
     // Basic token validation
@@ -94,7 +111,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       {
-        success: false,
         error: String(error),
       },
       { status: 500 }

@@ -11,6 +11,7 @@ interface QRConnectionModalProps {
 type ConnectionMode = 'qr' | 'api';
 
 export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnectionModalProps) {
+  const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>('qr');
   const [status, setStatus] = useState<'idle' | 'connecting' | 'authenticated' | 'error' | 'resetting'>('idle');
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -449,7 +450,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
         )}
 
         {/* API Mode */}
-        {connectionMode === 'api' && (
+        {enableMetaWhatsApp && connectionMode === 'api' && (
           <>
             {/* Header */}
             <div className="flex items-center gap-3 mb-6">

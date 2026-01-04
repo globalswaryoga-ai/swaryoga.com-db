@@ -64,6 +64,8 @@ export default function WhatsAppWebSetupPage() {
   const router = useRouter();
   const token = useAuth();
 
+  const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
+
   const bridgeBase = useMemo(() => getBridgeHttpBase(), []);
 
   const [status, setStatus] = useState<BridgeStatus | null>(null);
@@ -152,12 +154,14 @@ export default function WhatsAppWebSetupPage() {
             >
               Open Inbox
             </Link>
-            <Link
-              href="/admin/crm/whatsapp/meta"
-              className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-black"
-            >
-              Meta WhatsApp Setup
-            </Link>
+            {enableMetaWhatsApp ? (
+              <Link
+                href="/admin/crm/whatsapp/meta"
+                className="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-black"
+              >
+                Meta WhatsApp Setup
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>

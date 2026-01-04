@@ -75,6 +75,8 @@ export default function MetaWhatsAppPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
+
+  const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
   // IMPORTANT: memoize the object passed into useCRM.
   // Passing a fresh object each render can cause unnecessary churn.
   const crm = useCRM(useMemo(() => ({ token }), [token]));
@@ -118,6 +120,14 @@ export default function MetaWhatsAppPage() {
   // Prevent overlapping polls / duplicated effects from causing request storms.
   const conversationsFetchInFlightRef = useRef(false);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (token === undefined) return;
+    if (!token) return;
+    if (!enableMetaWhatsApp) {
+      router.replace('/admin/crm/whatsapp');
+    }
+  }, [token, enableMetaWhatsApp, router]);
 
   // Avoid callback dependency chains causing re-renders / TDZ issues.
   // We keep the latest tool loaders in refs and call them from fetchMessages.

@@ -54,6 +54,8 @@ type AdminUserOption = {
 export default function LeadsPage() {
   const router = useRouter();
   const token = useAuth();
+
+  const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
   const crm = useCRM({ token });
   const search = useSearch();
   const modal = useModal();
@@ -460,14 +462,18 @@ export default function LeadsPage() {
             WhatsApp
           </button>
 
-          <button
-            onClick={() => router.push(`/admin/crm/whatsapp-meta?phone=${(lead.phoneNumber || '').replace(/\D/g, '')}`)}
-            className="px-3 py-1.5 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-            title="Open WhatsApp Meta"
-          >
-            <span aria-hidden>💬</span>
-            Meta
-          </button>
+          {enableMetaWhatsApp ? (
+            <button
+              onClick={() =>
+                router.push(`/admin/crm/whatsapp-meta?phone=${(lead.phoneNumber || '').replace(/\D/g, '')}`)
+              }
+              className="px-3 py-1.5 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+              title="Open WhatsApp Meta"
+            >
+              <span aria-hidden>💬</span>
+              Meta
+            </button>
+          ) : null}
 
           <button
             onClick={() => router.push(`/admin/crm/leads-followup?leadId=${encodeURIComponent(lead._id)}`)}

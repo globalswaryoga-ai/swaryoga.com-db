@@ -18,6 +18,8 @@ export default function MetaWhatsAppSetupPage() {
   const token = useAuth();
   const crm = useCRM({ token });
 
+  const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
+
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,11 +68,19 @@ export default function MetaWhatsAppSetupPage() {
       return;
     }
     if (!token) return;
+
+    if (!enableMetaWhatsApp) {
+      router.replace('/admin/crm/whatsapp/web');
+      return;
+    }
+
     void fetchEnv();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, enableMetaWhatsApp]);
 
   if (token === undefined) return null;
+
+  if (!enableMetaWhatsApp) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">

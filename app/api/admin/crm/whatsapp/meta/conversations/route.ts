@@ -3,6 +3,16 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { WhatsAppMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
 
+function isMetaDisabled(): boolean {
+  return [
+    process.env.WHATSAPP_DISABLE_META_UI,
+    process.env.WHATSAPP_DISABLE_META_SEND,
+    process.env.WHATSAPP_DISABLE_CLOUD_SEND,
+    process.env.WHATSAPP_FORCE_WEB_BRIDGE,
+    process.env.WHATSAPP_DISABLE_CLOUD,
+  ].some((v) => String(v || '').toLowerCase() === 'true');
+}
+
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -13,6 +23,13 @@ export const revalidate = 0;
  */
 export async function GET(request: NextRequest) {
   try {
+    if (isMetaDisabled()) {
+      return NextResponse.json(
+        { error: 'Meta WhatsApp is disabled on this server' },
+        { status: 403 }
+      );
+    }
+
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     
