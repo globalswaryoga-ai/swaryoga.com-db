@@ -26,6 +26,21 @@ function getWhatsAppEnv() {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER;
 
+  // Operational kill-switch: allow temporarily forcing WhatsApp Web bridge sends
+  // even when Cloud API credentials are configured.
+  // Accept several spellings for convenience.
+  const disableCloud = String(
+    process.env.WHATSAPP_DISABLE_META_SEND ||
+      process.env.WHATSAPP_DISABLE_CLOUD_SEND ||
+      process.env.WHATSAPP_FORCE_WEB_BRIDGE ||
+      ''
+  )
+    .trim()
+    .toLowerCase();
+  if (disableCloud === '1' || disableCloud === 'true' || disableCloud === 'yes' || disableCloud === 'on') {
+    return null;
+  }
+
   if (!accessToken || !phoneNumberId) {
     return null; // Cloud API not configured; fallback to Web bridge
   }
@@ -72,7 +87,7 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
     const waMessageId =
       Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
 
-    return { waMessageId, raw: data };
+    return { waMessageId, raw: { ...data, provider: 'meta' } };
   }
 
   // Fallback: Cloud API not configured → use WhatsApp Web bridge
@@ -114,5 +129,5 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
   }
   // Bridge typically returns { success: true, messageId?: "..." }
   const waMessageId = data?.messageId || data?.waMessageId;
-  return { waMessageId, raw: data };
+  return { waMessageId, raw: { ...data, provider: 'whatsapp_web_bridge' } };
 }
