@@ -130,8 +130,18 @@ let lastReadyAt = null;
 // Persisting Chromium's profile can leave Singleton* lock files behind and cause:
 //   "The profile appears to be in use by another Chromium process ... Chromium has locked the profile"
 //
-// Use an ephemeral userDataDir under /tmp for Chromium so restarts are clean.
-const CHROME_USER_DATA_DIR = process.env.CHROME_USER_DATA_DIR || '/tmp/wa-chrome-profile';
+// Use an ephemeral Chrome profile under /tmp.
+// IMPORTANT: With whatsapp-web.js LocalAuth, Chromium's profile directory must be owned by the
+// library and can be sensitive to stale Singleton* locks after crashes.
+// The most robust fix in containers is to use a UNIQUE profile dir per launch attempt so locks
+// can never collide.
+const CHROME_USER_DATA_DIR_BASE = process.env.CHROME_USER_DATA_DIR || '/tmp/wa-chrome-profile';
+
+function getEphemeralChromeProfileDir() {
+  // Use pid + timestamp + random to guarantee uniqueness even across fast restarts.
+  const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${CHROME_USER_DATA_DIR_BASE}-${suffix}`;
+}
 // Ensure LocalAuth persistence location is explicit and stable.
 // IMPORTANT: This is NOT the Chromium profile. It's whatsapp-web.js session storage.
 const LOCALAUTH_DATA_PATH = process.env.LOCALAUTH_DATA_PATH || '/app/.wwebjs_auth';
@@ -251,24 +261,24 @@ function clearStaleSessions() {
   }
 }
 
-function ensureEphemeralChromeProfileDir() {
+function ensureEphemeralChromeProfileDir(dir) {
   try {
-    fs.mkdirSync(CHROME_USER_DATA_DIR, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true });
   } catch (e) {
-    console.log(`⚠️ Failed to create CHROME_USER_DATA_DIR (${CHROME_USER_DATA_DIR}): ${e?.message || e}`);
+    console.log(`⚠️ Failed to create CHROME_USER_DATA_DIR (${dir}): ${e?.message || e}`);
   }
 }
 
-function resetEphemeralChromeProfileDir() {
+function resetEphemeralChromeProfileDir(dir) {
   // Best effort cleanup: if Chromium crashed, the ephemeral directory may contain
   // stale Singleton* locks. Since this directory is meant to be non-persistent,
   // it's safe (and desirable) to wipe it before each launch attempt.
   try {
-    fs.rmSync(CHROME_USER_DATA_DIR, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true });
   } catch {
     // ignore
   }
-  ensureEphemeralChromeProfileDir();
+  ensureEphemeralChromeProfileDir(dir);
 }
 
 // Initialize WhatsApp client
@@ -279,12 +289,15 @@ function initializeClient() {
     client = null;
   }
 
-  // Ensure Chromium userDataDir is clean (ephemeral, not persisted).
-  resetEphemeralChromeProfileDir();
+  // Ensure Chromium profile is clean (ephemeral, not persisted).
+  // Use a unique directory per init attempt to avoid profile lock collisions.
+  const chromeProfileDir = getEphemeralChromeProfileDir();
+  resetEphemeralChromeProfileDir(chromeProfileDir);
 
   const clientId = process.env.WHATSAPP_CLIENT_ID || 'crm-whatsapp-session';
 
   console.log('🔧 Creating new WhatsApp client with clientId:', clientId);
+  console.log(`🧪 Chromium profile dir (ephemeral): ${chromeProfileDir}`);
   
   client = new Client({
     // Force LocalAuth to use the persisted docker volume.
@@ -329,7 +342,7 @@ function initializeClient() {
 
         // Force Chromium profile location explicitly. Some wrappers may ignore
         // puppeteer.userDataDir; this flag makes it unambiguous.
-        `--user-data-dir=${CHROME_USER_DATA_DIR}`,
+  `--user-data-dir=${chromeProfileDir}`,
 
         // Extra hardening: keep Chromium instance isolated so it never tries
         // to reuse persisted profile + locks.
