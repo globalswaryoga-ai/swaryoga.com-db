@@ -38,8 +38,51 @@ docker exec -i "${CID}" sh -lc "grep -n 'headless' /app/qrServer.js | head -n 10
 
 echo "\n==> http checks"
 set +e
-curl -sS http://127.0.0.1:3333/health || true
-echo
-curl -sS http://127.0.0.1:3333/api/status || true
+HEALTH_JSON=$(curl -sS http://127.0.0.1:3333/health 2>/dev/null)
+HEALTH_RC=$?
+STATUS_JSON=$(curl -sS http://127.0.0.1:3333/api/status 2>/dev/null)
+STATUS_RC=$?
+
+if [[ ${HEALTH_RC} -eq 0 ]]; then
+  echo "${HEALTH_JSON}"
+else
+  echo "(health request failed)" >&2
+fi
+
+if [[ ${STATUS_RC} -eq 0 ]]; then
+  echo "${STATUS_JSON}"
+
+  if command -v node >/dev/null 2>&1; then
+    node - <<'NODE'
+const raw = process.env.STATUS_JSON;
+try {
+  const s = JSON.parse(raw);
+  const authenticated = !!s.authenticated;
+  const hasQR = !!s.hasQR;
+  const connecting = !!s.connecting;
+  const readyAt = s?.diagnostics?.lastReadyAt || null;
+
+  console.log(`\n==> interpreted`);
+  console.log(`authenticated=${authenticated} hasQR=${hasQR} connecting=${connecting} lastReadyAt=${readyAt}`);
+
+  // PASS rules:
+  // - If authenticated, QR is normally false and that's OK.
+  // - If not authenticated but hasQR=true, linking flow is available.
+  // FAIL only if not authenticated AND hasQR is false (nothing to scan).
+  if (authenticated) process.exit(0);
+  if (!authenticated && hasQR) process.exit(0);
+  process.exit(1);
+} catch (e) {
+  console.error('Failed to parse /api/status JSON:', e?.message || e);
+  process.exit(2);
+}
+NODE
+  else
+    echo "\n(no node binary found, skipping /api/status interpretation)" >&2
+  fi
+else
+  echo "(status request failed)" >&2
+fi
+
 echo
 set -e
