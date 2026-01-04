@@ -137,6 +137,9 @@ let lastReadyAt = null;
 //   so it never tries to reuse persisted state.
 //
 // This avoids the "process_singleton_posix.cc ... profile appears to be in use" failure loop.
+//
+// We keep a stable base directory, but each init attempt gets its own unique subdir.
+// This prevents Chromium from reusing a bad singleton state across restarts.
 const CHROME_XDG_BASE_DIR = process.env.CHROME_XDG_BASE_DIR || '/tmp/wa-chrome-xdg';
 
 function tryKillStrayChromiumProcesses() {
@@ -166,6 +169,35 @@ function removeSingletonLocksInDir(dir) {
   }
 }
 
+function removeSingletonLocksRecursively(rootDir, maxDepth = 4) {
+  try {
+    if (!rootDir || !fs.existsSync(rootDir)) return;
+
+    // Depth-first walk with a depth cap to avoid runaway recursion.
+    const walk = (dir, depth) => {
+      removeSingletonLocksInDir(dir);
+      if (depth >= maxDepth) return;
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        // Skip extremely large/system dirs if ever present.
+        const name = entry.name;
+        if (name === 'node_modules' || name === '.git') continue;
+        walk(path.join(dir, name), depth + 1);
+      }
+    };
+
+    walk(rootDir, 0);
+  } catch (e) {
+    console.log(`⚠️ Failed during recursive singleton lock cleanup: ${e?.message || e}`);
+  }
+}
+
 function cleanupKnownChromiumLocks() {
   // Clean locks under our /tmp ephemeral runtime dirs
   try {
@@ -181,19 +213,9 @@ function cleanupKnownChromiumLocks() {
   }
 
   // Clean locks inside LocalAuth session directory as well.
-  // Even though it's not the Chromium profile, some environments drop singleton locks here.
-  try {
-    if (fs.existsSync(LOCALAUTH_DATA_PATH)) {
-      removeSingletonLocksInDir(LOCALAUTH_DATA_PATH);
-      const entries = fs.readdirSync(LOCALAUTH_DATA_PATH);
-      for (const entry of entries) {
-        if (!entry.startsWith('session-')) continue;
-        removeSingletonLocksInDir(path.join(LOCALAUTH_DATA_PATH, entry));
-      }
-    }
-  } catch {
-    // ignore
-  }
+  // Even though it's not *supposed* to be the Chromium profile, we have observed
+  // Chromium singleton artifacts ending up here on some hosts.
+  removeSingletonLocksRecursively(LOCALAUTH_DATA_PATH, 5);
 }
 
 function isChromiumProfileLockError(err) {
@@ -209,14 +231,17 @@ function ensureDir(dir) {
   }
 }
 
-function prepareChromeXdgDirs() {
-  const runtime = path.join(CHROME_XDG_BASE_DIR, 'runtime');
-  const cache = path.join(CHROME_XDG_BASE_DIR, 'cache');
-  const config = path.join(CHROME_XDG_BASE_DIR, 'config');
+function prepareChromeXdgDirs({ attempt = 1, clientId = 'wa' } = {}) {
+  const safeClientId = String(clientId || 'wa').replace(/[^a-zA-Z0-9_.-]/g, '-');
+  const runId = `${Date.now()}-${process.pid}-a${attempt}`;
+  const xdgRoot = path.join(CHROME_XDG_BASE_DIR, `${safeClientId}-${runId}`);
+  const runtime = path.join(xdgRoot, 'runtime');
+  const cache = path.join(xdgRoot, 'cache');
+  const config = path.join(xdgRoot, 'config');
   ensureDir(runtime);
   ensureDir(cache);
   ensureDir(config);
-  return { runtime, cache, config };
+  return { xdgRoot, runtime, cache, config };
 }
 // Ensure LocalAuth persistence location is explicit and stable.
 // IMPORTANT: This is NOT the Chromium profile. It's whatsapp-web.js session storage.
@@ -352,8 +377,10 @@ function initializeClient({ attempt = 1 } = {}) {
   tryKillStrayChromiumProcesses();
   cleanupKnownChromiumLocks();
 
-  const { runtime: xdgRuntimeDir, cache: xdgCacheDir, config: xdgConfigDir } =
-    prepareChromeXdgDirs();
+  const clientId = process.env.WHATSAPP_CLIENT_ID || 'crm-whatsapp-session';
+
+  const { xdgRoot, runtime: xdgRuntimeDir, cache: xdgCacheDir, config: xdgConfigDir } =
+    prepareChromeXdgDirs({ attempt, clientId });
 
   // Ensure Chromium writes all runtime/config/cache state under /tmp.
   // This makes the browser completely ephemeral across container restarts.
@@ -361,11 +388,14 @@ function initializeClient({ attempt = 1 } = {}) {
   process.env.XDG_CACHE_HOME = xdgCacheDir;
   process.env.XDG_CONFIG_HOME = xdgConfigDir;
 
-  const clientId = process.env.WHATSAPP_CLIENT_ID || 'crm-whatsapp-session';
-
   console.log('🔧 Creating new WhatsApp client with clientId:', clientId);
-  console.log(`🧪 Chromium XDG (ephemeral): ${CHROME_XDG_BASE_DIR}`);
+  console.log(`🧪 Chromium XDG (ephemeral): ${xdgRoot}`);
   console.log(`🧪 Chromium init attempt: ${attempt}`);
+
+  // Also force an explicit ephemeral browser profile dir.
+  // This is independent from LocalAuth and avoids Chromium reusing a locked profile.
+  const chromeUserDataDir = path.join(xdgRoot, 'profile');
+  ensureDir(chromeUserDataDir);
   
   client = new Client({
     // Force LocalAuth to use the persisted docker volume.
@@ -410,7 +440,8 @@ function initializeClient({ attempt = 1 } = {}) {
 
         // Keep runtime/cache/config ephemeral (under /tmp)
         `--disk-cache-dir=${xdgCacheDir}`,
-    '--no-service-autorun',
+        `--user-data-dir=${chromeUserDataDir}`,
+        '--no-service-autorun',
       ],
       // NOTE: LocalAuth is not compatible with puppeteer.userDataDir.
       // We still enforce an ephemeral profile using the Chromium flag above.
@@ -924,6 +955,9 @@ app.get('/api/status', (req, res) => {
     authenticated: isAuthenticated,
     connecting: clientConnecting,
     hasQR: hasQrImage(),
+    // For CRM/UI consumers that don't use WebSockets.
+    // This is a cached data URL (data:image/png;base64,...) when available.
+    qrImage: hasQrImage() ? currentQR : null,
     connectedClients: connectedClients.size,
     account: isAuthenticated ? getConnectedAccountInfo() : null,
     diagnostics: {

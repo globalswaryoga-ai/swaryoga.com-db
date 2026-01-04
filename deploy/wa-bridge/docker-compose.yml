@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   wa-bridge:
     # Build from this repo's whatsapp-web service
