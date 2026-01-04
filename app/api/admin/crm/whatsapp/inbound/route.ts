@@ -3,6 +3,10 @@ import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * Inbound WhatsApp Web bridge -> CRM ingestion endpoint.
  *
