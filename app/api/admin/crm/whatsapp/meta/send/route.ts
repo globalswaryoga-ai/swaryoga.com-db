@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
   try {
     if (isMetaDisabled()) {
       return NextResponse.json(
-        { error: 'Meta WhatsApp is disabled on this server' },
-        { status: 403 }
+        { error: 'Not found' },
+        { status: 404 }
       );
     }
 

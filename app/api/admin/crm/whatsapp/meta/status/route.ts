@@ -18,10 +18,7 @@ function isMetaDisabled(): boolean {
 export async function GET(request: NextRequest) {
   try {
     if (isMetaDisabled()) {
-      return NextResponse.json(
-        { error: 'Meta WhatsApp is disabled on this server' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
     const token = request.headers.get('authorization')?.slice('Bearer '.length);

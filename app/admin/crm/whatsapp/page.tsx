@@ -275,19 +275,10 @@ export default function WhatsAppChatDashboardPage() {
   useEffect(() => {
     let cancelled = false;
     const fetchStatus = async () => {
-      if (!bridgeHttpBase) {
-        // Hosted bridge isn't configured for this environment.
-        // Avoid fetching localhost from production domains.
-        setSenderLabel('');
-        setIsWhatsAppConnected(false);
-        return;
-      }
       try {
-        const base = bridgeHttpBase.replace(/\/$/, '');
-
-        // Many bridge builds expose GET /api/status, but some don't.
-        // Try status first; if not found, do a lightweight probe against the send endpoint.
-        const res = await fetch(`${base}/api/status`, { cache: 'no-store' });
+        // IMPORTANT: Never call the bridge directly from the browser (CORS + mixed env issues).
+        // Use the same-origin Next.js API proxy instead.
+        const res = await crmFetch('/api/admin/crm/whatsapp/bridge/status');
         if (res.ok) {
           const data = await res.json().catch(() => null);
           if (cancelled || !data) return;
@@ -295,28 +286,8 @@ export default function WhatsAppChatDashboardPage() {
           const acct = data.account;
           const phone = acct?.phone || acct?.wid || acct?.pushname;
           setSenderLabel(phone ? String(phone) : '');
-          setIsWhatsAppConnected(Boolean(data.authenticated));
+          setIsWhatsAppConnected(Boolean(data.authenticated ?? data.connected ?? data.isAuthenticated));
           return;
-        }
-
-        if (res.status === 404) {
-          // Probe: if the send route exists and returns a structured error, the bridge is up.
-          // We intentionally send invalid input so no message is sent.
-          const probe = await fetch(`${base}/api/whatsapp/send`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: '', message: '' }),
-          });
-
-          if (cancelled) return;
-
-          // If the route exists, we'll typically get 400/401/422, not 404.
-          if (probe.status !== 404) {
-            setSenderLabel('');
-            // We can't reliably know authentication status from probe.
-            // Mark as "available" so UI doesn't look broken.
-            setIsWhatsAppConnected(true);
-          }
         }
       } catch {
         if (!cancelled) {

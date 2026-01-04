@@ -26,6 +26,22 @@ function getWhatsAppEnv() {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER;
 
+  // IMPORTANT default:
+  // This repo is currently operating in “WhatsApp Web first” mode.
+  // Even if Cloud API credentials exist in env, we should NOT send via Meta unless
+  // explicitly enabled. This prevents surprises where messages go to the verified
+  // Meta number while the Meta UI is hidden.
+  //
+  // To re-enable Meta sending, set:
+  //   WHATSAPP_ENABLE_CLOUD_SEND=true
+  const enableCloud = String(process.env.WHATSAPP_ENABLE_CLOUD_SEND || '')
+    .trim()
+    .toLowerCase();
+  const cloudExplicitlyEnabled = ['1', 'true', 'yes', 'on'].includes(enableCloud);
+  if (!cloudExplicitlyEnabled) {
+    return null;
+  }
+
   // Operational kill-switch: allow temporarily forcing WhatsApp Web bridge sends
   // even when Cloud API credentials are configured.
   // Accept several spellings for convenience.
@@ -33,6 +49,7 @@ function getWhatsAppEnv() {
     process.env.WHATSAPP_DISABLE_META_SEND ||
       process.env.WHATSAPP_DISABLE_CLOUD_SEND ||
       process.env.WHATSAPP_FORCE_WEB_BRIDGE ||
+      process.env.WHATSAPP_DISABLE_CLOUD ||
       ''
   )
     .trim()
