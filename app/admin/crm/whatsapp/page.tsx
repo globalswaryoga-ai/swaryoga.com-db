@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { verifyToken } from '@/lib/auth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
 import { QRConnectionModal } from '@/components/admin/crm/QRConnectionModal';
@@ -25,7 +26,22 @@ type ConversationRow = {
   unreadCount?: number;
 };
 
+function getInitials(label?: string) {
+  const s = String(label || '').trim();
+  if (!s) return '?';
+  const parts = s.split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] || '';
+  const second = parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1] || '';
+  return (first + second).toUpperCase();
+}
+
 type PopulatedLead = { _id: string; name?: string; phoneNumber?: string };
+
+type AdminUserRow = {
+  _id: string;
+  userId?: string;
+  email?: string;
+};
 
 type Message = {
   _id: string;
@@ -134,6 +150,31 @@ function formatPreviewMessage(text: string): string {
     .replace(/~(.+?)~/g, '<strike>$1</strike>'); // Strikethrough ~text~
 }
 
+function MessageStatusTicks({ status }: { status: Message['status'] }) {
+  // WhatsApp-like ticks:
+  // - queued/sent -> single tick
+  // - delivered -> double tick
+  // - read -> double tick (blue)
+  // - failed -> red exclamation
+  if (status === 'failed') {
+    return (
+      <span className="wa-status wa-status--failed" title="Failed">
+        !
+      </span>
+    );
+  }
+
+  const double = status === 'delivered' || status === 'read';
+  const cls = status === 'read' ? 'wa-status wa-status--read' : 'wa-status';
+
+  return (
+    <span className={cls} title={status}>
+      <span className="wa-tick">✓</span>
+      {double ? <span className="wa-tick wa-tick--second">✓</span> : null}
+    </span>
+  );
+}
+
 // Emoji & Symbols Data
 const EMOJI_COLLECTIONS = {
   smileys: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😌', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙁', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🤨', '😷'],
@@ -175,8 +216,36 @@ export default function WhatsAppChatDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
+
+  const viewer = useMemo(() => {
+    const t = String(token || '').trim();
+    if (!t) return { userId: '', email: '' };
+    const decoded = verifyToken(t);
+    return {
+      userId: String(decoded?.userId || '').trim(),
+      email: String(decoded?.email || '').trim(),
+    };
+  }, [token]);
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
+
+  // UI: resizable sidebar (chat list)
+  const CHAT_SIDEBAR_MIN = 280;
+  const CHAT_SIDEBAR_MAX = 520;
+  const CHAT_SIDEBAR_STORAGE_KEY = 'wa_chat_sidebar_width_v1';
+  const [chatSidebarWidth, setChatSidebarWidth] = useState<number>(360);
+  const resizingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWRef = useRef(360);
+
+  // UI: resizable right tools sidebar
+  const TOOLS_SIDEBAR_MIN = 280;
+  const TOOLS_SIDEBAR_MAX = 640;
+  const TOOLS_SIDEBAR_STORAGE_KEY = 'wa_tools_sidebar_width_v1';
+  const [toolsSidebarWidth, setToolsSidebarWidth] = useState<number>(360);
+  const toolsResizingRef = useRef(false);
+  const toolsStartXRef = useRef(0);
+  const toolsStartWRef = useRef(360);
 
   const [createLeadOpen, setCreateLeadOpen] = useState(false);
 
@@ -231,9 +300,52 @@ export default function WhatsAppChatDashboardPage() {
   const [assignUserId, setAssignUserId] = useState('');
   const [nextStatus, setNextStatus] = useState('');
 
+  // Admin + display names
+  const ADMIN_DISPLAY_NAME_FALLBACK = 'Admin';
+  const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
+  const [leadTitle, setLeadTitle] = useState<'Mr' | 'Miss' | 'Mrs' | ''>('');
+  const loggedInAdminName = useMemo(() => {
+    const viewerUserId = String(viewer.userId || '').trim();
+    const viewerEmail = String(viewer.email || '').trim();
+    if (!viewerUserId && !viewerEmail) return ADMIN_DISPLAY_NAME_FALLBACK;
+
+    const u = (adminUsers || []).find((x) => {
+      const id = String((x as any)?.userId || '').trim();
+      const email = String((x as any)?.email || '').trim();
+      return (viewerUserId && id === viewerUserId) || (viewerEmail && email === viewerEmail);
+    });
+
+    const label = String(
+      (u as any)?.name ||
+        (u as any)?.fullName ||
+        (u as any)?.displayName ||
+        (u as any)?.username ||
+        (u as any)?.email ||
+        viewerUserId ||
+        viewerEmail
+    ).trim();
+    return label || ADMIN_DISPLAY_NAME_FALLBACK;
+  }, [adminUsers, viewer.email, viewer.userId]);
+
+  const adminLabel = useMemo(() => `Admin - ${loggedInAdminName}`, [loggedInAdminName]);
+
+  // Composer extras
+  const [headerText, setHeaderText] = useState('');
+  const [footerText, setFooterText] = useState('');
+  const [attachment, setAttachment] = useState<
+    | null
+    | {
+        kind: 'image' | 'video' | 'document';
+        file: File;
+        objectUrl: string;
+      }
+  >(null);
+
   // NEW: Preview, Spell Check, AI Support, Enhanced Schedule
   const [showPreview, setShowPreview] = useState(false);
   const [spellingErrors, setSpellingErrors] = useState<Array<{ word: string; index: number }>>([]);
+  const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [scheduleTemplate, setScheduleTemplate] = useState('');
@@ -306,6 +418,103 @@ export default function WhatsAppChatDashboardPage() {
     };
   }, [bridgeHttpBase]);
 
+  // Load persisted chat-sidebar width
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(CHAT_SIDEBAR_STORAGE_KEY);
+      const n = raw ? Number(raw) : NaN;
+      if (Number.isFinite(n)) {
+        const clamped = Math.max(CHAT_SIDEBAR_MIN, Math.min(CHAT_SIDEBAR_MAX, n));
+        setChatSidebarWidth(clamped);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Load persisted tools-sidebar width
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TOOLS_SIDEBAR_STORAGE_KEY);
+      const n = raw ? Number(raw) : NaN;
+      if (Number.isFinite(n)) {
+        const clamped = Math.max(TOOLS_SIDEBAR_MIN, Math.min(TOOLS_SIDEBAR_MAX, n));
+        setToolsSidebarWidth(clamped);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Sidebar drag handlers
+  const beginResizeChatSidebar = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = true;
+    startXRef.current = e.clientX;
+    startWRef.current = chatSidebarWidth;
+    document.documentElement.classList.add('wa-no-select');
+  }, [chatSidebarWidth]);
+
+  const beginResizeToolsSidebar = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toolsResizingRef.current = true;
+    toolsStartXRef.current = e.clientX;
+    toolsStartWRef.current = toolsSidebarWidth;
+    document.documentElement.classList.add('wa-no-select');
+  }, [toolsSidebarWidth]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const dx = e.clientX - startXRef.current;
+      const next = Math.max(CHAT_SIDEBAR_MIN, Math.min(CHAT_SIDEBAR_MAX, startWRef.current + dx));
+      setChatSidebarWidth(next);
+    };
+    const onUp = () => {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      document.documentElement.classList.remove('wa-no-select');
+      try {
+        window.localStorage.setItem(CHAT_SIDEBAR_STORAGE_KEY, String(chatSidebarWidth));
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [chatSidebarWidth]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!toolsResizingRef.current) return;
+      const dx = toolsStartXRef.current - e.clientX;
+      const next = Math.max(TOOLS_SIDEBAR_MIN, Math.min(TOOLS_SIDEBAR_MAX, toolsStartWRef.current + dx));
+      setToolsSidebarWidth(next);
+    };
+    const onUp = () => {
+      if (!toolsResizingRef.current) return;
+      toolsResizingRef.current = false;
+      document.documentElement.classList.remove('wa-no-select');
+      try {
+        window.localStorage.setItem(TOOLS_SIDEBAR_STORAGE_KEY, String(toolsSidebarWidth));
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [toolsSidebarWidth]);
+
   // Keep filters in a ref so the fetch callback stays stable (prevents UI vibration)
   const filtersRef = useRef({ q: '', status: '', label: '' });
   useEffect(() => {
@@ -361,6 +570,16 @@ export default function WhatsAppChatDashboardPage() {
       setTemplates([]);
     } finally {
       setSavedLoading(false);
+    }
+  }, [crmFetch]);
+
+  const fetchAdminUsers = useCallback(async () => {
+    try {
+      const res = await crmFetch('/api/admin/auth/users', { method: 'GET' });
+      const rows = Array.isArray(res?.data) ? (res.data as AdminUserRow[]) : [];
+      setAdminUsers(rows);
+    } catch {
+      setAdminUsers([]);
     }
   }, [crmFetch]);
 
@@ -523,6 +742,7 @@ export default function WhatsAppChatDashboardPage() {
     }
     fetchConversations();
     fetchQuickReplies();
+    fetchAdminUsers();
   }, [token, router, fetchConversations, fetchQuickReplies]);
 
   // Lazy-load saved items depending on dropdown selection
@@ -537,7 +757,11 @@ export default function WhatsAppChatDashboardPage() {
   const filteredConversations = useMemo(() => {
     const now = Date.now();
     const cutoffNewMs = 48 * 60 * 60 * 1000; // 48h
-    const base = conversations;
+    const viewerUserId = String(viewer.userId || '').trim();
+    const isSuperAdmin = viewerUserId === 'admincrm';
+    const base = !isSuperAdmin && viewerUserId
+      ? conversations.filter((c) => String(c.assignedToUserId || '').trim() === viewerUserId)
+      : conversations;
 
     return base.filter((c) => {
       const lastAt = c.lastMessageAt ? new Date(c.lastMessageAt).getTime() : 0;
@@ -566,7 +790,7 @@ export default function WhatsAppChatDashboardPage() {
           return true;
       }
     });
-  }, [conversations, chatBucket, label]);
+  }, [conversations, chatBucket, label, viewer.userId]);
 
   const groupedByDay = useMemo(() => {
     const groups: Array<{ day: string; items: Message[] }> = [];
@@ -585,9 +809,39 @@ export default function WhatsAppChatDashboardPage() {
       setSelected(row);
       setShowQuickReplies(false);
       setToolsTab('labels');
+
+      // Hydrate lead title/name for consistent sender labeling
+      try {
+        const lead: any = await crmFetch(`/api/admin/crm/leads/${row.leadId}`, { method: 'GET' });
+        const t = String(lead?.data?.title || lead?.title || '').trim();
+  if (t === 'Mr' || t === 'Miss' || t === 'Mrs') setLeadTitle(t);
+        else setLeadTitle('');
+      } catch {
+        setLeadTitle('');
+      }
+
       await fetchThread(row.leadId);
     },
-    [fetchThread]
+    [crmFetch, fetchThread]
+  );
+
+  const updateLeadDisplay = useCallback(
+  async (opts: { title?: 'Mr' | 'Miss' | 'Mrs' | '' }) => {
+      if (!selected) return;
+      const name = String(selected.name || '').trim();
+      const title = opts.title ?? leadTitle;
+      const displayName = title ? `${title}. ${name}` : name;
+
+      // Best-effort: API currently allows arbitrary fields via update object.
+      await crmFetch(`/api/admin/crm/leads/${selected.leadId}` as any, {
+        method: 'PUT',
+        body: {
+          title: title || '',
+          displayName: displayName || undefined,
+        },
+      }).catch(() => null);
+    },
+    [crmFetch, leadTitle, selected]
   );
 
   // Deep-link support: open WhatsApp dashboard directly from a Lead row.
@@ -676,8 +930,10 @@ export default function WhatsAppChatDashboardPage() {
       setError('Session expired. Please refresh the page or login again.');
       return;
     }
-    const text = composer.trim();
-    if (!text) return;
+  const text = composer.trim();
+  const hasAttachment = Boolean(attachment?.file);
+  const hasText = Boolean(text);
+  if (!hasText && !hasAttachment) return;
 
     try {
       setError(null);
@@ -689,15 +945,49 @@ export default function WhatsAppChatDashboardPage() {
         return;
       }
 
-      console.log('📤 Sending message:', { leadId: selected.leadId, phone: selected.phoneNumber, text });
+      console.log('📤 Sending message:', {
+        leadId: selected.leadId,
+        phone: selected.phoneNumber,
+        text,
+        headerText: headerText.trim() || undefined,
+        footerText: footerText.trim() || undefined,
+        attachment: attachment ? { kind: attachment.kind, name: attachment.file.name, size: attachment.file.size } : null,
+      });
 
       // Send via CRM endpoint (handles bridge + fallback queue)
+      const mediaPayload =
+        attachment && attachment.file
+          ? await new Promise<any>((resolve, reject) => {
+              const r = new FileReader();
+              r.onerror = () => reject(new Error('Failed to read attachment'));
+              r.onload = () => {
+                const result = String(r.result || '');
+                const comma = result.indexOf(',');
+                const base64 = comma >= 0 ? result.slice(comma + 1) : result;
+                resolve({
+                  kind: attachment.kind,
+                  fileName: attachment.file.name,
+                  mimeType: attachment.file.type,
+                  sizeBytes: attachment.file.size,
+                  base64,
+                });
+              };
+              r.readAsDataURL(attachment.file);
+            })
+          : null;
+
       const res = await crmFetch('/api/admin/crm/whatsapp/send', {
         method: 'POST',
         body: {
           leadId: selected.leadId,
           phoneNumber: selected.phoneNumber,
-          messageContent: text,
+          // If sending only media, keep messageContent as a non-empty string so the API accepts it.
+          // Use a single whitespace so UI doesn't show a literal "(attachment)" message.
+          messageContent: hasText ? text : ' ',
+          headerText: headerText.trim() || undefined,
+          footerText: footerText.trim() || undefined,
+          media: mediaPayload || undefined,
+          senderDisplayName: adminLabel,
         },
       });
 
@@ -706,6 +996,10 @@ export default function WhatsAppChatDashboardPage() {
       // useCRM hook returns just the data object, so we check for messageId
       if (res?.messageId) {
         setComposer('');
+        setHeaderText('');
+        setFooterText('');
+        if (attachment?.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
+        setAttachment(null);
         
         // Check if message is queued (bridge unavailable) or actually sent
         const messageStatus = res?.status;
@@ -767,6 +1061,45 @@ export default function WhatsAppChatDashboardPage() {
     [crmFetch, selected]
   );
 
+  // Multi-select for bulk assignment actions (left chat list)
+  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(new Set());
+  const lastClickedChatIndexRef = useRef<number | null>(null);
+  const adminUserOptions = useMemo(() => {
+    const list = Array.isArray(adminUsers) ? adminUsers : [];
+    const options = list
+      .map((u: any) => {
+        const userId = String(u?.userId || '').trim();
+        if (!userId) return null;
+
+        const label = String(
+          u?.name || u?.fullName || u?.displayName || u?.username || u?.email || u?.userId
+        ).trim();
+        return { userId, label: label || userId };
+      })
+      .filter(Boolean) as Array<{ userId: string; label: string }>;
+
+    // Dedupe by userId, prefer first label.
+    const seen = new Set<string>();
+    const deduped: Array<{ userId: string; label: string }> = [];
+    for (const o of options) {
+      if (seen.has(o.userId)) continue;
+      seen.add(o.userId);
+      deduped.push(o);
+    }
+    deduped.sort((a, b) => a.label.localeCompare(b.label));
+    return deduped;
+  }, [adminUsers]);
+  const toggleChatSelection = useCallback((leadId: string, opts?: { force?: boolean }) => {
+    setSelectedChatIds((prev) => {
+      const next = new Set(prev);
+      const exists = next.has(leadId);
+      const shouldSelect = opts?.force ?? !exists;
+      if (shouldSelect) next.add(leadId);
+      else next.delete(leadId);
+      return next;
+    });
+  }, []);
+
   const updateAssignedTo = useCallback(
     async (nextUserId: string | null) => {
       if (!selected) return;
@@ -781,6 +1114,39 @@ export default function WhatsAppChatDashboardPage() {
       );
     },
     [crmFetch, selected]
+  );
+
+  const bulkAssignSelectedChats = useCallback(
+    async (nextUserId: string | null) => {
+      const ids = Array.from(selectedChatIds);
+      if (!ids.length) return;
+
+      await Promise.all(
+        ids.map(async (leadId) => {
+          try {
+            const res = await crmFetch(`/api/admin/crm/leads/${leadId}`, {
+              method: 'PUT',
+              body: { assignedToUserId: nextUserId },
+            });
+            const updatedAssignedTo: string | undefined =
+              res?.data?.assignedToUserId || (nextUserId || undefined);
+            setConversations((prev) =>
+              prev.map((c) => (c.leadId === leadId ? { ...c, assignedToUserId: updatedAssignedTo } : c))
+            );
+            setSelected((prev) =>
+              prev?.leadId === leadId ? { ...prev, assignedToUserId: updatedAssignedTo } : prev
+            );
+          } catch (err) {
+            console.error('Bulk assign failed for lead', leadId, err);
+          }
+        })
+      );
+
+      // Optional: clear selection after operation.
+      setSelectedChatIds(new Set());
+      lastClickedChatIndexRef.current = null;
+    },
+    [crmFetch, selectedChatIds]
   );
 
   const updateFollowUpStatus = useCallback(
@@ -979,6 +1345,10 @@ export default function WhatsAppChatDashboardPage() {
   // NEW: Handle composer text change with spell checking
   const handleComposerChange = (text: string) => {
     setComposer(text);
+    if (!spellCheckEnabled) {
+      setSpellingErrors([]);
+      return;
+    }
     const errors = checkSpelling(text);
     setSpellingErrors(errors);
   };
@@ -1030,6 +1400,12 @@ export default function WhatsAppChatDashboardPage() {
       textarea.focus();
       textarea.setSelectionRange(start + symbol.length, start + symbol.length);
     }, 0);
+  };
+
+  const pickAttachment = (kind: 'image' | 'video' | 'document', file: File | null | undefined) => {
+    if (!file) return;
+    if (attachment?.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
+    setAttachment({ kind, file, objectUrl: URL.createObjectURL(file) });
   };
 
   const createNote = async () => {
@@ -1112,22 +1488,15 @@ export default function WhatsAppChatDashboardPage() {
           ))}
         </div>
 
-        <div
-          style={{
-            margin: '8px 0 12px',
-            padding: 10,
-            border: '1px solid #E5E7EB',
-            borderRadius: 10,
-            background: '#fff',
-          }}
-        >
+        <div className="wa-card" style={{ margin: '8px 0 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>WhatsApp diagnostics</div>
             <button
               type="button"
               onClick={fetchWhatsAppDiagnostics}
               disabled={waDiagnosticsLoading}
-              style={{ fontSize: 12, padding: '4px 8px' }}
+              className="wa-btn wa-btn--orange"
+              style={{ fontSize: 12, padding: '6px 10px' }}
             >
               {waDiagnosticsLoading ? 'Checking…' : 'Run'}
             </button>
@@ -1168,13 +1537,20 @@ export default function WhatsAppChatDashboardPage() {
             {item.label}
           </Link>
         ))}
+
+        <Link
+          href={selected?.leadId ? `/admin/crm/leads-followup?leadId=${encodeURIComponent(String(selected.leadId))}` : '/admin/crm/leads-followup'}
+          style={{ marginTop: 12, display: 'block', fontSize: 13, opacity: 0.95 }}
+        >
+          {selected?.leadId ? 'Open Followup for this lead' : 'Open Leads Followup'}
+        </Link>
         <Link href="/admin/crm/messages" style={{ marginTop: 10, display: 'block', opacity: 0.9 }}>
           Messages (table)
         </Link>
       </aside>
 
       {/* SECOND LEFT PANEL (Chats: New / Old / Labels) */}
-      <aside className="chat-sidebar">
+  <aside className="chat-sidebar" style={{ width: chatSidebarWidth }}>
         <div className="chat-filters">
           <div className="chat-filter-tabs">
             <select
@@ -1207,10 +1583,49 @@ export default function WhatsAppChatDashboardPage() {
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label" />
           ) : null}
 
-          <div className="chat-header-actions" style={{ justifyContent: 'flex-start', marginTop: 4 }}>
-            <button type="button" onClick={() => fetchConversations()}>
-              Refresh
+          <div className="chat-sidebar-actions" aria-label="Chat sidebar quick actions">
+            <button
+              type="button"
+              onClick={() => fetchConversations()}
+              className="wa-btn chat-action-btn chat-action-btn--refresh"
+              title="Refresh"
+              aria-label="Refresh"
+            >
+              <span className="chat-action-text">Refresh</span>
             </button>
+
+            <button
+              type="button"
+              className="wa-btn chat-action-btn"
+              title="Label"
+              aria-label="Label"
+              aria-pressed={chatBucket === 'labels'}
+              onClick={() => setChatBucket('labels')}
+            >
+              <span className="chat-action-text">Label</span>
+            </button>
+
+            {chatBucket === 'unread' ? (
+              <button
+                type="button"
+                className="wa-btn chat-action-btn"
+                title="Read"
+                aria-label="Read"
+                onClick={() => setChatBucket('all')}
+              >
+                <span className="chat-action-text">Read</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="wa-btn chat-action-btn"
+                title="Unread"
+                aria-label="Unread"
+                onClick={() => setChatBucket('unread')}
+              >
+                <span className="chat-action-text">Unread</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1222,31 +1637,98 @@ export default function WhatsAppChatDashboardPage() {
           ) : filteredConversations.length === 0 ? (
             <div style={{ padding: 16, color: '#6B7280', fontSize: 13 }}>No chats found.</div>
           ) : (
-            filteredConversations.map((c) => {
+            filteredConversations.map((c, idx) => {
               const active = selected?.leadId === c.leadId;
+              const isChecked = selectedChatIds.has(c.leadId);
               return (
                 <button
                   key={c.leadId}
                   type="button"
                   className={`chat-item${active ? ' active' : ''}`}
-                  onClick={() => handleSelect(c)}
+                  onClick={(e) => {
+                    // If user clicks the checkbox area, selection is handled there.
+                    // Normal click still opens the conversation.
+                    if ((e.target as HTMLElement | null)?.closest?.('.chat-select')) return;
+                    handleSelect(c);
+                  }}
                 >
-                  <div className="chat-item-top">
-                    <div>
-                      <div className="chat-name">{c.name || c.phoneNumber}</div>
-                      <div className="chat-meta">{c.phoneNumber}</div>
+                  <div className="chat-item-row">
+                    <div
+                      className="chat-select"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        // Shift-click selects a range in the current filtered list
+                        if (e.shiftKey && lastClickedChatIndexRef.current != null) {
+                          const start = Math.min(lastClickedChatIndexRef.current, idx);
+                          const end = Math.max(lastClickedChatIndexRef.current, idx);
+                          setSelectedChatIds((prev) => {
+                            const next = new Set(prev);
+                            for (let i = start; i <= end; i++) {
+                              const id = filteredConversations[i]?.leadId;
+                              if (id) next.add(id);
+                            }
+                            return next;
+                          });
+                        } else {
+                          toggleChatSelection(c.leadId);
+                        }
+                        lastClickedChatIndexRef.current = idx;
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          // handled by onClick wrapper
+                        }}
+                        aria-label={`Select chat ${c.name || c.phoneNumber}`}
+                      />
                     </div>
-                    {c.unreadCount ? <div className="chat-badge">{c.unreadCount}</div> : null}
-                  </div>
-                  <div className="chat-preview">{c.lastMessageContent || ''}</div>
-                  <div className="chat-meta">
-                    {c.lastMessageAt ? `${formatDay(c.lastMessageAt)} • ${formatTime(c.lastMessageAt)}` : ''}
+
+                    <div className="chat-avatar" aria-hidden="true">
+                      {getInitials(c.name || c.phoneNumber)}
+                    </div>
+
+                    <div className="chat-item-body">
+                      <div className="chat-item-top">
+                        <div className="chat-name">{c.name || c.phoneNumber}</div>
+                        <div className="chat-time">
+                          {c.lastMessageAt ? formatTime(c.lastMessageAt) : ''}
+                        </div>
+                      </div>
+
+                      <div className="chat-preview">{c.lastMessageContent || ''}</div>
+
+                      <div className="chat-meta">
+                        {c.phoneNumber}
+                        {c.lastMessageAt ? ` • ${formatDay(c.lastMessageAt)}` : ''}
+                      </div>
+                    </div>
+
+                    {c.unreadCount ? (
+                      <div className="chat-unread">
+                        <div className="chat-badge">{c.unreadCount}</div>
+                        <div className="chat-unread-dot" aria-hidden="true" />
+                      </div>
+                    ) : null}
                   </div>
                 </button>
               );
             })
           )}
         </div>
+
+        {/* Drag handle (resizable sidebar) */}
+        <div
+          className="chat-sidebar-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize chat list"
+          onMouseDown={beginResizeChatSidebar}
+          title="Drag to resize"
+        />
       </aside>
 
       {/* CENTER MAIN CHAT (White, WhatsApp-like) */}
@@ -1382,22 +1864,11 @@ export default function WhatsAppChatDashboardPage() {
           </div>
         </div>
 
-        <div className="chat-header">
+        <div className="chat-header" style={{ padding: '10px 12px' }}>
           <div>
             <div>{selectedLeadName}</div>
             <div className="sub">{selected?.phoneNumber || 'Select a chat to start'}</div>
-            <div className="chip-row">
-              {selected?.status ? <span className="chip status">Status: {selected.status}</span> : null}
-              {Array.isArray(selected?.labels) && selected.labels.length ? (
-                selected.labels.slice(0, 6).map((l) => (
-                  <span key={l} className="chip">
-                    {l}
-                  </span>
-                ))
-              ) : selected ? (
-                <span className="chip">No labels</span>
-              ) : null}
-            </div>
+            {/* Keep the header minimal (chips moved to right sidebar tools panel) */}
             {/* Sender WhatsApp Account Display (keep it visible for selected chat too) */}
             {selected && isWhatsAppConnected ? (
               <div style={{ marginTop: 8, fontSize: '12px', color: '#065F46', fontStyle: 'italic' }}>
@@ -1679,7 +2150,7 @@ export default function WhatsAppChatDashboardPage() {
           </div>
         </div>
 
-        <div ref={listRef} className="chat-messages">
+  <div ref={listRef} className="chat-messages" style={{ background: '#fff' }}>
           {!selected ? (
             <div style={{ color: '#6B7280', fontSize: 13 }}>Select a conversation from the left.</div>
           ) : loadingMessages ? (
@@ -1694,12 +2165,21 @@ export default function WhatsAppChatDashboardPage() {
                 </div>
                 {g.items.map((m) => {
                   const inbound = m.direction === 'inbound';
+                  const leadName = String(selected?.name || selectedLeadName || '').trim();
+                  const userLabel = leadTitle
+                    ? `${leadTitle}${leadTitle ? '.' : ''} ${leadName}`.trim()
+                    : leadName;
+                  const senderName = inbound ? userLabel : adminLabel;
                   return (
                     <div key={m._id} className={`msg ${inbound ? 'in' : 'out'}`}>
+                      <div className="msg-sender" style={{ fontSize: 12, opacity: 0.75, marginBottom: 4 }}>
+                        {senderName}
+                      </div>
+
                       <div style={{ whiteSpace: 'pre-wrap' }}>{m.messageContent}</div>
                       <div className="msg-meta">
                         <span>{formatTime(m.sentAt || m.createdAt)}</span>
-                        {!inbound ? <span>{m.status}</span> : null}
+                        {!inbound ? <MessageStatusTicks status={m.status} /> : null}
                       </div>
                     </div>
                   );
@@ -1837,6 +2317,8 @@ export default function WhatsAppChatDashboardPage() {
           </div>
         </div>
 
+        {/* Composer extras moved into symbolic toolbar near the message box */}
+
         {actionModal ? (
           <div className="saved-modal-backdrop" role="dialog" aria-modal="true">
             <div className="saved-modal">
@@ -1860,13 +2342,43 @@ export default function WhatsAppChatDashboardPage() {
                       Current: {String(selected?.assignedToUserId || 'Unassigned')}
                     </div>
                     <label>
-                      UserId
-                      <input
-                        value={assignUserId}
-                        onChange={(e) => setAssignUserId(e.target.value)}
-                        placeholder="e.g. admincrm"
-                      />
+                      Assign to admin
+                      <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
+                        <option value="">Unassigned</option>
+                        {adminUserOptions.map((u) => (
+                          <option key={u.userId} value={u.userId}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </select>
                     </label>
+
+                    {selectedChatIds.size ? (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          padding: 10,
+                          borderRadius: 12,
+                          border: '1px solid #E5E7EB',
+                          background: '#F9FAFB',
+                        }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Bulk assign</div>
+                        <div style={{ color: '#6B7280', fontSize: 12, marginBottom: 10 }}>
+                          Selected chats: {selectedChatIds.size}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={async () => {
+                            await bulkAssignSelectedChats(assignUserId ? assignUserId : null);
+                            setActionModal(null);
+                          }}
+                        >
+                          Assign selected
+                        </button>
+                      </div>
+                    ) : null}
                   </>
                 ) : null}
 
@@ -2032,8 +2544,7 @@ export default function WhatsAppChatDashboardPage() {
                       type="button"
                       onClick={async () => {
                         const v = assignUserId.trim();
-                        if (!v) return;
-                        await updateAssignedTo(v);
+                        await updateAssignedTo(v ? v : null);
                         setAssignUserId('');
                         setActionModal(null);
                       }}
@@ -2178,6 +2689,31 @@ export default function WhatsAppChatDashboardPage() {
 
         <div className="chat-composer">
           <div style={{ position: 'relative', width: '100%' }}>
+            <div
+              onClick={() => setShowAttachmentMenu(false)}
+              onFocusCapture={() => setShowAttachmentMenu(false)}
+              style={{ position: 'absolute', inset: 0, pointerEvents: showAttachmentMenu ? 'auto' : 'none' }}
+            />
+            {selected && attachment ? (
+              <div style={{ padding: '6px 2px 2px' }}>
+                <div className="wa-attachment-pill" style={{ maxWidth: '100%', flexWrap: 'wrap' as any }}>
+                  <strong>{attachment.kind}</strong>: {attachment.file.name} ({Math.round(attachment.file.size / 1024)}kb)
+                  <button
+                    className="wa-attachment-remove"
+                    onClick={() => {
+                      if (attachment.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
+                      setAttachment(null);
+                    }}
+                    type="button"
+                    title="Remove attachment"
+                    aria-label="Remove attachment"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <textarea
               id="message-composer"
               name="message-composer"
@@ -2187,7 +2723,7 @@ export default function WhatsAppChatDashboardPage() {
               placeholder={selected ? 'Type a message…' : 'Select a conversation to start'}
               disabled={!selected || sending}
               rows={2}
-              spellCheck={true}
+              spellCheck={spellCheckEnabled}
               autoCorrect="on"
               autoCapitalize="sentences"
               onKeyDown={(e) => {
@@ -2212,6 +2748,163 @@ export default function WhatsAppChatDashboardPage() {
               gap: '8px',
               alignItems: 'center'
             }}>
+              {/* Attachment (WhatsApp-like) */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAttachmentMenu((v) => !v)}
+                  disabled={!selected || sending}
+                  title="Attach"
+                  aria-label="Attach"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: sending ? 'not-allowed' : 'pointer',
+                    fontSize: '18px',
+                    opacity: 0.6,
+                    padding: '4px 6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'opacity 0.2s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
+                >
+                  📎
+                </button>
+
+                {showAttachmentMenu ? (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 34,
+                      right: 0,
+                      zIndex: 20,
+                      width: 190,
+                      background: '#ffffff',
+                      border: '1px solid rgba(17, 24, 39, 0.12)',
+                      borderRadius: 10,
+                      boxShadow: '0 12px 28px rgba(0,0,0,0.12)',
+                      padding: 8,
+                    }}
+                    onMouseLeave={() => setShowAttachmentMenu(false)}
+                  >
+                    <label
+                      title="Image"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        cursor: sending ? 'not-allowed' : 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <span style={{ width: 18, textAlign: 'center' }}>🖼️</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        disabled={sending}
+                        onChange={(e) => {
+                          pickAttachment('image', e.target.files?.[0]);
+                          setShowAttachmentMenu(false);
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+
+                    <label
+                      title="Video"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        cursor: sending ? 'not-allowed' : 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <span style={{ width: 18, textAlign: 'center' }}>🎥</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Video</span>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        style={{ display: 'none' }}
+                        disabled={sending}
+                        onChange={(e) => {
+                          pickAttachment('video', e.target.files?.[0]);
+                          setShowAttachmentMenu(false);
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+
+                    <label
+                      title="Document"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        cursor: sending ? 'not-allowed' : 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <span style={{ width: 18, textAlign: 'center' }}>📄</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Document</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+                        style={{ display: 'none' }}
+                        disabled={sending}
+                        onChange={(e) => {
+                          pickAttachment('document', e.target.files?.[0]);
+                          setShowAttachmentMenu(false);
+                          e.currentTarget.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Spellcheck Toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSpellCheckEnabled((prev) => {
+                    const next = !prev;
+                    if (!next) setSpellingErrors([]);
+                    return next;
+                  });
+                }}
+                disabled={!selected}
+                title={spellCheckEnabled ? 'Spellcheck: On' : 'Spellcheck: Off'}
+                aria-label={spellCheckEnabled ? 'Spellcheck On' : 'Spellcheck Off'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  opacity: spellCheckEnabled ? 0.9 : 0.45,
+                  padding: '4px 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = spellCheckEnabled ? '0.9' : '0.45')}
+              >
+                ✓
+              </button>
+
               {/* Emoji Picker Button */}
               <button
                 type="button"
@@ -2258,7 +2951,7 @@ export default function WhatsAppChatDashboardPage() {
               >
                 👁️
               </button>
-              {spellingErrors.length > 0 && (
+              {spellCheckEnabled && spellingErrors.length > 0 && (
                 <div
                   title={`${spellingErrors.length} spelling error${spellingErrors.length > 1 ? 's' : ''}`}
                   style={{
@@ -2563,15 +3256,24 @@ export default function WhatsAppChatDashboardPage() {
         )}
       </main>
 
-      {/* RIGHT SIDEBAR - Card-based design with collapsible sections */}
-      <aside className="tools-sidebar" style={{ display: 'flex', flexDirection: 'column', padding: '0' }}>
+  {/* RIGHT SIDEBAR - Lead tools with collapsible sections */}
+  <aside className="tools-sidebar" style={{ display: 'flex', flexDirection: 'column', padding: '0', width: toolsSidebarWidth, position: 'relative' }}>
+        {/* Drag handle (resizable sidebar) */}
+        <div
+          className="tools-sidebar-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize tools panel"
+          onMouseDown={beginResizeToolsSidebar}
+          title="Drag to resize"
+        />
         {/* Header */}
-        <div style={{ padding: '16px', borderBottom: '1px solid #E5E7EB', background: '#fff', position: 'sticky', top: 0, zIndex: 10 }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#1F2937' }}>Lead Tools</h3>
+        <div className="tools-sidebar-header">
+          <h3>Lead Tools</h3>
         </div>
 
-        {/* Content - Scrollable */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+  {/* Content - Scrollable */}
+  <div className="tools-sidebar-content">
           {!selected ? (
             <div style={{ color: '#6B7280', fontSize: '13px', padding: '16px', textAlign: 'center' }}>
               Select a conversation to use tools
@@ -2583,42 +3285,31 @@ export default function WhatsAppChatDashboardPage() {
           ) : (
             <>
               {/* FOLLOW-UPS CARD */}
-              <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', background: '#fff', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <div className="tools-card">
                 <button
                   type="button"
+                  className="tools-card-header"
                   onClick={() => {
                     const card = document.getElementById('followup-card');
-                    if (card) card.setAttribute('data-open', card.getAttribute('data-open') === 'true' ? 'false' : 'true');
+                    if (card) {
+                      const next = card.getAttribute('data-open') === 'true' ? 'false' : 'true';
+                      card.setAttribute('data-open', next);
+                      card.setAttribute('aria-expanded', next === 'true' ? 'true' : 'false');
+                    }
                   }}
                   id="followup-card"
                   data-open="true"
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px 16px', 
-                    background: '#F3F4F6', 
-                    border: 'none', 
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontWeight: '600',
-                    color: '#1F2937',
-                    fontSize: '14px',
-                    transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                  aria-expanded="true"
+                  aria-controls="followup-card-content"
                 >
-                  <span style={{ fontSize: '16px' }}>■</span>
-                  Follow-ups
-                  <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
-                    {followups.length}
-                  </span>
+                  <span className="tools-card-checkbox" aria-hidden="true"></span>
+                  <span>Follow-ups</span>
+                  <span className="tools-card-count">{followups.length}</span>
                 </button>
-                <div id="followup-card-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div id="followup-card-content" className="tools-card-body">
                   {/* Create Follow-up Form */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <input 
+                    <input
                       type="text"
                       value={newFollowUpTitle} 
                       onChange={(e) => setNewFollowUpTitle(e.target.value)}
@@ -2631,7 +3322,7 @@ export default function WhatsAppChatDashboardPage() {
                         fontFamily: 'inherit'
                       }}
                     />
-                    <input 
+                    <input
                       type="datetime-local"
                       value={newFollowUpDueAt} 
                       onChange={(e) => setNewFollowUpDueAt(e.target.value)}
@@ -2643,7 +3334,7 @@ export default function WhatsAppChatDashboardPage() {
                         fontFamily: 'inherit'
                       }}
                     />
-                    <button 
+                    <button
                       type="button" 
                       onClick={createFollowUp}
                       style={{
@@ -2657,8 +3348,6 @@ export default function WhatsAppChatDashboardPage() {
                         fontSize: '13px',
                         transition: 'background 0.2s'
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = '#2563EB')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = '#3B82F6')}
                     >
                       Add Follow-up
                     </button>
@@ -2672,12 +3361,15 @@ export default function WhatsAppChatDashboardPage() {
                         const statusColor = status === 'done' ? '#10B981' : status === 'in-progress' ? '#F59E0B' : status === 'overdue' ? '#EF4444' : '#6B7280';
                         const statusBg = status === 'done' ? '#ECFDF5' : status === 'in-progress' ? '#FFFBEB' : status === 'overdue' ? '#FEF2F2' : '#F3F4F6';
                         return (
-                          <div key={f._id} style={{ 
-                            padding: '12px', 
-                            background: statusBg,
-                            border: `1px solid ${statusColor}`,
-                            borderRadius: '8px'
-                          }}>
+                          <div
+                            key={f._id}
+                            style={{
+                              padding: '12px',
+                              background: statusBg,
+                              border: `1px solid ${statusColor}`,
+                              borderRadius: '8px',
+                            }}
+                          >
                             <div style={{ fontWeight: '600', color: '#1F2937', fontSize: '13px', marginBottom: '6px' }}>
                               {f.title || 'Follow-up'}
                             </div>
@@ -2717,39 +3409,28 @@ export default function WhatsAppChatDashboardPage() {
               </div>
 
               {/* NOTES CARD */}
-              <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', background: '#fff', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <div className="tools-card">
                 <button
                   type="button"
+                  className="tools-card-header"
                   onClick={() => {
                     const card = document.getElementById('notes-card');
-                    if (card) card.setAttribute('data-open', card.getAttribute('data-open') === 'true' ? 'false' : 'true');
+                    if (card) {
+                      const next = card.getAttribute('data-open') === 'true' ? 'false' : 'true';
+                      card.setAttribute('data-open', next);
+                      card.setAttribute('aria-expanded', next === 'true' ? 'true' : 'false');
+                    }
                   }}
                   id="notes-card"
                   data-open="false"
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px 16px', 
-                    background: '#F3F4F6', 
-                    border: 'none', 
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontWeight: '600',
-                    color: '#1F2937',
-                    fontSize: '14px',
-                    transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                  aria-expanded="false"
+                  aria-controls="notes-card-content"
                 >
-                  <span style={{ fontSize: '16px' }}>■</span>
-                  Notes
-                  <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
-                    {notes.length}
-                  </span>
+                  <span className="tools-card-checkbox" aria-hidden="true"></span>
+                  <span>Notes</span>
+                  <span className="tools-card-count">{notes.length}</span>
                 </button>
-                <div id="notes-card-content" style={{ padding: '16px', display: 'none', flexDirection: 'column', gap: '12px' }}>
+                <div id="notes-card-content" className="tools-card-body">
                   {/* Create Note Form */}
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input 
@@ -2822,39 +3503,28 @@ export default function WhatsAppChatDashboardPage() {
               </div>
 
               {/* LABELS CARD */}
-              <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', background: '#fff', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <div className="tools-card">
                 <button
                   type="button"
+                  className="tools-card-header"
                   onClick={() => {
                     const card = document.getElementById('labels-card');
-                    if (card) card.setAttribute('data-open', card.getAttribute('data-open') === 'true' ? 'false' : 'true');
+                    if (card) {
+                      const next = card.getAttribute('data-open') === 'true' ? 'false' : 'true';
+                      card.setAttribute('data-open', next);
+                      card.setAttribute('aria-expanded', next === 'true' ? 'true' : 'false');
+                    }
                   }}
                   id="labels-card"
                   data-open="true"
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px 16px', 
-                    background: '#F3F4F6', 
-                    border: 'none', 
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontWeight: '600',
-                    color: '#1F2937',
-                    fontSize: '14px',
-                    transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                  aria-expanded="true"
+                  aria-controls="labels-card-content"
                 >
-                  <span style={{ fontSize: '16px' }}>■</span>
-                  Labels
-                  <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
-                    {(selected?.labels || []).length}
-                  </span>
+                  <span className="tools-card-checkbox" aria-hidden="true"></span>
+                  <span>Labels</span>
+                  <span className="tools-card-count">{(selected?.labels || []).length}</span>
                 </button>
-                <div id="labels-card-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div id="labels-card-content" className="tools-card-body">
                   {/* Add Label Form */}
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input 
@@ -2944,36 +3614,27 @@ export default function WhatsAppChatDashboardPage() {
               </div>
 
               {/* STATUS CARD */}
-              <div style={{ border: '1px solid #E5E7EB', borderRadius: '12px', background: '#fff', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              <div className="tools-card">
                 <button
                   type="button"
+                  className="tools-card-header"
                   onClick={() => {
                     const card = document.getElementById('status-card');
-                    if (card) card.setAttribute('data-open', card.getAttribute('data-open') === 'true' ? 'false' : 'true');
+                    if (card) {
+                      const next = card.getAttribute('data-open') === 'true' ? 'false' : 'true';
+                      card.setAttribute('data-open', next);
+                      card.setAttribute('aria-expanded', next === 'true' ? 'true' : 'false');
+                    }
                   }}
                   id="status-card"
                   data-open="false"
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px 16px', 
-                    background: '#F3F4F6', 
-                    border: 'none', 
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontWeight: '600',
-                    color: '#1F2937',
-                    fontSize: '14px',
-                    transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#E5E7EB')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                  aria-expanded="false"
+                  aria-controls="status-card-content"
                 >
-                  <span style={{ fontSize: '16px' }}>■</span>
-                  Status
+                  <span className="tools-card-checkbox" aria-hidden="true"></span>
+                  <span>Status</span>
                 </button>
-                <div id="status-card-content" style={{ padding: '16px', display: 'none', flexDirection: 'column', gap: '12px' }}>
+                <div id="status-card-content" className="tools-card-body">
                   <select 
                     value={selected?.status || 'lead'}
                     onChange={(e) => updateLeadStatus(e.target.value)}

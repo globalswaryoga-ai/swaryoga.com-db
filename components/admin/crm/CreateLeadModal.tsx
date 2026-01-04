@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { normalizePhoneForMeta } from '@/lib/utils/phone';
+import { FormModal } from '@/components/admin/crm';
 
 type Props = {
   isOpen: boolean;
@@ -12,23 +13,87 @@ type Props = {
   initialPhone?: string;
 };
 
+type AdminUserOption = {
+  userId: string;
+  email?: string;
+  permissions?: string[];
+};
+
+type LeadStatus = 'lead' | 'prospect' | 'customer' | 'inactive';
+
 export default function CreateLeadModal({ isOpen, token, onClose, initialPhone }: Props) {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState(initialPhone || '');
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Keep the phone input in sync when the modal opens with a new initialPhone.
-  // If user already typed something else, we won't overwrite it.
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState(initialPhone || '');
+  const [source, setSource] = useState('website');
+  const [status, setStatus] = useState<LeadStatus>('lead');
+  const [workshopName, setWorkshopName] = useState('');
+  const [assignedToUserId, setAssignedToUserId] = useState('');
+
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [userOptions, setUserOptions] = useState<AdminUserOption[]>([]);
+
+  // Determine if current admin has full access (admin / permissions: ['all'])
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userStr = localStorage.getItem('admin_user');
+    if (!userStr) {
+      setIsSuperAdmin(false);
+      return;
+    }
+    try {
+      const u = JSON.parse(userStr);
+      const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
+      setIsSuperAdmin((u?.userId === 'admin') || perms.includes('all'));
+    } catch {
+      setIsSuperAdmin(false);
+    }
+  }, []);
+
+  // For super-admin, fetch user list so admin can assign leads.
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (!token || !isSuperAdmin) return;
+      try {
+        const response = await fetch('/api/admin/auth/users', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const users = Array.isArray(data?.data) ? data.data : [];
+        setUserOptions(
+          users
+            .map((x: any) => ({
+              userId: String(x?.userId || '').trim(),
+              email: x?.email ? String(x.email) : undefined,
+              permissions: Array.isArray(x?.permissions) ? x.permissions : undefined,
+            }))
+            .filter((u: AdminUserOption) => Boolean(u.userId))
+        );
+      } catch {
+        // ignore
+      }
+    };
+    loadUsers();
+  }, [token, isSuperAdmin]);
+
+  // When opening, reset the form and prefill phone if provided
   useEffect(() => {
     if (!isOpen) return;
-    if (!initialPhone) return;
-    setPhone((prev) => {
-      if (!prev) return initialPhone;
-      if (normalizePhoneForMeta(prev) === normalizePhoneForMeta(initialPhone)) return initialPhone;
-      return prev;
-    });
+    setError(null);
+    setBusy(false);
+    setName('');
+    setEmail('');
+    setSource('website');
+    setStatus('lead');
+    setWorkshopName('');
+    setAssignedToUserId('');
+    setPhone(initialPhone || '');
   }, [isOpen, initialPhone]);
 
   const normalizedPhone = useMemo(() => normalizePhoneForMeta(phone), [phone]);
@@ -42,25 +107,17 @@ export default function CreateLeadModal({ isOpen, token, onClose, initialPhone }
     }
 
     const cleanedName = name.trim();
+    const cleanedEmail = email.trim();
     const cleanedPhone = normalizePhoneForMeta(phone);
 
-    if (!cleanedName) {
-      setError('Name is required');
-      return;
-    }
-
-    if (!cleanedPhone) {
-      setError('Mobile number is required');
+    if (!cleanedName || !cleanedEmail || !cleanedPhone) {
+      setError('Please fill Name, Email, and Phone Number');
       return;
     }
 
     try {
       setBusy(true);
       setError(null);
-
-      // Email is required by existing API. Provide a safe placeholder.
-      // This avoids changing server validation logic.
-      const placeholderEmail = `${cleanedPhone}@noemail.local`;
 
       const res = await fetch('/api/admin/crm/leads', {
         method: 'POST',
@@ -70,25 +127,26 @@ export default function CreateLeadModal({ isOpen, token, onClose, initialPhone }
         },
         body: JSON.stringify({
           name: cleanedName,
+          email: cleanedEmail,
           phoneNumber: cleanedPhone,
-          email: placeholderEmail,
-          source: 'manual',
-          status: 'lead',
+          source,
+          status,
+          workshopName: workshopName || undefined,
+          ...(isSuperAdmin && assignedToUserId ? { assignedToUserId } : {}),
         }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        const msg = data?.error || 'Failed to create lead';
-        // If API returns existing lead in conflict payload, use it
-        const existingId = data?.data?._id || data?.existing?._id;
+        // If it's a duplicate lead, open the existing lead
+        const existingId = data?.existingLead?._id || data?.data?._id || data?.existing?._id;
         if (res.status === 409 && existingId) {
           onClose();
           router.push(`/admin/crm/leads/${existingId}`);
           return;
         }
-        throw new Error(msg);
+        throw new Error(data?.error || 'Failed to create lead');
       }
 
       const createdId = data?.data?._id;
@@ -107,72 +165,125 @@ export default function CreateLeadModal({ isOpen, token, onClose, initialPhone }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Create Lead</h2>
-            <p className="text-xs text-slate-600">Only Name + Mobile required</p>
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Create New Lead"
+      submitLabel="Create Lead"
+      cancelLabel="Cancel"
+      onSubmit={() => submit()}
+      loading={busy}
+      size="md"
+    >
+      <div className="lead-form-light-green space-y-4">
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {error}
           </div>
-          <button
-            onClick={onClose}
-            className="h-9 w-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700"
-            aria-label="Close"
-          >
-            ✕
-          </button>
+        )}
+
+        {isSuperAdmin && (
+          <div>
+            <label className="block text-slate-700 text-sm mb-2 font-semibold">Assign to User (Optional)</label>
+            <select
+              value={assignedToUserId}
+              onChange={(e) => setAssignedToUserId(e.target.value)}
+              className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+            >
+              <option value="">(Default: current admin)</option>
+              {userOptions.map((u) => (
+                <option key={u.userId} value={u.userId}>
+                  {u.userId}
+                </option>
+              ))}
+            </select>
+            <p className="text-slate-600 text-xs mt-1">This controls which user can see/manage this lead.</p>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-slate-700 text-sm mb-2 font-semibold">Name *</label>
+          <input
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+            placeholder="Lead name"
+          />
         </div>
 
-        <div className="p-5 space-y-4">
-          {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Name *</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-300"
-              placeholder="Customer name"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile *</label>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              onBlur={(e) => setPhone(normalizePhoneForMeta(e.target.value))}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-300"
-              placeholder="919309986820"
-              inputMode="tel"
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              Saved as: <span className="font-mono text-slate-700">{normalizedPhone || '-'}</span>
-            </p>
-          </div>
+        <div>
+          <label className="block text-slate-700 text-sm mb-2 font-semibold">Email *</label>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+            placeholder="email@example.com"
+          />
         </div>
 
-        <div className="px-5 py-4 border-t border-slate-200 flex items-center justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-            disabled={busy}
+        <div>
+          <label className="block text-slate-700 text-sm mb-2 font-semibold">Phone Number *</label>
+          <input
+            type="tel"
+            required
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            onBlur={(e) => {
+              const normalized = normalizePhoneForMeta(e.target.value);
+              if (normalized) setPhone(normalized);
+            }}
+            className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+            placeholder="+919876543210"
+            inputMode="tel"
+          />
+          <p className="text-slate-600 text-xs mt-1">
+            Saved as: <span className="font-mono">{normalizedPhone || '-'}</span>
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-slate-700 text-sm mb-2 font-semibold">Source</label>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
           >
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
-            disabled={busy}
+            <option value="website">Website</option>
+            <option value="referral">Referral</option>
+            <option value="social">Social Media</option>
+            <option value="event">Event</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-slate-700 text-sm mb-2 font-semibold">Status</label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as LeadStatus)}
+            className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
           >
-            {busy ? 'Saving…' : 'Create'}
-          </button>
+            <option value="lead">Lead</option>
+            <option value="prospect">Prospect</option>
+            <option value="customer">Customer</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-slate-700 text-sm mb-2 font-semibold">Workshop/Program (Optional)</label>
+          <input
+            type="text"
+            value={workshopName}
+            onChange={(e) => setWorkshopName(e.target.value)}
+            className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+            placeholder="e.g., Yoga Retreat 2025, Advanced Pranayama"
+          />
         </div>
       </div>
-    </div>
+    </FormModal>
   );
 }

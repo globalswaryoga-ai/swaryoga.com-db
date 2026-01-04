@@ -159,6 +159,10 @@ const nextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
+    // Some environments hit intermittent PackFileCacheStrategy ENOENT errors.
+    // Disabling persistent filesystem cache keeps builds stable.
+    config.cache = false;
+
     // Handle swisseph native module - don't bundle it, let it load at runtime
     if (!isServer) {
       config.externals = config.externals || {};

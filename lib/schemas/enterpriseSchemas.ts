@@ -38,6 +38,18 @@ const LeadSchema = new mongoose.Schema(
     leadNumber: { type: String, trim: true, unique: true, sparse: true, index: true },
 
     name: { type: String, trim: true },
+
+  // Human-readable user name (for admin/user display in CRM)
+  // Example: "Mohan Kalburgi". This is separate from assignedToUserId.
+  userName: { type: String, trim: true },
+
+  // WhatsApp chat display helpers
+  // We support a simple honorific/title selection (Mr/Miss) to render as:
+  //   "Mr. Varun" / "Miss Turya"
+  // If not set, UI can fall back to plain `name`.
+  title: { type: String, enum: ['Mr', 'Miss', ''], default: '', trim: true },
+  displayName: { type: String, trim: true },
+
     phoneNumber: { type: String, required: true, unique: true, index: true },
     email: { type: String, trim: true, lowercase: true },
     status: {
@@ -55,6 +67,49 @@ const LeadSchema = new mongoose.Schema(
     },
     workshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkshopSchedule', sparse: true, index: true },
     workshopName: { type: String, sparse: true },
+
+    // Sales/workshop enrollment details (filled when lead progresses)
+    sales: {
+      stage: {
+        type: String,
+        enum: ['lead', 'sales', 'enrolled', 'closed_won', 'closed_lost'],
+        default: 'lead',
+        index: true,
+      },
+      enrolledAt: { type: Date },
+      enrollmentNotes: { type: String, trim: true },
+      workshop: {
+        slug: { type: String, trim: true },
+        scheduleId: { type: String, trim: true },
+        startDate: { type: Date },
+        endDate: { type: Date },
+        mode: { type: String, enum: ['online', 'offline', 'hybrid', ''], default: '' },
+        language: { type: String, trim: true },
+      },
+      payment: {
+        status: {
+          type: String,
+          enum: ['unpaid', 'pending', 'paid', 'partial', 'refunded', 'failed'],
+          default: 'unpaid',
+          index: true,
+        },
+        currency: { type: String, trim: true },
+        amount: { type: Number },
+        paidAmount: { type: Number },
+        method: { type: String, trim: true },
+        provider: { type: String, trim: true },
+        orderId: { type: String, trim: true },
+        transactionId: { type: String, trim: true },
+        paidAt: { type: Date },
+        notes: { type: String, trim: true },
+      },
+    },
+
+    // Simple flag for UI routing (e.g., open a richer view once in sales)
+    inSales: { type: Boolean, default: false, index: true },
+
+    // Receipt linkage (created when moving into sales/enrolled)
+    lastReceiptId: { type: mongoose.Schema.Types.ObjectId, ref: 'CrmReceipt', sparse: true, index: true },
     lastMessageAt: { type: Date, index: true },
     metadata: mongoose.Schema.Types.Mixed,
   },
@@ -125,6 +180,18 @@ const WhatsAppMessageSchema = new mongoose.Schema(
       index: true,
     },
     messageContent: String,
+
+    // Optional richer message structure for WhatsApp Web bridge / future providers
+    // (kept flexible via metadata so we don't break existing text flow).
+    headerText: String,
+    footerText: String,
+    media: {
+      kind: { type: String, enum: ['image', 'video', 'document'] },
+      url: String,
+      fileName: String,
+      mimeType: String,
+      sizeBytes: Number,
+    },
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate' },
     templateVariables: mongoose.Schema.Types.Mixed, // For template parameter substitution
     messageType: {
@@ -143,6 +210,11 @@ const WhatsAppMessageSchema = new mongoose.Schema(
     // Optional because admin JWTs may not map to a User document.
     sentBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
     sentByLabel: String,
+
+  // For WhatsApp CRM UI: display label to show in conversation bubble
+  // (Admin fixed as "Mohan Sir" in UI by default).
+  senderDisplayName: String,
+
     sentAt: { type: Date, default: Date.now },
     deliveredAt: Date,
     readAt: Date,
@@ -964,6 +1036,49 @@ const ChatbotSettingsSchema = new mongoose.Schema(
 ChatbotSettingsSchema.index({ createdByUserId: 1 });
 
 // ============================================================================
+// 19. CRM RECEIPTS — Printable receipts generated when a lead enters sales/enrolled
+// ============================================================================
+const CrmReceiptSchema = new mongoose.Schema(
+  {
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    leadNumber: { type: String, trim: true, index: true },
+
+    // Human-friendly receipt number (optional; can be generated via CrmCounter)
+    receiptNumber: { type: String, trim: true, unique: true, sparse: true, index: true },
+
+    issuedByUserId: { type: String, trim: true, index: true },
+    issuedAt: { type: Date, default: Date.now, index: true },
+
+    customerName: { type: String, trim: true },
+    customerPhone: { type: String, trim: true, index: true },
+    customerEmail: { type: String, trim: true, lowercase: true },
+
+    workshopName: { type: String, trim: true },
+    workshopSlug: { type: String, trim: true },
+    scheduleId: { type: String, trim: true },
+
+    payment: {
+      status: { type: String, trim: true },
+      currency: { type: String, trim: true },
+      amount: { type: Number },
+      paidAmount: { type: Number },
+      method: { type: String, trim: true },
+      provider: { type: String, trim: true },
+      orderId: { type: String, trim: true },
+      transactionId: { type: String, trim: true },
+      paidAt: { type: Date },
+    },
+
+    // Snapshot of arbitrary extra details at time of issuance
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'crm_receipts' }
+);
+
+CrmReceiptSchema.index({ leadId: 1, issuedAt: -1 });
+CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
+
+// ============================================================================
 // EXPORT MODELS
 // ============================================================================
 const crmDb = getCrmDb();
@@ -996,3 +1111,4 @@ export const BroadcastListMember =
   crmDb.models.BroadcastListMember || crmDb.model('BroadcastListMember', BroadcastListMemberSchema);
 export const ChatbotFlow = crmDb.models.ChatbotFlow || crmDb.model('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = crmDb.models.ChatbotSettings || crmDb.model('ChatbotSettings', ChatbotSettingsSchema);
+export const CrmReceipt = crmDb.models.CrmReceipt || crmDb.model('CrmReceipt', CrmReceiptSchema);

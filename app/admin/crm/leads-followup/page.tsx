@@ -4,15 +4,14 @@ import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
-// Hardcoded admin users list for admincrm
-const ADMIN_USERS = [
-  'admincrm',
-  'Turya Kalburgi',
-  'Aditya Yadav',
-  'Shekhar Suman',
-  'Navneet Kumar',
-  'Varun',
-];
+type AdminUserRow = {
+  userId: string;
+  email?: string;
+  name?: string;
+  fullName?: string;
+  displayName?: string;
+  username?: string;
+};
 
 interface Lead {
   _id: string;
@@ -161,6 +160,43 @@ function LeadsFollowupPageContent() {
   const router = useRouter();
   const token = useAuth();
 
+  // Admin users (dynamic, shared with WhatsApp/Leads pages)
+  const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
+  const adminUserOptions = (adminUsers || [])
+    .map((u) => {
+      const userId = String(u?.userId || '').trim();
+      if (!userId) return null;
+      const label = String(u?.name || u?.fullName || u?.displayName || u?.username || u?.email || userId).trim();
+      return { userId, label: label || userId };
+    })
+    .filter(Boolean) as Array<{ userId: string; label: string }>;
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    const fetchAdminUsers = async () => {
+      try {
+        const res = await fetch('/api/admin/auth/users', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const json = await res.json().catch(() => null);
+        const list = (json?.data || json?.users || json) as any;
+        if (!cancelled && Array.isArray(list)) setAdminUsers(list);
+      } catch (err) {
+        console.error('Failed to load admin users', err);
+      }
+    };
+
+    fetchAdminUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
@@ -308,7 +344,7 @@ function LeadsFollowupPageContent() {
         } as Lead));
         setFilteredLeads([...allOption, ...mockLeads]);
       } else if (searchFilterType === 'admin') {
-        // Use hardcoded admin users list with "All" option
+        // Use dynamic admin users list with "All" option
         const allOption = [{
           _id: 'admin-all',
           name: '✅ All Admin Users',
@@ -319,9 +355,9 @@ function LeadsFollowupPageContent() {
           labels: [],
           createdAt: new Date().toISOString(),
         } as Lead];
-        const mockLeads = ADMIN_USERS.map((admin, idx) => ({
+        const mockLeads = adminUserOptions.map((admin, idx) => ({
           _id: `admin-${idx}`,
-          name: admin,
+          name: admin.label,
           phoneNumber: '',
           email: '',
           leadNumber: '',
@@ -393,11 +429,11 @@ function LeadsFollowupPageContent() {
         setFilteredLeads(mockLeads);
       }
     } else if (searchFilterType === 'admin') {
-      // Filter from hardcoded admin users list
-      const filtered = ADMIN_USERS.filter(a => a.toLowerCase().includes(query));
+      // Filter from dynamic admin users list
+      const filtered = adminUserOptions.filter((a) => a.label.toLowerCase().includes(query));
       const mockLeads = filtered.map((admin, idx) => ({
         _id: `admin-${idx}`,
-        name: admin,
+        name: admin.label,
         phoneNumber: '',
         email: '',
         leadNumber: '',
@@ -407,7 +443,7 @@ function LeadsFollowupPageContent() {
       } as Lead));
       setFilteredLeads(mockLeads);
     }
-  }, [searchQuery, allLeads, searchFilterType]);
+  }, [searchQuery, allLeads, searchFilterType, adminUserOptions]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

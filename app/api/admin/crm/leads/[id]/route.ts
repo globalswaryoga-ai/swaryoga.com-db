@@ -74,6 +74,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const update: any = {};
     if (body.name !== undefined) update.name = String(body.name).trim();
+    if (body.title !== undefined) update.title = String(body.title || '').trim();
+    if (body.displayName !== undefined) update.displayName = String(body.displayName || '').trim();
     if (body.email !== undefined) update.email = String(body.email).trim();
     if (body.status !== undefined) update.status = String(body.status).trim();
     if (body.labels !== undefined) {

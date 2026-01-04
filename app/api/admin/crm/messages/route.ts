@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const userId = verifyAdminAccess(request);
+    const superAdmin = userId === 'admincrm';
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -108,6 +109,19 @@ export async function POST(request: NextRequest) {
     const lead = await Lead.findById(leadId);
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+
+    // Access control:
+    // - Super admin (admincrm) can send to any lead.
+    // - Other admins can only send to leads assigned to them.
+    if (!superAdmin) {
+      const assignedTo = String((lead as any).assignedToUserId || '').trim();
+      if (!assignedTo || assignedTo !== userId) {
+        return NextResponse.json(
+          { error: 'Forbidden: lead is not assigned to this admin' },
+          { status: 403 }
+        );
+      }
     }
 
     const to = normalizePhone(String(phoneNumber));
