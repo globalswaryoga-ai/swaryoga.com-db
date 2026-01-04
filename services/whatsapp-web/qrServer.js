@@ -123,6 +123,19 @@ let lastDisconnected = null;
 let lastClientError = null;
 let lastReadyAt = null;
 
+// IMPORTANT: Chromium profile lock fix
+//
+// The WhatsApp session (LocalAuth) must be persisted in /app/.wwebjs_auth.
+// But Chromium's *browser profile* should NOT be persisted across container restarts.
+// Persisting Chromium's profile can leave Singleton* lock files behind and cause:
+//   "The profile appears to be in use by another Chromium process ... Chromium has locked the profile"
+//
+// Use an ephemeral userDataDir under /tmp for Chromium so restarts are clean.
+const CHROME_USER_DATA_DIR = process.env.CHROME_USER_DATA_DIR || '/tmp/wa-chrome-profile';
+// Ensure LocalAuth persistence location is explicit and stable.
+// IMPORTANT: This is NOT the Chromium profile. It's whatsapp-web.js session storage.
+const LOCALAUTH_DATA_PATH = process.env.LOCALAUTH_DATA_PATH || '/app/.wwebjs_auth';
+
 // If whatsapp-web.js / puppeteer gets into a bad state (common symptom: "Evaluation failed: t"),
 // we can recover by restarting the client. We'll do this only after repeated failures.
 let sendEvalFailureCount = 0;
@@ -238,6 +251,26 @@ function clearStaleSessions() {
   }
 }
 
+function ensureEphemeralChromeProfileDir() {
+  try {
+    fs.mkdirSync(CHROME_USER_DATA_DIR, { recursive: true });
+  } catch (e) {
+    console.log(`⚠️ Failed to create CHROME_USER_DATA_DIR (${CHROME_USER_DATA_DIR}): ${e?.message || e}`);
+  }
+}
+
+function resetEphemeralChromeProfileDir() {
+  // Best effort cleanup: if Chromium crashed, the ephemeral directory may contain
+  // stale Singleton* locks. Since this directory is meant to be non-persistent,
+  // it's safe (and desirable) to wipe it before each launch attempt.
+  try {
+    fs.rmSync(CHROME_USER_DATA_DIR, { recursive: true, force: true });
+  } catch {
+    // ignore
+  }
+  ensureEphemeralChromeProfileDir();
+}
+
 // Initialize WhatsApp client
 function initializeClient() {
   if (client) {
@@ -246,12 +279,18 @@ function initializeClient() {
     client = null;
   }
 
+  // Ensure Chromium userDataDir is clean (ephemeral, not persisted).
+  resetEphemeralChromeProfileDir();
+
   const clientId = process.env.WHATSAPP_CLIENT_ID || 'crm-whatsapp-session';
 
   console.log('🔧 Creating new WhatsApp client with clientId:', clientId);
   
   client = new Client({
-    authStrategy: new LocalAuth({ clientId }),
+    // Force LocalAuth to use the persisted docker volume.
+    // Without an explicit dataPath, some environments may end up mixing auth + Chromium profile
+    // artifacts and triggering Chromium singleton locks.
+    authStrategy: new LocalAuth({ clientId, dataPath: LOCALAUTH_DATA_PATH }),
     puppeteer: {
       // In EC2/Docker, headless "new" can be flaky across Chromium versions.
       // Prefer classic headless mode unless explicitly overridden.
@@ -270,7 +309,8 @@ function initializeClient() {
         '--disable-sync',
         '--no-first-run',
         '--no-zygote',
-        '--single-process',
+  // NOTE: --single-process is known to cause instability in many container
+  // environments and can interact poorly with profile locking.
         '--disable-background-networking',
         '--disable-background-timer-throttling',
         '--disable-breakpad',
@@ -286,7 +326,18 @@ function initializeClient() {
         '--disable-web-security',
         '--metrics-recording-only',
         '--mute-audio',
+
+        // Force Chromium profile location explicitly. Some wrappers may ignore
+        // puppeteer.userDataDir; this flag makes it unambiguous.
+        `--user-data-dir=${CHROME_USER_DATA_DIR}`,
+
+        // Extra hardening: keep Chromium instance isolated so it never tries
+        // to reuse persisted profile + locks.
+        '--no-service-autorun',
       ],
+      // Critical: keep Chromium's browser profile in /tmp so it won't persist lock files
+      // across container restarts. WhatsApp auth is persisted separately via LocalAuth.
+      userDataDir: CHROME_USER_DATA_DIR,
       timeout: 60000, // 60 second timeout for browser launch
     },
   });
