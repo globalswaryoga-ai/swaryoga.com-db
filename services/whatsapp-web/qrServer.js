@@ -125,22 +125,35 @@ let lastReadyAt = null;
 
 // IMPORTANT: Chromium profile lock fix
 //
-// The WhatsApp session (LocalAuth) must be persisted in /app/.wwebjs_auth.
-// But Chromium's *browser profile* should NOT be persisted across container restarts.
-// Persisting Chromium's profile can leave Singleton* lock files behind and cause:
-//   "The profile appears to be in use by another Chromium process ... Chromium has locked the profile"
+// Root cause: Chromium can die uncleanly and leave profile Singleton* locks behind.
+// In containers, forcing a custom --user-data-dir can still hit SingletonLock errors
+// depending on how Chromium resolves profile state.
 //
-// Use an ephemeral Chrome profile under /tmp.
-// IMPORTANT: With whatsapp-web.js LocalAuth, Chromium's profile directory must be owned by the
-// library and can be sensitive to stale Singleton* locks after crashes.
-// The most robust fix in containers is to use a UNIQUE profile dir per launch attempt so locks
-// can never collide.
-const CHROME_USER_DATA_DIR_BASE = process.env.CHROME_USER_DATA_DIR || '/tmp/wa-chrome-profile';
+// Robust approach:
+// - Keep whatsapp-web.js LocalAuth persisted in /app/.wwebjs_auth (docker volume)
+// - Do NOT pass a custom --user-data-dir
+// - Instead, keep Chromium ephemeral by forcing its XDG runtime/config/cache dirs to /tmp
+//   so it never tries to reuse persisted state.
+//
+// This avoids the "process_singleton_posix.cc ... profile appears to be in use" failure loop.
+const CHROME_XDG_BASE_DIR = process.env.CHROME_XDG_BASE_DIR || '/tmp/wa-chrome-xdg';
 
-function getEphemeralChromeProfileDir() {
-  // Use pid + timestamp + random to guarantee uniqueness even across fast restarts.
-  const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return `${CHROME_USER_DATA_DIR_BASE}-${suffix}`;
+function ensureDir(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    console.log(`⚠️ Failed to create dir ${dir}: ${e?.message || e}`);
+  }
+}
+
+function prepareChromeXdgDirs() {
+  const runtime = path.join(CHROME_XDG_BASE_DIR, 'runtime');
+  const cache = path.join(CHROME_XDG_BASE_DIR, 'cache');
+  const config = path.join(CHROME_XDG_BASE_DIR, 'config');
+  ensureDir(runtime);
+  ensureDir(cache);
+  ensureDir(config);
+  return { runtime, cache, config };
 }
 // Ensure LocalAuth persistence location is explicit and stable.
 // IMPORTANT: This is NOT the Chromium profile. It's whatsapp-web.js session storage.
@@ -261,25 +274,8 @@ function clearStaleSessions() {
   }
 }
 
-function ensureEphemeralChromeProfileDir(dir) {
-  try {
-    fs.mkdirSync(dir, { recursive: true });
-  } catch (e) {
-    console.log(`⚠️ Failed to create CHROME_USER_DATA_DIR (${dir}): ${e?.message || e}`);
-  }
-}
-
-function resetEphemeralChromeProfileDir(dir) {
-  // Best effort cleanup: if Chromium crashed, the ephemeral directory may contain
-  // stale Singleton* locks. Since this directory is meant to be non-persistent,
-  // it's safe (and desirable) to wipe it before each launch attempt.
-  try {
-    fs.rmSync(dir, { recursive: true, force: true });
-  } catch {
-    // ignore
-  }
-  ensureEphemeralChromeProfileDir(dir);
-}
+// NOTE: We no longer manage a custom Chromium user-data-dir.
+// Puppeteer will create and manage an isolated temporary profile per launch.
 
 // Initialize WhatsApp client
 function initializeClient() {
@@ -289,15 +285,19 @@ function initializeClient() {
     client = null;
   }
 
-  // Ensure Chromium profile is clean (ephemeral, not persisted).
-  // Use a unique directory per init attempt to avoid profile lock collisions.
-  const chromeProfileDir = getEphemeralChromeProfileDir();
-  resetEphemeralChromeProfileDir(chromeProfileDir);
+  const { runtime: xdgRuntimeDir, cache: xdgCacheDir, config: xdgConfigDir } =
+    prepareChromeXdgDirs();
+
+  // Ensure Chromium writes all runtime/config/cache state under /tmp.
+  // This makes the browser completely ephemeral across container restarts.
+  process.env.XDG_RUNTIME_DIR = xdgRuntimeDir;
+  process.env.XDG_CACHE_HOME = xdgCacheDir;
+  process.env.XDG_CONFIG_HOME = xdgConfigDir;
 
   const clientId = process.env.WHATSAPP_CLIENT_ID || 'crm-whatsapp-session';
 
   console.log('🔧 Creating new WhatsApp client with clientId:', clientId);
-  console.log(`🧪 Chromium profile dir (ephemeral): ${chromeProfileDir}`);
+  console.log(`🧪 Chromium XDG (ephemeral): ${CHROME_XDG_BASE_DIR}`);
   
   client = new Client({
     // Force LocalAuth to use the persisted docker volume.
@@ -340,13 +340,9 @@ function initializeClient() {
         '--metrics-recording-only',
         '--mute-audio',
 
-        // Force Chromium profile location explicitly. Some wrappers may ignore
-        // puppeteer.userDataDir; this flag makes it unambiguous.
-  `--user-data-dir=${chromeProfileDir}`,
-
-        // Extra hardening: keep Chromium instance isolated so it never tries
-        // to reuse persisted profile + locks.
-        '--no-service-autorun',
+        // Keep runtime/cache/config ephemeral (under /tmp)
+        `--disk-cache-dir=${xdgCacheDir}`,
+    '--no-service-autorun',
       ],
       // NOTE: LocalAuth is not compatible with puppeteer.userDataDir.
       // We still enforce an ephemeral profile using the Chromium flag above.
