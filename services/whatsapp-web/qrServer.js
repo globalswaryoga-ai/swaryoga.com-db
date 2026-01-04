@@ -100,6 +100,10 @@ let currentQR = null;
 let isAuthenticated = false;
 let clientConnecting = false;
 
+function hasQrImage() {
+  return typeof currentQR === 'string' && currentQR.startsWith('data:image');
+}
+
 // Connected WebSocket clients
 const connectedClients = new Set();
 
@@ -156,7 +160,6 @@ function initializeClient() {
 
   client.on('qr', (qr) => {
     const now = Date.now();
-    
     console.log(`\n📱 QR Event fired at ${new Date().toLocaleTimeString()}`);
     console.log(`   QR Type: ${typeof qr}`);
     console.log(`   QR Length: ${qr ? qr.length : 'null'}`);
@@ -166,7 +169,6 @@ function initializeClient() {
     if (!qr || typeof qr !== 'string' || qr.trim() === '') {
       qrRetryCount++;
       const timeSinceLastQr = now - lastQrTime;
-      
       console.error(`\n❌ Invalid QR - Attempt ${qrRetryCount}/${maxQrRetries}`);
       console.error(`   Received: ${typeof qr}`);
       console.error(`   Value: "${qr}"`);
@@ -204,10 +206,13 @@ function initializeClient() {
       return;
     }
 
-    // ✅ Valid QR received
-    qrRetryCount = 0;
-    lastQrTime = now;
-    currentQR = qr;
+  // ✅ Valid QR received
+  qrRetryCount = 0;
+  lastQrTime = now;
+
+  // Mark that we have a QR immediately (even before image conversion succeeds).
+  // This ensures `/api/status` reports hasQR=true as soon as WhatsApp emits a QR.
+  currentQR = qr;
     isAuthenticated = false;
     clientConnecting = true;
 
@@ -272,6 +277,11 @@ function initializeClient() {
       console.log('✅ QR image generated successfully');
       console.log(`   Size: ${Math.round(url.length / 1024)}KB`);
       console.log(`   Format: ${url.substring(5, 30)}`);
+
+      // Persist the QR image so status endpoints and late WebSocket clients can access it.
+      // (Previously, if the QR fired when no WS clients were connected, the QR was only logged
+      // to console and never surfaced via /api/status or WebSocket on later connections.)
+      currentQR = url;
       
       broadcastMessage({
         type: 'qr',
@@ -469,29 +479,40 @@ wss.on('connection', (ws) => {
   
   // If QR exists, send it immediately
   if (currentQR && !isAuthenticated && client) {
-    console.log('   → Generating and sending existing QR...');
-    const qrOptions = {
-      type: 'image/png',
-      width: 400,
-      margin: 2,
-      errorCorrectionLevel: 'H',
-      color: { dark: '#000000', light: '#FFFFFF' },
-      scale: 4,
-    };
-    
-    qrcode.toDataURL(currentQR, qrOptions, (err, url) => {
-      if (!err && url) {
-        console.log('   → QR sent to new WebSocket client');
-        ws.send(JSON.stringify({
-          type: 'qr',
-          data: url,
-          source: 'cached',
-          timestamp: new Date().toISOString(),
-        }));
-      } else if (err) {
-        console.error('   → Failed to send cached QR:', err.message);
-      }
-    });
+    // If we already stored the generated QR image (data URL), send it directly.
+    if (typeof currentQR === 'string' && currentQR.startsWith('data:image')) {
+      console.log('   → Sending cached QR image to new WebSocket client');
+      ws.send(JSON.stringify({
+        type: 'qr',
+        data: currentQR,
+        source: 'cached_image',
+        timestamp: new Date().toISOString(),
+      }));
+    } else {
+      console.log('   → Generating and sending existing QR...');
+      const qrOptions = {
+        type: 'image/png',
+        width: 400,
+        margin: 2,
+        errorCorrectionLevel: 'H',
+        color: { dark: '#000000', light: '#FFFFFF' },
+        scale: 4,
+      };
+      
+      qrcode.toDataURL(currentQR, qrOptions, (err, url) => {
+        if (!err && url) {
+          console.log('   → QR sent to new WebSocket client');
+          ws.send(JSON.stringify({
+            type: 'qr',
+            data: url,
+            source: 'cached',
+            timestamp: new Date().toISOString(),
+          }));
+        } else if (err) {
+          console.error('   → Failed to send cached QR:', err.message);
+        }
+      });
+    }
   } else if (!client) {
     console.log('   → Client not yet initialized, waiting for QR event...');
   }
@@ -597,7 +618,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     authenticated: isAuthenticated,
     connecting: clientConnecting,
-    hasQR: !!currentQR,
+    hasQR: hasQrImage(),
     connectedClients: connectedClients.size,
     account: isAuthenticated ? getConnectedAccountInfo() : null,
     timestamp: new Date().toISOString(),
@@ -705,6 +726,18 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, authenticated: isAuthenticated });
 });
 
+// Debug (no sensitive data): helps confirm whether the bridge thinks it currently has a QR image.
+app.get('/api/debug', (req, res) => {
+  res.json({
+    authenticated: isAuthenticated,
+    connecting: clientConnecting,
+    currentQRType: currentQR == null ? null : typeof currentQR,
+    currentQRIsDataUrl: typeof currentQR === 'string' ? currentQR.startsWith('data:image') : false,
+    currentQRLength: typeof currentQR === 'string' ? currentQR.length : null,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Start server
 // Prefer explicit WHATSAPP_WEB_PORT for this service, but also accept generic PORT
 // (useful on some container hosts).
@@ -755,6 +788,15 @@ server.listen(PORT, () => {
   console.log(`   Browser: Puppeteer (headless mode)`);
   console.log(`   QR Code: Auto-generated on first connection`);
   console.log(`\n${'='.repeat(70)}\n`);
+
+  // Auto-start the WhatsApp client so we don't miss early QR events.
+  // The CRM UI may connect after the client already emitted a QR; we persist the latest QR
+  // and can broadcast to any connected WebSocket clients.
+  try {
+    if (!client) initializeClient();
+  } catch (e) {
+    console.error('❌ Failed to auto-initialize WhatsApp client:', e?.message || e);
+  }
 });
 
 module.exports = app;

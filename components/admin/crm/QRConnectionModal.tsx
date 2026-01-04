@@ -38,12 +38,20 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
     }
 
     return envWsUrl;
-
-    // We intentionally do NOT default to localhost anymore.
-    // Auto-connecting to ws://localhost:3333 creates noisy console errors
-    // (and "connection lost" loops) for most users.
-    return null;
   }, []);
+
+  const resolveBridgeWsUrlWithDevFallback = useCallback((): string | null => {
+    const explicit = resolveBridgeWsUrl();
+    if (explicit) return explicit;
+
+    // In local development, default to the standard bridge port.
+    // This helps the common "QR not shown" case when env isn't set.
+    if (process.env.NODE_ENV !== 'production') {
+      return 'ws://127.0.0.1:3333';
+    }
+
+    return null;
+  }, [resolveBridgeWsUrl]);
 
   const connectQRMode = useCallback(() => {
     setStatus('connecting');
@@ -55,7 +63,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       // - It should NOT be exposed on your production domain (security + infra).
       // - In development, we default to localhost.
       // - In production, you *must* explicitly set NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL.
-      const wsUrl = resolveBridgeWsUrl();
+      const wsUrl = resolveBridgeWsUrlWithDevFallback();
       if (!wsUrl) {
         setStatus('idle');
         setErrorMsg(
@@ -151,7 +159,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       setStatus('error');
       setErrorMsg('Failed to initialize WhatsApp connection');
     }
-  }, [status, onConnected, onClose, qrAttempt, maxQrAttempts, resolveBridgeWsUrl]);
+  }, [status, onConnected, onClose, qrAttempt, maxQrAttempts, resolveBridgeWsUrlWithDevFallback]);
 
   useEffect(() => {
     if (!isOpen) {

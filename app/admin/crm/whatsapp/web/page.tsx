@@ -20,6 +20,31 @@ type BridgeStatus = {
   error?: string;
 };
 
+function normalizeBridgeStatus(raw: any): BridgeStatus {
+  if (!raw || typeof raw !== 'object') return {};
+
+  // qrServer.js returns:
+  // { authenticated, connecting, hasQR, connectedClients, phoneNumber?, account? }
+  const connected = Boolean(raw.connected ?? raw.authenticated ?? raw.isAuthenticated);
+  const initialized = Boolean(raw.initialized ?? raw.connecting ?? raw.clientConnecting ?? raw.hasQR);
+
+  const account = raw.account && typeof raw.account === 'object'
+    ? raw.account
+    : {
+        phone: raw.phoneNumber,
+      };
+
+  const statusText = raw.status || (connected ? 'connected' : initialized ? 'connecting' : 'idle');
+
+  return {
+    status: statusText,
+    connected,
+    initialized,
+    account,
+    error: raw.error,
+  };
+}
+
 function getBridgeHttpBase(): string {
   // Same philosophy as QR modal:
   // - localhost defaults to the local bridge
@@ -32,7 +57,7 @@ function getBridgeHttpBase(): string {
   const envUrl = (process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || '').trim();
 
   if (isLocal) return envUrl || 'http://localhost:3333';
-  return envUrl || '';
+  return envUrl;
 }
 
 export default function WhatsAppWebSetupPage() {
@@ -65,7 +90,7 @@ export default function WhatsAppWebSetupPage() {
       });
       const data = (await res.json().catch(() => ({}))) as any;
       if (!res.ok) throw new Error(data?.error || `Bridge status failed (${res.status})`);
-      setStatus(data);
+      setStatus(normalizeBridgeStatus(data));
     } catch (e) {
       setStatus(null);
       setError(e instanceof Error ? e.message : 'Failed to fetch bridge status');

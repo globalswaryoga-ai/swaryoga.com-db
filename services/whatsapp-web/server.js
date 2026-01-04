@@ -3,8 +3,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
-// Initialize WhatsApp client (starts QR flow / session restore)
-require('./whatsappClient');
+// Note: We intentionally do NOT auto-initialize a separate whatsapp-web.js Client here.
+// `qrServer.js` owns the WhatsApp client lifecycle (init, QR, auth) so the CRM UI can
+// reliably fetch status and receive QR images over WebSocket.
 
 // Also start the WebSocket QR bridge on the same port.
 // The admin UI (`QRConnectionModal`) connects to ws://localhost:3333 by default.

@@ -3,6 +3,12 @@ import { verifyToken } from '@/lib/auth';
 
 const WHATSAPP_BRIDGE_HTTP_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'https://wa-bridge.swaryoga.com';
 
+function bridgeUrl(path: string) {
+  const base = WHATSAPP_BRIDGE_HTTP_URL.replace(/\/$/, '');
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  return new URL(`${base}${normalized}`);
+}
+
 /**
  * GET /api/admin/crm/whatsapp/qr
  * Fetch QR code from WhatsApp Web bridge for login
@@ -26,9 +32,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Fetch QR status from bridge
-    const bridgeUrl = new URL(`${WHATSAPP_BRIDGE_HTTP_URL}/api/status`);
-    const bridgeRes = await fetch(bridgeUrl.toString(), {
+    // 2. Fetch status from bridge
+    // Note: The bridge in `services/whatsapp-web/server.js` mounts routes under `/api/whatsapp/*`.
+    const statusUrl = bridgeUrl('/api/whatsapp/status');
+    const bridgeRes = await fetch(statusUrl.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -45,12 +52,14 @@ export async function GET(request: NextRequest) {
     }
 
     const bridgeData = await bridgeRes.json();
-    
-    // 3. Extract QR and authentication status
-    const qr = bridgeData.qr || null; // Base64 string or null if authenticated
-    const hasQR = bridgeData.hasQR || false;
-    const isAuthenticated = bridgeData.isAuthenticated || false;
-    const connectedClients = bridgeData.connectedClients || 0;
+
+    // 3. Normalize status shape (bridge may evolve)
+    const qr = bridgeData.qr || null;
+    const hasQR = Boolean(bridgeData.hasQR);
+    const isAuthenticated = Boolean(
+      bridgeData.isAuthenticated ?? bridgeData.authenticated ?? bridgeData.connected
+    );
+    const connectedClients = Number(bridgeData.connectedClients || 0);
 
     console.log('[QR] Bridge status:', {
       hasQR,
@@ -67,7 +76,7 @@ export async function GET(request: NextRequest) {
         hasQR,
         isAuthenticated,
         connectedClients,
-        phoneNumber: bridgeData.phoneNumber || null, // If authenticated, show phone
+        phoneNumber: bridgeData.phoneNumber || bridgeData?.account?.phone || null, // If authenticated, show phone
         bridgeStatus: 'online'
       }
     }, { status: 200 });
@@ -102,8 +111,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Call bridge disconnect to force new QR
-    const bridgeUrl = new URL(`${WHATSAPP_BRIDGE_HTTP_URL}/api/disconnect`);
-    const disconnectRes = await fetch(bridgeUrl.toString(), {
+    const disconnectUrl = bridgeUrl('/api/whatsapp/disconnect');
+    const disconnectRes = await fetch(disconnectUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -121,8 +130,8 @@ export async function POST(request: NextRequest) {
     // 3. Wait a moment for QR to be ready
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // 4. Fetch new QR status
-    const statusUrl = new URL(`${WHATSAPP_BRIDGE_HTTP_URL}/api/status`);
+    // 4. Fetch new status
+    const statusUrl = bridgeUrl('/api/whatsapp/status');
     const statusRes = await fetch(statusUrl.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
