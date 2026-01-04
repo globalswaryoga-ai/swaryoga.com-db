@@ -33,8 +33,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Fetch status from bridge
-    // Note: The bridge in `services/whatsapp-web/server.js` mounts routes under `/api/whatsapp/*`.
-    const statusUrl = bridgeUrl('/api/whatsapp/status');
+    // The wa-bridge service exposes these routes at the root:
+    //   GET  /api/status
+    //   POST /api/init
+    //   POST /api/disconnect
+    // (The legacy express wrapper under /api/whatsapp/* isn't what the CRM bridge uses.)
+    const statusUrl = bridgeUrl('/api/status');
     const bridgeRes = await fetch(statusUrl.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -51,11 +55,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const bridgeData = await bridgeRes.json();
+  const bridgeData = await bridgeRes.json();
 
     // 3. Normalize status shape (bridge may evolve)
-    const qr = bridgeData.qr || null;
-    const hasQR = Boolean(bridgeData.hasQR);
+    // Bridge returns: { authenticated, connecting, hasQR, connectedClients, account, ... }
+    // Normalize so the CRM UI stays stable even if the bridge evolves.
+    const qr = bridgeData.qr ?? bridgeData.qrImage ?? null;
+    const hasQR = Boolean(bridgeData.hasQR ?? bridgeData.hasQr ?? bridgeData.has_qr);
     const isAuthenticated = Boolean(
       bridgeData.isAuthenticated ?? bridgeData.authenticated ?? bridgeData.connected
     );
@@ -76,7 +82,11 @@ export async function GET(request: NextRequest) {
         hasQR,
         isAuthenticated,
         connectedClients,
-        phoneNumber: bridgeData.phoneNumber || bridgeData?.account?.phone || null, // If authenticated, show phone
+        phoneNumber:
+          bridgeData.phoneNumber ||
+          bridgeData?.account?.phone ||
+          bridgeData?.account?.id ||
+          null, // If authenticated, show identifier
         bridgeStatus: 'online'
       }
     }, { status: 200 });
@@ -111,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Call bridge disconnect to force new QR
-    const disconnectUrl = bridgeUrl('/api/whatsapp/disconnect');
+    const disconnectUrl = bridgeUrl('/api/disconnect');
     const disconnectRes = await fetch(disconnectUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -131,7 +141,7 @@ export async function POST(request: NextRequest) {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // 4. Fetch new status
-    const statusUrl = bridgeUrl('/api/whatsapp/status');
+    const statusUrl = bridgeUrl('/api/status');
     const statusRes = await fetch(statusUrl.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },

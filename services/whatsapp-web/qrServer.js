@@ -18,7 +18,8 @@ function getNextBaseUrl() {
 async function postInboundToCrm({ from, body, timestamp, waMessageId }) {
   const secret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
   if (!secret) {
-    console.log('⚠️ WHATSAPP_WEB_BRIDGE_SECRET not set; inbound messages will not be saved to CRM');
+    // Avoid log spam when WhatsApp receives many broadcasts (status@broadcast etc.).
+    maybeLogMissingInboundSecret();
     return;
   }
 
@@ -99,9 +100,81 @@ let client = null;
 let currentQR = null;
 let isAuthenticated = false;
 let clientConnecting = false;
+let activeSend = null;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Avoid spamming logs when WHATSAPP_WEB_BRIDGE_SECRET isn't configured.
+let lastMissingInboundSecretLogAt = 0;
+function maybeLogMissingInboundSecret() {
+  const now = Date.now();
+  if (now - lastMissingInboundSecretLogAt < 60_000) return;
+  lastMissingInboundSecretLogAt = now;
+  console.log('⚠️ WHATSAPP_WEB_BRIDGE_SECRET not set; inbound messages will not be saved to CRM');
+}
+
+// Diagnostics (helps debug "QR keeps refreshing" + "couldn't link device" situations)
+let qrEventCount = 0;
+let lastQrAt = null;
+let lastAuthFailure = null;
+let lastDisconnected = null;
+let lastClientError = null;
+let lastReadyAt = null;
+
+// If whatsapp-web.js / puppeteer gets into a bad state (common symptom: "Evaluation failed: t"),
+// we can recover by restarting the client. We'll do this only after repeated failures.
+let sendEvalFailureCount = 0;
+let lastSendEvalFailureAt = 0;
+
+function isPuppeteerEvaluationError(message) {
+  const msg = String(message || '');
+  return (
+    msg.includes('Evaluation failed') ||
+    msg.includes('Execution context was destroyed') ||
+    msg.includes('Cannot find context with specified id') ||
+    msg.includes('Target closed')
+  );
+}
+
+async function restartClient(reason) {
+  console.warn(`[RECOVERY] Restarting WhatsApp client: ${reason}`);
+  try {
+    if (client) {
+      await client.destroy().catch(() => undefined);
+    }
+  } finally {
+    client = null;
+    isAuthenticated = false;
+    clientConnecting = false;
+    currentQR = null;
+  }
+
+  // Small delay to let Chromium fully release resources
+  await sleep(1200);
+  try {
+    initializeClient();
+  } catch (e) {
+    console.error('[RECOVERY] Failed to reinitialize client:', e?.message || e);
+  }
+}
 
 function hasQrImage() {
   return typeof currentQR === 'string' && currentQR.startsWith('data:image');
+}
+
+function getQrPngBuffer() {
+  if (!hasQrImage()) return null;
+  const commaIndex = currentQR.indexOf(',');
+  if (commaIndex === -1) return null;
+  const base64 = currentQR.slice(commaIndex + 1);
+  if (!base64) return null;
+  try {
+    return Buffer.from(base64, 'base64');
+  } catch {
+    return null;
+  }
 }
 
 // Connected WebSocket clients
@@ -136,7 +209,11 @@ function initializeClient() {
   client = new Client({
     authStrategy: new LocalAuth({ clientId }),
     puppeteer: {
-      headless: 'new', // Use new headless mode for better compatibility
+      // In EC2/Docker, headless "new" can be flaky across Chromium versions.
+      // Prefer classic headless mode unless explicitly overridden.
+      headless: process.env.PUPPETEER_HEADLESS
+        ? process.env.PUPPETEER_HEADLESS !== 'false'
+        : true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -148,6 +225,23 @@ function initializeClient() {
         '--disable-default-apps',
         '--disable-sync',
         '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-breakpad',
+        '--disable-client-side-phishing-detection',
+        '--disable-component-update',
+        '--disable-domain-reliability',
+        '--disable-features=site-per-process,TranslateUI',
+        '--disable-hang-monitor',
+        '--disable-ipc-flooding-protection',
+        '--disable-popup-blocking',
+        '--disable-prompt-on-repost',
+        '--disable-renderer-backgrounding',
+        '--disable-web-security',
+        '--metrics-recording-only',
+        '--mute-audio',
       ],
       timeout: 60000, // 60 second timeout for browser launch
     },
@@ -160,6 +254,12 @@ function initializeClient() {
 
   client.on('qr', (qr) => {
     const now = Date.now();
+
+    qrEventCount += 1;
+    lastQrAt = new Date().toISOString();
+    // Any new QR implies we're not authenticated yet.
+    lastReadyAt = null;
+
     console.log(`\n📱 QR Event fired at ${new Date().toLocaleTimeString()}`);
     console.log(`   QR Type: ${typeof qr}`);
     console.log(`   QR Length: ${qr ? qr.length : 'null'}`);
@@ -210,11 +310,14 @@ function initializeClient() {
   qrRetryCount = 0;
   lastQrTime = now;
 
-  // Mark that we have a QR immediately (even before image conversion succeeds).
-  // This ensures `/api/status` reports hasQR=true as soon as WhatsApp emits a QR.
-  currentQR = qr;
-    isAuthenticated = false;
-    clientConnecting = true;
+  // Important: keep `currentQR` reserved for the *image data URL* (not the raw QR string).
+  // `/api/status` and UI consumers rely on `hasQrImage()` which checks for `data:image...`.
+  // Storing the raw QR string here would incorrectly report hasQR=false.
+  // Do NOT clear `currentQR` here. If we already have a cached QR image and WhatsApp fires
+  // a new QR slightly later, we want to keep showing *some* QR until the new one is generated.
+  // The new QR image will overwrite `currentQR` below once `qrcode.toDataURL(...)` completes.
+  isAuthenticated = false;
+  clientConnecting = true;
 
     console.log('\n✅ VALID QR CODE RECEIVED');
     console.log(`   Length: ${qr.length} characters`);
@@ -301,6 +404,11 @@ function initializeClient() {
     currentQR = null;
     clientConnecting = false;
 
+  lastReadyAt = new Date().toISOString();
+  lastAuthFailure = null;
+  lastDisconnected = null;
+  lastClientError = null;
+
     broadcastMessage({
       type: 'authenticated',
       status: 'connected',
@@ -318,6 +426,11 @@ function initializeClient() {
     clientConnecting = false;
     currentQR = null;
 
+    lastAuthFailure = {
+      message: msg || 'Unknown reason',
+      at: new Date().toISOString(),
+    };
+
     broadcastMessage({
       type: 'error',
       error: 'Authentication failed: ' + (msg || 'Unknown reason'),
@@ -334,6 +447,11 @@ function initializeClient() {
     isAuthenticated = false;
     currentQR = null;
     clientConnecting = false;
+
+    lastDisconnected = {
+      reason: reason || 'Unknown',
+      at: new Date().toISOString(),
+    };
 
     // Preserve client reference for potential reconnection
     // Don't set to null immediately
@@ -353,6 +471,12 @@ function initializeClient() {
     console.error(`   Type: ${err.name}`);
     console.error(`   Timestamp: ${new Date().toLocaleTimeString()}`);
     
+    lastClientError = {
+      name: err.name || 'Error',
+      message: err.message || String(err),
+      at: new Date().toISOString(),
+    };
+
     broadcastMessage({
       type: 'error',
       error: 'WhatsApp client error: ' + err.message,
@@ -387,7 +511,8 @@ function initializeClient() {
   console.log('\n🚀 Starting WhatsApp Web Client Initialization');
   console.log(`   Client ID: ${clientId}`);
   console.log(`   Session Directory: .wwebjs_auth/`);
-  console.log(`   Browser: Puppeteer with headless=new`);
+  const headlessLabel = process.env.PUPPETEER_HEADLESS ? `headless=${process.env.PUPPETEER_HEADLESS}` : 'headless=true';
+  console.log(`   Browser: Puppeteer (${headlessLabel})`);
   console.log(`   Timeout: 60 seconds`);
   console.log(`   Timestamp: ${new Date().toLocaleTimeString()}\n`);
   
@@ -411,14 +536,6 @@ function initializeClient() {
 }
 
 // Broadcast message to all connected WebSocket clients
-function broadcastMessage(message) {
-  connectedClients.forEach((ws) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(message));
-    }
-  });
-}
-
 function getConnectedAccountInfo() {
   try {
     if (!client) return null;
@@ -457,7 +574,7 @@ wss.on('connection', (ws) => {
     type: 'status',
     authenticated: isAuthenticated,
     connecting: clientConnecting,
-    hasQR: !!currentQR,
+    hasQR: hasQrImage(),
     clientInitialized: !!client,
     account: isAuthenticated ? getConnectedAccountInfo() : null,
     message: isAuthenticated ? '✅ Already authenticated' : clientConnecting ? '⏳ Initializing...' : '🔄 Ready for QR scan',
@@ -478,7 +595,7 @@ wss.on('connection', (ws) => {
   }
   
   // If QR exists, send it immediately
-  if (currentQR && !isAuthenticated && client) {
+  if (hasQrImage() && !isAuthenticated && client) {
     // If we already stored the generated QR image (data URL), send it directly.
     if (typeof currentQR === 'string' && currentQR.startsWith('data:image')) {
       console.log('   → Sending cached QR image to new WebSocket client');
@@ -488,30 +605,6 @@ wss.on('connection', (ws) => {
         source: 'cached_image',
         timestamp: new Date().toISOString(),
       }));
-    } else {
-      console.log('   → Generating and sending existing QR...');
-      const qrOptions = {
-        type: 'image/png',
-        width: 400,
-        margin: 2,
-        errorCorrectionLevel: 'H',
-        color: { dark: '#000000', light: '#FFFFFF' },
-        scale: 4,
-      };
-      
-      qrcode.toDataURL(currentQR, qrOptions, (err, url) => {
-        if (!err && url) {
-          console.log('   → QR sent to new WebSocket client');
-          ws.send(JSON.stringify({
-            type: 'qr',
-            data: url,
-            source: 'cached',
-            timestamp: new Date().toISOString(),
-          }));
-        } else if (err) {
-          console.error('   → Failed to send cached QR:', err.message);
-        }
-      });
     }
   } else if (!client) {
     console.log('   → Client not yet initialized, waiting for QR event...');
@@ -613,6 +706,28 @@ function broadcastMessage(message) {
 
 // REST API Endpoints
 
+// Serve current QR as a PNG image (easy scanning without WebSocket)
+// - 200 image/png if QR image is available
+// - 404 if no QR is available (authenticated or not initialized yet)
+app.get('/qr.png', (req, res) => {
+  const buf = getQrPngBuffer();
+  if (!buf) {
+    return res.status(404).json({ error: 'QR not available' });
+  }
+  res.setHeader('Content-Type', 'image/png');
+  // Avoid caching, QR rotates
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  return res.status(200).send(buf);
+});
+
+// Convenience JSON endpoint with the cached data URL (useful for debugging)
+app.get('/api/qr', (req, res) => {
+  if (!hasQrImage()) {
+    return res.status(404).json({ error: 'QR not available' });
+  }
+  return res.json({ qr: currentQR, hasQR: true, timestamp: new Date().toISOString() });
+});
+
 // Get current status
 app.get('/api/status', (req, res) => {
   res.json({
@@ -621,6 +736,14 @@ app.get('/api/status', (req, res) => {
     hasQR: hasQrImage(),
     connectedClients: connectedClients.size,
     account: isAuthenticated ? getConnectedAccountInfo() : null,
+    diagnostics: {
+      qrEventCount,
+      lastQrAt,
+      lastReadyAt,
+      lastAuthFailure,
+      lastDisconnected,
+      lastClientError,
+    },
     timestamp: new Date().toISOString(),
   });
 });
@@ -632,9 +755,9 @@ app.post('/api/init', (req, res) => {
       initializeClient();
       return res.json({ success: true, message: 'Client initializing' });
     }
-    res.json({ success: false, message: 'Client already initialized' });
+    return res.status(409).json({ error: 'Client already initialized' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -656,9 +779,9 @@ app.post('/api/disconnect', (req, res) => {
 
       return res.json({ success: true, message: 'Client disconnected' });
     }
-    res.json({ success: false, message: 'No client to disconnect' });
+    return res.status(409).json({ error: 'No client to disconnect' });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -667,57 +790,113 @@ app.post('/api/send', async (req, res) => {
   const { phone, message } = req.body || {};
 
   if (!phone || !message) {
-    return res.status(400).json({ success: false, error: 'phone and message required' });
+    return res.status(400).json({ error: 'phone and message required' });
   }
 
   if (!isAuthenticated) {
-    return res.status(400).json({ success: false, error: 'WhatsApp not authenticated' });
+    return res.status(401).json({ error: 'WhatsApp not authenticated' });
   }
 
   try {
     if (!client) {
-      return res.status(400).json({ success: false, error: 'Client not initialized' });
+      return res.status(400).json({ error: 'Client not initialized' });
     }
 
-    // Format phone number to WhatsApp format
-    let chatId = phone.replace(/\D/g, '');
-    if (!chatId.startsWith('+')) {
-      chatId = '+' + chatId;
+    // Prevent requests from piling up if whatsapp-web.js gets into a stalled send state.
+    if (activeSend) {
+      return res.status(429).json({
+        error: 'Another send is already in progress',
+        hint: 'Retry shortly. If this persists, POST /api/disconnect then reconnect and try again.'
+      });
     }
-    chatId = chatId + '@c.us';
 
-    console.log(`[SEND] Sending to ${chatId}: "${message.substring(0, 50)}..."`);
+    // Normalize phone to WhatsApp chat id. whatsapp-web.js expects: "<digits>@c.us" (no '+').
+    // Example: 919075358557@c.us
+    let chatId = String(phone).replace(/\D/g, '');
+    if (!chatId) {
+      return res.status(400).json({ error: 'Invalid phone number' });
+    }
+    chatId = `${chatId}@c.us`;
+
+    // Avoid sending to self (commonly fails / is meaningless in WhatsApp Web)
+    const selfWid = getConnectedAccountInfo()?.wid;
+    if (selfWid && chatId === selfWid) {
+      return res.status(400).json({
+        error: 'Refusing to send to the logged-in WhatsApp account',
+        hint: `Pick a different recipient number (self is ${selfWid})`,
+      });
+    }
+
+    const messageStr = String(message);
+    const preview = messageStr.replace(/\s+/g, ' ').slice(0, 80);
+    console.log(`[SEND] Sending to ${chatId}: "${preview}${messageStr.length > 80 ? '…' : ''}"`);
     
     // Try sending with timeout
-    const sendPromise = client.sendMessage(chatId, message);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Send timeout after 15s')), 15000)
+    const startedAt = Date.now();
+    const timeoutMs = Number(process.env.SEND_TIMEOUT_MS || 15000);
+
+    // whatsapp-web.js sometimes throws transient "Evaluation failed" right after auth or on busy sessions.
+    // We do a small warmup delay and one retry to make /api/send reliable.
+    async function attemptSend(attempt) {
+      // Small delay helps WhatsApp Web settle (especially on EC2 / headless Chromium)
+      if (attempt > 1) await sleep(800);
+      return client.sendMessage(chatId, messageStr);
+    }
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Send timeout after ${timeoutMs}ms`)), timeoutMs)
     );
+
+    // Attempt #1
+    try {
+      activeSend = Promise.race([attemptSend(1), timeoutPromise]);
+      await activeSend;
+    } catch (e) {
+      const msg = e?.message || String(e);
+      if (isPuppeteerEvaluationError(msg)) {
+        console.warn(`[SEND] ⚠️ Transient evaluation failure, retrying once...`);
+        activeSend = Promise.race([attemptSend(2), timeoutPromise]);
+        await activeSend;
+      } else {
+        throw e;
+      }
+    }
     
-    await Promise.race([sendPromise, timeoutPromise]);
-    
-    console.log(`[SEND] ✅ Success`);
-    res.json({ success: true, message: 'Message sent' });
+    console.log(`[SEND] ✅ Success in ${Date.now() - startedAt}ms`);
+    return res.json({ success: true, message: 'Message sent' });
     
   } catch (err) {
-    const errorMsg = err.message || String(err);
+    const errorMsg = err?.message || String(err);
     console.error(`[SEND] ❌ Error:`, errorMsg);
+
+    // Track repeated evaluation failures and restart client if needed.
+    if (isPuppeteerEvaluationError(errorMsg)) {
+      const now = Date.now();
+      // If failures are far apart, treat it as a new episode.
+      if (now - lastSendEvalFailureAt > 60_000) sendEvalFailureCount = 0;
+      lastSendEvalFailureAt = now;
+      sendEvalFailureCount += 1;
+
+      // After 2 failures within 60s, restart the client in background.
+      if (sendEvalFailureCount >= 2) {
+        sendEvalFailureCount = 0;
+        restartClient('Repeated puppeteer evaluation failures during send').catch(() => undefined);
+      }
+    }
     
     // Return 202 Accepted if bridge is unreliable
     // CRM will queue the message in MongoDB
     if (errorMsg.includes('Evaluation') || errorMsg.includes('timeout')) {
-      return res.status(202).json({ 
-        success: false, 
+      return res.status(202).json({
         error: errorMsg,
         queued: true,
-        hint: 'Message queued in CRM database. Retry: POST /api/disconnect then reconnect'
+        hint: 'Bridge is authenticated but WhatsApp page is busy/unresponsive. Try again shortly; the bridge may self-recover. If it persists, restart the wa-bridge container.',
       });
     }
-    
-    res.status(500).json({ 
-      success: false, 
-      error: errorMsg
-    });
+
+    return res.status(500).json({ error: errorMsg });
+  } finally {
+    activeSend = null;
   }
 });
 
