@@ -5,6 +5,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 function getNextBaseUrl() {
   const raw =
@@ -137,6 +138,68 @@ let lastReadyAt = null;
 //
 // This avoids the "process_singleton_posix.cc ... profile appears to be in use" failure loop.
 const CHROME_XDG_BASE_DIR = process.env.CHROME_XDG_BASE_DIR || '/tmp/wa-chrome-xdg';
+
+function tryKillStrayChromiumProcesses() {
+  // In rare cases, Chromium can survive a parent crash and keep a singleton lock.
+  // We run a best-effort kill inside the container before starting Puppeteer.
+  try {
+    execSync('pkill -9 -f "(/usr/bin/chromium|chromium|chrome)" >/dev/null 2>&1 || true', {
+      stdio: 'ignore',
+    });
+  } catch {
+    // ignore
+  }
+}
+
+function removeSingletonLocksInDir(dir) {
+  const staleLockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+  for (const name of staleLockFiles) {
+    const p = path.join(dir, name);
+    try {
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+        console.log(`🧹 Removed stale Chromium lock file: ${p}`);
+      }
+    } catch (e) {
+      console.log(`⚠️ Failed to remove lock file ${p}: ${e?.message || e}`);
+    }
+  }
+}
+
+function cleanupKnownChromiumLocks() {
+  // Clean locks under our /tmp ephemeral runtime dirs
+  try {
+    if (fs.existsSync(CHROME_XDG_BASE_DIR)) {
+      // Remove only lock files, not the whole dir (it may be in use by future runs)
+      removeSingletonLocksInDir(CHROME_XDG_BASE_DIR);
+      for (const child of ['runtime', 'cache', 'config']) {
+        removeSingletonLocksInDir(path.join(CHROME_XDG_BASE_DIR, child));
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // Clean locks inside LocalAuth session directory as well.
+  // Even though it's not the Chromium profile, some environments drop singleton locks here.
+  try {
+    if (fs.existsSync(LOCALAUTH_DATA_PATH)) {
+      removeSingletonLocksInDir(LOCALAUTH_DATA_PATH);
+      const entries = fs.readdirSync(LOCALAUTH_DATA_PATH);
+      for (const entry of entries) {
+        if (!entry.startsWith('session-')) continue;
+        removeSingletonLocksInDir(path.join(LOCALAUTH_DATA_PATH, entry));
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function isChromiumProfileLockError(err) {
+  const msg = String(err?.message || err || '');
+  return msg.includes('process_singleton_posix.cc') || msg.includes('profile appears to be in use');
+}
 
 function ensureDir(dir) {
   try {
@@ -278,12 +341,16 @@ function clearStaleSessions() {
 // Puppeteer will create and manage an isolated temporary profile per launch.
 
 // Initialize WhatsApp client
-function initializeClient() {
+function initializeClient({ attempt = 1 } = {}) {
   if (client) {
     console.log('⚠️ Client already exists, destroying old instance...');
     client.destroy().catch(err => console.error('Error destroying client:', err));
     client = null;
   }
+
+  // Best-effort cleanup before starting Chromium.
+  tryKillStrayChromiumProcesses();
+  cleanupKnownChromiumLocks();
 
   const { runtime: xdgRuntimeDir, cache: xdgCacheDir, config: xdgConfigDir } =
     prepareChromeXdgDirs();
@@ -298,6 +365,7 @@ function initializeClient() {
 
   console.log('🔧 Creating new WhatsApp client with clientId:', clientId);
   console.log(`🧪 Chromium XDG (ephemeral): ${CHROME_XDG_BASE_DIR}`);
+  console.log(`🧪 Chromium init attempt: ${attempt}`);
   
   client = new Client({
     // Force LocalAuth to use the persisted docker volume.
@@ -627,6 +695,25 @@ function initializeClient() {
     console.error(`   Error: ${err.message}`);
     console.error(`   Stack: ${err.stack}`);
     
+
+    // Automatic single retry for Chromium profile-lock issues.
+    if (attempt < 2 && isChromiumProfileLockError(err)) {
+      console.log('🔁 Detected Chromium profile lock. Retrying once after cleanup...');
+      try {
+        tryKillStrayChromiumProcesses();
+        cleanupKnownChromiumLocks();
+      } catch {
+        // ignore
+      }
+
+      setTimeout(() => {
+        try {
+          initializeClient({ attempt: attempt + 1 });
+        } catch (e) {
+          console.log('❌ Retry initialize failed:', e?.message || e);
+        }
+      }, 1500);
+    }
     broadcastMessage({
       type: 'error',
       error: 'Failed to initialize WhatsApp: ' + err.message,
