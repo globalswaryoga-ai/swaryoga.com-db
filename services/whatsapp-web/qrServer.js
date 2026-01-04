@@ -188,6 +188,50 @@ function clearStaleSessions() {
       const files = fs.readdirSync(authDir);
       console.log(`Found ${files.length} existing sessions in ${authDir}`);
       // Note: Don't auto-delete, just log. User can manually clear if needed.
+
+      // Clean up Chromium's singleton lock files if they exist.
+      // In Docker/EC2 it's common to see Puppeteer fail with:
+      // "The profile appears to be in use by another Chromium process ... Chromium has locked the profile"
+      // after an unclean shutdown. Removing these lock artifacts is safe when we are sure
+      // we run a single Puppeteer instance per container.
+      const staleLockFiles = [
+        'SingletonLock',
+        'SingletonCookie',
+        'SingletonSocket',
+      ];
+      for (const name of staleLockFiles) {
+        const p = path.join(authDir, name);
+        try {
+          if (fs.existsSync(p)) {
+            fs.unlinkSync(p);
+            console.log(`🧹 Removed stale Chromium lock file: ${p}`);
+          }
+        } catch (e) {
+          console.log(`⚠️ Failed to remove lock file ${p}: ${e?.message || e}`);
+        }
+      }
+
+      // Also remove lock files inside LocalAuth's clientId directory if present.
+      // Path usually: .wwebjs_auth/session-<clientId>/*
+      try {
+        for (const entry of files) {
+          if (!entry.startsWith('session-')) continue;
+          const sessionDir = path.join(authDir, entry);
+          for (const name of staleLockFiles) {
+            const p = path.join(sessionDir, name);
+            try {
+              if (fs.existsSync(p)) {
+                fs.unlinkSync(p);
+                console.log(`🧹 Removed stale Chromium lock file: ${p}`);
+              }
+            } catch (e) {
+              console.log(`⚠️ Failed to remove lock file ${p}: ${e?.message || e}`);
+            }
+          }
+        }
+      } catch (e) {
+        console.log(`⚠️ Failed during session lock cleanup: ${e?.message || e}`);
+      }
     }
   } catch (err) {
     console.log('Session directory check: ' + err.message);
