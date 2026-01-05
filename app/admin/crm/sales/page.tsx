@@ -83,6 +83,8 @@ type SalesAggRow = {
 export default function SalesPage() {
   const router = useRouter();
   const token = useAuth();
+
+  const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
@@ -653,6 +655,24 @@ export default function SalesPage() {
           >
             WhatsApp
           </button>
+
+          {enableMetaWhatsApp ? (
+            <button
+              onClick={() => {
+                const phone = normalizePhoneForMeta(sale.customerPhone || '');
+                const hasPhone = phone.length >= 10;
+                if (!hasPhone) {
+                  setError('Missing customer phone number for Meta WhatsApp');
+                  return;
+                }
+                router.push(`/admin/crm/whatsapp-meta?phone=${encodeURIComponent(phone)}`);
+              }}
+              className="px-3 py-1.5 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 rounded-lg text-sm font-medium transition-colors"
+              title="Open WhatsApp Meta"
+            >
+              Meta
+            </button>
+          ) : null}
 
           {/* Edit Button */}
           <button

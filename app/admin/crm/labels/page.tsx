@@ -1,13 +1,34 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { CANONICAL_LABELS, getLabelColor, normalizeLabel, type LabelColor } from '@/lib/crm/labels';
 
 interface LabelStat {
   _id: string;
   count: number;
 }
+
+type BadgeTone = {
+  bg: string;
+  text: string;
+  border: string;
+};
+
+const COLOR_TOKENS: Record<LabelColor, BadgeTone> = {
+  blue: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
+  yellow: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
+  green: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },
+  red: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
+};
+
+const COLOR_OPTIONS: Array<{ value: LabelColor; label: string; swatch: string }> = [
+  { value: 'blue', label: 'Blue (info)', swatch: 'bg-blue-500' },
+  { value: 'yellow', label: 'Yellow (warm)', swatch: 'bg-yellow-500' },
+  { value: 'green', label: 'Green (positive)', swatch: 'bg-emerald-500' },
+  { value: 'red', label: 'Red (negative)', swatch: 'bg-red-500' },
+];
 
 export default function LabelsPage() {
   const router = useRouter();
@@ -18,17 +39,19 @@ export default function LabelsPage() {
   const [error, setError] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState('');
   const [addingLabel, setAddingLabel] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<LabelColor>('blue');
 
-  // Default labels for lead workflow
-  const defaultLabels = [
-    'New',
-    'WhatsApp sent',
-    'WhatsApp replied',
-    'Ready to call',
-    'Call done',
-    'Interested for workshop',
-    'No reply',
-  ];
+  const existingLabelSet = useMemo(() => {
+    return new Set(
+      (labels || [])
+        .map((l) => normalizeLabel((l as any)?._id ?? (l as any)?.label))
+        .filter(Boolean)
+    );
+  }, [labels]);
+
+  const suggestedCanonicalLabels = useMemo(() => {
+    return (CANONICAL_LABELS || []).filter((l) => !existingLabelSet.has(normalizeLabel(l)));
+  }, [existingLabelSet]);
 
   // Fetch labels
   const fetchLabels = useCallback(async () => {
@@ -41,9 +64,22 @@ export default function LabelsPage() {
 
       if (!response.ok) throw new Error('Failed to fetch labels');
 
-      const data = await response.json();
-      if (data.success && data.data.labels) {
-        setLabels(data.data.labels);
+      const data = await response.json().catch(() => null);
+      const list = (data?.data?.labels ?? data?.labels) as any;
+
+      // API returns `{ label, count }` rows; legacy UI expects `{ _id, count }`.
+      if (Array.isArray(list)) {
+        const normalized: LabelStat[] = list
+          .map((row: any) => {
+            const name = row?._id ?? row?.label;
+            const count = row?.count ?? 0;
+            const normalizedName = normalizeLabel(name);
+            if (!normalizedName) return null;
+            return { _id: normalizedName, count: Number(count) || 0 };
+          })
+          .filter(Boolean) as LabelStat[];
+
+        setLabels(normalized);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch labels');
@@ -59,6 +95,12 @@ export default function LabelsPage() {
   const handleAddLabel = async (labelName: string) => {
     if (!token || !labelName.trim()) return;
 
+    const normalizedLabel = normalizeLabel(labelName);
+    if (!normalizedLabel) return;
+
+    const derivedColor = selectedColor || getLabelColor(normalizedLabel);
+    const labelTextToPersist = derivedColor ? `${normalizedLabel}|${derivedColor}` : normalizedLabel;
+
     try {
       setError(null);
       const response = await fetch('/api/admin/crm/labels', {
@@ -67,7 +109,7 @@ export default function LabelsPage() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ leadIds: [], label: labelName.trim() }),
+        body: JSON.stringify({ leadIds: [], label: labelTextToPersist }),
       });
 
       if (!response.ok) {
@@ -86,6 +128,9 @@ export default function LabelsPage() {
   const handleDeleteLabel = async (label: string) => {
     if (!token || !confirm(`Delete label "${label}"?`)) return;
 
+    const actualLabel = String(label || '').split('|')[0];
+    const normalizedLabel = normalizeLabel(actualLabel);
+
     try {
       const response = await fetch('/api/admin/crm/labels', {
         method: 'DELETE',
@@ -93,7 +138,7 @@ export default function LabelsPage() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ label }),
+        body: JSON.stringify({ label: normalizedLabel || actualLabel }),
       });
 
       if (!response.ok) throw new Error('Failed to delete label');
@@ -106,24 +151,25 @@ export default function LabelsPage() {
 
   const handleInitializeDefaults = async () => {
     if (!token) return;
-    
+
     try {
       setError(null);
       setAddingLabel(true);
-      
-      for (const label of defaultLabels) {
-        // Check if label already exists
-        const exists = labels.some((l) => l._id.toLowerCase() === label.toLowerCase());
+
+      for (const label of CANONICAL_LABELS) {
+        const normalized = normalizeLabel(label);
+        const exists = existingLabelSet.has(normalized);
         if (!exists) {
-          await handleAddLabel(label);
+          const color = getLabelColor(normalized);
+          const toPersist = `${normalized}|${color}`;
+          await handleAddLabel(toPersist);
         }
       }
-      
-      // Refresh all labels
+
       await fetchLabels();
-      setAddingLabel(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to initialize labels');
+    } finally {
       setAddingLabel(false);
     }
   };
@@ -179,6 +225,59 @@ export default function LabelsPage() {
               </button>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <p className="text-sm text-slate-700 font-semibold">Choose a color</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {COLOR_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setSelectedColor(opt.value)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
+                        selectedColor === opt.value
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
+                      }`}
+                      title={opt.label}
+                    >
+                      <span className={`inline-block w-3 h-3 rounded-full ${opt.swatch}`} />
+                      <span className="truncate">{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500">
+                  Tip: Canonical labels also have default colors. Your selection applies to new custom labels.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-slate-700 font-semibold">Quick add (recommended)</p>
+                <div className="flex flex-wrap gap-2">
+                  {suggestedCanonicalLabels.slice(0, 12).map((l) => {
+                    const color = getLabelColor(l);
+                    const token = COLOR_TOKENS[color];
+                    return (
+                      <button
+                        key={l}
+                        type="button"
+                        onClick={() => handleAddLabel(`${l}|${color}`)}
+                        disabled={addingLabel}
+                        className={`px-3 py-1.5 rounded-full border text-sm font-semibold ${token.bg} ${token.text} ${token.border} hover:opacity-90 disabled:opacity-50`}
+                        title="Add label"
+                      >
+                        + {l}
+                      </button>
+                    );
+                  })}
+
+                  {suggestedCanonicalLabels.length === 0 && (
+                    <span className="text-sm text-slate-500">All canonical labels already exist.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Quick Initialize Defaults */}
             <div className="pt-4 border-t border-slate-200">
               <p className="text-sm text-slate-600 mb-3 font-medium">Or initialize default labels for lead workflow:</p>
@@ -190,7 +289,7 @@ export default function LabelsPage() {
                 {addingLabel ? 'Initializing...' : '🚀 Initialize Default Labels'}
               </button>
               <p className="text-xs text-slate-500 mt-2">
-                Default labels: New, WhatsApp sent, WhatsApp replied, Ready to call, Call done, Interested for workshop, No reply
+                Canonical labels will be added with their default colors.
               </p>
             </div>
           </div>
@@ -232,9 +331,19 @@ export default function LabelsPage() {
                   className="px-8 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="bg-orange-100 text-orange-700 px-4 py-2 rounded-full font-semibold text-sm border border-orange-300">
-                      {label._id}
-                    </div>
+                    {(() => {
+                      const raw = String(label._id || '');
+                      const [namePart, colorPartRaw] = raw.split('|');
+                      const name = normalizeLabel(namePart);
+                      const colorFromText = colorPartRaw as LabelColor | undefined;
+                      const tone = COLOR_TOKENS[colorFromText && COLOR_TOKENS[colorFromText] ? colorFromText : getLabelColor(name)];
+
+                      return (
+                        <div className={`px-4 py-2 rounded-full font-semibold text-sm border ${tone.bg} ${tone.text} ${tone.border}`}>
+                          {name}
+                        </div>
+                      );
+                    })()}
                     <div>
                       <p className="text-sm text-slate-600 font-medium">Used in</p>
                       <p className="text-lg font-bold text-slate-900">{label.count} leads</p>

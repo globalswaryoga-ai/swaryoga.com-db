@@ -160,6 +160,8 @@ function LeadsFollowupPageContent() {
   const router = useRouter();
   const token = useAuth();
 
+  const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
+
   // Admin users (dynamic, shared with WhatsApp/Leads pages)
   const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
   const adminUserOptions = (adminUsers || [])
@@ -1062,15 +1064,19 @@ function LeadsFollowupPageContent() {
                       <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.67-.51-.173-.008-.371 0-.57 0-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.076 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421-7.403h-.004a9.87 9.87 0 00-9.746 9.798c0 2.719.738 5.378 2.138 7.709L2.821 23.63l8.239-2.164c2.256 1.226 4.787 1.873 7.402 1.873 5.364 0 9.856-4.46 9.888-9.948.01-2.644-.795-5.127-2.3-7.233-1.504-2.105-3.627-3.61-5.996-4.413-2.368-.804-4.895-.953-7.252-.54z"/>
                     </svg>
                   </button>
-                  <button
-                    onClick={() => router.push(`/admin/crm/whatsapp-meta?phone=${(selectedLead.phoneNumber || '').replace(/\D/g, '')}`)}
-                    className="p-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors shadow-sm"
-                    title="Open Meta WhatsApp"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.474-2.23-1.661-2.23-1.252-1.752-2.05-2.744-2.05-2.744-1.556 0-2.831.787-3.56 1.871-1.129 1.559-1.807 3.509-1.807 5.556v3.116h-3.565V9h3.565v1.542c.7-1.079 1.898-2.57 3.986-2.57.703 0 1.463.12 2.19.35z"/>
-                    </svg>
-                  </button>
+                  {enableMetaWhatsApp ? (
+                    <button
+                      onClick={() =>
+                        router.push(`/admin/crm/whatsapp-meta?phone=${(selectedLead.phoneNumber || '').replace(/\D/g, '')}`)
+                      }
+                      className="p-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors shadow-sm"
+                      title="Open Meta WhatsApp"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.474-2.23-1.661-2.23-1.252-1.752-2.05-2.744-2.05-2.744-1.556 0-2.831.787-3.56 1.871-1.129 1.559-1.807 3.509-1.807 5.556v3.116h-3.565V9h3.565v1.542c.7-1.079 1.898-2.57 3.986-2.57.703 0 1.463.12 2.19.35z"/>
+                      </svg>
+                    </button>
+                  ) : null}
                 </div>
               </div>
             )}
