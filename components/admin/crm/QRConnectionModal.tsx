@@ -22,6 +22,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
   const [qrAttempt, setQrAttempt] = useState(0);
   const [maxQrAttempts] = useState(5);
   const wsRef = useRef<WebSocket | null>(null);
+  const hasAuthenticatedRef = useRef(false);
 
   const resolveBridgeWsUrl = useCallback((): string | null => {
     const envWsUrl = (process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL || '').trim();
@@ -57,6 +58,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
   const connectQRMode = useCallback(() => {
     setStatus('connecting');
     setMessage('Initializing WhatsApp Web connection...');
+    hasAuthenticatedRef.current = false;
     
     try {
       // IMPORTANT:
@@ -106,6 +108,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
 
             case 'authenticated':
               console.log('✅ WhatsApp authenticated!');
+              hasAuthenticatedRef.current = true;
               setStatus('authenticated');
               setMessage('WhatsApp Web successfully authenticated!');
               setQrCode(null);
@@ -147,8 +150,12 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       };
 
       ws.onclose = () => {
-        console.log('❌ WebSocket disconnected');
-        if (status !== 'authenticated') {
+        // Note: after WhatsApp auth, the bridge may close the WS intentionally.
+        // Avoid showing an error toast when we've already authenticated.
+        const wsState = ws.readyState;
+        console.log('❌ WebSocket disconnected (state:', wsState, ')');
+
+        if (!hasAuthenticatedRef.current) {
           setStatus('error');
           setErrorMsg('Connection lost. Please try again.');
         }

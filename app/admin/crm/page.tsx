@@ -33,8 +33,11 @@ export default function CRMDashboard() {
       try {
         setLoading(true);
         setError(null);
-        
-        console.log('[CRM Dashboard] Fetching analytics with token:', token.substring(0, 20) + '...');
+
+        // Never log auth tokens (even partially) in production.
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[CRM Dashboard] Fetching analytics (token present):', Boolean(token));
+        }
         
         const response = await fetch('/api/admin/crm/analytics?view=overview', {
           method: 'GET',
@@ -44,7 +47,9 @@ export default function CRMDashboard() {
           },
         });
 
-        console.log('[CRM Dashboard] Analytics API response status:', response.status);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[CRM Dashboard] Analytics API response status:', response.status);
+        }
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
@@ -53,7 +58,9 @@ export default function CRMDashboard() {
         }
 
         const data = await response.json();
-        console.log('[CRM Dashboard] Analytics response data:', data);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[CRM Dashboard] Analytics response data:', data);
+        }
         
         // Check if response has the expected structure
         if (!data.data || !data.data.overview) {
