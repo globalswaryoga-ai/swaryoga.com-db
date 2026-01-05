@@ -73,6 +73,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Ensure leads and filter are valid before querying
+    if (!Lead) {
+      return NextResponse.json({ error: 'Lead model not initialized' }, { status: 500 });
+    }
+
     const leads = await Lead.find(filter)
       .sort({ lastMessageAt: -1, updatedAt: -1 })
       .skip(skip)
@@ -83,6 +88,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { leads, total, limit, skip } }, { status: 200 });
   } catch (error) {
+    console.error('❌ GET /api/admin/crm/leads error:', error);
     const message = error instanceof Error ? error.message : 'Failed to load leads';
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -126,6 +132,11 @@ export async function POST(request: NextRequest) {
     const assignedToUserId = superAdmin && requestedAssignedTo ? requestedAssignedTo : viewerUserId;
 
     await connectDB();
+
+    // Validate Lead model
+    if (!Lead) {
+      return NextResponse.json({ error: 'Lead model not initialized' }, { status: 500 });
+    }
 
     // Check for duplicates by email or phone number
     const existingLead = await Lead.findOne({
@@ -174,6 +185,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: lead }, { status: 201 });
   } catch (error) {
+    console.error('❌ POST /api/admin/crm/leads error:', error);
     const message = error instanceof Error ? error.message : 'Failed to create lead';
     return NextResponse.json({ error: message }, { status: 500 });
   }
