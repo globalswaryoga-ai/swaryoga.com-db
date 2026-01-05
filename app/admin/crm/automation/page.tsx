@@ -7,6 +7,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
 
+type FetchScope = 'page' | 'rules' | 'scheduled' | 'broadcast' | 'save';
+
 interface AutomationRule {
   _id: string;
   name: string;
@@ -65,26 +67,42 @@ export default function AutomationPage() {
   const [broadcastLists, setBroadcastLists] = useState<BroadcastList[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  // loadingScope helps avoid the whole page flickering to a spinner for small actions
+  // like tab switches or toggling a single rule.
+  const [loadingScope, setLoadingScope] = useState<FetchScope>('page');
+  const loading = loadingScope === 'page';
   const [showNewRuleModal, setShowNewRuleModal] = useState(false);
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleTrigger, setNewRuleTrigger] = useState('welcome');
   const [newRuleAction, setNewRuleAction] = useState('send_text');
   const [newRuleContent, setNewRuleContent] = useState('');
 
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editRuleForm, setEditRuleForm] = useState({
+    name: '',
+    enabled: true,
+    triggerType: 'welcome',
+    keywords: '',
+    actionType: 'send_text',
+    actionText: '',
+    actionTemplateId: '',
+    throttleMinutesPerLead: 5,
+  });
+
   const fetchRules = useCallback(async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = 'rules';
     try {
-      setLoading(true);
+      setLoadingScope((s) => (s === 'page' ? 'page' : 'rules'));
       const result = await crm.fetch('/api/admin/crm/automations', {
-        params: { limit: 50, skip: 0 },
+        params: { limit: 100, skip: 0 },
       });
       setRules(result?.rules || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch rules');
     } finally {
-      setLoading(false);
+      setLoadingScope('page');
       inFlightRef.current = null;
     }
   }, [crm]);
@@ -93,15 +111,16 @@ export default function AutomationPage() {
     if (inFlightRef.current) return;
     inFlightRef.current = 'scheduled';
     try {
-      setLoading(true);
+      setLoadingScope((s) => (s === 'page' ? 'page' : 'scheduled'));
       const result = await crm.fetch('/api/admin/crm/scheduled-messages', {
         params: { limit: 50, skip: 0 },
       });
-      setScheduledMessages(result?.messages || []);
+      // API returns { jobs }, not { messages }
+      setScheduledMessages(result?.jobs || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch scheduled messages');
     } finally {
-      setLoading(false);
+      setLoadingScope('page');
       inFlightRef.current = null;
     }
   }, [crm]);
@@ -110,7 +129,7 @@ export default function AutomationPage() {
     if (inFlightRef.current) return;
     inFlightRef.current = 'broadcast';
     try {
-      setLoading(true);
+      setLoadingScope((s) => (s === 'page' ? 'page' : 'broadcast'));
       const result = await crm.fetch('/api/admin/crm/broadcast-lists', {
         params: { limit: 50, skip: 0 },
       });
@@ -118,7 +137,7 @@ export default function AutomationPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch broadcast lists');
     } finally {
-      setLoading(false);
+      setLoadingScope('page');
       inFlightRef.current = null;
     }
   }, [crm]);
@@ -133,6 +152,7 @@ export default function AutomationPage() {
     const key = `${token}:welcome`;
     if (lastFetchKeyRef.current === key) return;
     lastFetchKeyRef.current = key;
+    setLoadingScope('page');
     void fetchRules();
   }, [mounted, token, router, fetchRules]);
 
@@ -157,6 +177,7 @@ export default function AutomationPage() {
     }
 
     try {
+      setLoadingScope('save');
       await crm.fetch('/api/admin/crm/automations', {
         method: 'POST',
         body: {
@@ -176,12 +197,15 @@ export default function AutomationPage() {
       fetchRules();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create rule');
+    } finally {
+      setLoadingScope('page');
     }
   };
 
   const handleToggleRule = async (ruleId: string, enabled: boolean) => {
     try {
       setError(null);
+      setLoadingScope('save');
       await crm.fetch(`/api/admin/crm/automations/${ruleId}`, {
         method: 'PUT',
         body: { enabled: !enabled },
@@ -190,6 +214,8 @@ export default function AutomationPage() {
       fetchRules();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update rule');
+    } finally {
+      setLoadingScope('page');
     }
   };
 
@@ -197,6 +223,7 @@ export default function AutomationPage() {
     if (!confirm('Are you sure you want to delete this rule?')) return;
     try {
       setError(null);
+      setLoadingScope('save');
       await crm.fetch(`/api/admin/crm/automations/${ruleId}`, {
         method: 'DELETE',
       });
@@ -204,12 +231,84 @@ export default function AutomationPage() {
       fetchRules();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete rule');
+    } finally {
+      setLoadingScope('page');
     }
   };
 
   const handleEditRule = (ruleId: string) => {
-    // TODO: Implement edit rule modal
-    setError('Edit rule coming soon');
+    const r = rules.find((x) => x._id === ruleId);
+    if (!r) return;
+
+    setEditingRuleId(ruleId);
+    setEditRuleForm({
+      name: r.name || '',
+      enabled: !!r.enabled,
+      triggerType: String(r.triggerType || 'welcome'),
+      keywords: Array.isArray(r.keywords) ? r.keywords.join(', ') : '',
+      actionType: String(r.actionType || 'send_text'),
+      actionText: String(r.actionText || ''),
+      actionTemplateId: String(r.actionTemplateId || ''),
+      throttleMinutesPerLead: typeof r.throttleMinutesPerLead === 'number' ? r.throttleMinutesPerLead : 5,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEditRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRuleId) return;
+
+    try {
+      setError(null);
+      setLoadingScope('save');
+
+      const name = editRuleForm.name.trim();
+      if (!name) throw new Error('Rule name is required');
+
+      const triggerType = String(editRuleForm.triggerType || 'welcome');
+      const actionType = String(editRuleForm.actionType || 'send_text');
+
+      const body: any = {
+        name,
+        enabled: !!editRuleForm.enabled,
+        triggerType,
+        actionType,
+        throttleMinutesPerLead: Math.max(0, Number(editRuleForm.throttleMinutesPerLead) || 0),
+      };
+
+      if (triggerType === 'keyword') {
+        const keywords = editRuleForm.keywords
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean);
+        body.keywords = keywords;
+      }
+
+      if (actionType === 'send_text') {
+        const txt = editRuleForm.actionText.trim();
+        if (!txt) throw new Error('Action text is required');
+        body.actionText = txt;
+      }
+
+      if (actionType === 'send_template') {
+        if (!editRuleForm.actionTemplateId) throw new Error('Template ID is required');
+        body.actionTemplateId = editRuleForm.actionTemplateId;
+      }
+
+      await crm.fetch(`/api/admin/crm/automations/${editingRuleId}`, {
+        method: 'PUT',
+        body,
+      });
+
+      setShowEditModal(false);
+      setEditingRuleId(null);
+      setSuccess('Rule updated');
+      await fetchRules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update rule');
+    } finally {
+      setLoadingScope('page');
+    }
   };
 
   if (!token) return <LoadingSpinner />;
@@ -224,6 +323,149 @@ export default function AutomationPage() {
 
         {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
         {success && <AlertBox type="success" message={success} onClose={() => setSuccess(null)} />}
+
+        {/* Edit Rule Modal */}
+        {showEditModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-2xl rounded-2xl border border-purple-500/30 bg-slate-900 shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-purple-500/20">
+                <div>
+                  <h3 className="text-lg font-extrabold text-white">Edit Automation Rule</h3>
+                  <p className="text-xs text-purple-200">Update trigger + action settings</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingRuleId(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-white text-sm"
+                >
+                  Close
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditRule} className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-purple-100 mb-2">Rule Name</label>
+                    <input
+                      value={editRuleForm.name}
+                      onChange={(e) => setEditRuleForm((p) => ({ ...p, name: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
+                      placeholder="Rule name"
+                    />
+                  </div>
+
+                  <div className="flex items-end gap-4">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={editRuleForm.enabled}
+                        onChange={(e) => setEditRuleForm((p) => ({ ...p, enabled: e.target.checked }))}
+                        className="w-5 h-5"
+                      />
+                      <span className="text-sm font-bold text-purple-100">Enabled</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-purple-100 mb-2">Trigger</label>
+                    <select
+                      value={editRuleForm.triggerType}
+                      onChange={(e) => setEditRuleForm((p) => ({ ...p, triggerType: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
+                    >
+                      <option value="welcome">Welcome</option>
+                      <option value="keyword">Keyword</option>
+                      <option value="scheduled">Scheduled</option>
+                      <option value="chatbot">Chatbot</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-purple-100 mb-2">Throttle minutes (per lead)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={String(editRuleForm.throttleMinutesPerLead ?? 0)}
+                      onChange={(e) =>
+                        setEditRuleForm((p) => ({ ...p, throttleMinutesPerLead: Number(e.target.value) }))
+                      }
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
+                    />
+                  </div>
+
+                  {editRuleForm.triggerType === 'keyword' && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-purple-100 mb-2">Keywords</label>
+                      <input
+                        value={editRuleForm.keywords}
+                        onChange={(e) => setEditRuleForm((p) => ({ ...p, keywords: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
+                        placeholder="comma separated keywords"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-bold text-purple-100 mb-2">Action Type</label>
+                    <select
+                      value={editRuleForm.actionType}
+                      onChange={(e) => setEditRuleForm((p) => ({ ...p, actionType: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
+                    >
+                      <option value="send_text">Send Text</option>
+                      <option value="send_template">Send Template</option>
+                    </select>
+                  </div>
+
+                  {editRuleForm.actionType === 'send_template' ? (
+                    <div>
+                      <label className="block text-sm font-bold text-purple-100 mb-2">Template ID</label>
+                      <input
+                        value={editRuleForm.actionTemplateId}
+                        onChange={(e) => setEditRuleForm((p) => ({ ...p, actionTemplateId: e.target.value }))}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
+                        placeholder="Template ObjectId"
+                      />
+                    </div>
+                  ) : (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-purple-100 mb-2">Message Text</label>
+                      <textarea
+                        value={editRuleForm.actionText}
+                        onChange={(e) => setEditRuleForm((p) => ({ ...p, actionText: e.target.value }))}
+                        rows={4}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
+                        placeholder="Message to send"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingRuleId(null);
+                    }}
+                    className="px-4 py-2 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-white font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-extrabold"
+                    disabled={loadingScope === 'save'}
+                  >
+                    {loadingScope === 'save' ? 'Saving…' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 border-b border-purple-500/30 pb-4">
