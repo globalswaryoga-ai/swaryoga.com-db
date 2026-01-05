@@ -209,6 +209,7 @@ function LeadsFollowupPageContent() {
 
   const [actionMode, setActionMode] = useState<ActionMode>('notes');
   const [message, setMessage] = useState('');
+  const [aiCorrecting, setAiCorrecting] = useState(false);
   const [followupStatus, setFollowupStatus] = useState<'pending' | 'in-progress' | 'completed'>('pending');
   const [todos, setTodos] = useState('');
   const [reminder, setReminder] = useState('');
@@ -218,6 +219,30 @@ function LeadsFollowupPageContent() {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const applyAutocorrectMessage = async () => {
+    const text = message.trim();
+    if (!text) return;
+    try {
+      setAiCorrecting(true);
+      const res = await fetch('/api/admin/crm/ai-correct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: message }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to auto-correct');
+      }
+      if (typeof json?.correctedText === 'string') {
+        setMessage(json.correctedText);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to auto-correct');
+    } finally {
+      setAiCorrecting(false);
+    }
+  };
 
   // Header-side preview (cart-like): show what you're typing + what you last saved.
   const [lastSavedPreview, setLastSavedPreview] = useState<HeaderPreview | null>(null);
@@ -1433,7 +1458,18 @@ function LeadsFollowupPageContent() {
                           className="w-full px-4 py-4 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none text-sm"
                           rows={10}
                         />
-                        <div className="mt-2 text-xs text-slate-500 text-right">{message.length} characters</div>
+                        <div className="mt-2 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={applyAutocorrectMessage}
+                            disabled={!message.trim() || aiCorrecting}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-60"
+                            title="Auto-correct spelling + grammar"
+                          >
+                            {aiCorrecting ? '⏳ Auto-correct…' : '✅ Auto-correct'}
+                          </button>
+                          <div className="text-xs text-slate-500 text-right">{message.length} characters</div>
+                        </div>
                       </div>
 
                       <div>
@@ -1712,7 +1748,18 @@ function LeadsFollowupPageContent() {
                             className="w-full px-4 py-4 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none text-sm"
                             rows={8}
                           />
-                          <div className="mt-2 text-xs text-slate-500 text-right">{message.length} characters</div>
+                          <div className="mt-2 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={applyAutocorrectMessage}
+                              disabled={!message.trim() || aiCorrecting}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-60"
+                              title="Auto-correct spelling + grammar"
+                            >
+                              {aiCorrecting ? '⏳ Auto-correct…' : '✅ Auto-correct'}
+                            </button>
+                            <div className="text-xs text-slate-500 text-right">{message.length} characters</div>
+                          </div>
                         </div>
                       )}
 

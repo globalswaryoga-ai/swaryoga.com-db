@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
       headerFormat,
       headerContent,
       footerText,
+      buttons,
+      headerMedia,
       variables,
       status,
     } = body;
@@ -122,6 +124,8 @@ export async function POST(request: NextRequest) {
       headerFormat: headerFormat || undefined,
       headerContent: headerContent || undefined,
       footerText: footerText || undefined,
+      buttons: Array.isArray(buttons) ? buttons : undefined,
+      headerMedia: headerMedia && typeof headerMedia === 'object' ? headerMedia : undefined,
       variables: Array.isArray(variables) ? variables : [],
       status: safeStatus,
       createdBy,

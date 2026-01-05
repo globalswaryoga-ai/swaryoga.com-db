@@ -485,6 +485,20 @@ const WhatsAppTemplateSchema = new mongoose.Schema(
     headerFormat: { type: String, enum: ['NONE', 'TEXT', 'IMAGE', 'DOCUMENT', 'VIDEO'] },
     headerContent: String,
     footerText: String,
+    // Builder support (CRM UI): store structured pieces so we can render/send rich templates.
+    // This is optional for backwards compatibility.
+    buttons: [
+      {
+        title: { type: String },
+      },
+    ],
+    headerMedia: {
+      kind: { type: String, enum: ['image', 'video'] },
+      url: { type: String },
+      fileName: { type: String },
+      mimeType: { type: String },
+      sizeBytes: { type: Number },
+    },
     variables: [
       {
         name: String,
@@ -805,6 +819,87 @@ WhatsAppScheduledJobSchema.index({ status: 1, nextRunAt: 1 });
 WhatsAppScheduledJobSchema.index({ createdByUserId: 1, nextRunAt: -1 });
 
 // ============================================================================
+// 11b. BROADCAST RUNS - Track a broadcast campaign and per-lead outcomes
+// ============================================================================
+const BroadcastRunSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+
+    createdByUserId: { type: String, trim: true, index: true },
+    createdByLabel: { type: String, trim: true },
+
+    mode: { type: String, enum: ['now', 'schedule', 'delay'], default: 'now', index: true },
+    scheduledAt: { type: Date, index: true },
+
+    status: {
+      type: String,
+      enum: ['draft', 'scheduled', 'running', 'completed', 'cancelled', 'failed'],
+      default: 'draft',
+      index: true,
+    },
+
+    templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate', required: true, index: true },
+    templateSnapshot: mongoose.Schema.Types.Mixed,
+
+    // Filter + targeting inputs used to create this run.
+    target: {
+      type: {
+        type: String,
+        enum: ['leadIds', 'filters', 'broadcastList'],
+        default: 'filters',
+      },
+      leadIds: { type: [mongoose.Schema.Types.ObjectId], default: [] },
+      filters: mongoose.Schema.Types.Mixed,
+      broadcastListId: { type: mongoose.Schema.Types.ObjectId, ref: 'BroadcastList' },
+    },
+
+    stats: {
+      total: { type: Number, default: 0 },
+      pending: { type: Number, default: 0 },
+      sent: { type: Number, default: 0 },
+      failed: { type: Number, default: 0 },
+      skipped: { type: Number, default: 0 },
+    },
+
+    startedAt: Date,
+    completedAt: Date,
+    lastError: String,
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'broadcast_runs' }
+);
+
+BroadcastRunSchema.index({ status: 1, scheduledAt: 1 });
+BroadcastRunSchema.index({ createdByUserId: 1, createdAt: -1 });
+
+const BroadcastRunMessageSchema = new mongoose.Schema(
+  {
+    runId: { type: mongoose.Schema.Types.ObjectId, ref: 'BroadcastRun', required: true, index: true },
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    phoneNumber: { type: String, required: true, index: true },
+
+    status: {
+      type: String,
+      enum: ['pending', 'sending', 'sent', 'failed', 'skipped'],
+      default: 'pending',
+      index: true,
+    },
+    failureReason: String,
+    waMessageId: String,
+    provider: String,
+    sentAt: Date,
+
+    // Link to actual WhatsAppMessage doc created by the send pipeline.
+    whatsappMessageId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppMessage' },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'broadcast_run_messages' }
+);
+
+BroadcastRunMessageSchema.index({ runId: 1, status: 1 });
+BroadcastRunMessageSchema.index({ leadId: 1, createdAt: -1 });
+
+// ============================================================================
 // 12. WHATSAPP AUTOMATION RULES - Welcome/greetings/chatbot/AI agent
 // ============================================================================
 const WhatsAppAutomationRuleSchema = new mongoose.Schema(
@@ -1109,6 +1204,9 @@ export const QuickReply = crmDb.models.QuickReply || crmDb.model('QuickReply', Q
 export const BroadcastList = crmDb.models.BroadcastList || crmDb.model('BroadcastList', BroadcastListSchema);
 export const BroadcastListMember =
   crmDb.models.BroadcastListMember || crmDb.model('BroadcastListMember', BroadcastListMemberSchema);
+export const BroadcastRun = crmDb.models.BroadcastRun || crmDb.model('BroadcastRun', BroadcastRunSchema);
+export const BroadcastRunMessage =
+  crmDb.models.BroadcastRunMessage || crmDb.model('BroadcastRunMessage', BroadcastRunMessageSchema);
 export const ChatbotFlow = crmDb.models.ChatbotFlow || crmDb.model('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = crmDb.models.ChatbotSettings || crmDb.model('ChatbotSettings', ChatbotSettingsSchema);
 export const CrmReceipt = crmDb.models.CrmReceipt || crmDb.model('CrmReceipt', CrmReceiptSchema);

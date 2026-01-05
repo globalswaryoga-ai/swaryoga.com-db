@@ -79,6 +79,7 @@ export default function CreateTemplatePage() {
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [aiCorrecting, setAiCorrecting] = useState(false);
 
   // Builder fields (structured)
   const [templateName, setTemplateName] = useState('');
@@ -142,6 +143,32 @@ export default function CreateTemplatePage() {
     requestAnimationFrame(() => bodyRef.current?.focus());
   }, []);
 
+  const applyAutocorrectBody = useCallback(async () => {
+    const text = bodyText.trim();
+    if (!text) return;
+
+    try {
+      setAiCorrecting(true);
+      const res = await fetch('/api/admin/crm/ai-correct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: bodyText }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to auto-correct');
+      }
+      if (typeof json?.correctedText === 'string') {
+        setBodyText(json.correctedText);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to auto-correct');
+    } finally {
+      setAiCorrecting(false);
+      requestAnimationFrame(() => bodyRef.current?.focus());
+    }
+  }, [bodyText]);
+
   const emojiRow = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍'];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -171,6 +198,9 @@ export default function CreateTemplatePage() {
           headerFormat: headerMedia ? (headerMedia.kind === 'image' ? 'IMAGE' : 'VIDEO') : headerText.trim() ? 'TEXT' : undefined,
           headerContent: headerText.trim() || undefined,
           footerText: footerText.trim() || undefined,
+          buttons: buttons.map((b) => ({ title: String(b?.title || '') })),
+          // headerMedia can be wired to an upload later; keep placeholder for future.
+          headerMedia: undefined,
           variables: [],
           // Future-proof: keep a structured snapshot (safe to ignore server-side)
           content: {
@@ -349,6 +379,16 @@ export default function CreateTemplatePage() {
                     <label className="block text-sm font-semibold text-gray-900">Other text</label>
                     <div className="flex items-center gap-2">
                       <div className="flex gap-1 flex-wrap items-center">
+                        <button
+                          type="button"
+                          className="px-3 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold"
+                          onClick={applyAutocorrectBody}
+                          disabled={!bodyText.trim() || aiCorrecting}
+                          title="Auto-correct spelling + grammar"
+                        >
+                          {aiCorrecting ? '⏳' : '✅'}
+                        </button>
+
                         <button
                           type="button"
                           className="w-9 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 font-extrabold"

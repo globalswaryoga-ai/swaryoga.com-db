@@ -229,7 +229,7 @@ export default function MessagesPage() {
         <div className="flex gap-1 flex-wrap">
           <button
             onClick={() => setSelectedMessage(msg)}
-            className="px-2 py-1 bg-blue-500/20 text-blue-200 rounded text-xs hover:bg-blue-500/30 transition-colors"
+            className="px-2 py-1 bg-slate-100 text-black font-bold rounded text-xs hover:bg-slate-200 transition-colors border border-slate-300"
             title="View details"
           >
             View
@@ -237,7 +237,7 @@ export default function MessagesPage() {
           {msg.status === 'failed' && (
             <button
               onClick={() => handleRetryMessage(msg._id)}
-              className="px-2 py-1 bg-yellow-500/20 text-yellow-200 rounded text-xs hover:bg-yellow-500/30 transition-colors"
+              className="px-2 py-1 bg-yellow-100 text-black font-bold rounded text-xs hover:bg-yellow-200 transition-colors border border-yellow-300"
               title="Retry failed message"
             >
               Retry
@@ -246,7 +246,7 @@ export default function MessagesPage() {
           {!msg.isRead ? (
             <button
               onClick={() => handleMarkAsRead(msg._id)}
-              className="px-2 py-1 bg-green-500/20 text-green-200 rounded text-xs hover:bg-green-500/30 transition-colors"
+              className="px-2 py-1 bg-green-100 text-black font-bold rounded text-xs hover:bg-green-200 transition-colors border border-green-300"
               title="Mark as read"
             >
               ✓ Read
@@ -254,7 +254,7 @@ export default function MessagesPage() {
           ) : (
             <button
               onClick={() => handleMarkAsUnread(msg._id)}
-              className="px-2 py-1 bg-gray-500/20 text-gray-200 rounded text-xs hover:bg-gray-500/30 transition-colors"
+              className="px-2 py-1 bg-white text-black font-bold rounded text-xs hover:bg-slate-100 transition-colors border border-slate-300"
               title="Mark as unread"
             >
               Unread
@@ -262,14 +262,14 @@ export default function MessagesPage() {
           )}
           <button
             onClick={() => handleArchiveMessage(msg._id)}
-            className="px-2 py-1 bg-purple-500/20 text-purple-200 rounded text-xs hover:bg-purple-500/30 transition-colors"
+            className="px-2 py-1 bg-purple-100 text-black font-bold rounded text-xs hover:bg-purple-200 transition-colors border border-purple-300"
             title="Archive message"
           >
             📁 Archive
           </button>
           <button
             onClick={() => handleDeleteMessage(msg._id)}
-            className="px-2 py-1 bg-red-500/20 text-red-200 rounded text-xs hover:bg-red-500/30 transition-colors"
+            className="px-2 py-1 bg-red-100 text-black font-bold rounded text-xs hover:bg-red-200 transition-colors border border-red-300"
             title="Delete message"
           >
             🗑️

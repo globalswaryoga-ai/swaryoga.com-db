@@ -93,6 +93,25 @@ type WhatsAppTemplateRow = {
   language?: string;
   templateContent: string;
   status?: string;
+  buttons?: Array<{ title?: string }>;
+  headerMedia?: {
+    kind?: 'image' | 'video';
+    url?: string;
+    fileName?: string;
+    mimeType?: string;
+    sizeBytes?: number;
+  };
+};
+
+type SelectedTemplate = {
+  id: string;
+  name: string;
+  body: string;
+  buttons: Array<{ title?: string }>;
+  headerMedia?: {
+    kind?: 'image' | 'video';
+    url?: string;
+  };
 };
 
 type AutomationRuleRow = {
@@ -303,6 +322,7 @@ export default function WhatsAppChatDashboardPage() {
   const [savedId, setSavedId] = useState('');
   const [savedLoading, setSavedLoading] = useState(false);
   const [templates, setTemplates] = useState<WhatsAppTemplateRow[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<SelectedTemplate | null>(null);
   const [chatbots, setChatbots] = useState<AutomationRuleRow[]>([]);
 
   const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -376,6 +396,7 @@ export default function WhatsAppChatDashboardPage() {
   const [showComposerTools, setShowComposerTools] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiCorrecting, setAiCorrecting] = useState(false);
   const [scheduleTemplate, setScheduleTemplate] = useState('');
   const [delayTemplate, setDelayTemplate] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
@@ -889,6 +910,7 @@ export default function WhatsAppChatDashboardPage() {
     if (didAutoSelectRef.current) return;
     const leadId = String(searchParams.get('leadId') || '').trim();
     const phone = String(searchParams.get('phone') || '').trim();
+    const initialMessage = String(searchParams.get('message') || '').trim();
     if (!leadId && !phone) return;
     // Wait until conversations load at least once.
     if (!conversations.length && !leadId) return;
@@ -901,6 +923,13 @@ export default function WhatsAppChatDashboardPage() {
     });
     if (row) {
       didAutoSelectRef.current = true;
+      if (initialMessage) {
+        try {
+          setComposer(decodeURIComponent(initialMessage));
+        } catch {
+          setComposer(initialMessage);
+        }
+      }
       void handleSelect(row);
       return;
     }
@@ -928,6 +957,14 @@ export default function WhatsAppChatDashboardPage() {
           unreadCount: 0,
         };
         await handleSelect(syntheticRow);
+
+        if (initialMessage) {
+          try {
+            setComposer(decodeURIComponent(initialMessage));
+          } catch {
+            setComposer(initialMessage);
+          }
+        }
       } catch {
         // Non-blocking
       }
@@ -968,10 +1005,17 @@ export default function WhatsAppChatDashboardPage() {
       setError('Session expired. Please refresh the page or login again.');
       return;
     }
-  const text = composer.trim();
-  const hasAttachment = Boolean(attachment?.file);
-  const hasText = Boolean(text);
-  if (!hasText && !hasAttachment) return;
+    const text = composer.trim();
+    const hasAttachment = Boolean(attachment?.file);
+    const hasText = Boolean(text);
+
+    const sendingTemplate = Boolean(selectedTemplate);
+    if (sendingTemplate && hasAttachment) {
+      setError('Attachments cannot be sent together with templates. Please remove the attachment or send as text.');
+      return;
+    }
+    if (!sendingTemplate && !hasText && !hasAttachment) return;
+    if (sendingTemplate && !selectedTemplate) return;
 
     try {
       setError(null);
@@ -992,42 +1036,54 @@ export default function WhatsAppChatDashboardPage() {
         attachment: attachment ? { kind: attachment.kind, name: attachment.file.name, size: attachment.file.size } : null,
       });
 
-      // Send via CRM endpoint (handles bridge + fallback queue)
-      const mediaPayload =
-        attachment && attachment.file
-          ? await new Promise<any>((resolve, reject) => {
-              const r = new FileReader();
-              r.onerror = () => reject(new Error('Failed to read attachment'));
-              r.onload = () => {
-                const result = String(r.result || '');
-                const comma = result.indexOf(',');
-                const base64 = comma >= 0 ? result.slice(comma + 1) : result;
-                resolve({
-                  kind: attachment.kind,
-                  fileName: attachment.file.name,
-                  mimeType: attachment.file.type,
-                  sizeBytes: attachment.file.size,
-                  base64,
-                });
-              };
-              r.readAsDataURL(attachment.file);
-            })
-          : null;
+      let res: any;
+      if (selectedTemplate) {
+        res = await crmFetch('/api/admin/crm/whatsapp/send-template', {
+          method: 'POST',
+          body: {
+            leadId: selected.leadId,
+            phoneNumber: selected.phoneNumber,
+            templateId: selectedTemplate.id,
+          },
+        });
+      } else {
+        // Send via CRM endpoint (handles bridge + fallback queue)
+        const mediaPayload =
+          attachment && attachment.file
+            ? await new Promise<any>((resolve, reject) => {
+                const r = new FileReader();
+                r.onerror = () => reject(new Error('Failed to read attachment'));
+                r.onload = () => {
+                  const result = String(r.result || '');
+                  const comma = result.indexOf(',');
+                  const base64 = comma >= 0 ? result.slice(comma + 1) : result;
+                  resolve({
+                    kind: attachment.kind,
+                    fileName: attachment.file.name,
+                    mimeType: attachment.file.type,
+                    sizeBytes: attachment.file.size,
+                    base64,
+                  });
+                };
+                r.readAsDataURL(attachment.file);
+              })
+            : null;
 
-      const res = await crmFetch('/api/admin/crm/whatsapp/send', {
-        method: 'POST',
-        body: {
-          leadId: selected.leadId,
-          phoneNumber: selected.phoneNumber,
-          // If sending only media, keep messageContent as a non-empty string so the API accepts it.
-          // Use a single whitespace so UI doesn't show a literal "(attachment)" message.
-          messageContent: hasText ? text : ' ',
-          headerText: headerText.trim() || undefined,
-          footerText: footerText.trim() || undefined,
-          media: mediaPayload || undefined,
-          senderDisplayName: adminLabel,
-        },
-      });
+        res = await crmFetch('/api/admin/crm/whatsapp/send', {
+          method: 'POST',
+          body: {
+            leadId: selected.leadId,
+            phoneNumber: selected.phoneNumber,
+            // If sending only media, keep messageContent as a non-empty string so the API accepts it.
+            // Use a single whitespace so UI doesn't show a literal "(attachment)" message.
+            messageContent: hasText ? text : ' ',
+            headerText: headerText.trim() || undefined,
+            footerText: footerText.trim() || undefined,
+            media: mediaPayload || undefined,
+            senderDisplayName: adminLabel,
+          },
+        });
+      }
 
       console.log('✅ Response received:', res);
 
@@ -1036,6 +1092,7 @@ export default function WhatsAppChatDashboardPage() {
         setComposer('');
         setHeaderText('');
         setFooterText('');
+        setSelectedTemplate(null);
         if (attachment?.objectUrl) URL.revokeObjectURL(attachment.objectUrl);
         setAttachment(null);
         
@@ -1105,6 +1162,7 @@ export default function WhatsAppChatDashboardPage() {
 
   // Bulk actions popup for selected chats
   const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   useEffect(() => {
     setBulkActionsOpen(selectedChatIds.size > 0);
   }, [selectedChatIds]);
@@ -1421,6 +1479,7 @@ export default function WhatsAppChatDashboardPage() {
   // NEW: Handle composer text change with spell checking
   const handleComposerChange = (text: string) => {
     setComposer(text);
+    if (selectedTemplate) setSelectedTemplate(null);
     if (!spellCheckEnabled) {
       setSpellingErrors([]);
       return;
@@ -1428,6 +1487,35 @@ export default function WhatsAppChatDashboardPage() {
     const errors = checkSpelling(text);
     setSpellingErrors(errors);
   };
+
+  const applyAutocorrect = useCallback(async () => {
+    const text = composer.trim();
+    if (!text) return;
+
+    try {
+      setAiCorrecting(true);
+      const response = await fetch('/api/admin/crm/ai-correct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: composer }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        console.error('AI correct error:', data?.error || response.statusText);
+        return;
+      }
+
+      const correctedText = data?.correctedText;
+      if (typeof correctedText === 'string') {
+        handleComposerChange(correctedText);
+      }
+    } catch (err) {
+      console.error('AI correct error:', err);
+    } finally {
+      setAiCorrecting(false);
+    }
+  }, [composer, handleComposerChange]);
 
   // NEW: AI suggestions via Claude API
   const getAISuggestions = useCallback(async () => {
@@ -1613,13 +1701,6 @@ export default function WhatsAppChatDashboardPage() {
             {item.label}
           </Link>
         ))}
-
-        <Link
-          href={selected?.leadId ? `/admin/crm/leads-followup?leadId=${encodeURIComponent(String(selected.leadId))}` : '/admin/crm/leads-followup'}
-          style={{ marginTop: 12, display: 'block', fontSize: 13, opacity: 0.95 }}
-        >
-          {selected?.leadId ? 'Open Followup for this lead' : 'Open Leads Followup'}
-        </Link>
         <Link href="/admin/crm/messages" style={{ marginTop: 10, display: 'block', opacity: 0.9 }}>
           Messages (table)
         </Link>
@@ -1646,7 +1727,7 @@ export default function WhatsAppChatDashboardPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
                   <button
                     type="button"
-                    className="wa-btn"
+                    className="wa-btn wa-btn--green"
                     onClick={() => {
                       setActionModal('assign');
                     }}
@@ -1656,7 +1737,7 @@ export default function WhatsAppChatDashboardPage() {
 
                   <button
                     type="button"
-                    className="wa-btn"
+                    className="wa-btn wa-btn--orange"
                     onClick={() => {
                       setActionModal('status');
                     }}
@@ -1666,7 +1747,7 @@ export default function WhatsAppChatDashboardPage() {
 
                   <button
                     type="button"
-                    className="wa-btn"
+                    className="wa-btn wa-btn--orange"
                     onClick={() => {
                       // Use existing right-sidebar Labels tool for the currently opened chat.
                       // For bulk: make it easy to update the main selected chat, then repeat.
@@ -1680,7 +1761,7 @@ export default function WhatsAppChatDashboardPage() {
 
                   <button
                     type="button"
-                    className="wa-btn"
+                    className="wa-btn wa-btn--green"
                     onClick={() => {
                       setCreateLeadOpen(true);
                       clearBulkSelection();
@@ -1691,7 +1772,7 @@ export default function WhatsAppChatDashboardPage() {
 
                   <button
                     type="button"
-                    className="wa-btn"
+                    className="wa-btn wa-btn--orange"
                     onClick={async () => {
                       // Minimal: map archive -> status=inactive (keeps data, hides in "active" workflows)
                       await bulkUpdateLeadStatus('inactive');
@@ -1703,7 +1784,7 @@ export default function WhatsAppChatDashboardPage() {
 
                   <button
                     type="button"
-                    className="wa-btn"
+                    className="wa-btn wa-btn--orange"
                     onClick={async () => {
                       // Minimal: map block -> status=inactive (plus visual filter) until a dedicated blocklist exists
                       await bulkUpdateLeadStatus('inactive');
@@ -1715,14 +1796,44 @@ export default function WhatsAppChatDashboardPage() {
 
                   <button
                     type="button"
-                    className="wa-btn"
-                    onClick={() => {
-                      // Real delete needs a dedicated API decision. For now, we keep data safe.
-                      setError('Delete chat is not enabled yet (needs a dedicated delete API).');
-                      clearBulkSelection();
+                    className="wa-btn wa-btn--red"
+                    disabled={bulkDeleting || selectedChatIds.size === 0}
+                    onClick={async () => {
+                      const ok = window.confirm(
+                        `Delete chat history from database for ${selectedChatIds.size} selected chat(s)? This cannot be undone.`
+                      );
+                      if (!ok) return;
+
+                      try {
+                        setBulkDeleting(true);
+                        setError(null);
+
+                        const leadIds = Array.from(selectedChatIds);
+                        const token = localStorage.getItem('admin_token');
+                        const res = await fetch('/api/admin/crm/whatsapp/conversations/delete', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                          },
+                          body: JSON.stringify({ leadIds }),
+                        });
+
+                        if (!res.ok) {
+                          const j = await res.json().catch(() => ({}));
+                          throw new Error(j?.error || 'Failed to delete chat');
+                        }
+
+                        clearBulkSelection();
+                        await fetchConversations();
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Failed to delete chat');
+                      } finally {
+                        setBulkDeleting(false);
+                      }
                     }}
                   >
-                    🗑️ Delete (coming soon)
+                    🗑️ {bulkDeleting ? 'Deleting…' : 'Delete chat'}
                   </button>
 
                   <Link className="wa-btn" href="/admin/crm/leads" onClick={() => clearBulkSelection()}>
@@ -1793,7 +1904,7 @@ export default function WhatsAppChatDashboardPage() {
           <div className="chat-sidebar-actions" aria-label="Chat sidebar quick actions">
             <button
               type="button"
-              onClick={() => fetchConversations()}
+              onClick={() => fetchConversations({ silent: false })}
               className="wa-btn chat-action-btn chat-action-btn--refresh"
               title="Refresh"
               aria-label="Refresh"
@@ -1807,7 +1918,18 @@ export default function WhatsAppChatDashboardPage() {
               title="Label"
               aria-label="Label"
               aria-pressed={chatBucket === 'labels'}
-              onClick={() => setChatBucket('labels')}
+              onClick={() => {
+                setChatBucket('labels');
+                // If user hasn't typed a label yet, focus the label filter input for quick use.
+                requestAnimationFrame(() => {
+                  try {
+                    const el = document.querySelector('input[placeholder="Label"]') as HTMLInputElement | null;
+                    el?.focus();
+                  } catch {
+                    // ignore
+                  }
+                });
+              }}
             >
               <span className="chat-action-text">Label</span>
             </button>
@@ -1828,7 +1950,11 @@ export default function WhatsAppChatDashboardPage() {
                 className="wa-btn chat-action-btn"
                 title="Unread"
                 aria-label="Unread"
-                onClick={() => setChatBucket('unread')}
+                onClick={() => {
+                  setChatBucket('unread');
+                  // Optional: ensure freshest unread counts
+                  fetchConversations({ silent: true });
+                }}
               >
                 <span className="chat-action-text">Unread</span>
               </button>
@@ -2114,6 +2240,26 @@ export default function WhatsAppChatDashboardPage() {
               🔄
             </button>
 
+            {/* Broadcast button (near chatbot section) */}
+            <Link
+              href="/admin/crm/broadcast"
+              className="wa-btn"
+              style={{
+                fontSize: 13,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #E5E7EB',
+                background: '#fff',
+                color: '#111827',
+                fontWeight: 900,
+                textDecoration: 'none',
+                marginRight: 8,
+              }}
+              title="Open broadcast"
+            >
+              📣 Broadcast
+            </Link>
+
             {/* Create lead button (placed next to refresh, near customer number) */}
             <button
               type="button"
@@ -2248,6 +2394,20 @@ export default function WhatsAppChatDashboardPage() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path
                 d="M12 2a6 6 0 0 0-6 6v1H5a2 2 0 0 0-2 2v6a3 3 0 0 0 3 3h2v2h2v-2h4v2h2v-2h2a3 3 0 0 0 3-3v-6a2 2 0 0 0-2-2h-1V8a6 6 0 0 0-6-6Zm-4 7V8a4 4 0 0 1 8 0v1H8Zm2 7a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm6-1.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z"
+                fill="currentColor"
+              />
+            </svg>
+          </Link>
+
+          <Link
+            className="action-icon link"
+            href="/admin/crm/broadcast"
+            aria-label="Open broadcast"
+            title="Open broadcast"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path
+                d="M4 4h16v2H4V4Zm2 5h12v2H6V9Zm-2 5h16v2H4v-2Zm2 5h12v2H6v-2Z"
                 fill="currentColor"
               />
             </svg>
@@ -2420,6 +2580,7 @@ export default function WhatsAppChatDashboardPage() {
                 if (savedKind === 'quick_replies') {
                   const item = quickReplies.find((r) => r._id === id);
                   if (item?.content) {
+                    setSelectedTemplate(null);
                     setComposer(item.content);
                     composerRef.current?.focus();
                   }
@@ -2429,6 +2590,18 @@ export default function WhatsAppChatDashboardPage() {
                 if (savedKind === 'templates') {
                   const t = templates.find((x) => x._id === id);
                   if (t?.templateContent) {
+                    setSelectedTemplate({
+                      id: t._id,
+                      name: t.templateName,
+                      body: t.templateContent,
+                      buttons: Array.isArray(t.buttons) ? t.buttons : [],
+                      headerMedia: t.headerMedia?.url
+                        ? {
+                            kind: t.headerMedia.kind,
+                            url: t.headerMedia.url,
+                          }
+                        : undefined,
+                    });
                     setComposer(t.templateContent);
                     composerRef.current?.focus();
                   }
@@ -2438,6 +2611,7 @@ export default function WhatsAppChatDashboardPage() {
                 if (savedKind === 'chatbots') {
                   const r = chatbots.find((x) => x._id === id);
                   if (String(r?.actionType || '') === 'send_text' && r?.actionText) {
+                    setSelectedTemplate(null);
                     setComposer(r.actionText);
                     composerRef.current?.focus();
                   } else {
@@ -2939,6 +3113,60 @@ export default function WhatsAppChatDashboardPage() {
               </div>
             ) : null}
 
+            {selected && selectedTemplate ? (
+              <div style={{ padding: '6px 2px 2px' }}>
+                <div
+                  style={{
+                    border: '1px solid rgba(17, 24, 39, 0.12)',
+                    borderRadius: 14,
+                    background: '#F9FAFB',
+                    padding: 10,
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>
+                    Template: {selectedTemplate.name}
+                  </div>
+                  {selectedTemplate.headerMedia?.kind === 'image' && selectedTemplate.headerMedia.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={selectedTemplate.headerMedia.url}
+                      alt="template header"
+                      style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 12, marginTop: 8 }}
+                    />
+                  ) : null}
+
+                  <div style={{ marginTop: 8, fontSize: 13, color: '#111827', whiteSpace: 'pre-wrap' }}>
+                    {selectedTemplate.body}
+                  </div>
+
+                  {selectedTemplate.buttons?.length ? (
+                    <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                      {selectedTemplate.buttons.map((b, idx) => (
+                        <div
+                          key={`${String(b?.title || 'btn')}-${idx}`}
+                          style={{
+                            border: '1px solid rgba(17, 24, 39, 0.12)',
+                            borderRadius: 10,
+                            background: '#fff',
+                            padding: '10px 12px',
+                            textAlign: 'center',
+                            fontSize: 13,
+                            color: '#111827',
+                          }}
+                        >
+                          {String(b?.title || 'Button')}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div style={{ marginTop: 8, fontSize: 11, color: '#6B7280' }}>
+                    This is a CRM preview. Current sending mode stores the template and sends the body as text.
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <textarea
               id="message-composer"
               name="message-composer"
@@ -2948,9 +3176,14 @@ export default function WhatsAppChatDashboardPage() {
               placeholder={selected ? 'Type a message…' : 'Select a conversation to start'}
               disabled={!selected || sending}
               rows={2}
+              // Important: spellcheck is a browser feature. It only shows red underlines
+              // if the user’s browser/OS has spellcheck dictionaries enabled.
+              // Also, it works only for "text" inputs — our emoji/symbol-only text won't be flagged.
               spellCheck={spellCheckEnabled}
+              lang="en"
               autoCorrect="on"
               autoCapitalize="sentences"
+              autoComplete="off"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -3007,7 +3240,7 @@ export default function WhatsAppChatDashboardPage() {
                   <div
                     style={{
                       position: 'absolute',
-                      top: 40,
+                      bottom: 40,
                       right: 0,
                       zIndex: 25,
                       width: 260,
@@ -3019,6 +3252,20 @@ export default function WhatsAppChatDashboardPage() {
                     }}
                   >
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 8 }}>
+                      <button
+                        type="button"
+                        disabled={!composer.trim() || aiCorrecting}
+                        onClick={async () => {
+                          await applyAutocorrect();
+                          setShowComposerTools(false);
+                        }}
+                        className="wa-btn"
+                        style={{ padding: '8px 10px', fontSize: 13, gridColumn: '1 / span 2' }}
+                        title="Auto-correct spelling + grammar"
+                      >
+                        {aiCorrecting ? '⏳ Auto-correct…' : '✅ Auto-correct'}
+                      </button>
+
                       <button
                         type="button"
                         disabled={!selected}

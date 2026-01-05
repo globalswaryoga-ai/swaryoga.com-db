@@ -1,0 +1,35 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { handleCrmError } from '@/lib/crm-handlers';
+import { processDueBroadcastRuns } from '@/lib/broadcastRuns';
+
+function verifyCronSecret(request: NextRequest): boolean {
+  const expected = process.env.CRON_SECRET;
+  if (!expected) return false;
+  const provided =
+    request.headers.get('x-cron-secret') ||
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+  return Boolean(provided && provided === expected);
+}
+
+/**
+ * POST /api/admin/crm/broadcast-runs/run
+ *
+ * Call this from Vercel Cron / server cron / PM2 cron to process due broadcast runs.
+ * Security: requires CRON_SECRET header.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    if (!verifyCronSecret(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const runLimit = typeof body?.runLimit === 'number' ? body.runLimit : undefined;
+    const perRunMessageLimit = typeof body?.perRunMessageLimit === 'number' ? body.perRunMessageLimit : undefined;
+
+    const data = await processDueBroadcastRuns({ runLimit, perRunMessageLimit });
+    return NextResponse.json({ success: true, data }, { status: 200 });
+  } catch (error) {
+    return handleCrmError(error, 'POST broadcast-runs/run');
+  }
+}
