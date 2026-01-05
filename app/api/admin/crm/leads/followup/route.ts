@@ -352,11 +352,17 @@ export async function POST(request: NextRequest) {
 
           // Handle delayed sending
           if (extras.whatsappDelayed && extras.whatsappDelayAmount) {
-            const delayMs = 
-              (extras.whatsappDelayUnit === 'hours' 
-                ? parseInt(extras.whatsappDelayAmount) * 60 * 60 * 1000
-                : parseInt(extras.whatsappDelayAmount) * 60 * 1000);
-            
+            const amount = Number.parseInt(String(extras.whatsappDelayAmount), 10);
+            const unit = String(extras.whatsappDelayUnit || 'minutes');
+            const qty = Number.isFinite(amount) && amount > 0 ? amount : 5;
+
+            const delayMs =
+              unit === 'days'
+                ? qty * 24 * 60 * 60 * 1000
+                : unit === 'hours'
+                  ? qty * 60 * 60 * 1000
+                  : qty * 60 * 1000;
+
             messageData.delayedUntil = new Date(now.getTime() + delayMs);
             messageData.status = 'delayed';
           }
@@ -423,10 +429,7 @@ export async function POST(request: NextRequest) {
 
               return NextResponse.json(
                 {
-                  success: false,
-                  message: 'Failed to send WhatsApp message',
-                  error: errorMsg,
-                  data: note,
+                  error: `Failed to send WhatsApp message: ${errorMsg}`,
                 },
                 { status: 400 }
               );
@@ -458,9 +461,7 @@ export async function POST(request: NextRequest) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error';
           return NextResponse.json(
             {
-              success: false,
-              message: 'Error queuing WhatsApp message',
-              error: errorMsg,
+              error: `Error queuing WhatsApp message: ${errorMsg}`,
             },
             { status: 500 }
           );

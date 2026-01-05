@@ -4,12 +4,34 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { verifyToken } from '@/lib/auth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
 import { QRConnectionModal } from '@/components/admin/crm/QRConnectionModal';
 import CreateLeadModal from '@/components/admin/crm/CreateLeadModal';
 import { whatsappSetupLinks } from './page-links';
+
+function decodeJwtPayloadSafe(token: string): Record<string, any> | null {
+  // Client-only helper: decode payload WITHOUT verifying signature.
+  // We only use it to read display fields (userId/email) from the admin token.
+  // Do not use for authorization decisions.
+  try {
+    const t = String(token || '').trim();
+    if (!t) return null;
+    const parts = t.split('.');
+    if (parts.length < 2) return null;
+
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const padLen = (4 - (base64.length % 4)) % 4;
+    const padded = base64 + '='.repeat(padLen);
+
+    // atob is available in browsers; this file is a client component.
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
 
 type ConversationRow = {
   leadId: string;
@@ -220,7 +242,7 @@ export default function WhatsAppChatDashboardPage() {
   const viewer = useMemo(() => {
     const t = String(token || '').trim();
     if (!t) return { userId: '', email: '' };
-    const decoded = verifyToken(t);
+    const decoded = decodeJwtPayloadSafe(t);
     return {
       userId: String(decoded?.userId || '').trim(),
       email: String(decoded?.email || '').trim(),
@@ -327,7 +349,10 @@ export default function WhatsAppChatDashboardPage() {
     return label || ADMIN_DISPLAY_NAME_FALLBACK;
   }, [adminUsers, viewer.email, viewer.userId]);
 
-  const adminLabel = useMemo(() => `Admin - ${loggedInAdminName}`, [loggedInAdminName]);
+  const adminLabel = useMemo(() => {
+    const n = String(loggedInAdminName || '').trim() || ADMIN_DISPLAY_NAME_FALLBACK;
+    return n;
+  }, [loggedInAdminName]);
 
   // Composer extras
   const [headerText, setHeaderText] = useState('');
@@ -2150,7 +2175,7 @@ export default function WhatsAppChatDashboardPage() {
           </div>
         </div>
 
-  <div ref={listRef} className="chat-messages" style={{ background: '#fff' }}>
+  <div ref={listRef} className="chat-messages" style={{ background: '#fff', paddingTop: 6 }}>
           {!selected ? (
             <div style={{ color: '#6B7280', fontSize: 13 }}>Select a conversation from the left.</div>
           ) : loadingMessages ? (
@@ -2169,10 +2194,10 @@ export default function WhatsAppChatDashboardPage() {
                   const userLabel = leadTitle
                     ? `${leadTitle}${leadTitle ? '.' : ''} ${leadName}`.trim()
                     : leadName;
-                  const senderName = inbound ? userLabel : adminLabel;
+                  const senderName = inbound ? userLabel : (m as any)?.senderDisplayName || adminLabel;
                   return (
                     <div key={m._id} className={`msg ${inbound ? 'in' : 'out'}`}>
-                      <div className="msg-sender" style={{ fontSize: 12, opacity: 0.75, marginBottom: 4 }}>
+                      <div className="msg-sender" style={{ fontSize: 11, opacity: 0.75, marginBottom: 3 }}>
                         {senderName}
                       </div>
 
@@ -2190,7 +2215,7 @@ export default function WhatsAppChatDashboardPage() {
         </div>
 
         {/* MESSAGE COMPOSER (Like WATI) */}
-        <div className="saved-picker">
+  <div className="saved-picker" style={{ paddingTop: 4, paddingBottom: 4 }}>
           <div className="saved-picker-row">
             <select
               aria-label="Saved items type"

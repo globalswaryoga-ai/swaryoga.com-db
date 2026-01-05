@@ -1754,58 +1754,62 @@ function LeadsFollowupPageContent() {
                         </div>
                       )}
 
-                      {/* Schedule Message */}
                       <div className="border-t border-slate-200 pt-4">
-                        <label className="flex items-center gap-2 mb-3">
-                          <input
-                            type="checkbox"
-                            checked={whatsappScheduled}
-                            onChange={(e) => setWhatsappScheduled(e.target.checked)}
-                            className="w-4 h-4 cursor-pointer"
-                          />
-                          <span className="text-sm font-semibold text-slate-900">📅 Schedule Message</span>
-                        </label>
-                        {whatsappScheduled && (
-                          <input
-                            type="datetime-local"
-                            value={whatsappScheduleDate}
-                            onChange={(e) => setWhatsappScheduleDate(e.target.value)}
-                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
-                          />
-                        )}
-                      </div>
-
-                      {/* Delay Message */}
-                      <div>
-                        <label className="flex items-center gap-2 mb-3">
-                          <input
-                            type="checkbox"
-                            checked={whatsappDelayed}
-                            onChange={(e) => setWhatsappDelayed(e.target.checked)}
-                            className="w-4 h-4 cursor-pointer"
-                          />
-                          <span className="text-sm font-semibold text-slate-900">⏱️ Delay Message</span>
-                        </label>
-                        {whatsappDelayed && (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              value={whatsappDelayAmount}
-                              onChange={(e) => setWhatsappDelayAmount(e.target.value)}
-                              min="1"
-                              className="w-20 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
-                            />
-                            <select
-                              value={whatsappDelayUnit}
-                              onChange={(e) => setWhatsappDelayUnit(e.target.value as 'minutes' | 'hours' | 'days')}
-                              className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
-                            >
-                              <option value="minutes">Minutes</option>
-                              <option value="hours">Hours</option>
-                              <option value="days">Days</option>
-                            </select>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Schedule Message */}
+                          <div>
+                            <label className="flex items-center gap-2 mb-3">
+                              <input
+                                type="checkbox"
+                                checked={whatsappScheduled}
+                                onChange={(e) => setWhatsappScheduled(e.target.checked)}
+                                className="w-4 h-4 cursor-pointer"
+                              />
+                              <span className="text-sm font-semibold text-slate-900">📅 Schedule Message</span>
+                            </label>
+                            {whatsappScheduled && (
+                              <input
+                                type="datetime-local"
+                                value={whatsappScheduleDate}
+                                onChange={(e) => setWhatsappScheduleDate(e.target.value)}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
+                              />
+                            )}
                           </div>
-                        )}
+
+                          {/* Delay Message */}
+                          <div>
+                            <label className="flex items-center gap-2 mb-3">
+                              <input
+                                type="checkbox"
+                                checked={whatsappDelayed}
+                                onChange={(e) => setWhatsappDelayed(e.target.checked)}
+                                className="w-4 h-4 cursor-pointer"
+                              />
+                              <span className="text-sm font-semibold text-slate-900">⏱️ Delay Message</span>
+                            </label>
+                            {whatsappDelayed && (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  value={whatsappDelayAmount}
+                                  onChange={(e) => setWhatsappDelayAmount(e.target.value)}
+                                  min="1"
+                                  className="w-20 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
+                                />
+                                <select
+                                  value={whatsappDelayUnit}
+                                  onChange={(e) => setWhatsappDelayUnit(e.target.value as 'minutes' | 'hours' | 'days')}
+                                  className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-sm"
+                                >
+                                  <option value="minutes">Minutes</option>
+                                  <option value="hours">Hours</option>
+                                  <option value="days">Days</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Quick Replies */}

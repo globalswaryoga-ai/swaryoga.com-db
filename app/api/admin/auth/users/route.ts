@@ -14,19 +14,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
     }
 
-    const isSuperAdmin = decoded?.userId === 'admin' || (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'));
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    // NOTE: Non-superadmin admins still need the admin list for CRM lead assignment dropdowns.
+    // We return a minimal, safe set of fields below.
 
     await connectDB();
 
     // Get User model
     const User = mongoose.default.models.User || mongoose.default.model('User', new mongoose.Schema({}));
 
-    // Fetch all admin users
+    // Fetch all admin users (minimal fields for assignment UI)
     const adminUsers = await User.find({ isAdmin: true })
-      .select('_id userId email permissions createdAt')
+      .select('_id userId email role isAdmin createdAt')
       .lean();
 
     return NextResponse.json({ success: true, data: adminUsers }, { status: 200 });
