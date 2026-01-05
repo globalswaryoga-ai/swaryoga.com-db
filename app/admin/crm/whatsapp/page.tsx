@@ -1,5 +1,7 @@
 'use client';
 
+import { normalizeLabel } from '@/lib/crm/labels';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -96,6 +98,8 @@ type AdminUserRow = {
   userId?: string;
   email?: string;
 };
+
+type SelectOption = { value: string; label: string };
 
 type Message = {
   _id: string;
@@ -367,11 +371,13 @@ export default function WhatsAppChatDashboardPage() {
   const [followups, setFollowups] = useState<LeadFollowUp[]>([]);
   const [loadingTools, setLoadingTools] = useState(false);
   const [newLabel, setNewLabel] = useState('');
+  const [labelPicker, setLabelPicker] = useState('');
   const [newNote, setNewNote] = useState('');
   const [newFollowUpTitle, setNewFollowUpTitle] = useState('Follow up');
   const [newFollowUpDueAt, setNewFollowUpDueAt] = useState('');
 
   const [assignUserId, setAssignUserId] = useState('');
+  const [assignUserQuery, setAssignUserQuery] = useState('');
   const [nextStatus, setNextStatus] = useState('');
 
   // Admin + display names
@@ -472,6 +478,14 @@ export default function WhatsAppChatDashboardPage() {
   const createLeadInitialPhone = selected?.phoneNumber || '';
 
   const [actionModal, setActionModal] = useState<null | 'assign' | 'broadcast' | 'status' | 'export' | 'schedule' | 'delay'>(null);
+
+  // Prefill assign modal with current assignee.
+  useEffect(() => {
+    if (actionModal !== 'assign') return;
+    const current = String(selected?.assignedToUserId || '').trim();
+    setAssignUserId(current);
+    setAssignUserQuery('');
+  }, [actionModal, selected?.assignedToUserId]);
 
   const [broadcastLists, setBroadcastLists] = useState<Array<{ _id: string; name: string }>>([]);
   const [broadcastListId, setBroadcastListId] = useState('');
@@ -1248,6 +1262,34 @@ export default function WhatsAppChatDashboardPage() {
     deduped.sort((a, b) => a.label.localeCompare(b.label));
     return deduped;
   }, [adminUsers]);
+
+  const adminUserSelectOptions = useMemo<SelectOption[]>(() => {
+    const base: SelectOption[] = [{ value: '', label: 'Unassigned' }];
+    return base.concat(adminUserOptions.map((u) => ({ value: u.userId, label: u.label })));
+  }, [adminUserOptions]);
+
+  const filteredAdminUserSelectOptions = useMemo<SelectOption[]>(() => {
+    const qv = assignUserQuery.trim().toLowerCase();
+    if (!qv) return adminUserSelectOptions;
+    return adminUserSelectOptions.filter((o) => String(o.label).toLowerCase().includes(qv));
+  }, [adminUserSelectOptions, assignUserQuery]);
+
+  const allKnownLabels = useMemo<string[]>(() => {
+    const seen = new Map<string, string>();
+    const add = (x: any) => {
+      const v = String(x || '').trim();
+      if (!v) return;
+      const key = v.toLowerCase();
+      if (!seen.has(key)) seen.set(key, v);
+    };
+
+    (conversations || []).forEach((c: any) => {
+      (Array.isArray(c?.labels) ? c.labels : []).forEach(add);
+    });
+    (Array.isArray(selected?.labels) ? selected?.labels : []).forEach(add);
+
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+  }, [conversations, selected?.labels]);
   const toggleChatSelection = useCallback((leadId: string, opts?: { force?: boolean }) => {
     setSelectedChatIds((prev) => {
       const next = new Set(prev);
@@ -1512,7 +1554,7 @@ export default function WhatsAppChatDashboardPage() {
       setError('No lead selected');
       return;
     }
-    const l = newLabel.trim();
+    const l = normalizeLabel(newLabel);
     if (!l) {
       setError('Label cannot be empty');
       return;
@@ -1531,6 +1573,27 @@ export default function WhatsAppChatDashboardPage() {
       setError(err instanceof Error ? err.message : 'Failed to add label');
     }
   }, [selected, newLabel, upsertLabels]);
+
+  const addLabelFromPicker = useCallback(async () => {
+    const v = normalizeLabel(labelPicker);
+    if (!v) return;
+    if (!selected) {
+      setError('No lead selected');
+      return;
+    }
+    try {
+      setError(null);
+      const current = Array.isArray(selected.labels) ? selected.labels : [];
+      if (current.some((x) => String(x).toLowerCase() === v.toLowerCase())) {
+        setError('This label already exists');
+        return;
+      }
+      await upsertLabels([...current, v]);
+      setLabelPicker('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add label');
+    }
+  }, [labelPicker, selected, upsertLabels]);
 
   const removeLabelFromSelected = useCallback(
     async (labelToRemove: string) => {
@@ -2820,14 +2883,20 @@ export default function WhatsAppChatDashboardPage() {
                     ) : null}
                     <label>
                       Assign to admin
-                      <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
-                        <option value="">Unassigned</option>
-                        {adminUserOptions.map((u) => (
-                          <option key={u.userId} value={u.userId}>
-                            {u.label}
-                          </option>
-                        ))}
-                      </select>
+                      <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                        <input
+                          value={assignUserQuery}
+                          onChange={(e) => setAssignUserQuery(e.target.value)}
+                          placeholder="Search admin user…"
+                        />
+                        <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
+                          {filteredAdminUserSelectOptions.map((o) => (
+                            <option key={o.value || '__unassigned'} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </label>
 
                     {selectedChatIds.size ? (
@@ -3731,7 +3800,18 @@ export default function WhatsAppChatDashboardPage() {
       </main>
 
   {/* RIGHT SIDEBAR - Lead tools with collapsible sections */}
-  <aside className="tools-sidebar" style={{ display: 'flex', flexDirection: 'column', padding: '0', width: toolsSidebarWidth, position: 'relative' }}>
+  <aside
+    className="tools-sidebar"
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      padding: '0',
+      width: toolsSidebarWidth,
+      position: 'relative',
+      height: '100vh',
+      overflow: 'hidden',
+    }}
+  >
         {/* Drag handle (resizable sidebar) */}
         <div
           className="tools-sidebar-resizer"
@@ -3747,7 +3827,7 @@ export default function WhatsAppChatDashboardPage() {
         </div>
 
   {/* Content - Scrollable */}
-  <div className="tools-sidebar-content">
+  <div className="tools-sidebar-content" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
           {!selected ? (
             <div style={{ color: '#6B7280', fontSize: '13px', padding: '16px', textAlign: 'center' }}>
               Select a conversation to use tools
@@ -4000,7 +4080,8 @@ export default function WhatsAppChatDashboardPage() {
                 </button>
                 <div id="labels-card-content" className="tools-card-body">
                   {/* Add Label Form */}
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
                     <input 
                       type="text"
                       value={newLabel}
@@ -4041,6 +4122,52 @@ export default function WhatsAppChatDashboardPage() {
                     >
                       Add
                     </button>
+                  </div>
+
+                    {/* Quick add existing label */}
+                    {allKnownLabels.length ? (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <select
+                          value={labelPicker}
+                          onChange={(e) => setLabelPicker(e.target.value)}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontFamily: 'inherit',
+                            background: '#fff',
+                          }}
+                        >
+                          <option value="">Select existing label…</option>
+                          {allKnownLabels.map((l) => (
+                            <option key={l} value={l}>
+                              {l}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => void addLabelFromPicker()}
+                          disabled={!labelPicker.trim()}
+                          style={{
+                            padding: '8px 12px',
+                            background: labelPicker.trim() ? '#2563EB' : '#93C5FD',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: labelPicker.trim() ? 'pointer' : 'not-allowed',
+                            fontWeight: '600',
+                            fontSize: '13px',
+                            whiteSpace: 'nowrap',
+                            transition: 'background 0.2s',
+                          }}
+                        >
+                          Add selected
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
 
                   {/* Labels List */}

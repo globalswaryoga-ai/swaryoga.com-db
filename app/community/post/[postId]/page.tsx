@@ -189,7 +189,7 @@ export default function CommunityPostPage() {
     <>
       <Navigation />
       <main className="min-h-screen pt-20 bg-swar-bg">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between gap-4">
             <h1 className="text-2xl font-extrabold text-swar-text">Post</h1>
             <button
@@ -208,64 +208,101 @@ export default function CommunityPostPage() {
           )}
 
           {!loading && !error && post && (
-            <div className="mt-6 space-y-4">
-              <div className="rounded-lg border border-swar-border bg-white px-4 py-4">
-                <div className="text-sm text-swar-text whitespace-pre-wrap">{post.content}</div>
-                <div className="mt-3 flex items-center justify-between gap-4">
-                  <div className="text-xs text-swar-text-secondary">{post.createdAt ? new Date(post.createdAt).toLocaleString() : ''}</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={onToggleLike}
-                      className="rounded-lg bg-swar-primary-light px-3 py-1.5 text-xs font-bold text-swar-text hover:bg-swar-primary-light"
-                    >
-                      {post.likedByMe ? 'Unlike' : 'Like'}
-                    </button>
-                    <div className="text-xs text-swar-text-secondary">Likes: {post.likesCount}</div>
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              {/* Left: main scrollable column */}
+              <div className="lg:col-span-2 space-y-4">
+                <div className="rounded-lg border border-swar-border bg-white px-4 py-4">
+                  <div className="text-sm text-swar-text whitespace-pre-wrap">{post.content}</div>
+                  <div className="mt-3 flex items-center justify-between gap-4">
+                    <div className="text-xs text-swar-text-secondary">
+                      {post.createdAt ? new Date(post.createdAt).toLocaleString() : ''}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={onToggleLike}
+                        className="rounded-lg bg-swar-primary-light px-3 py-1.5 text-xs font-bold text-swar-text hover:bg-swar-primary-light"
+                      >
+                        {post.likedByMe ? 'Unlike' : 'Like'}
+                      </button>
+                      <div className="text-xs text-swar-text-secondary">Likes: {post.likesCount}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-swar-border bg-white px-4 py-4">
+                  <div className="text-sm font-bold text-swar-text">Comments</div>
+
+                  {post.comments.length === 0 && <p className="mt-3 text-sm text-swar-text-secondary">No comments yet</p>}
+
+                  {post.comments.length > 0 && (
+                    <div className="mt-3 space-y-3">
+                      {post.comments
+                        .slice()
+                        .reverse()
+                        .map((c, idx) => (
+                          <div key={`${c.createdAt}-${idx}`} className="rounded-lg bg-swar-bg px-3 py-2">
+                            <div className="text-sm text-swar-text whitespace-pre-wrap">{c.text}</div>
+                            <div className="mt-1 text-xs text-swar-text-secondary">
+                              {c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <label className="block text-sm font-bold text-swar-text">Add comment</label>
+                    <textarea
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      rows={3}
+                      className="mt-2 w-full rounded-lg border border-swar-border px-3 py-2 text-sm"
+                      placeholder="Write a comment"
+                    />
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        disabled={submitting}
+                        onClick={onAddComment}
+                        className="rounded-lg bg-swar-primary text-white px-4 py-2 text-sm font-bold hover:bg-swar-primary disabled:opacity-60"
+                      >
+                        {submitting ? 'Submitting...' : 'Submit'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-swar-border bg-white px-4 py-4">
-                <div className="text-sm font-bold text-swar-text">Comments</div>
-
-                {post.comments.length === 0 && <p className="mt-3 text-sm text-swar-text-secondary">No comments yet</p>}
-
-                {post.comments.length > 0 && (
-                  <div className="mt-3 space-y-3">
-                    {post.comments
-                      .slice()
-                      .reverse()
-                      .map((c, idx) => (
-                        <div key={`${c.createdAt}-${idx}`} className="rounded-lg bg-swar-bg px-3 py-2">
-                          <div className="text-sm text-swar-text whitespace-pre-wrap">{c.text}</div>
-                          <div className="mt-1 text-xs text-swar-text-secondary">{c.createdAt ? new Date(c.createdAt).toLocaleString() : ''}</div>
-                        </div>
-                      ))}
+              {/* Right: sticky preview card (like templates preview) */}
+              <aside className="lg:sticky lg:top-24">
+                <div className="rounded-lg border border-swar-border bg-white px-4 py-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-bold text-swar-text">Preview</div>
+                    <div className="text-xs text-swar-text-secondary">Live</div>
                   </div>
-                )}
 
-                <div className="mt-4">
-                  <label className="block text-sm font-bold text-swar-text">Add comment</label>
-                  <textarea
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    rows={3}
-                    className="mt-2 w-full rounded-lg border border-swar-border px-3 py-2 text-sm"
-                    placeholder="Write a comment"
-                  />
-                  <div className="mt-3">
-                    <button
-                      type="button"
-                      disabled={submitting}
-                      onClick={onAddComment}
-                      className="rounded-lg bg-swar-primary text-white px-4 py-2 text-sm font-bold hover:bg-swar-primary disabled:opacity-60"
-                    >
-                      {submitting ? 'Submitting...' : 'Submit'}
-                    </button>
+                  <div className="mt-3 rounded-lg bg-swar-bg px-3 py-3">
+                    <div className="text-xs text-swar-text-secondary">Post</div>
+                    <div className="mt-1 text-sm text-swar-text whitespace-pre-wrap line-clamp-[14]">{post.content}</div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-lg bg-swar-bg px-3 py-2">
+                      <div className="text-[11px] text-swar-text-secondary">Likes</div>
+                      <div className="text-sm font-extrabold text-swar-text">{post.likesCount}</div>
+                    </div>
+                    <div className="rounded-lg bg-swar-bg px-3 py-2">
+                      <div className="text-[11px] text-swar-text-secondary">Comments</div>
+                      <div className="text-sm font-extrabold text-swar-text">{post.comments.length}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 text-xs text-swar-text-secondary">
+                    Posted: {post.createdAt ? new Date(post.createdAt).toLocaleString() : '—'}
                   </div>
                 </div>
-              </div>
+              </aside>
             </div>
           )}
         </div>

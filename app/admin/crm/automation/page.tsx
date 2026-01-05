@@ -701,7 +701,7 @@ export default function AutomationPage() {
             ) : scheduledMessages.length === 0 ? (
               <div className="text-center py-12 text-purple-300">
                 <p className="text-lg">No scheduled messages yet</p>
-                <p className="text-sm text-purple-400 mt-2">Schedule one from WhatsApp dashboard</p>
+                <p className="text-sm text-purple-400 mt-2">Schedule one from the WhatsApp inbox (open a lead → Schedule/Delay)</p>
               </div>
             ) : (
               <div className="bg-slate-700/50 border border-purple-500/20 rounded-xl overflow-hidden">
@@ -762,7 +762,7 @@ export default function AutomationPage() {
                   </p>
                 </div>
                 <Link
-                  href="/admin/crm/whatsapp"
+                  href="/admin/crm/broadcast"
                   className="px-6 py-2 rounded-lg bg-pink-600 hover:bg-pink-700 text-white font-semibold transition-all text-decoration-none"
                 >
                   + Create Broadcast

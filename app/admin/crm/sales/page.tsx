@@ -631,18 +631,22 @@ export default function SalesPage() {
           {/* WhatsApp Button */}
           <button
             onClick={() => {
-              const phone = (sale.customerPhone || '').replace(/\D/g, '');
+              const phone = normalizePhoneForMeta(sale.customerPhone || '');
               const hasPhone = phone.length >= 10;
-              if (!hasPhone) {
+              if (!hasPhone && !sale.leadId) {
                 setError('Missing customer phone number for WhatsApp');
                 return;
               }
 
-              // Web WhatsApp deep link. Admin can send receipt PDF separately if needed.
-              const text = encodeURIComponent(
-                `Hi ${sale.customerName || ''} — here are your receipt details. I can also send the PDF if needed.`.trim()
-              );
-              window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+              // Route into our CRM WhatsApp inbox (keeps everything inside the admin tool).
+              // If leadId exists, prefer it; otherwise fallback to phone.
+              const message = `Hi ${sale.customerName || ''} — here are your receipt details. I can also send the PDF if needed.`.trim();
+              const params = new URLSearchParams();
+              if (sale.leadId) params.set('leadId', String(sale.leadId));
+              if (phone) params.set('phone', phone);
+              if (message) params.set('message', message);
+
+              router.push(`/admin/crm/whatsapp?${params.toString()}`);
             }}
             className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-medium transition-colors"
             title="WhatsApp"

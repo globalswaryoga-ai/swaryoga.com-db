@@ -17,13 +17,16 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const enabled = url.searchParams.get('enabled');
-    const triggerType = url.searchParams.get('triggerType');
+  const enabled = String(url.searchParams.get('enabled') || '').trim().toLowerCase();
+  const triggerType = String(url.searchParams.get('triggerType') || '').trim();
 
-    const filter: any = { createdByUserId: String(userId) };
-    if (enabled === 'true') filter.enabled = true;
-    if (enabled === 'false') filter.enabled = false;
-    if (triggerType && triggerType !== 'all') filter.triggerType = triggerType;
+  const filter: any = { createdByUserId: String(userId) };
+  // enabled can be true|false|all
+  if (enabled === 'true' || enabled === '1') filter.enabled = true;
+  if (enabled === 'false' || enabled === '0') filter.enabled = false;
+
+  // triggerType can be a specific value or 'all'
+  if (triggerType && triggerType !== 'all') filter.triggerType = triggerType;
 
     const rules = await WhatsAppAutomationRule.find(filter)
       .sort({ createdAt: -1 })
@@ -34,7 +37,18 @@ export async function GET(request: NextRequest) {
     const total = await WhatsAppAutomationRule.countDocuments(filter);
     const meta = buildMetadata(total, limit, skip);
 
-    return formatCrmSuccess({ rules, total }, meta);
+    // Backward-compat: existing CRM fetch helpers often expect the payload at the top level
+    // (e.g. res.rules). We return both shapes.
+    return NextResponse.json(
+      {
+        success: true,
+        rules,
+        total,
+        data: { rules, total },
+        meta,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     return handleCrmError(error, 'GET automations');
   }

@@ -49,6 +49,12 @@ export default function AnalyticsPage() {
   const token = useAuth();
   const crm = useCRM({ token });
 
+  const fmtPct = useCallback((value: unknown, digits = 1) => {
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) return '0.0%';
+    return `${n.toFixed(digits)}%`;
+  }, []);
+
   const [analytics, setAnalytics] = useState<AnalyticsData>({});
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'overview' | 'leads' | 'sales' | 'messages' | 'conversion' | 'trends'>('overview');
@@ -139,7 +145,7 @@ export default function AnalyticsPage() {
                   <StatCard label="Total Leads" value={analytics.overview.totalLeads.toString()} icon="📊" color="indigo" />
                   <StatCard label="Total Sales" value={analytics.overview.totalSales.toString()} icon="💰" color="teal" />
                   <StatCard label="Messages" value={analytics.overview.totalMessages.toString()} icon="💬" color="purple" />
-                  <StatCard label="Conversion" value={`${analytics.overview.conversionRate.toFixed(1)}%`} icon="📈" color="orange" />
+                  <StatCard label="Conversion" value={fmtPct(analytics.overview.conversionRate, 1)} icon="📈" color="orange" />
                 </div>
 
                 <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
@@ -239,7 +245,7 @@ export default function AnalyticsPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <StatCard label="Total Leads" value={analytics.leads.totalLeads.toString()} icon="📊" color="blue" />
-                  <StatCard label="Conversion Rate" value={`${analytics.leads.conversionRate.toFixed(1)}%`} icon="📈" color="green" />
+                  <StatCard label="Conversion Rate" value={fmtPct(analytics.leads.conversionRate, 1)} icon="📈" color="green" />
                   <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
                     <div className="text-white font-semibold mb-4 text-sm">By Status</div>
                     <div className="space-y-2">
@@ -290,7 +296,7 @@ export default function AnalyticsPage() {
                     <div key={idx} className="mb-4">
                       <div className="flex justify-between mb-1">
                         <span className="text-white text-sm">{stage.stage}</span>
-                        <span className="text-purple-200 text-sm">{stage.percentage.toFixed(1)}%</span>
+                        <span className="text-purple-200 text-sm">{fmtPct(stage.percentage, 1)}</span>
                       </div>
                       <div className="w-full bg-slate-700 rounded-full h-6">
                         <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-6 rounded-full" style={{width: `${stage.percentage}%`}} />
@@ -298,7 +304,7 @@ export default function AnalyticsPage() {
                     </div>
                   ))}
                 </div>
-                <StatCard label="Drop-off Rate" value={`${analytics.conversion.dropOffRate.toFixed(1)}%`} icon="📉" color="red" />
+                <StatCard label="Drop-off Rate" value={fmtPct(analytics.conversion.dropOffRate, 1)} icon="📉" color="red" />
               </div>
             )}
 

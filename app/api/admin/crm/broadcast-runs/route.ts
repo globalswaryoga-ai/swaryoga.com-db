@@ -21,12 +21,14 @@ function toObjectId(id: string) {
 }
 
 async function resolveLeadIdsFromTarget(target: any): Promise<mongoose.Types.ObjectId[]> {
-  const type = String(target?.type || 'filters');
-
-  if (type === 'leadIds') {
-    const ids: any[] = Array.isArray(target?.leadIds) ? target.leadIds : [];
+  // Back-compat: some clients send { target: { leadIds: [...] } } without a `type`.
+  // Prefer explicit leadIds when present.
+  if (Array.isArray(target?.leadIds) && target.leadIds.length) {
+    const ids: any[] = target.leadIds;
     return ids.filter(Boolean).map((x) => toObjectId(String(x)));
   }
+
+  const type = String(target?.type || 'filters');
 
   if (type === 'broadcastList') {
     const listId = String(target?.broadcastListId || '').trim();

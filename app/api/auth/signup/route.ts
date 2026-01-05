@@ -7,6 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, User } from '@/lib/db';
+import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
+import { normalizePhone } from '@/lib/whatsapp';
 import { generateToken } from '@/lib/auth';
 import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
@@ -106,6 +109,71 @@ export async function POST(request: NextRequest) {
       });
 
       await user.save();
+
+      // ALSO: create/update CRM lead (Option A)
+      // This makes every website signup visible in CRM leads immediately.
+      try {
+        const cleanedPhone = normalizePhone(phone || '');
+        const cleanedEmail = String(email || '').trim().toLowerCase();
+        const cleanedName = String(name || '').trim();
+        const meta = {
+          formType: 'website-signup',
+          userId: user._id.toString(),
+          profileId: (user as any)?.profileId,
+          country: String(country || '').trim(),
+          state: String(state || '').trim(),
+          gender: String(gender || '').trim(),
+          age: ageNumber,
+          profession: String(profession || '').trim(),
+          submittedAt: new Date(),
+        };
+
+        if (cleanedPhone) {
+          const existingLead = await Lead.findOne({ phoneNumber: cleanedPhone }).lean();
+          if (existingLead) {
+            await Lead.updateOne(
+              { _id: (existingLead as any)._id },
+              {
+                $setOnInsert: {
+                  status: 'lead',
+                  source: 'website',
+                  workshopName: 'Website Signup',
+                  labels: ['website-signup'],
+                  createdByUserId: 'system',
+                  assignedToUserId: 'system',
+                },
+                $addToSet: {
+                  labels: { $each: ['website-signup'] },
+                },
+                $set: {
+                  ...(cleanedName ? { name: cleanedName } : {}),
+                  ...(cleanedEmail ? { email: cleanedEmail } : {}),
+                  metadata: meta,
+                },
+              },
+              { upsert: false }
+            );
+          } else {
+            const { leadNumber } = await allocateNextLeadNumber();
+            await Lead.create({
+              leadNumber,
+              name: cleanedName,
+              email: cleanedEmail,
+              phoneNumber: cleanedPhone,
+              status: 'lead',
+              source: 'website',
+              workshopName: 'Website Signup',
+              labels: ['website-signup'],
+              createdByUserId: 'system',
+              assignedToUserId: 'system',
+              metadata: meta,
+            });
+          }
+        }
+      } catch (crmLeadError) {
+        // Non-fatal: signup should still succeed even if CRM write fails.
+        logError('signup/createCrmLead', crmLeadError);
+      }
 
       // Generate token
       let token;

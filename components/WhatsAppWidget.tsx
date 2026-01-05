@@ -1,9 +1,17 @@
 'use client';
 
 import { MessageCircle } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 export default function WhatsAppWidget() {
-  const whatsappNumber = '919309986820';
+  const pathname = usePathname();
+
+  // Hide on admin/CRM routes (admins have dedicated WhatsApp tools inside CRM).
+  if (pathname?.startsWith('/admin')) return null;
+
+  const whatsappNumber = String(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '').replace(/\D/g, '');
+  if (!whatsappNumber) return null;
+
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Hello%20Swar%20Yoga!%20I%20would%20like%20to%20inquire%20about%20your%20services.`;
 
   return (

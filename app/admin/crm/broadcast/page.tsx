@@ -37,7 +37,9 @@ function uniq(values: string[]) {
 
 // Broadcast segmentation buckets (user-facing).
 // These should be stable options so the filter behaves predictably.
-const DEFAULT_STATUS_OPTIONS = ['leads', 'prospect', 'customer', 'inactive'];
+// NOTE: CRM Lead.status uses singular values like "lead".
+// We still support legacy/plural inputs for backward compatibility.
+const DEFAULT_STATUS_OPTIONS = ['lead', 'prospect', 'customer', 'inactive'];
 
 export default function BroadcastPage() {
   const router = useRouter();
@@ -169,6 +171,11 @@ export default function BroadcastPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      // Fetch *all* leads for accurate client-side status/label segmentation.
+      // NOTE: The leads API is paginated by default, so we must request a high limit
+      // otherwise filters will "miss" leads that exist beyond the first page.
+      params.set('limit', '5000');
+      params.set('skip', '0');
       // Status is a client-side segmentation bucket (leads/prospect/customer/inactive).
       // The server stores granular statuses, so we fetch broadly and filter locally.
       if (workshopName) params.set('workshop', workshopName);
@@ -179,10 +186,10 @@ export default function BroadcastPage() {
       const res: any = await crm.fetch(url, { method: 'GET' });
 
       const rows: LeadRow[] = Array.isArray(res?.data?.leads) ? res.data.leads : [];
-      const count: number = Number(res?.data?.total || rows.length || 0);
+  const serverTotal: number = Number(res?.data?.total ?? rows.length ?? 0);
 
       const normalizeStatus = (s: any) => String(s || '').trim().toLowerCase();
-      const statusBucket = (s: any): 'leads' | 'prospect' | 'customer' | 'inactive' | '' => {
+      const statusBucket = (s: any): 'lead' | 'prospect' | 'customer' | 'inactive' | '' => {
         const v = normalizeStatus(s);
         if (!v) return '';
         if (v === 'inactive') return 'inactive';
@@ -193,11 +200,11 @@ export default function BroadcastPage() {
         // Prospect bucket
         if (['prospect', 'interested', 'follow_up', 'followup', 'follow-up'].includes(v)) return 'prospect';
 
-        // Leads bucket
-        if (['leads', 'lead', 'new'].includes(v)) return 'leads';
+  // Lead bucket
+  if (['leads', 'lead', 'new'].includes(v)) return 'lead';
 
-        // Unknown statuses default to Leads (keeps backward compatibility)
-        return 'leads';
+        // Unknown statuses default to Lead (keeps backward compatibility)
+        return 'lead';
       };
 
       // Client-side filters (until we extend the API)
@@ -209,12 +216,18 @@ export default function BroadcastPage() {
       }
 
       if (label) {
-        filtered = filtered.filter((l) => (Array.isArray(l.labels) ? l.labels : []).some((x) => String(x) === label));
+        const wanted = String(label).trim().toLowerCase();
+        filtered = filtered.filter((l) =>
+          (Array.isArray(l.labels) ? l.labels : []).some((x) => String(x).trim().toLowerCase() === wanted)
+        );
       }
 
       setLeads(filtered);
-  // Since we filter client-side, total should reflect the visible/targeted list.
-  setTotal(filtered.length);
+    // Total is used for the filter header/count display.
+    // If we aren't applying any client-side narrowing, show the server total.
+    // Otherwise show the narrowed count.
+      const hasClientSideFilter = Boolean(status) || Boolean(label);
+      setTotal(hasClientSideFilter ? filtered.length : serverTotal);
 
       // Keep selection only for visible leads
       setSelectedLeadIds((prev) => {
