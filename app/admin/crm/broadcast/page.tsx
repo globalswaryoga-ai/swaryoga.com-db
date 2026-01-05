@@ -34,6 +34,17 @@ function uniq(values: string[]) {
   return Array.from(new Set(values.map((x) => String(x).trim()).filter(Boolean)));
 }
 
+const DEFAULT_STATUS_OPTIONS = [
+  'new',
+  'interested',
+  'follow_up',
+  'registered',
+  'paid',
+  'converted',
+  'not_interested',
+  'inactive',
+];
+
 export default function BroadcastPage() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -56,6 +67,10 @@ export default function BroadcastPage() {
   const [total, setTotal] = useState(0);
   const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
   const [templates, setTemplates] = useState<WhatsAppTemplateRow[]>([]);
+
+  // Options for filters (don’t depend on current leads result set).
+  const [labelOptions, setLabelOptions] = useState<string[]>([]);
+  const [workshopOptions, setWorkshopOptions] = useState<string[]>([]);
 
   // Selection
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
@@ -83,20 +98,35 @@ export default function BroadcastPage() {
     [selectedLeadIds.size, selectedTemplate]
   );
 
-  const labelOptions = useMemo(() => {
-    const all = leads.flatMap((l) => (Array.isArray(l.labels) ? l.labels : [])).map((x) => String(x));
-    return uniq(all).sort((a, b) => a.localeCompare(b));
-  }, [leads]);
-
-  const workshopOptions = useMemo(() => {
-    const all = leads.map((l) => String(l.workshopName || '')).filter(Boolean);
-    return uniq(all).sort((a, b) => a.localeCompare(b));
-  }, [leads]);
-
   const statusOptions = useMemo(() => {
-    const all = leads.map((l) => String(l.status || '')).filter(Boolean);
-    return uniq(all).sort((a, b) => a.localeCompare(b));
+    const fromLeads = uniq(leads.map((l) => String(l.status || '')).filter(Boolean));
+    const merged = uniq([...DEFAULT_STATUS_OPTIONS, ...fromLeads]);
+    return merged.sort((a, b) => a.localeCompare(b));
   }, [leads]);
+
+  const fetchMetadata = useCallback(async () => {
+    try {
+      const res: any = await crm.fetch('/api/admin/crm/leads/metadata', { method: 'GET' });
+      const data = res?.data || res;
+      const workshops = Array.isArray(data?.workshops) ? data.workshops : [];
+      const labels = Array.isArray(data?.labels) ? data.labels : [];
+
+      setWorkshopOptions(uniq(workshops.map((x: any) => String(x))).sort((a, b) => a.localeCompare(b)));
+      setLabelOptions(uniq(labels.map((x: any) => String(x))).sort((a, b) => a.localeCompare(b)));
+    } catch {
+      // If metadata endpoint isn't available, gracefully fall back to deriving from current leads.
+      const fallbackWorkshops = uniq(leads.map((l) => String(l.workshopName || '')).filter(Boolean)).sort((a, b) =>
+        a.localeCompare(b)
+      );
+      const fallbackLabels = uniq(
+        leads
+          .flatMap((l) => (Array.isArray(l.labels) ? l.labels : []))
+          .map((x) => String(x))
+      ).sort((a, b) => a.localeCompare(b));
+      setWorkshopOptions(fallbackWorkshops);
+      setLabelOptions(fallbackLabels);
+    }
+  }, [crm, leads]);
 
   const fetchAdminUsers = useCallback(async () => {
     try {
@@ -165,6 +195,7 @@ export default function BroadcastPage() {
     if (!token) return;
     void fetchAdminUsers();
     void fetchTemplates();
+    void fetchMetadata();
     void fetchLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
