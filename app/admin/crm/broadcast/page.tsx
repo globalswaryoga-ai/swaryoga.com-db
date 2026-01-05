@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCRM } from '@/hooks/useCRM';
@@ -74,6 +74,10 @@ export default function BroadcastPage() {
 
   // Selection
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+
+  // Track last fetch to prevent rapid retries on errors
+  const lastFetchTimeRef = useRef<number>(0);
+  const MIN_FETCH_INTERVAL_MS = 2000; // Minimum 2 second interval between fetch attempts
 
   // Template selection + preview
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
@@ -154,6 +158,13 @@ export default function BroadcastPage() {
   }, [crm]);
 
   const fetchLeads = useCallback(async () => {
+    // Throttle: prevent rapid retries when there are errors
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < MIN_FETCH_INTERVAL_MS) {
+      return;
+    }
+    lastFetchTimeRef.current = now;
+
     setLoading(true);
     setError(null);
     try {

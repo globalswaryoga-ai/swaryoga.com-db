@@ -86,6 +86,10 @@ export default function LeadsPage() {
   const [userFilter, setUserFilter] = useState<string>('');
   const [userOptions, setUserOptions] = useState<AdminUserOption[]>([]);
 
+  // Track last fetch to prevent rapid retries on errors
+  const lastFetchTimeRef = useRef<number>(0);
+  const MIN_FETCH_INTERVAL_MS = 2000; // Minimum 2 second interval between fetch attempts
+
   useEffect(() => {
     // Determine if current admin has full access (admin / permissions: ['all'])
     if (typeof window === 'undefined') return;
@@ -157,6 +161,14 @@ export default function LeadsPage() {
   // Fetch only current page of leads
   const fetchLeads = useCallback(async () => {
     if (!token) return;
+
+    // Throttle: prevent rapid retries when there are errors
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < MIN_FETCH_INTERVAL_MS) {
+      return;
+    }
+    lastFetchTimeRef.current = now;
+
     try {
       const params: Record<string, any> = { limit, skip };
       if (filterStatus) params.status = filterStatus;
@@ -174,6 +186,14 @@ export default function LeadsPage() {
         const data = await response.json();
         setLeads(data.data.leads || []);
         setTotal(data.data.total || 0);
+      } else {
+        // Log error response for debugging
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        console.error(`Failed to fetch leads (${response.status}):`, errorData);
+        // Only retry on certain status codes (not 400/401/403)
+        if (response.status >= 500) {
+          console.warn('Server error (5xx) - data may be temporarily unavailable');
+        }
       }
     } catch (err) {
       console.error('Failed to fetch leads', err);
