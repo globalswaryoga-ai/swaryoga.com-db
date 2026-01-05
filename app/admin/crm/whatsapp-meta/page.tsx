@@ -136,10 +136,28 @@ export default function MetaWhatsAppPage() {
   useEffect(() => {
     if (token === undefined) return;
     if (!token) return;
-    if (!enableMetaWhatsApp) {
-      router.replace('/admin/crm/whatsapp');
-    }
+    // If Meta is disabled, we render a friendly message below (instead of a sudden redirect
+    // that can feel like the page is "not showing").
   }, [token, enableMetaWhatsApp, router]);
+
+  if (token && !enableMetaWhatsApp) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-8">
+        <div className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-xl p-6 space-y-3">
+          <h1 className="text-xl font-bold text-slate-900">Meta Chat is disabled</h1>
+          <p className="text-slate-700">
+            Turn on <code className="px-1 py-0.5 bg-slate-100 rounded">NEXT_PUBLIC_ENABLE_META_WHATSAPP=true</code>{' '}
+            and restart the server to use this page.
+          </p>
+          <div>
+            <Link href="/admin/crm/whatsapp" className="text-emerald-700 font-semibold hover:underline">
+              Go back to WhatsApp Inbox
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Avoid callback dependency chains causing re-renders / TDZ issues.
   // We keep the latest tool loaders in refs and call them from fetchMessages.

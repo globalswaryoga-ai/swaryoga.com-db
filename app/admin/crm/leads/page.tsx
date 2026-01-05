@@ -318,7 +318,7 @@ export default function LeadsPage() {
     // Prepare data
     const excelData = leads.map((lead) => ({
       'Lead ID': lead.leadNumber || '',
-      User: lead.assignedToUserId || '',
+      User: getAssigneeLabel(lead.assignedToUserId) || '',
       Name: lead.name || '',
       Email: lead.email || '',
       'Phone Number': lead.phoneNumber,
@@ -358,6 +358,14 @@ export default function LeadsPage() {
     key: string;
     label: string;
     render?: (value: any, lead: Lead) => ReactNode;
+  };
+
+  const getAssigneeLabel = (assignedToUserId?: string) => {
+    const id = String(assignedToUserId || '').trim();
+    if (!id) return '';
+    const match = (userOptions || []).find((u: any) => String(u?.userId || '').trim() === id);
+    if (!match) return id;
+    return String(match?.userId || match?.email || id);
   };
 
   const columns: LeadColumn[] = [
@@ -403,7 +411,7 @@ export default function LeadsPage() {
       label: 'User',
       render: (val: any) => (
         <div className="bg-emerald-700 text-white rounded-lg px-3 py-2 text-center font-semibold">
-          {val || 'Unassigned'}
+          {getAssigneeLabel(val) || 'Unassigned'}
         </div>
       ),
     },

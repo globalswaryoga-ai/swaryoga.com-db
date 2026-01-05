@@ -10,6 +10,10 @@ interface LabelStat {
   count: number;
 }
 
+function getLabelBase(labelLike: string): string {
+  return String(labelLike || '').split('|')[0];
+}
+
 type BadgeTone = {
   bg: string;
   text: string;
@@ -44,7 +48,7 @@ export default function LabelsPage() {
   const existingLabelSet = useMemo(() => {
     return new Set(
       (labels || [])
-        .map((l) => normalizeLabel((l as any)?._id ?? (l as any)?.label))
+        .map((l) => normalizeLabel(getLabelBase((l as any)?._id ?? (l as any)?.label)))
         .filter(Boolean)
     );
   }, [labels]);
@@ -71,11 +75,11 @@ export default function LabelsPage() {
       if (Array.isArray(list)) {
         const normalized: LabelStat[] = list
           .map((row: any) => {
-            const name = row?._id ?? row?.label;
+            // Keep the original key from the API. It may embed a color, e.g. "hot-lead|red".
+            const raw = String(row?._id ?? row?.label ?? '').trim();
             const count = row?.count ?? 0;
-            const normalizedName = normalizeLabel(name);
-            if (!normalizedName) return null;
-            return { _id: normalizedName, count: Number(count) || 0 };
+            if (!raw) return null;
+            return { _id: raw, count: Number(count) || 0 };
           })
           .filter(Boolean) as LabelStat[];
 
@@ -95,7 +99,7 @@ export default function LabelsPage() {
   const handleAddLabel = async (labelName: string) => {
     if (!token || !labelName.trim()) return;
 
-    const normalizedLabel = normalizeLabel(labelName);
+    const normalizedLabel = normalizeLabel(getLabelBase(labelName));
     if (!normalizedLabel) return;
 
     const derivedColor = selectedColor || getLabelColor(normalizedLabel);
@@ -128,7 +132,7 @@ export default function LabelsPage() {
   const handleDeleteLabel = async (label: string) => {
     if (!token || !confirm(`Delete label "${label}"?`)) return;
 
-    const actualLabel = String(label || '').split('|')[0];
+    const actualLabel = getLabelBase(label);
     const normalizedLabel = normalizeLabel(actualLabel);
 
     try {
@@ -162,7 +166,7 @@ export default function LabelsPage() {
         if (!exists) {
           const color = getLabelColor(normalized);
           const toPersist = `${normalized}|${color}`;
-          await handleAddLabel(toPersist);
+          await handleAddLabel(normalized);
         }
       }
 
