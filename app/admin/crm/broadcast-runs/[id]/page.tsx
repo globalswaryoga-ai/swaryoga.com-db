@@ -27,7 +27,7 @@ type RunMessageRow = {
 
 export default function BroadcastRunDetailsPage() {
   const token = useAuth();
-  const crm = useCRM();
+  const crm = useCRM({ token });
   const params = useParams<{ id: string }>();
   const sp = useSearchParams();
   const router = useRouter();

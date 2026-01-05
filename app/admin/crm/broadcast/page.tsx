@@ -38,7 +38,7 @@ export default function BroadcastPage() {
   const router = useRouter();
   const sp = useSearchParams();
   const token = useAuth();
-  const crm = useCRM();
+  const crm = useCRM({ token });
 
   const listId = sp.get('listId') || '';
 
