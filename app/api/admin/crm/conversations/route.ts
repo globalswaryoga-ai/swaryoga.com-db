@@ -12,6 +12,12 @@ import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function escapeRegexLiteral(input: string): string {
+  // Escape any characters that have special meaning in regex so user queries
+  // can't crash the API with an invalid pattern (e.g. "(" or "[a-").
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Conversations API
  * Returns one row per leadId with last message + unread count.
@@ -77,9 +83,10 @@ export async function GET(request: NextRequest) {
     if (status) postMatch['lead.status'] = status;
     if (label) postMatch['lead.labels'] = label;
     if (q) {
+      const safe = escapeRegexLiteral(q);
       postMatch.$or = [
-        { 'lead.name': { $regex: q, $options: 'i' } },
-        { phoneNumber: { $regex: q, $options: 'i' } },
+        { 'lead.name': { $regex: safe, $options: 'i' } },
+        { phoneNumber: { $regex: safe, $options: 'i' } },
       ];
     }
     if (Object.keys(postMatch).length > 0) pipeline.push({ $match: postMatch });
