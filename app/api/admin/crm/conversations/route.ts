@@ -97,11 +97,59 @@ export async function GET(request: NextRequest) {
         _id: 0,
         leadId: '$_id',
         leadNumber: '$lead.leadNumber',
-        name: '$lead.name',
+        name: {
+          $ifNull: [
+            {
+              $cond: [
+                { $and: [{ $ne: ['$lead.displayName', null] }, { $ne: ['$lead.displayName', ''] }] },
+                '$lead.displayName',
+                {
+                  $cond: [
+                    { $and: [{ $ne: ['$lead.title', null] }, { $ne: ['$lead.title', ''] }, { $ne: ['$lead.name', null] }, { $ne: ['$lead.name', ''] }] },
+                    { $concat: ['$lead.title', '. ', '$lead.name'] },
+                    '$lead.name'
+                  ]
+                }
+              ]
+            },
+            ''
+          ]
+        },
         status: '$lead.status',
         labels: '$lead.labels',
         assignedToUserId: '$lead.assignedToUserId',
         phoneNumber: 1,
+        phoneNumberNormalized: {
+          $replaceAll: {
+            input: {
+              $replaceAll: {
+                input: {
+                  $replaceAll: {
+                    input: {
+                      $replaceAll: {
+                        input: {
+                          $replaceAll: {
+                            input: '$phoneNumber',
+                            find: '+',
+                            replacement: '',
+                          },
+                        },
+                        find: ' ',
+                        replacement: '',
+                      },
+                    },
+                    find: '-',
+                    replacement: '',
+                  },
+                },
+                find: '(',
+                replacement: '',
+              },
+            },
+            find: ')',
+            replacement: '',
+          },
+        },
         lastMessageAt: 1,
         lastMessageContent: 1,
         lastDirection: 1,

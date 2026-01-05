@@ -37,6 +37,7 @@ type ConversationRow = {
   leadId: string;
   leadNumber?: string;
   name?: string;
+  phoneNumberNormalized?: string;
   status?: string;
   labels?: string[];
   assignedToUserId?: string;
@@ -55,6 +56,37 @@ function getInitials(label?: string) {
   const first = parts[0]?.[0] || '';
   const second = parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1] || '';
   return (first + second).toUpperCase();
+}
+
+function normalizePhoneDigits(input?: string): string {
+  return String(input || '').replace(/\D+/g, '');
+}
+
+function formatPhoneForDisplay(input?: string): string {
+  const digits = normalizePhoneDigits(input);
+  if (!digits) return '';
+
+  // Simple formatting for common cases (kept intentionally conservative)
+  if (digits.length === 12 && digits.startsWith('91')) {
+    // India: 91 + 10 digits
+    return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return digits;
+  }
+  return `+${digits}`;
+}
+
+function resolveLeadLabel(row?: ConversationRow | null): string {
+  if (!row) return 'Conversation';
+  const name = String(row.name || '').trim();
+  if (name) return name;
+
+  const leadNumber = String(row.leadNumber || '').trim();
+  if (leadNumber) return leadNumber;
+
+  // Fall back to a nicely formatted phone number
+  return formatPhoneForDisplay(row.phoneNumber) || row.phoneNumber || 'Conversation';
 }
 
 type PopulatedLead = { _id: string; name?: string; phoneNumber?: string };
@@ -811,7 +843,7 @@ export default function WhatsAppChatDashboardPage() {
     if (savedKind === 'chatbots' && chatbots.length === 0 && !savedLoading) void fetchChatbots();
   }, [savedKind, templates.length, chatbots.length, fetchTemplates, fetchChatbots, savedLoading]);
 
-  const selectedLeadName = selected?.name || selected?.leadNumber || 'Conversation';
+  const selectedLeadName = useMemo(() => resolveLeadLabel(selected), [selected]);
 
   const filteredConversations = useMemo(() => {
     const now = Date.now();
@@ -2016,17 +2048,17 @@ export default function WhatsAppChatDashboardPage() {
                         onChange={() => {
                           // handled by onClick wrapper
                         }}
-                        aria-label={`Select chat ${c.name || c.phoneNumber}`}
+                        aria-label={`Select chat ${resolveLeadLabel(c)}`}
                       />
                     </div>
 
                     <div className="chat-avatar" aria-hidden="true">
-                      {getInitials(c.name || c.phoneNumber)}
+                      {getInitials(resolveLeadLabel(c))}
                     </div>
 
                     <div className="chat-item-body">
                       <div className="chat-item-top">
-                        <div className="chat-name">{c.name || c.phoneNumber}</div>
+                        <div className="chat-name">{resolveLeadLabel(c)}</div>
                         <div className="chat-time">
                           {c.lastMessageAt ? formatTime(c.lastMessageAt) : ''}
                         </div>
