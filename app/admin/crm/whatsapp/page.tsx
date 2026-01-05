@@ -325,6 +325,8 @@ export default function WhatsAppChatDashboardPage() {
   // Admin + display names
   const ADMIN_DISPLAY_NAME_FALLBACK = 'Admin';
   const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
+  const [adminUsersLoadError, setAdminUsersLoadError] = useState<string | null>(null);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [leadTitle, setLeadTitle] = useState<'Mr' | 'Miss' | 'Mrs' | ''>('');
   const loggedInAdminName = useMemo(() => {
     const viewerUserId = String(viewer.userId || '').trim();
@@ -600,11 +602,16 @@ export default function WhatsAppChatDashboardPage() {
 
   const fetchAdminUsers = useCallback(async () => {
     try {
+      setAdminUsersLoading(true);
+      setAdminUsersLoadError(null);
       const res = await crmFetch('/api/admin/auth/users', { method: 'GET' });
       const rows = Array.isArray(res?.data) ? (res.data as AdminUserRow[]) : [];
       setAdminUsers(rows);
     } catch {
       setAdminUsers([]);
+      setAdminUsersLoadError('Unable to load admin users. Please refresh or login again.');
+    } finally {
+      setAdminUsersLoading(false);
     }
   }, [crmFetch]);
 
@@ -2366,6 +2373,15 @@ export default function WhatsAppChatDashboardPage() {
                     <div style={{ color: '#6B7280', fontSize: 12 }}>
                       Current: {String(selected?.assignedToUserId || 'Unassigned')}
                     </div>
+                    {adminUsersLoading ? (
+                      <div style={{ marginTop: 6, color: '#6B7280', fontSize: 12 }}>
+                        Loading admin users…
+                      </div>
+                    ) : adminUsersLoadError ? (
+                      <div style={{ marginTop: 6, color: '#B91C1C', fontSize: 12 }}>
+                        {adminUsersLoadError}
+                      </div>
+                    ) : null}
                     <label>
                       Assign to admin
                       <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}>
