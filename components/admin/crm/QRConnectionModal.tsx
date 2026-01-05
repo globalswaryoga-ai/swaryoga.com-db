@@ -17,12 +17,33 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [message, setMessage] = useState('Connecting to WhatsApp Web...');
+  const [connectedAccount, setConnectedAccount] = useState<string | null>(null);
   const [whatsappToken, setWhatsappToken] = useState('');
   const [phoneNumberId, setPhoneNumberId] = useState('');
   const [qrAttempt, setQrAttempt] = useState(0);
   const [maxQrAttempts] = useState(5);
   const wsRef = useRef<WebSocket | null>(null);
   const hasAuthenticatedRef = useRef(false);
+
+  const fetchBridgeStatus = useCallback(async () => {
+    const token = localStorage.getItem('admin_token');
+    if (!token) throw new Error('Missing admin token');
+
+    const res = await fetch('/api/admin/crm/whatsapp/bridge/status', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || data?.details || `Bridge status failed (HTTP ${res.status})`);
+    }
+    return data;
+  }, []);
 
   const resolveBridgeWsUrl = useCallback((): string | null => {
     const envWsUrl = (process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL || '').trim();
@@ -107,17 +128,43 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
               break;
 
             case 'authenticated':
-              console.log('✅ WhatsApp authenticated!');
+              console.log('✅ WhatsApp authenticated! (WS event)');
               hasAuthenticatedRef.current = true;
-              setStatus('authenticated');
-              setMessage('WhatsApp Web successfully authenticated!');
+              setMessage('Verifying bridge status...');
               setQrCode(null);
-              if (onConnected) {
-                setTimeout(() => {
-                  onConnected();
-                  onClose();
-                }, 1500);
-              }
+
+              // IMPORTANT: make this UI truthful.
+              // WS can briefly report authenticated even if the session drops right after.
+              // Confirm via /api/status proxy.
+              (async () => {
+                try {
+                  const s = await fetchBridgeStatus();
+                  const authed = Boolean(s?.authenticated);
+                  if (!authed) {
+                    setStatus('error');
+                    setErrorMsg('Bridge reported not authenticated. Please scan the QR again.');
+                    setMessage('Not authenticated. Try again.');
+                    return;
+                  }
+
+                  const wid = s?.account?.wid || s?.account?.id || s?.account?.user || null;
+                  setConnectedAccount(wid ? String(wid) : null);
+                  setStatus('authenticated');
+                  setErrorMsg(null);
+                  setMessage('WhatsApp Web authenticated and ready.');
+
+                  if (onConnected) {
+                    setTimeout(() => {
+                      onConnected();
+                      onClose();
+                    }, 1200);
+                  }
+                } catch (e) {
+                  setStatus('error');
+                  setErrorMsg(e instanceof Error ? e.message : 'Failed to verify bridge status');
+                  setMessage('Verification failed.');
+                }
+              })();
               break;
 
             case 'error':
@@ -184,6 +231,7 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
     setErrorMsg(null);
     setQrCode(null);
     setQrAttempt(0);
+  setConnectedAccount(null);
     setConnectionMode('qr');
     setMessage('Connecting to WhatsApp Web...');
 
@@ -226,6 +274,37 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
       console.error('❌ Session reset error:', err);
       setStatus('error');
       setErrorMsg(`Failed to reset session: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDisconnectBridge = async () => {
+    setStatus('resetting');
+    setMessage('Disconnecting WhatsApp Web session...');
+    setErrorMsg(null);
+
+    try {
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch('/api/admin/crm/whatsapp/bridge/disconnect', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reinit: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.details || `Disconnect failed (HTTP ${res.status})`);
+      }
+
+      setStatus('idle');
+      setConnectedAccount(null);
+      setQrCode(null);
+      setMessage('Disconnected. Click Connect to generate a new QR.');
+    } catch (e) {
+      setStatus('error');
+      setErrorMsg(e instanceof Error ? e.message : 'Failed to disconnect session');
+      setMessage('Disconnect failed.');
     }
   };
 
@@ -363,6 +442,11 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
                 </span>
               </div>
               <p className="text-sm text-gray-600">{message}</p>
+              {status === 'authenticated' && connectedAccount && (
+                <p className="text-xs text-gray-600 mt-2">
+                  Connected account: <span className="font-mono">{connectedAccount}</span>
+                </p>
+              )}
               {qrAttempt > 0 && qrAttempt < maxQrAttempts && (
                 <p className="text-xs text-amber-600 mt-2">
                   Attempt {qrAttempt}/{maxQrAttempts}
@@ -442,9 +526,28 @@ export function QRConnectionModal({ isOpen, onClose, onConnected }: QRConnection
                       : 'bg-orange-600 hover:bg-orange-700 text-white'
                   }`}
                 >
-                  {status === 'resetting' ? '🔄 Resetting...' : '🔄 Reset Session'}
+                  {status === 'resetting' ? '🔄 Resetting...' : '� Reset Session'}
                 </button>
               )}
+            </div>
+
+            {/* Disconnect controls (QR mode) */}
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={handleDisconnectBridge}
+                disabled={status === 'resetting'}
+                className={`w-full px-4 py-3 rounded-lg font-semibold transition-colors ${
+                  status === 'resetting'
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
+                }`}
+              >
+                {status === 'resetting' ? '🔄 Disconnecting...' : '� Disconnect WhatsApp Web (force new QR)'}
+              </button>
+              <p className="text-xs text-gray-500 mt-2">
+                Use this if you disconnected on mobile but the bridge still thinks it’s connected.
+              </p>
             </div>
 
             {/* Info */}

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { QRConnectionModal } from '@/components/admin/crm/QRConnectionModal';
 
-type Step = 'initial' | 'loading' | 'qr-display' | 'scanning' | 'success' | 'error';
+type Step = 'initial' | 'loading' | 'success' | 'error';
 
 export default function QRLoginPage() {
   const router = useRouter();
@@ -15,14 +15,10 @@ export default function QRLoginPage() {
   // Auth state: null = loading, false = not authenticated, true = authenticated
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
   const [step, setStep] = useState<Step>('initial');
-  const [qrUrl, setQrUrl] = useState<string>('');
-  const [sessionId, setSessionId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [accountName, setAccountName] = useState<string>('');
-  const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [provider, setProvider] = useState<string>('manual');
-  const [countdown, setCountdown] = useState(900);
 
   // Prefer the live WebSocket-based QR bridge flow.
   // This page is kept for backwards compatibility, but we can open the live modal here too.
@@ -50,24 +46,7 @@ export default function QRLoginPage() {
     }
   }, [token, router]);
 
-  // Countdown timer for QR expiry
-  useEffect(() => {
-    if (step !== 'qr-display') return;
-
-    const interval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          setStep('error');
-          setError('QR code expired. Please generate a new one.');
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [step]);
+  // QR expiry is handled by the bridge itself; we keep the UI simple and rely on WS events.
 
   const generateQR = useCallback(async () => {
     if (!accountName.trim()) {
@@ -75,129 +54,44 @@ export default function QRLoginPage() {
       return;
     }
 
-    // Default behavior: open the live QR modal (no browser extension needed).
-    // The actual QR image comes from the separate WhatsApp bridge WebSocket service.
-    // If the bridge isn't running/accessible, we automatically fall back to the legacy API flow.
+    // Default behavior: open the live WebSocket-based QR modal (no browser extension needed).
+    // The QR image comes from the separate WhatsApp bridge WebSocket service.
+    // We only fall back to the legacy REST flow if the WS modal can't connect / doesn't produce a QR.
     setError(null);
     setSuccess(null);
     setStep('loading');
     setLiveModalOpen(true);
 
-    // If no QR arrives / connection fails, the modal may not be useful.
-    // Give it a few seconds, then proceed with legacy REST flow.
-    const fallbackTimer = window.setTimeout(() => {
+    let fallbackTimer: number | null = window.setTimeout(() => {
       setLiveModalOpen(false);
       setStep('loading');
-      setError('WhatsApp QR service not reachable (WebSocket). Using fallback QR flow…');
+      setError('WhatsApp QR service not reachable (WebSocket).');
     }, 6000);
 
     if (!token) {
       setError('Authentication token missing. Please login again.');
       setIsAuthed(false);
       router.push('/admin/login');
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
       return;
     }
 
-  // Legacy generate endpoint (REST). Keep as fallback.
-  setError(null);
-
-    try {
-      const response = await fetch('/api/admin/crm/whatsapp/qr-login/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          accountName,
-          provider,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to generate QR code');
-      }
-
-      setQrUrl(data.data.qrUrl);
-      setSessionId(data.data.sessionId);
-      setCountdown(data.data.expiresIn || 900);
-      setStep('qr-display');
-      setSuccess('QR code generated! Scan with your WhatsApp number.');
-      setTimeout(() => setSuccess(null), 3000);
-
-      window.clearTimeout(fallbackTimer);
-    } catch (err) {
-      window.clearTimeout(fallbackTimer);
-      setError(err instanceof Error ? err.message : 'Failed to generate QR code');
-      setStep('error');
-    }
+    // NOTE: Legacy REST fallback endpoints are not deployed in production.
+    // They were producing 405 errors and confusing the operator.
+    // If the WS modal fails, we keep the error message and ask the operator to check bridge availability.
+    // The modal itself shows QR when available.
+    if (fallbackTimer) window.clearTimeout(fallbackTimer);
   }, [accountName, provider, token, router]);
 
-  const verifyAndSubmit = useCallback(async () => {
-    if (!phoneNumber.trim()) {
-      setError('Please enter your WhatsApp phone number');
-      return;
-    }
-
-    if (!sessionId) {
-      setError('Session expired. Generate a new QR code.');
-      return;
-    }
-
-    if (!token) {
-      setError('Authentication token missing. Please login again.');
-      setIsAuthed(false);
-      router.push('/admin/login');
-      return;
-    }
-
-    setStep('scanning');
-    setError(null);
-
-    try {
-      const response = await fetch('/api/admin/crm/whatsapp/qr-login/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          sessionId,
-          phoneNumber,
-          accountName,
-          provider,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to verify QR code');
-      }
-
-      setStep('success');
-      setSuccess(`✅ Account "${data.data.accountName}" created successfully!`);
-      setTimeout(() => {
-        router.push('/admin/crm/whatsapp/settings');
-      }, 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create account');
-      setStep('error');
-    }
-  }, [phoneNumber, sessionId, accountName, provider, token, router]);
+  // Legacy verify flow removed: the production integration uses the WebSocket QR bridge only.
+  // After scanning the QR, the bridge becomes authenticated and settings/status pages reflect it.
 
   const resetFlow = useCallback(() => {
     setStep('initial');
     setError(null);
     setSuccess(null);
     setAccountName('');
-    setPhoneNumber('');
     setProvider('manual');
-    setQrUrl('');
-    setSessionId('');
-    setCountdown(900);
   }, []);
 
   // Show loading spinner while auth is being checked
@@ -351,53 +245,7 @@ export default function QRLoginPage() {
             </div>
           )}
 
-          {/* QR DISPLAY STEP */}
-          {step === 'qr-display' && qrUrl && (
-            <>
-              <div className="flex justify-center">
-                <img
-                  src={qrUrl}
-                  alt="WhatsApp QR Code"
-                  className="w-72 h-72 border-4 border-[#1E7F43] rounded-lg"
-                />
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-sm text-yellow-800">
-                  <strong>⏱️ Expires in: {countdown} seconds</strong>
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Your WhatsApp Number
-                </label>
-                <input
-                  type="tel"
-                  placeholder="e.g., +1234567890"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent outline-none"
-                />
-              </div>
-
-              <button
-                onClick={verifyAndSubmit}
-                className="w-full px-6 py-3 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold transition-colors"
-              >
-                ✓ Verify & Create Account
-              </button>
-            </>
-          )}
-
-          {/* SCANNING STEP */}
-          {step === 'scanning' && (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#1E7F43] border-t-transparent mx-auto mb-4"></div>
-              <p className="text-gray-600 font-semibold">Verifying your account...</p>
-              <p className="text-sm text-gray-500 mt-2">This usually takes a few seconds.</p>
-            </div>
-          )}
+          {/* Legacy QR display/verify steps removed (production uses WebSocket QR bridge). */}
 
           {/* SUCCESS STEP */}
           {step === 'success' && (
