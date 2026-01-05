@@ -4,6 +4,12 @@ import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
+function escapeRegexLiteral(input: string): string {
+  // Escape any characters that have special meaning in regex so user queries
+  // can't crash the API with an invalid pattern (e.g. "(" or "[a-").
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
 }
@@ -58,10 +64,11 @@ export async function GET(request: NextRequest) {
     if (q) {
       const query = String(q).trim();
       if (query) {
+        const safe = escapeRegexLiteral(query);
         filter.$or = [
-          { name: { $regex: query, $options: 'i' } },
-          { phoneNumber: { $regex: query, $options: 'i' } },
-          { email: { $regex: query, $options: 'i' } },
+          { name: { $regex: safe, $options: 'i' } },
+          { phoneNumber: { $regex: safe, $options: 'i' } },
+          { email: { $regex: safe, $options: 'i' } },
         ];
       }
     }
