@@ -15,6 +15,14 @@ import { verifyToken } from './auth';
 import mongoose from 'mongoose';
 
 /**
+ * Escape a user-provided string so it can be safely used in a Mongo $regex.
+ * This prevents server 500s caused by invalid regex patterns (e.g. "(", "[a-").
+ */
+export const escapeRegexLiteral = (input: string): string => {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+/**
  * Verify admin access from request headers
  * Throws error if unauthorized
  */
@@ -22,9 +30,7 @@ export const verifyAdminAccess = (request: NextRequest): string => {
   const token = request.headers.get('authorization')?.slice('Bearer '.length);
   const decoded = verifyToken(token);
   
-  if (!decoded?.isAdmin || !decoded?.userId) {
-    throw new Error('Unauthorized: Admin access required');
-  }
+  if (!decoded?.isAdmin || !decoded?.userId) throw new Error('Unauthorized');
   
   return decoded.userId as string;
 };
@@ -103,16 +109,19 @@ export const buildFilter = (
  */
 export const handleCrmError = (error: unknown, context?: string): NextResponse => {
   const message = error instanceof Error ? error.message : 'Unknown error';
-  const status = message.includes('Unauthorized') ? 401 : message.includes('Invalid') ? 400 : 500;
+  const status =
+    message === 'Unauthorized' || message.includes('Unauthorized')
+      ? 401
+      : message.includes('Forbidden')
+        ? 403
+        : message.includes('Invalid')
+          ? 400
+          : 500;
   
   console.error(`CRM API Error${context ? ` [${context}]` : ''}: ${message}`);
   
   return NextResponse.json(
-    { 
-      error: message,
-      success: false,
-      timestamp: new Date().toISOString()
-    },
+    { error: message },
     { status }
   );
 };
@@ -125,8 +134,7 @@ export const formatCrmSuccess = (data: any, meta?: Record<string, any>): NextRes
     {
       success: true,
       data,
-      ...(meta && { meta }),
-      timestamp: new Date().toISOString()
+      ...(meta && { meta })
     },
     { status: 200 }
   );

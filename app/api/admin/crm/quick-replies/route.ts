@@ -8,6 +8,7 @@ import {
   buildMetadata,
   isValidObjectId,
   toObjectId,
+  escapeRegexLiteral,
 } from '@/lib/crm-handlers';
 import { QuickReply } from '@/lib/schemas/enterpriseSchemas';
 
@@ -19,14 +20,15 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const q = url.searchParams.get('q')?.trim();
+  const qRaw = url.searchParams.get('q')?.trim();
     const enabled = url.searchParams.get('enabled');
 
     const filter: any = { createdByUserId: String(userId) };
     if (enabled === 'true') filter.enabled = true;
     if (enabled === 'false') filter.enabled = false;
 
-    if (q) {
+    if (qRaw) {
+      const q = escapeRegexLiteral(qRaw);
       filter.$or = [
         { title: { $regex: q, $options: 'i' } },
         { shortcut: { $regex: q, $options: 'i' } },

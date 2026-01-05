@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import { User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
-
-const mongoose = await import('mongoose');
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,9 +18,6 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    // Get User model
-    const User = mongoose.default.models.User || mongoose.default.model('User', new mongoose.Schema({}));
-
     // Fetch all admin users (minimal fields for assignment UI)
     const adminUsers = await User.find({ isAdmin: true })
       .select('_id userId email role isAdmin createdAt')
@@ -29,7 +25,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: adminUsers }, { status: 200 });
   } catch (error) {
-    console.error('Error fetching admin users:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('Error fetching admin users:', msg);
     return NextResponse.json({ error: 'Failed to fetch admin users' }, { status: 500 });
   }
 }
@@ -76,9 +73,6 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
-
-    // Get User model
-    const User = mongoose.default.models.User || mongoose.default.model('User', new mongoose.Schema({}));
 
     // Check if userId already exists
     const existingUserId = await User.findOne({ userId });
@@ -129,7 +123,8 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Error creating admin user:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('Error creating admin user:', msg);
     return NextResponse.json(
       { error: 'Failed to create admin user' },
       { status: 500 }
