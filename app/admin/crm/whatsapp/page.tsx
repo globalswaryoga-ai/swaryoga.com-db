@@ -373,6 +373,7 @@ export default function WhatsAppChatDashboardPage() {
   const [spellingErrors, setSpellingErrors] = useState<Array<{ word: string; index: number }>>([]);
   const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [showComposerTools, setShowComposerTools] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [scheduleTemplate, setScheduleTemplate] = useState('');
@@ -394,6 +395,7 @@ export default function WhatsAppChatDashboardPage() {
   const createLeadInitialPhone = selected?.phoneNumber || '';
 
   const [actionModal, setActionModal] = useState<null | 'assign' | 'broadcast' | 'status' | 'export' | 'schedule' | 'delay'>(null);
+
   const [broadcastLists, setBroadcastLists] = useState<Array<{ _id: string; name: string }>>([]);
   const [broadcastListId, setBroadcastListId] = useState('');
   const [broadcastNewName, setBroadcastNewName] = useState('');
@@ -592,7 +594,11 @@ export default function WhatsAppChatDashboardPage() {
       const res = await crmFetch('/api/admin/crm/templates', {
         params: { limit: 200, skip: 0 },
       });
-      setTemplates(Array.isArray(res?.templates) ? res.templates : []);
+      const templatesFromApi =
+        (Array.isArray(res?.data?.templates) ? res.data.templates : null) ??
+        (Array.isArray(res?.templates) ? res.templates : null) ??
+        [];
+      setTemplates(templatesFromApi);
     } catch {
       setTemplates([]);
     } finally {
@@ -1096,6 +1102,12 @@ export default function WhatsAppChatDashboardPage() {
   // Multi-select for bulk assignment actions (left chat list)
   const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(new Set());
   const lastClickedChatIndexRef = useRef<number | null>(null);
+
+  // Bulk actions popup for selected chats
+  const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
+  useEffect(() => {
+    setBulkActionsOpen(selectedChatIds.size > 0);
+  }, [selectedChatIds]);
   const adminUserOptions = useMemo(() => {
     const list = Array.isArray(adminUsers) ? adminUsers : [];
     const options = list
@@ -1180,6 +1192,38 @@ export default function WhatsAppChatDashboardPage() {
     },
     [crmFetch, selectedChatIds]
   );
+
+  const bulkUpdateLeadStatus = useCallback(
+    async (nextStatus: string) => {
+      const ids = Array.from(selectedChatIds);
+      if (!ids.length) return;
+
+      await Promise.all(
+        ids.map(async (leadId) => {
+          try {
+            const res = await crmFetch(`/api/admin/crm/leads/${leadId}`, {
+              method: 'PUT',
+              body: { status: nextStatus },
+            });
+            const updatedStatus: string = String(res?.data?.status || nextStatus || '');
+            setConversations((prev) => prev.map((c) => (c.leadId === leadId ? { ...c, status: updatedStatus } : c)));
+            setSelected((prev) => (prev?.leadId === leadId ? { ...prev, status: updatedStatus } : prev));
+          } catch (err) {
+            console.error('Bulk status update failed for lead', leadId, err);
+          }
+        })
+      );
+
+      setSelectedChatIds(new Set());
+      lastClickedChatIndexRef.current = null;
+    },
+    [crmFetch, selectedChatIds]
+  );
+
+  const clearBulkSelection = useCallback(() => {
+    setSelectedChatIds(new Set());
+    lastClickedChatIndexRef.current = null;
+  }, []);
 
   const updateFollowUpStatus = useCallback(
     async (followUpId: string, newStatus: string) => {
@@ -1582,7 +1626,138 @@ export default function WhatsAppChatDashboardPage() {
       </aside>
 
       {/* SECOND LEFT PANEL (Chats: New / Old / Labels) */}
-  <aside className="chat-sidebar" style={{ width: chatSidebarWidth }}>
+  <aside
+          className="chat-sidebar"
+          style={{ width: chatSidebarWidth, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+        >
+        {bulkActionsOpen ? (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="saved-modal-backdrop"
+            style={{ position: 'fixed', inset: 0, zIndex: 80 }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) clearBulkSelection();
+            }}
+          >
+            <div className="saved-modal" style={{ maxWidth: 720 }}>
+              <div className="saved-modal-title">Chat Actions ({selectedChatIds.size} selected)</div>
+              <div className="saved-modal-body">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                  <button
+                    type="button"
+                    className="wa-btn"
+                    onClick={() => {
+                      setActionModal('assign');
+                    }}
+                  >
+                    👤 Assign user
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wa-btn"
+                    onClick={() => {
+                      setActionModal('status');
+                    }}
+                  >
+                    🏷️ Change status
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wa-btn"
+                    onClick={() => {
+                      // Use existing right-sidebar Labels tool for the currently opened chat.
+                      // For bulk: make it easy to update the main selected chat, then repeat.
+                      setChatBucket('labels');
+                      clearBulkSelection();
+                    }}
+                    title="Use Labels in right sidebar"
+                  >
+                    🏷️ Change label(s)
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wa-btn"
+                    onClick={() => {
+                      setCreateLeadOpen(true);
+                      clearBulkSelection();
+                    }}
+                  >
+                    ➕ Add in leads
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wa-btn"
+                    onClick={async () => {
+                      // Minimal: map archive -> status=inactive (keeps data, hides in "active" workflows)
+                      await bulkUpdateLeadStatus('inactive');
+                    }}
+                    title="Archive selected chats (sets status to inactive)"
+                  >
+                    🗄️ Archive
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wa-btn"
+                    onClick={async () => {
+                      // Minimal: map block -> status=inactive (plus visual filter) until a dedicated blocklist exists
+                      await bulkUpdateLeadStatus('inactive');
+                    }}
+                    title="Block selected chats (currently maps to inactive)"
+                  >
+                    🚫 Block
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wa-btn"
+                    onClick={() => {
+                      // Real delete needs a dedicated API decision. For now, we keep data safe.
+                      setError('Delete chat is not enabled yet (needs a dedicated delete API).');
+                      clearBulkSelection();
+                    }}
+                  >
+                    🗑️ Delete (coming soon)
+                  </button>
+
+                  <Link className="wa-btn" href="/admin/crm/leads" onClick={() => clearBulkSelection()}>
+                    📇 Open Leads
+                  </Link>
+                </div>
+
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
+                  <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8 }}>Tools</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <Link className="wa-btn" href="/admin/crm/whatsapp/templates" onClick={() => clearBulkSelection()}>
+                      🧾 Templates
+                    </Link>
+                    <Link className="wa-btn" href="/admin/crm/chatbots" onClick={() => clearBulkSelection()}>
+                      🤖 Chatbots
+                    </Link>
+                    <Link className="wa-btn" href="/admin/crm/automation" onClick={() => clearBulkSelection()}>
+                      ⚡ Automation
+                    </Link>
+                    <Link className="wa-btn" href="/admin/crm/leads-followup" onClick={() => clearBulkSelection()}>
+                      📅 Followup
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              <div className="saved-modal-actions" style={{ display: 'flex', gap: 10 }}>
+                <button type="button" className="wa-btn" onClick={() => clearBulkSelection()}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="chat-filters">
           <div className="chat-filter-tabs">
             <select
@@ -1661,7 +1836,7 @@ export default function WhatsAppChatDashboardPage() {
           </div>
         </div>
 
-        <div className="chat-list">
+        <div className="chat-list" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           {loadingConversations ? (
             <div style={{ padding: 16 }}>
               <LoadingSpinner />
@@ -2731,9 +2906,18 @@ export default function WhatsAppChatDashboardPage() {
         <div className="chat-composer">
           <div style={{ position: 'relative', width: '100%' }}>
             <div
-              onClick={() => setShowAttachmentMenu(false)}
-              onFocusCapture={() => setShowAttachmentMenu(false)}
-              style={{ position: 'absolute', inset: 0, pointerEvents: showAttachmentMenu ? 'auto' : 'none' }}
+              onClick={() => {
+                setShowAttachmentMenu(false);
+                setShowComposerTools(false);
+              }}
+              onFocusCapture={() => {
+                setShowAttachmentMenu(false);
+              }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                pointerEvents: showAttachmentMenu || showComposerTools ? 'auto' : 'none',
+              }}
             />
             {selected && attachment ? (
               <div style={{ padding: '6px 2px 2px' }}>
@@ -2774,13 +2958,13 @@ export default function WhatsAppChatDashboardPage() {
                 }
               }}
               style={{ 
-                paddingRight: '60px',
+                paddingRight: '210px',
                 width: '100%',
                 boxSizing: 'border-box'
               }}
             />
             
-            {/* NEW: Preview Button + Spell Check Indicator + Emoji */}
+            {/* Tools (+) + Send + AI inside input area (right side) */}
             <div style={{ 
               position: 'absolute', 
               top: '10px', 
@@ -2789,228 +2973,206 @@ export default function WhatsAppChatDashboardPage() {
               gap: '8px',
               alignItems: 'center'
             }}>
-              {/* Attachment (WhatsApp-like) */}
+              {/* Iconic '+' tools button */}
               <div style={{ position: 'relative' }}>
                 <button
                   type="button"
-                  onClick={() => setShowAttachmentMenu((v) => !v)}
+                  onClick={() => {
+                    setShowComposerTools((v) => !v);
+                    setShowAttachmentMenu(false);
+                  }}
                   disabled={!selected || sending}
-                  title="Attach"
-                  aria-label="Attach"
+                  title="Tools"
+                  aria-label="Tools"
                   style={{
-                    background: 'none',
-                    border: 'none',
+                    width: 34,
+                    height: 34,
+                    borderRadius: 999,
+                    border: '1px solid rgba(17, 24, 39, 0.18)',
+                    background: '#fff',
                     cursor: sending ? 'not-allowed' : 'pointer',
-                    fontSize: '18px',
-                    opacity: 0.6,
-                    padding: '4px 6px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'opacity 0.2s',
+                    fontSize: 18,
+                    fontWeight: 900,
+                    lineHeight: 1,
+                    boxShadow: '0 10px 20px rgba(0,0,0,0.06)',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
                 >
-                  📎
+                  +
                 </button>
 
-                {showAttachmentMenu ? (
+                {showComposerTools ? (
                   <div
                     style={{
                       position: 'absolute',
-                      top: 34,
+                      top: 40,
                       right: 0,
-                      zIndex: 20,
-                      width: 190,
+                      zIndex: 25,
+                      width: 260,
                       background: '#ffffff',
                       border: '1px solid rgba(17, 24, 39, 0.12)',
-                      borderRadius: 10,
-                      boxShadow: '0 12px 28px rgba(0,0,0,0.12)',
-                      padding: 8,
+                      borderRadius: 12,
+                      boxShadow: '0 12px 28px rgba(0,0,0,0.14)',
+                      padding: 10,
                     }}
-                    onMouseLeave={() => setShowAttachmentMenu(false)}
                   >
-                    <label
-                      title="Image"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '8px 10px',
-                        borderRadius: 8,
-                        cursor: sending ? 'not-allowed' : 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: 'center' }}>🖼️</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Image</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        disabled={sending}
-                        onChange={(e) => {
-                          pickAttachment('image', e.target.files?.[0]);
-                          setShowAttachmentMenu(false);
-                          e.currentTarget.value = '';
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 8 }}>
+                      <button
+                        type="button"
+                        disabled={!selected}
+                        onClick={() => {
+                          setShowEmojiPicker(true);
+                          setShowComposerTools(false);
                         }}
-                      />
-                    </label>
+                        className="wa-btn"
+                        style={{ padding: '8px 10px', fontSize: 13 }}
+                      >
+                        😊 Emoji
+                      </button>
 
-                    <label
-                      title="Video"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '8px 10px',
-                        borderRadius: 8,
-                        cursor: sending ? 'not-allowed' : 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: 'center' }}>🎥</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Video</span>
-                      <input
-                        type="file"
-                        accept="video/*"
-                        style={{ display: 'none' }}
-                        disabled={sending}
-                        onChange={(e) => {
-                          pickAttachment('video', e.target.files?.[0]);
-                          setShowAttachmentMenu(false);
-                          e.currentTarget.value = '';
+                      <button
+                        type="button"
+                        disabled={!composer.trim()}
+                        onClick={() => {
+                          setShowPreview(true);
+                          setShowComposerTools(false);
                         }}
-                      />
-                    </label>
+                        className="wa-btn"
+                        style={{ padding: '8px 10px', fontSize: 13 }}
+                      >
+                        👁️ Preview
+                      </button>
 
-                    <label
-                      title="Document"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '8px 10px',
-                        borderRadius: 8,
-                        cursor: sending ? 'not-allowed' : 'pointer',
-                        userSelect: 'none',
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: 'center' }}>📄</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Document</span>
-                      <input
-                        type="file"
-                        accept="application/pdf,.pdf,.doc,.docx,.ppt,.pptx,.txt"
-                        style={{ display: 'none' }}
-                        disabled={sending}
-                        onChange={(e) => {
-                          pickAttachment('document', e.target.files?.[0]);
-                          setShowAttachmentMenu(false);
-                          e.currentTarget.value = '';
+                      <button
+                        type="button"
+                        disabled={!selected || sending}
+                        onClick={() => {
+                          setSpellCheckEnabled((prev) => {
+                            const next = !prev;
+                            if (!next) setSpellingErrors([]);
+                            return next;
+                          });
                         }}
-                      />
-                    </label>
+                        className="wa-btn"
+                        style={{ padding: '8px 10px', fontSize: 13 }}
+                        title={spellCheckEnabled ? 'Spellcheck: On' : 'Spellcheck: Off'}
+                      >
+                        {spellCheckEnabled ? '✓ Spell On' : '✓ Spell Off'}
+                      </button>
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: spellingErrors.length ? '#92400e' : '#6B7280',
+                          background: spellingErrors.length ? '#fef3c7' : '#f3f4f6',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: 10,
+                          padding: '8px 10px',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={
+                          spellCheckEnabled && spellingErrors.length
+                            ? `${spellingErrors.length} spelling error${spellingErrors.length > 1 ? 's' : ''}`
+                            : 'Spelling OK'
+                        }
+                      >
+                        ⚠️ {spellingErrors.length || 0}
+                      </div>
+                    </div>
+
+                    <div style={{ height: 1, background: '#E5E7EB', margin: '10px 0' }} />
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
+                      <label className="wa-btn" style={{ padding: '8px 10px', fontSize: 13, cursor: sending ? 'not-allowed' : 'pointer' }}>
+                        🖼️ Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          disabled={sending}
+                          onChange={(e) => {
+                            pickAttachment('image', e.target.files?.[0]);
+                            setShowComposerTools(false);
+                            e.currentTarget.value = '';
+                          }}
+                        />
+                      </label>
+
+                      <label className="wa-btn" style={{ padding: '8px 10px', fontSize: 13, cursor: sending ? 'not-allowed' : 'pointer' }}>
+                        🎥 Video
+                        <input
+                          type="file"
+                          accept="video/*"
+                          style={{ display: 'none' }}
+                          disabled={sending}
+                          onChange={(e) => {
+                            pickAttachment('video', e.target.files?.[0]);
+                            setShowComposerTools(false);
+                            e.currentTarget.value = '';
+                          }}
+                        />
+                      </label>
+
+                      <label className="wa-btn" style={{ padding: '8px 10px', fontSize: 13, cursor: sending ? 'not-allowed' : 'pointer' }}>
+                        📄 Doc
+                        <input
+                          type="file"
+                          accept="application/pdf,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+                          style={{ display: 'none' }}
+                          disabled={sending}
+                          onChange={(e) => {
+                            pickAttachment('document', e.target.files?.[0]);
+                            setShowComposerTools(false);
+                            e.currentTarget.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 ) : null}
               </div>
 
-              {/* Spellcheck Toggle */}
               <button
                 type="button"
-                onClick={() => {
-                  setSpellCheckEnabled((prev) => {
-                    const next = !prev;
-                    if (!next) setSpellingErrors([]);
-                    return next;
-                  });
-                }}
-                disabled={!selected}
-                title={spellCheckEnabled ? 'Spellcheck: On' : 'Spellcheck: Off'}
-                aria-label={spellCheckEnabled ? 'Spellcheck On' : 'Spellcheck Off'}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  opacity: spellCheckEnabled ? 0.9 : 0.45,
-                  padding: '4px 6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'opacity 0.2s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = spellCheckEnabled ? '0.9' : '0.45')}
+                className="send-btn"
+                onClick={handleSend}
+                disabled={!selected || sending || (!composer.trim() && !attachment)}
+                aria-label="Send message (Enter)"
+                title="Send message (Shift+Enter for new line)"
+                style={{ padding: '8px 12px', borderRadius: 10, minWidth: 60 }}
               >
-                ✓
-              </button>
-
-              {/* Emoji Picker Button */}
-              <button
-                type="button"
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                disabled={!selected}
-                title="Add emoji or symbols"
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '18px',
-                  opacity: 0.6,
-                  padding: '4px 6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'opacity 0.2s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
-              >
-                😊
+                {sending ? '⏳' : 'Send'}
               </button>
 
               <button
                 type="button"
-                onClick={() => setShowPreview(true)}
-                disabled={!composer.trim()}
-                title="Preview message (Ctrl+P)"
+                onClick={getAISuggestions}
+                disabled={aiLoading || !composer.trim()}
+                title="Get AI suggestions (Ctrl+K)"
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  padding: '8px 10px',
+                  background: '#f0f0f0',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '10px',
                   cursor: 'pointer',
-                  fontSize: '18px',
-                  opacity: 0.6,
-                  padding: '4px 6px',
-                  display: 'flex',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#111827',
+                  display: 'inline-flex',
                   alignItems: 'center',
+                  gap: '6px',
+                  minWidth: '64px',
                   justifyContent: 'center',
-                  transition: 'opacity 0.2s',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.6')}
               >
-                👁️
+                {aiLoading ? '⏳' : '✨ AI'}
               </button>
-              {spellCheckEnabled && spellingErrors.length > 0 && (
-                <div
-                  title={`${spellingErrors.length} spelling error${spellingErrors.length > 1 ? 's' : ''}`}
-                  style={{
-                    background: '#fef3c7',
-                    color: '#92400e',
-                    fontSize: '11px',
-                    padding: '2px 6px',
-                    borderRadius: '6px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '3px',
-                    fontWeight: '600',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  ⚠️ {spellingErrors.length}
-                </div>
-              )}
             </div>
           </div>
 
@@ -3062,80 +3224,7 @@ export default function WhatsAppChatDashboardPage() {
             </div>
           )}
 
-          <div style={{ 
-            display: 'flex', 
-            gap: '10px', 
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            width: '100%',
-            flexWrap: 'wrap'
-          }}>
-            <button
-              type="button"
-              className="send-btn"
-              onClick={handleSend}
-              disabled={!selected || sending || !composer.trim()}
-              aria-label="Send message (Enter)"
-              title="Send message (Shift+Enter for new line)"
-            >
-              {sending ? (
-                '⏳ Sending…'
-              ) : (
-                <>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M3.4 20.2L21 12 3.4 3.8 3 10l11 2-11 2 .4 6.2Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                  <span>Send</span>
-                </>
-              )}
-            </button>
-
-            {/* NEW: AI Get Suggestions Button */}
-            <button
-              type="button"
-              onClick={getAISuggestions}
-              disabled={aiLoading || !composer.trim()}
-              title="Get AI suggestions (Ctrl+K)"
-              style={{
-                padding: '10px 12px',
-                background: '#f0f0f0',
-                border: '1px solid #e0e0e0',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: '600',
-                color: '#111827',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                minWidth: '90px',
-                justifyContent: 'center',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                if (!e.currentTarget.disabled) {
-                  e.currentTarget.style.background = '#e8e8e8';
-                }
-              }}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#f0f0f0')}
-            >
-              {aiLoading ? (
-                <>⏳ Loading...</>
-              ) : (
-                <>✨ AI</>
-              )}
-            </button>
-          </div>
+          {/* Send + AI moved into input area */}
         </div>
 
         {/* NEW: Message Preview Modal */}

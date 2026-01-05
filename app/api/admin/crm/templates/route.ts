@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { User } from '@/lib/db';
 import mongoose from 'mongoose';
 
 /**
@@ -88,6 +89,28 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
+    // WhatsAppTemplate schema expects createdBy as an ObjectId reference.
+    // Our admin JWT contains decoded.userId (e.g., "admincrm") which is NOT an ObjectId.
+    // Resolve it to a User._id.
+    let createdBy: any = null;
+    const decodedUserId = String(decoded?.userId || '').trim();
+    const decodedEmail = String((decoded as any)?.email || '').trim();
+    if (decodedUserId && mongoose.Types.ObjectId.isValid(decodedUserId)) {
+      createdBy = new mongoose.Types.ObjectId(decodedUserId);
+    } else {
+      const userDoc: any =
+        (decodedUserId ? await User.findOne({ userId: decodedUserId }).select('_id').lean() : null) ||
+        (decodedEmail ? await User.findOne({ email: decodedEmail }).select('_id').lean() : null);
+      createdBy = userDoc && userDoc._id ? new mongoose.Types.ObjectId(String(userDoc._id)) : null;
+    }
+
+    if (!createdBy) {
+      return NextResponse.json(
+        { error: 'Unable to resolve template creator (createdBy). Please login again.' },
+        { status: 401 }
+      );
+    }
+
     const allowedStatuses = ['draft', 'pending_approval', 'approved', 'rejected', 'disabled'];
     const safeStatus = allowedStatuses.includes(status) ? status : 'draft';
 
@@ -101,7 +124,7 @@ export async function POST(request: NextRequest) {
       footerText: footerText || undefined,
       variables: Array.isArray(variables) ? variables : [],
       status: safeStatus,
-      createdBy: decoded.userId,
+      createdBy,
     });
 
     return NextResponse.json({ success: true, data: template }, { status: 201 });

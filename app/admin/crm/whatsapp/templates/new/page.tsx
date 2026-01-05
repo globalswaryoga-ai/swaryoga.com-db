@@ -61,6 +61,16 @@ function buildPreviewText(opts: {
   return parts.join('\n\n');
 }
 
+// WhatsApp-style lightweight formatting preview (safe: escapes HTML first)
+function formatPreviewMessage(text: string): string {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
+    .replace(/_(.+?)_/g, '<em>$1</em>');
+}
+
 export default function CreateTemplatePage() {
   const router = useRouter();
   const token = useAuth();
@@ -212,24 +222,7 @@ export default function CreateTemplatePage() {
                   <div className="text-lg font-bold text-gray-900">Template Builder</div>
                   <div className="text-xs text-gray-500">Mobile-friendly card editor with live preview</div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold"
-                    onClick={() => applyFormat('*', '*')}
-                    title="Bold (*text*)"
-                  >
-                    <span style={{ fontWeight: 800 }}>B</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold"
-                    onClick={() => applyFormat('_', '_')}
-                    title="Italic (_text_)"
-                  >
-                    <span style={{ fontStyle: 'italic' }}>I</span>
-                  </button>
-                </div>
+                <div className="text-xs text-gray-500">Use emoji row tools</div>
               </div>
 
               {/* Meta */}
@@ -355,7 +348,26 @@ export default function CreateTemplatePage() {
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-semibold text-gray-900">Other text</label>
                     <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-wrap items-center">
+                        <button
+                          type="button"
+                          className="w-9 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 font-extrabold"
+                          onClick={() => applyFormat('*', '*')}
+                          title="Bold (*text*)"
+                        >
+                          B
+                        </button>
+                        <button
+                          type="button"
+                          className="w-9 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 italic font-semibold"
+                          onClick={() => applyFormat('_', '_')}
+                          title="Italic (_text_)"
+                        >
+                          I
+                        </button>
+
+                        <div className="w-px h-7 bg-gray-200 mx-1" aria-hidden="true" />
+
                         {emojiRow.map((em) => (
                           <button
                             key={em}
@@ -559,7 +571,10 @@ export default function CreateTemplatePage() {
                       ) : null}
 
                       {/* Body */}
-                      <div className="text-sm text-gray-800 whitespace-pre-wrap">{bodyText.trim() || 'Your message…'}</div>
+                      <div
+                        className="text-sm text-gray-800 whitespace-pre-wrap"
+                        dangerouslySetInnerHTML={{ __html: formatPreviewMessage(bodyText.trim() || 'Your message…') }}
+                      />
 
                       {/* Footer */}
                       {footerText.trim() ? (
