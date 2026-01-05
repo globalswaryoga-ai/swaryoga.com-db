@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
+import { AlertBox, BulkActionsModal, LoadingSpinner } from '@/components/admin/crm';
 import { QRConnectionModal } from '@/components/admin/crm/QRConnectionModal';
 import CreateLeadModal from '@/components/admin/crm/CreateLeadModal';
 import { whatsappSetupLinks } from './page-links';
@@ -437,6 +437,30 @@ export default function WhatsAppChatDashboardPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiCategory, setEmojiCategory] = useState<'smileys' | 'people' | 'nature' | 'food' | 'activity' | 'travel' | 'objects' | 'symbols'>('smileys');
   const emojiPickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Composer tools (+) menu positioning (avoid being clipped by overflow containers)
+  const composerToolsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [composerToolsAnchor, setComposerToolsAnchor] = useState<{ top: number; left: number } | null>(null);
+
+  const updateComposerToolsAnchor = useCallback(() => {
+    const el = composerToolsBtnRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    // Anchor at top-right of the button; menu will open upward.
+    setComposerToolsAnchor({ top: rect.top, left: rect.right });
+  }, []);
+
+  useEffect(() => {
+    if (!showComposerTools) return;
+    updateComposerToolsAnchor();
+    const onResize = () => updateComposerToolsAnchor();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onResize, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onResize, true);
+    };
+  }, [showComposerTools, updateComposerToolsAnchor]);
 
   // NEW: WhatsApp Web QR Connection
   const [showQRModal, setShowQRModal] = useState(false);
@@ -1196,7 +1220,8 @@ export default function WhatsAppChatDashboardPage() {
   const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   useEffect(() => {
-    setBulkActionsOpen(selectedChatIds.size > 0);
+    // Auto-open bulk actions when 2+ are selected (still allow manual open later)
+    setBulkActionsOpen(selectedChatIds.size >= 2);
   }, [selectedChatIds]);
   const adminUserOptions = useMemo(() => {
     const list = Array.isArray(adminUsers) ? adminUsers : [];
@@ -1233,6 +1258,22 @@ export default function WhatsAppChatDashboardPage() {
       return next;
     });
   }, []);
+
+  const allSelectedOnPage = filteredConversations.length > 0 && filteredConversations.every((c) => selectedChatIds.has(c.leadId));
+  const someSelectedOnPage = filteredConversations.some((c) => selectedChatIds.has(c.leadId));
+
+  const toggleSelectAllOnPage = useCallback(() => {
+    setSelectedChatIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        filteredConversations.forEach((c) => next.delete(c.leadId));
+      } else {
+        filteredConversations.forEach((c) => next.add(c.leadId));
+      }
+      return next;
+    });
+    lastClickedChatIndexRef.current = null;
+  }, [allSelectedOnPage, filteredConversations]);
 
   const updateAssignedTo = useCallback(
     async (nextUserId: string | null) => {
@@ -1743,163 +1784,129 @@ export default function WhatsAppChatDashboardPage() {
           className="chat-sidebar"
           style={{ width: chatSidebarWidth, display: 'flex', flexDirection: 'column', minHeight: 0 }}
         >
-        {bulkActionsOpen ? (
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="saved-modal-backdrop"
-            style={{ position: 'fixed', inset: 0, zIndex: 80 }}
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) clearBulkSelection();
-            }}
-          >
-            <div className="saved-modal" style={{ maxWidth: 720 }}>
-              <div className="saved-modal-title">Chat Actions ({selectedChatIds.size} selected)</div>
-              <div className="saved-modal-body">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn--green"
-                    onClick={() => {
-                      setActionModal('assign');
-                    }}
-                  >
-                    👤 Assign user
-                  </button>
+        <BulkActionsModal
+          isOpen={bulkActionsOpen}
+          onClose={clearBulkSelection}
+          title="Chat Actions"
+          selectedCount={selectedChatIds.size}
+          actions={[
+            {
+              key: 'assign',
+              label: 'Assign user',
+              icon: '👤',
+              variant: 'primary',
+              onClick: () => setActionModal('assign'),
+            },
+            {
+              key: 'status',
+              label: 'Change status',
+              icon: '🏷️',
+              variant: 'primary',
+              onClick: () => setActionModal('status'),
+            },
+            {
+              key: 'labels',
+              label: 'Change label(s)',
+              icon: '🏷️',
+              variant: 'secondary',
+              title: 'Use Labels in right sidebar',
+              onClick: () => {
+                setChatBucket('labels');
+                clearBulkSelection();
+              },
+            },
+            {
+              key: 'addLead',
+              label: 'Add in leads',
+              icon: '➕',
+              variant: 'secondary',
+              onClick: () => {
+                setCreateLeadOpen(true);
+                clearBulkSelection();
+              },
+            },
+            {
+              key: 'archive',
+              label: 'Archive',
+              icon: '🗄️',
+              variant: 'secondary',
+              title: 'Archive selected chats (sets status to inactive)',
+              onClick: async () => {
+                await bulkUpdateLeadStatus('inactive');
+              },
+            },
+            {
+              key: 'block',
+              label: 'Block',
+              icon: '🚫',
+              variant: 'secondary',
+              title: 'Block selected chats (currently maps to inactive)',
+              onClick: async () => {
+                await bulkUpdateLeadStatus('inactive');
+              },
+            },
+            {
+              key: 'delete',
+              label: bulkDeleting ? 'Deleting…' : 'Delete chat',
+              icon: '🗑️',
+              variant: 'danger',
+              disabled: bulkDeleting || selectedChatIds.size === 0,
+              onClick: async () => {
+                const ok = window.confirm(
+                  `Delete chat history from database for ${selectedChatIds.size} selected chat(s)? This cannot be undone.`
+                );
+                if (!ok) return;
 
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn--orange"
-                    onClick={() => {
-                      setActionModal('status');
-                    }}
-                  >
-                    🏷️ Change status
-                  </button>
+                try {
+                  setBulkDeleting(true);
+                  setError(null);
 
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn--orange"
-                    onClick={() => {
-                      // Use existing right-sidebar Labels tool for the currently opened chat.
-                      // For bulk: make it easy to update the main selected chat, then repeat.
-                      setChatBucket('labels');
-                      clearBulkSelection();
-                    }}
-                    title="Use Labels in right sidebar"
-                  >
-                    🏷️ Change label(s)
-                  </button>
+                  const leadIds = Array.from(selectedChatIds);
+                  const token = localStorage.getItem('admin_token');
+                  const res = await fetch('/api/admin/crm/whatsapp/conversations/delete', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({ leadIds }),
+                  });
 
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn--green"
-                    onClick={() => {
-                      setCreateLeadOpen(true);
-                      clearBulkSelection();
-                    }}
-                  >
-                    ➕ Add in leads
-                  </button>
+                  if (!res.ok) {
+                    const j = await res.json().catch(() => ({}));
+                    throw new Error(j?.error || 'Failed to delete chat');
+                  }
 
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn--orange"
-                    onClick={async () => {
-                      // Minimal: map archive -> status=inactive (keeps data, hides in "active" workflows)
-                      await bulkUpdateLeadStatus('inactive');
-                    }}
-                    title="Archive selected chats (sets status to inactive)"
-                  >
-                    🗄️ Archive
-                  </button>
-
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn--orange"
-                    onClick={async () => {
-                      // Minimal: map block -> status=inactive (plus visual filter) until a dedicated blocklist exists
-                      await bulkUpdateLeadStatus('inactive');
-                    }}
-                    title="Block selected chats (currently maps to inactive)"
-                  >
-                    🚫 Block
-                  </button>
-
-                  <button
-                    type="button"
-                    className="wa-btn wa-btn--red"
-                    disabled={bulkDeleting || selectedChatIds.size === 0}
-                    onClick={async () => {
-                      const ok = window.confirm(
-                        `Delete chat history from database for ${selectedChatIds.size} selected chat(s)? This cannot be undone.`
-                      );
-                      if (!ok) return;
-
-                      try {
-                        setBulkDeleting(true);
-                        setError(null);
-
-                        const leadIds = Array.from(selectedChatIds);
-                        const token = localStorage.getItem('admin_token');
-                        const res = await fetch('/api/admin/crm/whatsapp/conversations/delete', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                          },
-                          body: JSON.stringify({ leadIds }),
-                        });
-
-                        if (!res.ok) {
-                          const j = await res.json().catch(() => ({}));
-                          throw new Error(j?.error || 'Failed to delete chat');
-                        }
-
-                        clearBulkSelection();
-                        await fetchConversations();
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : 'Failed to delete chat');
-                      } finally {
-                        setBulkDeleting(false);
-                      }
-                    }}
-                  >
-                    🗑️ {bulkDeleting ? 'Deleting…' : 'Delete chat'}
-                  </button>
-
-                  <Link className="wa-btn" href="/admin/crm/leads" onClick={() => clearBulkSelection()}>
-                    📇 Open Leads
-                  </Link>
-                </div>
-
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
-                  <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8 }}>Tools</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    <Link className="wa-btn" href="/admin/crm/whatsapp/templates" onClick={() => clearBulkSelection()}>
-                      🧾 Templates
-                    </Link>
-                    <Link className="wa-btn" href="/admin/crm/chatbots" onClick={() => clearBulkSelection()}>
-                      🤖 Chatbots
-                    </Link>
-                    <Link className="wa-btn" href="/admin/crm/automation" onClick={() => clearBulkSelection()}>
-                      ⚡ Automation
-                    </Link>
-                    <Link className="wa-btn" href="/admin/crm/leads-followup" onClick={() => clearBulkSelection()}>
-                      📅 Followup
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              <div className="saved-modal-actions" style={{ display: 'flex', gap: 10 }}>
-                <button type="button" className="wa-btn" onClick={() => clearBulkSelection()}>
-                  Close
-                </button>
-              </div>
+                  clearBulkSelection();
+                  await fetchConversations();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Failed to delete chat');
+                } finally {
+                  setBulkDeleting(false);
+                }
+              },
+            },
+          ]}
+          footerLeft={
+            <div className="flex flex-wrap gap-2">
+              <Link className="wa-btn" href="/admin/crm/leads" onClick={() => clearBulkSelection()}>
+                📇 Open Leads
+              </Link>
+              <Link className="wa-btn" href="/admin/crm/whatsapp/templates" onClick={() => clearBulkSelection()}>
+                🧾 Templates
+              </Link>
+              <Link className="wa-btn" href="/admin/crm/chatbots" onClick={() => clearBulkSelection()}>
+                🤖 Chatbots
+              </Link>
+              <Link className="wa-btn" href="/admin/crm/automation" onClick={() => clearBulkSelection()}>
+                ⚡ Automation
+              </Link>
+              <Link className="wa-btn" href="/admin/crm/leads-followup" onClick={() => clearBulkSelection()}>
+                📅 Followup
+              </Link>
             </div>
-          </div>
-        ) : null}
+          }
+        />
 
         <div className="chat-filters">
           <div className="chat-filter-tabs">
@@ -1931,6 +1938,54 @@ export default function WhatsAppChatDashboardPage() {
 
           {chatBucket === 'labels' ? (
             <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label" />
+          ) : null}
+
+          {selectedChatIds.size > 0 ? (
+            <div className="chat-sidebar-actions" aria-label="Bulk selection actions" style={{ gap: 8 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#111827',
+                  background: '#ECFDF5',
+                  border: '1px solid #A7F3D0',
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                }}
+              >
+                Selected: {selectedChatIds.size}
+              </div>
+
+              <button
+                type="button"
+                className="wa-btn chat-action-btn"
+                title="Select/deselect all chats on this page"
+                aria-label="Actions All"
+                onClick={toggleSelectAllOnPage}
+              >
+                <span className="chat-action-text">Actions All</span>
+              </button>
+
+              <button
+                type="button"
+                className="wa-btn chat-action-btn"
+                title="Bulk actions"
+                aria-label="Actions"
+                onClick={() => setBulkActionsOpen(true)}
+              >
+                <span className="chat-action-text">Actions</span>
+              </button>
+
+              <button
+                type="button"
+                className="wa-btn chat-action-btn"
+                title="Clear selection"
+                aria-label="Clear selection"
+                onClick={clearBulkSelection}
+              >
+                <span className="chat-action-text">Clear</span>
+              </button>
+            </div>
           ) : null}
 
           <div className="chat-sidebar-actions" aria-label="Chat sidebar quick actions">
@@ -3243,12 +3298,17 @@ export default function WhatsAppChatDashboardPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setShowComposerTools((v) => !v);
+                    setShowComposerTools((v) => {
+                      const next = !v;
+                      if (next) updateComposerToolsAnchor();
+                      return next;
+                    });
                     setShowAttachmentMenu(false);
                   }}
                   disabled={!selected || sending}
                   title="Tools"
                   aria-label="Tools"
+                  ref={composerToolsBtnRef}
                   style={{
                     width: 34,
                     height: 34,
@@ -3268,19 +3328,24 @@ export default function WhatsAppChatDashboardPage() {
                   +
                 </button>
 
-                {showComposerTools ? (
+                {showComposerTools && composerToolsAnchor ? (
                   <div
+                    role="dialog"
+                    aria-modal="true"
                     style={{
-                      position: 'absolute',
-                      bottom: 40,
-                      right: 0,
-                      zIndex: 25,
-                      width: 260,
+                      position: 'fixed',
+                      top: composerToolsAnchor.top - 8,
+                      left: composerToolsAnchor.left,
+                      transform: 'translate(-100%, -100%)',
+                      zIndex: 120,
+                      width: 280,
                       background: '#ffffff',
                       border: '1px solid rgba(17, 24, 39, 0.12)',
                       borderRadius: 12,
-                      boxShadow: '0 12px 28px rgba(0,0,0,0.14)',
+                      boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
                       padding: 10,
+                      maxHeight: 'min(70vh, 560px)',
+                      overflowY: 'auto',
                     }}
                   >
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 8 }}>

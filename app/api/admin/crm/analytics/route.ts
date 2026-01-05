@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Lead, SalesReport, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { BroadcastRunMessage, Lead, SalesReport, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
 /**
  * CRM Analytics dashboard API
@@ -33,27 +33,105 @@ export async function GET(request: NextRequest) {
 
     if (view === 'overview' || view === 'all') {
       // Get summary metrics
-      const [totalLeads, leadsByStatus, totalSales, totalMessages] = await Promise.all([
+      const [totalLeads, leadsByStatus, totalSales, totalMessages, broadcastAgg] = await Promise.all([
         Lead.countDocuments(),
         Lead.aggregate([
           { $group: { _id: '$status', count: { $sum: 1 } } },
           { $sort: { _id: 1 } },
         ]),
         SalesReport.countDocuments(hasDateRange ? { saleDate: dateRange } : {}),
-        WhatsAppMessage.countDocuments(
-          hasDateRange ? { sentAt: dateRange } : {}
-        ),
+        WhatsAppMessage.countDocuments(hasDateRange ? { sentAt: dateRange } : {}),
+        // Broadcast diagnostics: overall delivery outcomes across run messages.
+        // We aggregate by status + a normalized reason bucket derived from failureReason.
+        BroadcastRunMessage.aggregate([
+          ...(hasDateRange ? [{ $match: { createdAt: dateRange } }] : []),
+          {
+            $project: {
+              status: 1,
+              reasonBucket: {
+                $let: {
+                  vars: { r: { $toLower: { $ifNull: ['$failureReason', ''] } } },
+                  in: {
+                    $switch: {
+                      branches: [
+                        {
+                          case: {
+                            $or: [
+                              { $regexMatch: { input: '$$r', regex: /blocked/ } },
+                              { $regexMatch: { input: '$$r', regex: /opt\s*out/ } },
+                              { $regexMatch: { input: '$$r', regex: /not\s*compliant/ } },
+                              { $regexMatch: { input: '$$r', regex: /user\s*has\s*opted\s*out/ } },
+                            ],
+                          },
+                          then: 'blocked',
+                        },
+                        {
+                          case: {
+                            $or: [
+                              { $regexMatch: { input: '$$r', regex: /not\s*in\s*use/ } },
+                              { $regexMatch: { input: '$$r', regex: /number\s*not\s*in\s*use/ } },
+                              { $regexMatch: { input: '$$r', regex: /phone\s*number\s*.*not\s*valid/ } },
+                              { $regexMatch: { input: '$$r', regex: /invalid\s*phone/ } },
+                            ],
+                          },
+                          then: 'number_not_in_use',
+                        },
+                        {
+                          case: {
+                            $or: [
+                              { $regexMatch: { input: '$$r', regex: /not\s*deliver/ } },
+                              { $regexMatch: { input: '$$r', regex: /undeliver/ } },
+                            ],
+                          },
+                          then: 'not_delivered',
+                        },
+                        {
+                          case: {
+                            $or: [
+                              { $regexMatch: { input: '$$r', regex: /fail/ } },
+                              { $regexMatch: { input: '$$r', regex: /error/ } },
+                            ],
+                          },
+                          then: 'failed',
+                        },
+                      ],
+                      default: { $cond: [{ $eq: ['$$r', ''] }, 'none', 'other'] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            $group: {
+              _id: { status: '$status', reasonBucket: '$reasonBucket' },
+              count: { $sum: 1 },
+            },
+          },
+        ]),
       ]);
+
+      // Summarize broadcast breakdown.
+      const broadcastByStatus: Record<string, number> = {};
+      const broadcastByReason: Record<string, number> = {};
+      for (const row of broadcastAgg || []) {
+        const status = String(row?._id?.status || 'unknown');
+        const reason = String(row?._id?.reasonBucket || 'unknown');
+        broadcastByStatus[status] = (broadcastByStatus[status] || 0) + Number(row?.count || 0);
+        broadcastByReason[reason] = (broadcastByReason[reason] || 0) + Number(row?.count || 0);
+      }
 
       analytics.overview = {
         totalLeads,
-        leadsByStatus: Object.fromEntries(
-          leadsByStatus.map((item: any) => [item._id || 'unknown', item.count])
-        ),
+        leadsByStatus: Object.fromEntries(leadsByStatus.map((item: any) => [item._id || 'unknown', item.count])),
         totalSales,
         totalMessages,
         // Response-time tracking is not currently stored on WhatsAppMessage.
         avgResponseTime: 0,
+        broadcast: {
+          byStatus: broadcastByStatus,
+          byReason: broadcastByReason,
+        },
       };
     }
 

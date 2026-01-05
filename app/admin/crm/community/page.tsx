@@ -8,6 +8,14 @@ import {
   Clock, User, Settings, Loader, Globe
 } from 'lucide-react';
 
+type CommunityButton = {
+  id: string;
+  label: string;
+  actionType: 'link' | 'phone' | 'text';
+  url?: string;
+  phoneNumber?: string;
+};
+
 interface CommunityMember {
   _id: string;
   name: string;
@@ -20,6 +28,17 @@ interface CommunityMember {
   approvedAt?: string;
   messageCount: number;
   reactions: number;
+
+  // Admin-controlled chat permissions
+  chatEnabled?: boolean;
+  chatPermissions?: {
+    canSend?: boolean;
+    allowText?: boolean;
+    allowLinks?: boolean;
+    allowImages?: boolean;
+    allowVideos?: boolean;
+    allowDocuments?: boolean;
+  };
 }
 
 interface Community {
@@ -36,6 +55,12 @@ const COMMUNITIES: Community[] = [
   { id: 'astavakra', name: 'Astavakra', icon: '🧘', memberCount: 0 },
   { id: 'shivoham', name: 'Shivoham', icon: '🔱', memberCount: 0 },
   { id: 'i-am-fit', name: 'I am Fit', icon: '💪', memberCount: 0 },
+  // Requested new community groups
+  { id: 'youth', name: 'Youth', icon: '🚀', memberCount: 0 },
+  { id: 'children', name: 'Children', icon: '👶', memberCount: 0 },
+  { id: 'married-couple', name: 'Married Couple', icon: '💍', memberCount: 0 },
+  { id: 'investors', name: 'Investors', icon: '📈', memberCount: 0 },
+  // Legacy / existing groups
   { id: 'children-yoga', name: 'Children Swar Yoga', icon: '👶', memberCount: 0 },
   { id: 'youth-yoga', name: 'Youth Swar Yoga', icon: '🚀', memberCount: 0 },
   { id: 'english-yoga', name: 'English Swar Yoga', icon: '🌐', memberCount: 0 },
@@ -57,18 +82,114 @@ export default function AdminCommunityPage() {
   const [selectedMember, setSelectedMember] = useState<CommunityMember | null>(null);
   const [messageText, setMessageText] = useState('');
   const [actionDropdown, setActionDropdown] = useState<string | null>(null);
+
+  // Member chat permission editor
+  const [showChatPermModal, setShowChatPermModal] = useState(false);
+  const [chatPermSaving, setChatPermSaving] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const [canSend, setCanSend] = useState(true);
+  const [allowText, setAllowText] = useState(true);
+  const [allowLinks, setAllowLinks] = useState(true);
+  const [allowImages, setAllowImages] = useState(true);
+  const [allowVideos, setAllowVideos] = useState(true);
+  const [allowDocuments, setAllowDocuments] = useState(true);
   const [approving, setApproving] = useState<string | null>(null);
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [foundUser, setFoundUser] = useState<any>(null);
   const [searchingUser, setSearchingUser] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
+  // Template-like post composer
+  const [postHeader, setPostHeader] = useState('');
   const [postContent, setPostContent] = useState('');
+  const [postFooter, setPostFooter] = useState('');
+  const [postButtons, setPostButtons] = useState<CommunityButton[]>([]);
+  const [postTargetMode, setPostTargetMode] = useState<'selected' | 'all'>('selected');
+  const [postSelectedCommunityIds, setPostSelectedCommunityIds] = useState<Set<string>>(new Set([selectedCommunity]));
+  const [crossPostMedia, setCrossPostMedia] = useState(false);
+  const [crossPostSocial, setCrossPostSocial] = useState(false);
+  // Legacy inputs (kept for now; uploads aren’t wired end-to-end)
   const [postImages, setPostImages] = useState<File[]>([]);
   const [postDocuments, setPostDocuments] = useState<File[]>([]);
   const [editingCommunityName, setEditingCommunityName] = useState(false);
   const [newCommunityName, setNewCommunityName] = useState('');
   const [editedCommunities, setEditedCommunities] = useState<Record<string, string>>({});
+
+  const openChatPermissions = (member: CommunityMember) => {
+    setSelectedMember(member);
+    setActionDropdown(null);
+
+    const perms = (member as any)?.chatPermissions || {};
+
+    setChatEnabled(typeof member.chatEnabled === 'boolean' ? member.chatEnabled : true);
+    setCanSend(typeof perms.canSend === 'boolean' ? perms.canSend : true);
+    setAllowText(typeof perms.allowText === 'boolean' ? perms.allowText : true);
+    setAllowLinks(typeof perms.allowLinks === 'boolean' ? perms.allowLinks : true);
+    setAllowImages(typeof perms.allowImages === 'boolean' ? perms.allowImages : true);
+    setAllowVideos(typeof perms.allowVideos === 'boolean' ? perms.allowVideos : true);
+    setAllowDocuments(typeof perms.allowDocuments === 'boolean' ? perms.allowDocuments : true);
+
+    setShowChatPermModal(true);
+  };
+
+  const saveChatPermissions = async () => {
+    if (!selectedMember) return;
+    try {
+      setChatPermSaving(true);
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
+
+      const res = await fetch(`/api/admin/community/members/${selectedMember._id}/chat-permissions`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          chatEnabled,
+          canSend,
+          allowText,
+          allowLinks,
+          allowImages,
+          allowVideos,
+          allowDocuments,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        alert('❌ ' + (json?.error || 'Failed to update chat permissions'));
+        return;
+      }
+
+      // Best-effort local update
+      setMembers((prev) =>
+        prev.map((m) =>
+          m._id === selectedMember._id
+            ? {
+                ...m,
+                chatEnabled,
+                chatPermissions: {
+                  canSend,
+                  allowText,
+                  allowLinks,
+                  allowImages,
+                  allowVideos,
+                  allowDocuments,
+                },
+              }
+            : m
+        )
+      );
+
+      alert('✅ Chat permissions updated');
+      setShowChatPermModal(false);
+    } catch (e) {
+      alert('❌ Error updating chat permissions');
+      console.error(e);
+    } finally {
+      setChatPermSaving(false);
+    }
+  };
 
   // Approve member for messaging in general community
   const approveMember = async (memberId: string) => {
@@ -186,54 +307,97 @@ export default function AdminCommunityPage() {
   };
 
   // Create admin post
+  const addPostButton = () => {
+    setPostButtons((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(36).slice(2, 9),
+        label: `Button ${prev.length + 1}`,
+        actionType: 'link',
+        url: '',
+      },
+    ]);
+  };
+
+  const updatePostButton = (id: string, updates: Partial<CommunityButton>) => {
+    setPostButtons((prev) => prev.map((b) => (b.id === id ? { ...b, ...updates } : b)));
+  };
+
+  const removePostButton = (id: string) => {
+    setPostButtons((prev) => prev.filter((b) => b.id !== id));
+  };
+
   const createAdminPost = async () => {
-    if (!postContent.trim() && postImages.length === 0 && postDocuments.length === 0) {
+    const hasContent = Boolean(postHeader.trim() || postContent.trim() || postFooter.trim());
+    if (!hasContent && postImages.length === 0 && postDocuments.length === 0) {
       alert('Post content or files are required');
+      return;
+    }
+
+    const communityIds =
+      postTargetMode === 'all'
+        ? COMMUNITIES.map((c) => c.id)
+        : [...postSelectedCommunityIds];
+
+    if (communityIds.length === 0) {
+      alert('Select at least one community');
       return;
     }
 
     try {
       const token = localStorage.getItem('admin_token') || localStorage.getItem('adminToken');
-      const formData = new FormData();
-      
-      formData.append('communityId', selectedCommunity);
-      formData.append('content', postContent);
-      formData.append('isAdminPost', 'true');
-      
-      // Add images
-      postImages.forEach((img, idx) => {
-        formData.append(`images`, img);
-      });
-      
-      // Add documents
-      postDocuments.forEach((doc, idx) => {
-        formData.append(`documents`, doc);
-      });
 
-      const response = await fetch('/api/community/post/create', {
+      const response = await fetch('/api/admin/crm/community/posts/create', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: formData,
+        body: JSON.stringify({
+          communityIds,
+          headerText: postHeader,
+          content: postContent,
+          footerText: postFooter,
+          buttons: postButtons,
+          crossPost: {
+            media: crossPostMedia,
+            socialMedia: crossPostSocial,
+          },
+        }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         alert('❌ ' + (error.error || 'Failed to create post'));
         return;
       }
 
-      alert('✅ Post published to community!');
+      const data = await response.json().catch(() => null);
+      alert(`✅ ${(data?.message as string) || 'Post published to community!'}`);
       setShowPostModal(false);
+      setPostHeader('');
       setPostContent('');
+      setPostFooter('');
+      setPostButtons([]);
+      setCrossPostMedia(false);
+      setCrossPostSocial(false);
       setPostImages([]);
       setPostDocuments([]);
+      setPostTargetMode('selected');
+      setPostSelectedCommunityIds(new Set([selectedCommunity]));
     } catch (err) {
       alert('❌ Error creating post');
       console.error(err);
     }
   };
+
+  useEffect(() => {
+    // Keep current community selected by default in the modal.
+    setPostSelectedCommunityIds((prev) => {
+      if (prev.size > 0) return prev;
+      return new Set([selectedCommunity]);
+    });
+  }, [selectedCommunity]);
 
   // Update community name
   const updateCommunityName = async () => {
@@ -286,18 +450,30 @@ export default function AdminCommunityPage() {
     const fetchMembers = async () => {
       setLoading(true);
       try {
-        // This would fetch from an API endpoint we'll create
-        // For now, show empty state
-        setMembers([]);
+        const params = new URLSearchParams();
+        params.set('communityId', selectedCommunity);
+        params.set('status', statusFilter);
+        params.set('limit', '200');
+
+        const res = await fetch(`/api/admin/community/members?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Failed to fetch members');
+
+        const rows = Array.isArray(json?.data?.members) ? json.data.members : [];
+        setMembers(rows);
       } catch (error) {
         console.error('Error fetching members:', error);
+        setMembers([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchMembers();
-  }, [selectedCommunity, router]);
+  }, [selectedCommunity, statusFilter, router]);
 
   const filteredMembers = members.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -546,6 +722,12 @@ export default function AdminCommunityPage() {
                             <button className="w-full text-left px-4 py-2 text-yellow-400 hover:bg-gray-600 flex items-center gap-2 text-sm">
                               <Edit size={16} /> Edit
                             </button>
+                            <button
+                              onClick={() => openChatPermissions(member)}
+                              className="w-full text-left px-4 py-2 text-blue-200 hover:bg-gray-600 flex items-center gap-2 text-sm border-t border-gray-600"
+                            >
+                              <Shield size={16} /> Chat Permissions
+                            </button>
                             <button className="w-full text-left px-4 py-2 text-white hover:bg-gray-600 flex items-center gap-2 text-sm border-t border-gray-600">
                               <Shield size={16} /> Make Admin
                             </button>
@@ -566,6 +748,94 @@ export default function AdminCommunityPage() {
           )}
         </div>
       </div>
+
+      {/* Chat Permissions Modal */}
+      {showChatPermModal && selectedMember && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-lg shadow-2xl max-w-xl w-full border border-gray-700 overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 flex items-center justify-between">
+              <div>
+                <div className="text-lg font-extrabold">Chat Permissions</div>
+                <div className="text-xs text-white/80 mt-0.5">
+                  {selectedMember.name} • {selectedMember.mobile}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowChatPermModal(false)}
+                className="text-white/80 hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center justify-between gap-3 bg-gray-700/60 border border-gray-600 rounded-lg px-4 py-3">
+                  <div>
+                    <div className="text-white font-semibold text-sm">Chat Enabled</div>
+                    <div className="text-gray-300 text-xs">Turn chat on/off for this user</div>
+                  </div>
+                  <input type="checkbox" checked={chatEnabled} onChange={(e) => setChatEnabled(e.target.checked)} />
+                </label>
+
+                <label className="flex items-center justify-between gap-3 bg-gray-700/60 border border-gray-600 rounded-lg px-4 py-3">
+                  <div>
+                    <div className="text-white font-semibold text-sm">Can Send</div>
+                    <div className="text-gray-300 text-xs">Master send permission</div>
+                  </div>
+                  <input type="checkbox" checked={canSend} onChange={(e) => setCanSend(e.target.checked)} />
+                </label>
+              </div>
+
+              <div className="bg-gray-700/50 border border-gray-600 rounded-lg p-4">
+                <div className="text-white font-semibold text-sm mb-3">Allowed Content Types</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="flex items-center justify-between gap-3 bg-gray-800/40 border border-gray-600 rounded-lg px-4 py-3">
+                    <div className="text-sm text-white font-semibold">Text</div>
+                    <input type="checkbox" checked={allowText} onChange={(e) => setAllowText(e.target.checked)} />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 bg-gray-800/40 border border-gray-600 rounded-lg px-4 py-3">
+                    <div className="text-sm text-white font-semibold">Links</div>
+                    <input type="checkbox" checked={allowLinks} onChange={(e) => setAllowLinks(e.target.checked)} />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 bg-gray-800/40 border border-gray-600 rounded-lg px-4 py-3">
+                    <div className="text-sm text-white font-semibold">Images</div>
+                    <input type="checkbox" checked={allowImages} onChange={(e) => setAllowImages(e.target.checked)} />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 bg-gray-800/40 border border-gray-600 rounded-lg px-4 py-3">
+                    <div className="text-sm text-white font-semibold">Videos</div>
+                    <input type="checkbox" checked={allowVideos} onChange={(e) => setAllowVideos(e.target.checked)} />
+                  </label>
+                  <label className="flex items-center justify-between gap-3 bg-gray-800/40 border border-gray-600 rounded-lg px-4 py-3">
+                    <div className="text-sm text-white font-semibold">Documents</div>
+                    <input type="checkbox" checked={allowDocuments} onChange={(e) => setAllowDocuments(e.target.checked)} />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowChatPermModal(false)}
+                  className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  disabled={chatPermSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveChatPermissions}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                  disabled={chatPermSaving}
+                >
+                  {chatPermSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Message Modal */}
       {showMessageModal && selectedMember && (
@@ -709,7 +979,14 @@ export default function AdminCommunityPage() {
               <button
                 onClick={() => {
                   setShowPostModal(false);
+                  setPostHeader('');
                   setPostContent('');
+                  setPostFooter('');
+                  setPostButtons([]);
+                  setCrossPostMedia(false);
+                  setCrossPostSocial(false);
+                  setPostTargetMode('selected');
+                  setPostSelectedCommunityIds(new Set([selectedCommunity]));
                   setPostImages([]);
                   setPostDocuments([]);
                 }}
@@ -720,14 +997,216 @@ export default function AdminCommunityPage() {
             </div>
 
             <div className="p-6 space-y-4">
+              <div className="rounded-lg border border-gray-700 bg-gray-900/40 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div className="text-white font-semibold">Send To</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPostTargetMode('selected')}
+                      className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                        postTargetMode === 'selected'
+                          ? 'bg-blue-600 text-white border-blue-500'
+                          : 'bg-gray-800 text-gray-200 border-gray-700 hover:bg-gray-750'
+                      }`}
+                    >
+                      Selected
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPostTargetMode('all')}
+                      className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                        postTargetMode === 'all'
+                          ? 'bg-purple-600 text-white border-purple-500'
+                          : 'bg-gray-800 text-gray-200 border-gray-700 hover:bg-gray-750'
+                      }`}
+                    >
+                      All Groups
+                    </button>
+                  </div>
+                </div>
+
+                {postTargetMode === 'selected' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {COMMUNITIES.map((c) => {
+                      const checked = postSelectedCommunityIds.has(c.id);
+                      return (
+                        <label key={c.id} className="flex items-center gap-2 bg-gray-800/60 border border-gray-700 rounded-lg p-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              const next = new Set(postSelectedCommunityIds);
+                              if (e.target.checked) next.add(c.id);
+                              else next.delete(c.id);
+                              setPostSelectedCommunityIds(next);
+                            }}
+                          />
+                          <span className="text-white">{c.icon} {c.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-300">
+                    This will publish to <span className="text-white font-semibold">all</span> community groups ({COMMUNITIES.length}).
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white font-semibold mb-2">Header (optional)</label>
+                  <input
+                    type="text"
+                    value={postHeader}
+                    onChange={(e) => setPostHeader(e.target.value)}
+                    placeholder="e.g., Today's Update"
+                    className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white font-semibold mb-2">Footer (optional)</label>
+                  <input
+                    type="text"
+                    value={postFooter}
+                    onChange={(e) => setPostFooter(e.target.value)}
+                    placeholder="e.g., Swar Yoga Team"
+                    className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-white font-semibold mb-2">Post Content</label>
+                <label className="block text-white font-semibold mb-2">Message</label>
                 <textarea
                   value={postContent}
                   onChange={(e) => setPostContent(e.target.value)}
                   placeholder="Write your post message..."
                   className="w-full h-32 px-4 py-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
+              </div>
+
+              <div className="rounded-lg border border-gray-700 bg-gray-900/40 p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="text-white font-semibold">Buttons (optional)</div>
+                  <button
+                    type="button"
+                    onClick={addPostButton}
+                    className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    + Add Button
+                  </button>
+                </div>
+
+                {postButtons.length === 0 ? (
+                  <div className="text-sm text-gray-400">No buttons added.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {postButtons.map((btn) => (
+                      <div key={btn.id} className="rounded-lg border border-gray-700 bg-gray-800/60 p-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs text-gray-300 mb-1">Label</label>
+                            <input
+                              type="text"
+                              value={btn.label}
+                              onChange={(e) => updatePostButton(btn.id, { label: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs text-gray-300 mb-1">Type</label>
+                            <select
+                              value={btn.actionType}
+                              onChange={(e) => updatePostButton(btn.id, { actionType: e.target.value as any, url: '', phoneNumber: '' })}
+                              className="w-full px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="link">Link</option>
+                              <option value="phone">Phone</option>
+                              <option value="text">Text</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs text-gray-300 mb-1">Value</label>
+                            {btn.actionType === 'link' ? (
+                              <input
+                                type="url"
+                                value={btn.url || ''}
+                                onChange={(e) => updatePostButton(btn.id, { url: e.target.value })}
+                                placeholder="https://..."
+                                className="w-full px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            ) : btn.actionType === 'phone' ? (
+                              <input
+                                type="tel"
+                                value={btn.phoneNumber || ''}
+                                onChange={(e) => updatePostButton(btn.id, { phoneNumber: e.target.value })}
+                                placeholder="+91..."
+                                className="w-full px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                disabled
+                                value="Shown as text"
+                                className="w-full px-3 py-2 bg-gray-800 text-gray-400 border border-gray-700 rounded-lg"
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removePostButton(btn.id)}
+                            className="px-3 py-1.5 bg-red-600/20 text-red-200 border border-red-700/50 rounded-lg hover:bg-red-600/30 transition-colors text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center gap-2 bg-gray-800/60 border border-gray-700 rounded-lg p-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={crossPostMedia}
+                    onChange={(e) => setCrossPostMedia(e.target.checked)}
+                  />
+                  <span className="text-white">Also create a Media post</span>
+                </label>
+                <label className="flex items-center gap-2 bg-gray-800/60 border border-gray-700 rounded-lg p-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={crossPostSocial}
+                    onChange={(e) => setCrossPostSocial(e.target.checked)}
+                  />
+                  <span className="text-white">Also create a Social Media post</span>
+                </label>
+              </div>
+
+              <div className="rounded-lg border border-gray-700 bg-gray-900/40 p-4">
+                <div className="text-white font-semibold mb-2">Preview</div>
+                <div className="whitespace-pre-wrap text-gray-200 text-sm bg-gray-800/70 border border-gray-700 rounded-lg p-3">
+                  {(postHeader.trim() ? postHeader.trim() + '\n' : '') +
+                    (postContent.trim() ? postContent.trim() + '\n' : '') +
+                    (postFooter.trim() ? postFooter.trim() : '')}
+                  {postButtons.length > 0 && (
+                    <>
+                      {'\n\nButtons:'}
+                      {postButtons.map((b, idx) => (
+                        <span key={b.id}>{`\n${idx + 1}. ${b.label}${b.actionType === 'link' && b.url ? ` → ${b.url}` : b.actionType === 'phone' && b.phoneNumber ? ` → ${b.phoneNumber}` : ''}`}</span>
+                      ))}
+                    </>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -762,7 +1241,14 @@ export default function AdminCommunityPage() {
                 <button
                   onClick={() => {
                     setShowPostModal(false);
+                    setPostHeader('');
                     setPostContent('');
+                    setPostFooter('');
+                    setPostButtons([]);
+                    setCrossPostMedia(false);
+                    setCrossPostSocial(false);
+                    setPostTargetMode('selected');
+                    setPostSelectedCommunityIds(new Set([selectedCommunity]));
                     setPostImages([]);
                     setPostDocuments([]);
                   }}

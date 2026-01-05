@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
 import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
+import { buildLabelOptions } from '@/lib/crm/labels';
 
 type LeadRow = {
   _id: string;
@@ -34,16 +35,9 @@ function uniq(values: string[]) {
   return Array.from(new Set(values.map((x) => String(x).trim()).filter(Boolean)));
 }
 
-const DEFAULT_STATUS_OPTIONS = [
-  'new',
-  'interested',
-  'follow_up',
-  'registered',
-  'paid',
-  'converted',
-  'not_interested',
-  'inactive',
-];
+// Broadcast segmentation buckets (user-facing).
+// These should be stable options so the filter behaves predictably.
+const DEFAULT_STATUS_OPTIONS = ['leads', 'prospect', 'customer', 'inactive'];
 
 export default function BroadcastPage() {
   const router = useRouter();
@@ -103,10 +97,10 @@ export default function BroadcastPage() {
   );
 
   const statusOptions = useMemo(() => {
-    const fromLeads = uniq(leads.map((l) => String(l.status || '')).filter(Boolean));
-    const merged = uniq([...DEFAULT_STATUS_OPTIONS, ...fromLeads]);
-    return merged.sort((a, b) => a.localeCompare(b));
-  }, [leads]);
+    // IMPORTANT: Keep this fixed to the default buckets.
+    // We don't want per-lead random statuses to appear here.
+    return [...DEFAULT_STATUS_OPTIONS];
+  }, []);
 
   const fetchMetadata = useCallback(async () => {
     try {
@@ -114,19 +108,25 @@ export default function BroadcastPage() {
       const data = res?.data || res;
       const workshops = Array.isArray(data?.workshops) ? data.workshops : [];
       const labels = Array.isArray(data?.labels) ? data.labels : [];
+      const canonicalLabels = Array.isArray(data?.canonicalLabels) ? data.canonicalLabels : [];
 
       setWorkshopOptions(uniq(workshops.map((x: any) => String(x))).sort((a, b) => a.localeCompare(b)));
-      setLabelOptions(uniq(labels.map((x: any) => String(x))).sort((a, b) => a.localeCompare(b)));
+      // Use canonical labels everywhere. Legacy labels are intentionally not offered in dropdown.
+      // However, we still pass DB labels as `existing` so if includeLegacy is toggled in the future,
+      // we have data handy.
+      const canonical = canonicalLabels.length ? canonicalLabels.map((x: any) => String(x)) : undefined;
+      setLabelOptions(buildLabelOptions({ existing: labels, includeLegacy: false }).map((x) => String(x)));
     } catch {
       // If metadata endpoint isn't available, gracefully fall back to deriving from current leads.
       const fallbackWorkshops = uniq(leads.map((l) => String(l.workshopName || '')).filter(Boolean)).sort((a, b) =>
         a.localeCompare(b)
       );
-      const fallbackLabels = uniq(
-        leads
+      const fallbackLabels = buildLabelOptions({
+        existing: leads
           .flatMap((l) => (Array.isArray(l.labels) ? l.labels : []))
-          .map((x) => String(x))
-      ).sort((a, b) => a.localeCompare(b));
+          .map((x) => String(x)),
+        includeLegacy: false,
+      }).sort((a, b) => a.localeCompare(b));
       setWorkshopOptions(fallbackWorkshops);
       setLabelOptions(fallbackLabels);
     }
@@ -169,7 +169,8 @@ export default function BroadcastPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (status) params.set('status', status);
+      // Status is a client-side segmentation bucket (leads/prospect/customer/inactive).
+      // The server stores granular statuses, so we fetch broadly and filter locally.
       if (workshopName) params.set('workshop', workshopName);
       if (adminUserId) params.set('userId', adminUserId);
       // NOTE: label filtering isn't supported server-side yet; we filter client-side below.
@@ -180,13 +181,40 @@ export default function BroadcastPage() {
       const rows: LeadRow[] = Array.isArray(res?.data?.leads) ? res.data.leads : [];
       const count: number = Number(res?.data?.total || rows.length || 0);
 
-      // Client-side label filter (until we extend the API)
-      const filtered = label
-        ? rows.filter((l) => (Array.isArray(l.labels) ? l.labels : []).some((x) => String(x) === label))
-        : rows;
+      const normalizeStatus = (s: any) => String(s || '').trim().toLowerCase();
+      const statusBucket = (s: any): 'leads' | 'prospect' | 'customer' | 'inactive' | '' => {
+        const v = normalizeStatus(s);
+        if (!v) return '';
+        if (v === 'inactive') return 'inactive';
+
+        // Customer bucket
+        if (['customer', 'registered', 'paid', 'converted'].includes(v)) return 'customer';
+
+        // Prospect bucket
+        if (['prospect', 'interested', 'follow_up', 'followup', 'follow-up'].includes(v)) return 'prospect';
+
+        // Leads bucket
+        if (['leads', 'lead', 'new'].includes(v)) return 'leads';
+
+        // Unknown statuses default to Leads (keeps backward compatibility)
+        return 'leads';
+      };
+
+      // Client-side filters (until we extend the API)
+      let filtered = rows;
+
+      if (status) {
+        const wanted = normalizeStatus(status);
+        filtered = filtered.filter((l) => statusBucket(l.status) === wanted);
+      }
+
+      if (label) {
+        filtered = filtered.filter((l) => (Array.isArray(l.labels) ? l.labels : []).some((x) => String(x) === label));
+      }
 
       setLeads(filtered);
-      setTotal(label ? filtered.length : count);
+  // Since we filter client-side, total should reflect the visible/targeted list.
+  setTotal(filtered.length);
 
       // Keep selection only for visible leads
       setSelectedLeadIds((prev) => {

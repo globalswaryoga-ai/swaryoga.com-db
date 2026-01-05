@@ -86,15 +86,20 @@ export function StatCard({
   trend?: string | number;
   trendDirection?: 'up' | 'down' | 'neutral';
   icon?: React.ReactNode;
-  color?: 'purple' | 'blue' | 'green' | 'red' | 'yellow';
+  color?: 'purple' | 'blue' | 'green' | 'red' | 'yellow' | 'teal' | 'orange' | 'pink' | 'indigo' | 'slate';
   className?: string;
 }) {
   const colorClasses = {
-    purple: 'from-purple-900/20 to-purple-800/10 border-purple-700',
-    blue: 'from-blue-900/20 to-blue-800/10 border-blue-700',
-    green: 'from-green-900/20 to-green-800/10 border-green-700',
-    red: 'from-red-900/20 to-red-800/10 border-red-700',
-    yellow: 'from-yellow-900/20 to-yellow-800/10 border-yellow-700',
+    purple: 'from-purple-900/35 via-fuchsia-900/15 to-slate-950/40 border-purple-500/50',
+    blue: 'from-blue-900/35 via-cyan-900/15 to-slate-950/40 border-blue-500/50',
+    green: 'from-emerald-900/35 via-green-900/15 to-slate-950/40 border-emerald-500/50',
+    red: 'from-rose-900/35 via-red-900/15 to-slate-950/40 border-rose-500/50',
+    yellow: 'from-amber-900/35 via-yellow-900/15 to-slate-950/40 border-amber-500/50',
+    teal: 'from-teal-900/35 via-cyan-900/15 to-slate-950/40 border-teal-400/50',
+    orange: 'from-orange-900/35 via-amber-900/15 to-slate-950/40 border-orange-400/50',
+    pink: 'from-pink-900/35 via-fuchsia-900/15 to-slate-950/40 border-pink-400/50',
+    indigo: 'from-indigo-900/35 via-violet-900/15 to-slate-950/40 border-indigo-400/50',
+    slate: 'from-slate-900/50 via-slate-800/30 to-slate-950/40 border-slate-600/40',
   };
 
   const trendColor = {
@@ -107,17 +112,21 @@ export function StatCard({
     <div
       className={`
         bg-gradient-to-br ${colorClasses[color]}
-        border rounded-lg p-6 space-y-2
+        border rounded-xl p-6 space-y-2 shadow-sm
         ${className}
       `}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-slate-400 text-sm font-medium">{label}</h3>
-        {icon && <div className="text-2xl">{icon}</div>}
+        <h3 className="text-slate-200/80 text-sm font-semibold tracking-wide">{label}</h3>
+        {icon && (
+          <div className="text-2xl drop-shadow" aria-hidden>
+            {icon}
+          </div>
+        )}
       </div>
 
       <div className="space-y-1">
-        <p className="text-3xl font-bold text-white">{value}</p>
+        <p className="text-3xl font-extrabold text-white drop-shadow-sm">{value}</p>
         {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
       </div>
 

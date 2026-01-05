@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { CANONICAL_LABELS } from '@/lib/crm/labels';
 
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
@@ -69,6 +70,23 @@ export async function GET(request: NextRequest) {
 
     const total = await Lead.countDocuments(baseFilter);
 
+    // Distinct labels (scoped)
+    const distinctLabelsRaw = await Lead.distinct('labels', {
+      ...baseFilter,
+      labels: { $exists: true, $ne: [] },
+    });
+
+    const distinctLabels = Array.isArray(distinctLabelsRaw)
+      ? distinctLabelsRaw
+          .flatMap((x: any) => (Array.isArray(x) ? x : [x]))
+          .map((x: any) => String(x || '').trim())
+          .filter(Boolean)
+      : [];
+
+    // UI should use canonical labels everywhere; legacy labels are returned only for analytics/debug.
+    // If you want to fully hide legacy labels, the UI will ignore `labels` and only use `canonicalLabels`.
+    const labels = Array.from(new Set(distinctLabels)).sort((a, b) => a.localeCompare(b));
+
     return NextResponse.json(
       {
         success: true,
@@ -82,6 +100,8 @@ export async function GET(request: NextRequest) {
           },
           workshops: uniqueWorkshops.sort(),
           workshopCounts,
+          canonicalLabels: CANONICAL_LABELS,
+          labels,
         },
       },
       { status: 200 }

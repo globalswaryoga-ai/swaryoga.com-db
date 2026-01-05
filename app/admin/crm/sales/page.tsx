@@ -86,12 +86,19 @@ export default function SalesPage() {
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
+  // Bulk selection + header actions
+  const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set());
+  const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
+  useEffect(() => {
+    setBulkActionsOpen(selectedSaleIds.size >= 2);
+  }, [selectedSaleIds]);
+
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [daily, setDaily] = useState<SalesAggRow[]>([]);
   const [monthly, setMonthly] = useState<SalesAggRow[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'list' | 'summary' | 'daily' | 'monthly'>('list');
+  const [view, setView] = useState<'list' | 'summary' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('list');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState({
@@ -188,6 +195,39 @@ export default function SalesPage() {
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMsg, setLookupMsg] = useState<string>('');
 
+  const bulkDeleteSelected = useCallback(
+    async (opts?: { clearAfter?: () => void; refreshAfter?: () => Promise<void> | void }) => {
+      const ids = Array.from(selectedSaleIds);
+      if (!ids.length) return;
+      const ok = window.confirm(`Delete ${ids.length} selected sale(s)? This cannot be undone.`);
+      if (!ok) return;
+      try {
+        setError(null);
+        await Promise.all(ids.map((id) => crmFetch('/api/admin/crm/sales', { method: 'DELETE', params: { saleId: id } })));
+        opts?.clearAfter?.();
+        await opts?.refreshAfter?.();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Bulk delete failed');
+      }
+    },
+    [crmFetch, selectedSaleIds]
+  );
+
+  const toggleSaleSelection = useCallback((saleId: string, opts?: { force?: boolean }) => {
+    setSelectedSaleIds((prev) => {
+      const next = new Set(prev);
+      const exists = next.has(saleId);
+      const shouldSelect = opts?.force ?? !exists;
+      if (shouldSelect) next.add(saleId);
+      else next.delete(saleId);
+      return next;
+    });
+  }, []);
+
+  const clearSaleSelection = useCallback(() => {
+    setSelectedSaleIds(new Set());
+  }, []);
+
   const fetchSalesData = useCallback(async () => {
     try {
       setError(null);
@@ -210,7 +250,7 @@ export default function SalesPage() {
         });
       } else if (view === 'daily') {
         setDaily(Array.isArray((result as any)?.daily) ? (result as any).daily : []);
-      } else if (view === 'monthly') {
+      } else if (view === 'monthly' || view === 'weekly' || view === 'yearly') {
         setMonthly(Array.isArray((result as any)?.monthly) ? (result as any).monthly : []);
       } else {
         setSales((result as any)?.sales || []);
@@ -485,6 +525,24 @@ export default function SalesPage() {
 
   const columns = [
     {
+      key: '_select',
+      label: '',
+      render: (_: any, sale: SaleRecord) => {
+        const checked = selectedSaleIds.has(sale._id);
+        return (
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => toggleSaleSelection(sale._id, { force: e.target.checked })}
+              className="h-4 w-4"
+              aria-label={checked ? 'Deselect sale' : 'Select sale'}
+            />
+          </div>
+        );
+      },
+    },
+    {
       key: 'customerId',
       label: 'Customer ID',
       render: (_: any, sale: SaleRecord) => (
@@ -559,7 +617,38 @@ export default function SalesPage() {
       label: 'Actions',
       render: (_: any, sale: SaleRecord) => (
         <div className="flex gap-2 items-center relative">
-          {/* Messaging actions intentionally disabled for deployment scope */}
+          {/* Receipt + messaging actions */}
+
+          {/* RPT Button */}
+          <button
+            onClick={() => router.push(`/admin/crm/sales/${sale._id}`)}
+            className="px-3 py-1.5 bg-violet-100 hover:bg-violet-200 text-violet-700 rounded-lg text-sm font-medium transition-colors"
+            title="Receipt (A4 PDF)"
+          >
+            RPT
+          </button>
+
+          {/* WhatsApp Button */}
+          <button
+            onClick={() => {
+              const phone = (sale.customerPhone || '').replace(/\D/g, '');
+              const hasPhone = phone.length >= 10;
+              if (!hasPhone) {
+                setError('Missing customer phone number for WhatsApp');
+                return;
+              }
+
+              // Web WhatsApp deep link. Admin can send receipt PDF separately if needed.
+              const text = encodeURIComponent(
+                `Hi ${sale.customerName || ''} — here are your receipt details. I can also send the PDF if needed.`.trim()
+              );
+              window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+            }}
+            className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-medium transition-colors"
+            title="WhatsApp"
+          >
+            WhatsApp
+          </button>
 
           {/* Edit Button */}
           <button
@@ -591,6 +680,21 @@ export default function SalesPage() {
       ),
     },
   ];
+
+  const allSelectedOnPage = sales.length > 0 && sales.every((s) => selectedSaleIds.has(s._id));
+  const someSelectedOnPage = sales.some((s) => selectedSaleIds.has(s._id));
+
+  const toggleSelectAllOnPage = () => {
+    setSelectedSaleIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        sales.forEach((s) => next.delete(s._id));
+      } else {
+        sales.forEach((s) => next.add(s._id));
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 p-8">
@@ -647,7 +751,7 @@ export default function SalesPage() {
 
         {/* View Selector - Professional Tabs */}
         <div className="flex gap-2 flex-wrap bg-white border border-slate-200 rounded-xl p-2 w-fit">
-          {(['list', 'summary', 'daily', 'monthly'] as const).map((v) => (
+          {(['list', 'summary', 'yearly', 'monthly', 'weekly', 'daily'] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
@@ -659,11 +763,56 @@ export default function SalesPage() {
             >
               {v === 'list' && '📋 List'}
               {v === 'summary' && '📊 Summary'}
+              {v === 'yearly' && '🧾 Yearly'}
               {v === 'daily' && '📈 Daily'}
+              {v === 'weekly' && '🗓️ Weekly'}
               {v === 'monthly' && '📅 Monthly'}
             </button>
           ))}
         </div>
+
+        {/* Bulk actions (header) */}
+        {view === 'list' && selectedSaleIds.size > 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="font-semibold text-emerald-900">Selected: {selectedSaleIds.size}</div>
+
+              <button
+                onClick={clearSaleSelection}
+                className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-100 transition-colors"
+              >
+                Clear
+              </button>
+
+              <button
+                onClick={() => toggleSelectAllOnPage()}
+                className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-100 transition-colors"
+                title="Select/deselect all on this page"
+              >
+                Actions All
+              </button>
+
+              <button
+                onClick={() => setBulkActionsOpen(true)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                Actions
+              </button>
+
+              <button
+                onClick={() => bulkDeleteSelected({ clearAfter: clearSaleSelection, refreshAfter: fetchSalesData })}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+                title="Delete selected sales"
+              >
+                Delete Selected
+              </button>
+            </div>
+
+            <div className="text-sm text-emerald-900/70">
+              Tip: select 2+ sales to auto-open actions.
+            </div>
+          </div>
+        )}
 
         {/* Filters - Professional Card */}
         <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
@@ -736,7 +885,7 @@ export default function SalesPage() {
                   label="Total Sales"
                   value={String(summary.totalTransactions || 0)}
                   icon="📊"
-                  color="purple"
+                  color="indigo"
                 />
                 <StatCard
                   label="Total Revenue"
@@ -748,14 +897,25 @@ export default function SalesPage() {
                   label="Average Sale"
                   value={`₹${Number(summary.averageSale || 0).toLocaleString()}`}
                   icon="📈"
-                  color="blue"
+                  color="teal"
                 />
                 <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
-                  <div className="text-white font-semibold mb-4 text-sm">Summary</div>
+                  <div className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 via-purple-200 to-cyan-200 font-extrabold mb-4 text-sm">
+                    Summary
+                  </div>
                   <div className="space-y-2">
-                    <div className="flex justify-between text-purple-200 text-xs"><span>Max Sale</span><span>₹{Number(summary.maxSale || 0).toLocaleString()}</span></div>
-                    <div className="flex justify-between text-purple-200 text-xs"><span>Min Sale</span><span>₹{Number(summary.minSale || 0).toLocaleString()}</span></div>
-                    <div className="flex justify-between text-purple-200 text-xs"><span>Target Achieved</span><span>{Number(summary.targetAchieved || 0)}</span></div>
+                    <div className="flex justify-between text-slate-200 text-xs">
+                      <span className="text-slate-300">Max Sale</span>
+                      <span className="font-bold text-emerald-200">₹{Number(summary.maxSale || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-200 text-xs">
+                      <span className="text-slate-300">Min Sale</span>
+                      <span className="font-bold text-amber-200">₹{Number(summary.minSale || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-200 text-xs">
+                      <span className="text-slate-300">Target Achieved</span>
+                      <span className="font-bold text-cyan-200">{Number(summary.targetAchieved || 0)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -773,6 +933,30 @@ export default function SalesPage() {
             )}
 
             {view === 'monthly' && (
+              <DataTable
+                columns={aggColumns}
+                data={monthly}
+                loading={crm.loading}
+                empty={monthly.length === 0}
+                striped
+                hover
+              />
+            )}
+
+            {/* Weekly View (reuses aggregation table for now) */}
+            {view === 'weekly' && (
+              <DataTable
+                columns={aggColumns}
+                data={monthly}
+                loading={crm.loading}
+                empty={monthly.length === 0}
+                striped
+                hover
+              />
+            )}
+
+            {/* Yearly View (reuses aggregation table for now) */}
+            {view === 'yearly' && (
               <DataTable
                 columns={aggColumns}
                 data={monthly}

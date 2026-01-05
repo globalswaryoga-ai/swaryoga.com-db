@@ -76,6 +76,10 @@ export default function LeadsPage() {
   const [duplicateLead, setDuplicateLead] = useState<any>(null);
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  // Bulk actions panel should auto-open when 2+ leads are selected
+  useEffect(() => {
+    setBulkModalOpen(selectedLeadIds.size >= 2);
+  }, [selectedLeadIds]);
   const [bulkAssignedToUserId, setBulkAssignedToUserId] = useState<string>('');
   const [bulkWorkshopName, setBulkWorkshopName] = useState<string>('');
   const [bulkActionBusy, setBulkActionBusy] = useState(false);
@@ -776,6 +780,21 @@ export default function LeadsPage() {
                     className="px-3 py-1.5 bg-white border border-teal-200 text-teal-800 rounded-lg font-semibold hover:bg-teal-100 transition-colors"
                   >
                     Clear
+                  </button>
+
+                  <button
+                    onClick={() => toggleSelectAllOnPage()}
+                    className="px-3 py-1.5 bg-white border border-teal-200 text-teal-800 rounded-lg font-semibold hover:bg-teal-100 transition-colors"
+                    title="Select/deselect all on this page"
+                  >
+                    Actions All
+                  </button>
+
+                  <button
+                    onClick={() => setBulkModalOpen(true)}
+                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold transition-colors"
+                  >
+                    Actions
                   </button>
                 </div>
 

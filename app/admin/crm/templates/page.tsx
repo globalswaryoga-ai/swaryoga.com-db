@@ -85,6 +85,13 @@ export default function TemplatesPage() {
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
+  // Bulk selection + header actions
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
+  useEffect(() => {
+    setBulkActionsOpen(selectedTemplateIds.size >= 2);
+  }, [selectedTemplateIds]);
+
   const [templates, setTemplates] = useState<Template[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | Template['status']>('all');
@@ -108,6 +115,36 @@ export default function TemplatesPage() {
   const contentRef = useRef<HTMLTextAreaElement | null>(null);
 
   const pageSize = 20;
+
+  const allSelectedOnPage = templates.length > 0 && templates.every((t) => selectedTemplateIds.has(t._id));
+  const someSelectedOnPage = templates.some((t) => selectedTemplateIds.has(t._id));
+
+  const toggleSelectAllOnPage = useCallback(() => {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        templates.forEach((t) => next.delete(t._id));
+      } else {
+        templates.forEach((t) => next.add(t._id));
+      }
+      return next;
+    });
+  }, [allSelectedOnPage, templates]);
+
+  const toggleTemplateSelection = useCallback((templateId: string, opts?: { force?: boolean }) => {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set(prev);
+      const exists = next.has(templateId);
+      const shouldSelect = opts?.force ?? !exists;
+      if (shouldSelect) next.add(templateId);
+      else next.delete(templateId);
+      return next;
+    });
+  }, []);
+
+  const clearTemplateSelection = useCallback(() => {
+    setSelectedTemplateIds(new Set());
+  }, []);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -300,6 +337,34 @@ export default function TemplatesPage() {
           title="Message Templates"
           action={
             <div className="flex gap-2">
+              {selectedTemplateIds.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllOnPage}
+                    className="px-4 py-2 rounded-lg font-semibold transition-all bg-slate-800/50 text-purple-200 border border-purple-500/20 hover:border-purple-500/50"
+                    title="Select/deselect all on this page"
+                  >
+                    Actions All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionsOpen(true)}
+                    className="px-4 py-2 rounded-lg font-semibold transition-all bg-gradient-to-r from-purple-500 to-purple-600 text-white"
+                    title="Bulk actions"
+                  >
+                    Actions ({selectedTemplateIds.size})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearTemplateSelection}
+                    className="px-4 py-2 rounded-lg font-semibold transition-all bg-slate-800/50 text-purple-200 border border-purple-500/20 hover:border-purple-500/50"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+
               <button
                 onClick={() => router.push('/admin/crm/templates/builder')}
                 className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-2 rounded-lg font-semibold transition-all"
@@ -346,6 +411,44 @@ export default function TemplatesPage() {
           <AlertBox type="error" message={error} onClose={() => setError(null)} />
         ) : (
           <div className="space-y-6">
+            {/* Bulk actions panel (auto open when 2+ selected) */}
+            {bulkActionsOpen && selectedTemplateIds.size > 0 && (
+              <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="text-purple-200 font-semibold">Selected: {selectedTemplateIds.size}</div>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={clearTemplateSelection}
+                    className="px-4 py-2 bg-slate-700/50 text-purple-200 rounded-lg font-semibold hover:bg-slate-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = window.confirm(`Delete ${selectedTemplateIds.size} selected template(s)? This cannot be undone.`);
+                      if (!ok) return;
+                      try {
+                        setError(null);
+                        await Promise.all(
+                          Array.from(selectedTemplateIds).map((templateId) =>
+                            crm.fetch('/api/admin/crm/templates', { method: 'DELETE', params: { templateId } })
+                          )
+                        );
+                        clearTemplateSelection();
+                        fetchTemplates();
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Bulk delete failed');
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-500/20 text-red-200 rounded-lg font-semibold hover:bg-red-500/30 transition-colors"
+                  >
+                    Delete selected
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Templates Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {templates.length === 0 ? (
@@ -355,6 +458,7 @@ export default function TemplatesPage() {
               ) : (
                 templates.map((template) => {
                   const variables = extractVariables(template.templateContent);
+                  const checked = selectedTemplateIds.has(template._id);
                   return (
                     <div
                       key={template._id}
@@ -365,10 +469,19 @@ export default function TemplatesPage() {
                           <h3 className="text-white font-semibold text-lg">{template.templateName}</h3>
                           <p className="text-purple-300 text-sm capitalize">{template.category}</p>
                         </div>
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => toggleTemplateSelection(template._id, { force: e.target.checked })}
+                            className="h-4 w-4 mt-1"
+                            aria-label={checked ? 'Deselect template' : 'Select template'}
+                          />
                         <span className={`px-3 py-1 rounded-lg text-sm font-medium border inline-flex items-center gap-2 ${getStatusColor(template.status)}`}>
                           <span>{getStatusIcon(template.status)}</span>
                           {template.status}
                         </span>
+                        </div>
                       </div>
 
                       {/* Content Preview */}

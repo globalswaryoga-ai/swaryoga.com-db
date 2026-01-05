@@ -21,14 +21,13 @@ export default function LabelsPage() {
 
   // Default labels for lead workflow
   const defaultLabels = [
-    'New Lead',
-    'Whatsapp sent',
-    'Sadhak replied',
+    'New',
+    'WhatsApp sent',
+    'WhatsApp replied',
     'Ready to call',
-    'Call complet',
-    'Redy to workshop',
-    'Pending',
-    'No any Reply',
+    'Call done',
+    'Interested for workshop',
+    'No reply',
   ];
 
   // Fetch labels
@@ -191,7 +190,7 @@ export default function LabelsPage() {
                 {addingLabel ? 'Initializing...' : '🚀 Initialize Default Labels'}
               </button>
               <p className="text-xs text-slate-500 mt-2">
-                Default labels: New Lead, Whatsapp sent, Sadhak replied, Ready to call, Call complet, Redy to workshop, Pending, No any Reply
+                Default labels: New, WhatsApp sent, WhatsApp replied, Ready to call, Call done, Interested for workshop, No reply
               </p>
             </div>
           </div>

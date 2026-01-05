@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -12,6 +12,10 @@ interface AnalyticsData {
     totalSales: number;
     totalMessages: number;
     conversionRate: number;
+    broadcast?: {
+      byStatus?: Record<string, number>;
+      byReason?: Record<string, number>;
+    };
   };
   leads?: {
     totalLeads: number;
@@ -48,6 +52,29 @@ export default function AnalyticsPage() {
   const [analytics, setAnalytics] = useState<AnalyticsData>({});
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'overview' | 'leads' | 'sales' | 'messages' | 'conversion' | 'trends'>('overview');
+
+  const broadcastSummary = useMemo(() => {
+    const b = analytics?.overview?.broadcast;
+    const byStatus = b?.byStatus || {};
+    const byReason = b?.byReason || {};
+
+    const sent = Number(byStatus.sent || 0);
+    const failed = Number(byStatus.failed || 0);
+    const skipped = Number(byStatus.skipped || 0);
+    const pending = Number(byStatus.pending || 0) + Number(byStatus.sending || 0);
+
+    return {
+      sent,
+      failed,
+      skipped,
+      pending,
+      blocked: Number(byReason.blocked || 0),
+      numberNotInUse: Number(byReason.number_not_in_use || 0),
+      notDelivered: Number(byReason.not_delivered || 0),
+      other: Number(byReason.other || 0),
+      total: sent + failed + skipped + pending,
+    };
+  }, [analytics?.overview?.broadcast]);
 
   const fetchAnalytics = useCallback(async () => {
     try {
@@ -107,11 +134,103 @@ export default function AnalyticsPage() {
           <>
             {/* Overview */}
             {view === 'overview' && analytics.overview && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Total Leads" value={analytics.overview.totalLeads.toString()} icon="📊" color="blue" />
-                <StatCard label="Total Sales" value={analytics.overview.totalSales.toString()} icon="💰" color="green" />
-                <StatCard label="Messages" value={analytics.overview.totalMessages.toString()} icon="💬" color="purple" />
-                <StatCard label="Conversion" value={`${analytics.overview.conversionRate.toFixed(1)}%`} icon="📈" color="yellow" />
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <StatCard label="Total Leads" value={analytics.overview.totalLeads.toString()} icon="📊" color="indigo" />
+                  <StatCard label="Total Sales" value={analytics.overview.totalSales.toString()} icon="💰" color="teal" />
+                  <StatCard label="Messages" value={analytics.overview.totalMessages.toString()} icon="💬" color="purple" />
+                  <StatCard label="Conversion" value={`${analytics.overview.conversionRate.toFixed(1)}%`} icon="📈" color="orange" />
+                </div>
+
+                <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <div className="text-white font-semibold text-sm">Broadcast Delivery Breakdown</div>
+                      <div className="text-purple-200 text-xs mt-1">
+                        Aggregated from broadcast runs (best-effort based on failure reason text).
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => router.push('/admin/crm/broadcast')}
+                        className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-700/60 text-white border border-purple-500/20 hover:border-purple-500/50"
+                      >
+                        Open Broadcasts
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/admin/crm/broadcast?tab=runs')}
+                        className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-700/60 text-white border border-purple-500/20 hover:border-purple-500/50"
+                      >
+                        View Runs
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
+                      <div className="text-xs text-purple-200">Sent</div>
+                      <div className="text-2xl font-black text-emerald-300 mt-1">{broadcastSummary.sent}</div>
+                    </div>
+                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
+                      <div className="text-xs text-purple-200">Failed</div>
+                      <div className="text-2xl font-black text-rose-300 mt-1">{broadcastSummary.failed}</div>
+                    </div>
+                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
+                      <div className="text-xs text-purple-200">Pending</div>
+                      <div className="text-2xl font-black text-amber-300 mt-1">{broadcastSummary.pending}</div>
+                    </div>
+                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
+                      <div className="text-xs text-purple-200">Skipped</div>
+                      <div className="text-2xl font-black text-slate-200 mt-1">{broadcastSummary.skipped}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
+                      <div className="text-xs text-purple-200">Blocked / Opt-out</div>
+                      <div className="text-xl font-black text-fuchsia-200 mt-1">{broadcastSummary.blocked}</div>
+                    </div>
+                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
+                      <div className="text-xs text-purple-200">Number not in use</div>
+                      <div className="text-xl font-black text-cyan-200 mt-1">{broadcastSummary.numberNotInUse}</div>
+                    </div>
+                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
+                      <div className="text-xs text-purple-200">Not delivered</div>
+                      <div className="text-xl font-black text-orange-200 mt-1">{broadcastSummary.notDelivered}</div>
+                    </div>
+                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
+                      <div className="text-xs text-purple-200">Other</div>
+                      <div className="text-xl font-black text-slate-200 mt-1">{broadcastSummary.other}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 flex-wrap mt-4">
+                    <button
+                      type="button"
+                      onClick={() => router.push('/admin/crm/broadcast?tab=runs&status=failed')}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-rose-600/20 text-rose-100 border border-rose-500/30 hover:border-rose-400/60"
+                    >
+                      View Failed
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/admin/crm/broadcast?tab=runs&status=scheduled')}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-100 border border-amber-500/30 hover:border-amber-400/60"
+                    >
+                      View Scheduled
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push('/admin/crm/broadcast?tab=runs&status=running')}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-indigo-600/20 text-indigo-100 border border-indigo-500/30 hover:border-indigo-400/60"
+                    >
+                      View Running
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

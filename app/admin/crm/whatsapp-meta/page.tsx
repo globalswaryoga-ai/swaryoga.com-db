@@ -47,6 +47,8 @@ interface LeadFollowUp {
   createdAt: string;
 }
 
+type BulkAction = 'markRead' | 'markUnread' | 'addLabel' | 'removeLabel';
+
 function formatTime(dateLike?: string) {
   if (!dateLike) return '';
   const d = new Date(dateLike);
@@ -101,6 +103,16 @@ export default function MetaWhatsAppPage() {
   const [newLabel, setNewLabel] = useState('');
   const [newFollowUpTitle, setNewFollowUpTitle] = useState('');
   const [newFollowUpDueAt, setNewFollowUpDueAt] = useState('');
+
+  // Inbox UI state
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [selectedConversationIds, setSelectedConversationIds] = useState<Record<string, boolean>>({});
+  const [bulkAction, setBulkAction] = useState<BulkAction>('markRead');
+  const [bulkLabel, setBulkLabel] = useState('');
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [composerMode, setComposerMode] = useState<'text' | 'template' | 'quick-reply' | 'chatbot'>('text');
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [delaySeconds, setDelaySeconds] = useState('');
 
   // Webhook diagnostics (Meta inbound delivery)
   const [webhookStatus, setWebhookStatus] = useState<
@@ -157,6 +169,27 @@ export default function MetaWhatsAppPage() {
     return unique;
   }, [conversations]);
 
+  const conversationsFiltered = useMemo(() => {
+    const q = conversationSearch.trim().toLowerCase();
+    if (!q) return conversationsDeduped;
+    return conversationsDeduped.filter((c) => {
+      const name = String(c?.name || '').toLowerCase();
+      const phone = String(c?.phoneNumber || '').toLowerCase();
+      const status = String(c?.status || '').toLowerCase();
+      const labels = Array.isArray(c?.labels) ? c.labels.join(' ').toLowerCase() : '';
+      const last = String(c?.lastMessage || '').toLowerCase();
+      return [name, phone, status, labels, last].some((v) => v.includes(q));
+    });
+  }, [conversationSearch, conversationsDeduped]);
+
+  const selectedCount = useMemo(() => {
+    let count = 0;
+    for (const c of conversationsFiltered) {
+      if (selectedConversationIds[String(c._id)]) count++;
+    }
+    return count;
+  }, [conversationsFiltered, selectedConversationIds]);
+
   const messagesDeduped = useMemo(() => {
     const seen = new Set<string>();
     const unique: MetaMessage[] = [];
@@ -182,7 +215,8 @@ export default function MetaWhatsAppPage() {
         method: 'GET',
       });
       setError(null);
-      setConversations(Array.isArray(res) ? res : []);
+      const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setConversations(rows);
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
       setError(err instanceof Error ? err.message : 'Failed to load conversations');
@@ -231,7 +265,8 @@ export default function MetaWhatsAppPage() {
         method: 'GET',
         params: { phoneNumber },
       });
-      setMessages(Array.isArray(res) ? res : []);
+      const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setMessages(rows);
       
       // Load lead details if leadId is available
       if (selected?.leadId) {
@@ -475,9 +510,118 @@ export default function MetaWhatsAppPage() {
     async (row: MetaConversation) => {
       setSelected(row);
       setSelectedPhone(row.phoneNumber);
+
+      // Best-effort optimistic UI: clear unread badge when opening chat
+      setConversations((prev) => prev.map((c) => (c._id === row._id ? { ...c, unreadCount: 0 } : c)));
+
       await fetchMessages(row.phoneNumber);
     },
     [fetchMessages]
+  );
+
+  const toggleConversationChecked = useCallback((conv: MetaConversation) => {
+    setSelectedConversationIds((prev) => {
+      const key = String(conv._id);
+      return { ...prev, [key]: !Boolean(prev[key]) };
+    });
+  }, []);
+
+  const setAllVisibleChecked = useCallback(
+    (checked: boolean) => {
+      setSelectedConversationIds((prev) => {
+        const next = { ...prev };
+        for (const c of conversationsFiltered) {
+          next[String(c._id)] = checked;
+        }
+        return next;
+      });
+    },
+    [conversationsFiltered]
+  );
+
+  const clearSelection = useCallback(() => {
+    setSelectedConversationIds({});
+  }, []);
+
+  const runBulkAction = useCallback(async () => {
+    if (!selectedCount) return;
+
+    const selectedRows = conversationsFiltered.filter((c) => selectedConversationIds[String(c._id)]);
+    const leadIds = selectedRows.map((c) => String(c.leadId || c._id)).filter(Boolean);
+
+    if (leadIds.length === 0) {
+      setError('No leads selected');
+      return;
+    }
+
+    const label = bulkLabel.trim();
+    if ((bulkAction === 'addLabel' || bulkAction === 'removeLabel') && !label) {
+      setError('Label cannot be empty');
+      return;
+    }
+
+    // Optimistic UI update
+    const prevConversations = conversations;
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (!selectedConversationIds[String(c._id)]) return c;
+
+        if (bulkAction === 'markRead') return { ...c, unreadCount: 0 };
+        if (bulkAction === 'markUnread') return { ...c, unreadCount: Math.max(1, c.unreadCount || 1) };
+
+        if (bulkAction === 'addLabel') {
+          const current = Array.isArray(c.labels) ? c.labels : [];
+          const exists = current.some((x) => String(x).toLowerCase() === label.toLowerCase());
+          return exists ? c : { ...c, labels: [...current, label] };
+        }
+        if (bulkAction === 'removeLabel') {
+          const current = Array.isArray(c.labels) ? c.labels : [];
+          return { ...c, labels: current.filter((x) => String(x).toLowerCase() !== label.toLowerCase()) };
+        }
+
+        return c;
+      })
+    );
+
+    try {
+      setError(null);
+      await crmFetch('/api/admin/crm/whatsapp/meta/bulk', {
+        method: 'POST',
+        body: {
+          action: bulkAction,
+          leadIds,
+          ...(label ? { label } : {}),
+        },
+      });
+
+      // Refresh to get accurate unread counts from DB aggregation
+      void fetchConversations();
+      clearSelection();
+      setBulkLabel('');
+    } catch (err) {
+      console.error('Bulk action failed:', err);
+      setConversations(prevConversations);
+      setError(err instanceof Error ? err.message : 'Bulk action failed');
+    }
+  }, [bulkAction, bulkLabel, clearSelection, conversations, conversationsFiltered, crmFetch, fetchConversations, selectedConversationIds, selectedCount]);
+
+  const insertFormatting = useCallback(
+    (kind: 'bold' | 'italic') => {
+      const ta = composerRef.current;
+      if (!ta) return;
+      const start = ta.selectionStart || 0;
+      const end = ta.selectionEnd || 0;
+      const wrap = kind === 'bold' ? '*' : '_';
+      const sel = newMessage.slice(start, end);
+      const out = `${newMessage.slice(0, start)}${wrap}${sel}${wrap}${newMessage.slice(end)}`;
+      setNewMessage(out);
+      requestAnimationFrame(() => {
+        ta.focus();
+        const pos = start + wrap.length + sel.length + wrap.length;
+        ta.setSelectionRange(pos, pos);
+      });
+    },
+    [newMessage]
   );
 
   useEffect(() => {
@@ -542,13 +686,32 @@ export default function MetaWhatsAppPage() {
   const selectedLeadName = selected?.name || selected?.phoneNumber || 'Conversation';
 
   return (
-    <div className="flex h-screen flex-col bg-gray-50">
+    <div className="flex h-screen flex-col bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="bg-white border-b border-slate-200 shadow-sm">
+        <div className="mx-auto w-full max-w-[1400px] px-6 py-4 flex items-center justify-between gap-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">WhatsApp Meta Inbox</h1>
             <p className="text-sm text-gray-600">Official Business Number Messages</p>
+
+            {/* Header nav tabs */}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link href="/admin/crm/broadcast" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
+                Broadcast
+              </Link>
+              <Link href="/admin/crm/chatbots" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
+                Chatbot
+              </Link>
+              <Link href="/admin/crm/automation" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
+                Automation
+              </Link>
+              <Link href="/admin/crm/whatsapp/settings" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
+                Settings
+              </Link>
+              <Link href="/admin/crm/templates" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
+                Templates
+              </Link>
+            </div>
 
             {/* Webhook diagnostics strip */}
             <div className="mt-2 text-xs text-gray-700">
@@ -649,13 +812,64 @@ export default function MetaWhatsAppPage() {
       {/* Main 3-Column Layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT SIDEBAR: Conversations List */}
-        <div className="w-1/4 bg-white border-r border-gray-200 overflow-y-auto flex flex-col">
-          <div className="p-4 border-b border-gray-200 sticky top-0 bg-white">
+        <div className="w-[360px] bg-white border-r border-slate-200 overflow-y-auto flex flex-col">
+          <div className="p-4 border-b border-slate-200 sticky top-0 bg-white z-10">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="text-sm font-extrabold text-slate-900">Users</div>
+              <div className="text-xs text-slate-500">{conversationsFiltered.length}</div>
+            </div>
             <input
               type="text"
-              placeholder="Search conversations..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              value={conversationSearch}
+              onChange={(e) => setConversationSearch(e.target.value)}
+              placeholder="Search name, number, label..."
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
+
+            {/* Bulk actions */}
+            <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between">
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={conversationsFiltered.length > 0 && selectedCount === conversationsFiltered.length}
+                    onChange={(e) => setAllVisibleChecked(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                  Select all
+                </label>
+                <button type="button" onClick={clearSelection} className="text-xs font-semibold text-slate-600 hover:text-slate-800">
+                  Clear
+                </button>
+              </div>
+              <div className="mt-2 flex gap-2">
+                <select
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value as BulkAction)}
+                  className="flex-1 px-2 py-2 border border-slate-300 rounded-lg text-xs bg-white"
+                >
+                  <option value="markRead">Mark read</option>
+                  <option value="markUnread">Mark unread</option>
+                  <option value="addLabel">Add label</option>
+                  <option value="removeLabel">Remove label</option>
+                </select>
+                <input
+                  value={bulkLabel}
+                  onChange={(e) => setBulkLabel(e.target.value)}
+                  placeholder="Label"
+                  className="w-[120px] px-2 py-2 border border-slate-300 rounded-lg text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={runBulkAction}
+                  disabled={!selectedCount}
+                  className="px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply
+                </button>
+              </div>
+              <div className="mt-1 text-[11px] text-slate-500">Selected: {selectedCount}</div>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -664,37 +878,77 @@ export default function MetaWhatsAppPage() {
             ) : conversations.length === 0 ? (
               <div className="p-4 text-center text-gray-500">No conversations</div>
             ) : (
-              <div className="divide-y">
-                {conversationsDeduped.map((conv) => (
-                  <button
-                    key={conv._id}
-                    onClick={() => handleSelect(conv)}
-                    className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
-                      selectedPhone === conv.phoneNumber ? 'bg-green-50 border-l-green-600' : 'border-l-transparent'
-                    }`}
-                  >
-                    <div className="font-medium text-gray-900">{conv.name || conv.phoneNumber}</div>
-                    <div className="text-sm text-gray-600 truncate">{conv.lastMessage}</div>
-                    <div className="text-xs text-gray-500 mt-1">{conv.lastMessageTime}</div>
-                    {conv.unreadCount && conv.unreadCount > 0 && (
-                      <span className="inline-block bg-red-500 text-white text-xs rounded-full px-2 py-1 mt-2">
-                        {conv.unreadCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
+              <div className="divide-y divide-slate-100">
+                {conversationsFiltered.map((conv) => {
+                  const isActive = selectedPhone === conv.phoneNumber;
+                  const checked = Boolean(selectedConversationIds[String(conv._id)]);
+                  const unread = conv.unreadCount || 0;
+                  return (
+                    <div key={conv._id} className={isActive ? 'bg-emerald-50/40' : 'bg-white'}>
+                      <div className="flex items-start gap-3 px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleConversationChecked(conv)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300"
+                          aria-label="Select conversation"
+                        />
+                        <button
+                          onClick={() => handleSelect(conv)}
+                          className={`flex-1 text-left rounded-xl px-3 py-2 border transition-colors ${
+                            isActive
+                              ? 'border-emerald-300 bg-white shadow-sm'
+                              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="font-semibold text-slate-900 truncate">{conv.name || 'Unknown'}</div>
+                            {unread > 0 ? (
+                              <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-rose-600 text-white text-xs font-bold">
+                                {unread}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">read</span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-600 flex items-center justify-between gap-2">
+                            <span className="font-mono truncate">{conv.phoneNumber}</span>
+                            <span className="text-[11px] text-slate-400">{formatTime(conv.lastMessageTime)}</span>
+                          </div>
+                          <div className="mt-2 text-sm text-slate-700 line-clamp-2">{conv.lastMessage}</div>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-900 text-white">
+                              ID: {String(conv._id).slice(-6)}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800">
+                              {conv.status || 'lead'}
+                            </span>
+                            {(conv.labels || []).slice(0, 2).map((l) => (
+                              <span key={l} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">
+                                {l}
+                              </span>
+                            ))}
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                              admin
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
 
         {/* MIDDLE: Chat Messages */}
-        <div className="flex-1 flex flex-col bg-gray-50">
+        <div className="flex-1 flex flex-col bg-slate-50">
           {selected ? (
             <>
               {/* Chat Header */}
-              <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
-                <div className="flex justify-between items-start">
+              <div className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-20">
+                <div className="flex justify-between items-start gap-4">
                   <div>
                     <div className="text-lg font-bold text-gray-900">{selectedLeadName}</div>
                     <div className="text-sm text-gray-600">{selected.phoneNumber}</div>
@@ -711,15 +965,134 @@ export default function MetaWhatsAppPage() {
                       </div>
                     )}
                   </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setComposerMode('quick-reply')}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold border ${
+                        composerMode === 'quick-reply'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Quick Reply
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComposerMode('template')}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold border ${
+                        composerMode === 'template'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComposerMode('chatbot')}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold border ${
+                        composerMode === 'chatbot'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Chatbot
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setToolsOpen((v) => !v)}
+                      className="px-3 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-white hover:bg-slate-800"
+                    >
+                      Tools ▾
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewMessage((m) => (m ? `${m}\n\nAI Suggestion: ` : 'AI Suggestion: '))}
+                      className="px-3 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
+                      title="AI assistant (placeholder)"
+                    >
+                      AI
+                    </button>
+                  </div>
                 </div>
+
+                {toolsOpen && (
+                  <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setNewMessage((m) => (m ? `${m} 🙂` : '🙂'))}
+                        className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold"
+                      >
+                        🙂 Emoji
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewMessage((m) => (m ? `${m}\n[image: add url]` : '[image: add url]'))}
+                        className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold"
+                      >
+                        Image
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewMessage((m) => (m ? `${m}\n[video: add url]` : '[video: add url]'))}
+                        className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold"
+                      >
+                        Video
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewMessage((m) => (m ? `${m}\n[document: add url]` : '[document: add url]'))}
+                        className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold"
+                      >
+                        Document
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertFormatting('bold')}
+                        className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold"
+                      >
+                        Bold
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => insertFormatting('italic')}
+                        className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-sm font-semibold"
+                      >
+                        Italic
+                      </button>
+                      <div className="col-span-2 md:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <input
+                          type="datetime-local"
+                          value={scheduleAt}
+                          onChange={(e) => setScheduleAt(e.target.value)}
+                          className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
+                          title="Schedule message (UI placeholder)"
+                        />
+                        <input
+                          value={delaySeconds}
+                          onChange={(e) => setDelaySeconds(e.target.value)}
+                          className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
+                          placeholder="Delay seconds"
+                          title="Delay send (UI placeholder)"
+                        />
+                        <div className="text-xs text-slate-600 flex items-center">
+                          Schedule/Delay are UI placeholders.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Messages Area */}
-              <div ref={listRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div ref={listRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-950">
                 {loadingMessages ? (
-                  <div className="text-center text-gray-500">Loading messages...</div>
+                  <div className="text-center text-slate-300">Loading messages...</div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">Start a conversation</div>
+                  <div className="text-center text-slate-300 py-8">Start a conversation</div>
                 ) : (
                   messagesDeduped.map((msg) => (
                     <div
@@ -729,13 +1102,13 @@ export default function MetaWhatsAppPage() {
                       <div
                         className={`max-w-xs px-4 py-2 rounded-lg ${
                           msg.direction === 'outbound'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-white text-gray-900 border border-gray-200'
+                            ? 'bg-slate-100 text-slate-950 border border-slate-200'
+                            : 'bg-slate-900 text-white border border-slate-800'
                         }`}
                       >
-                        <p className="break-words">{msg.messageContent}</p>
-                        <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-green-100' : 'text-gray-500'}`}>
-                          {new Date(msg.createdAt).toLocaleTimeString()}
+                        <p className="break-words whitespace-pre-wrap">{msg.messageContent}</p>
+                        <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-slate-500' : 'text-slate-300'}`}>
+                          {formatTime(msg.createdAt)}
                         </p>
                       </div>
                     </div>
@@ -751,15 +1124,23 @@ export default function MetaWhatsAppPage() {
               )}
 
               {/* Message Composer */}
-              <div className="border-t border-gray-200 bg-white p-4">
-                <div className="flex gap-2">
+              <div className="border-t border-slate-200 bg-white p-4">
+                <div className="flex items-start gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setToolsOpen((v) => !v)}
+                    className="h-11 w-11 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800"
+                    title="Open tools"
+                  >
+                    +
+                  </button>
                   <textarea
                     ref={composerRef}
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type a message..."
                     rows={3}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                    className="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' && e.ctrlKey) {
                         handleSendMessage();
@@ -769,12 +1150,12 @@ export default function MetaWhatsAppPage() {
                   <button
                     onClick={handleSendMessage}
                     disabled={sending || !newMessage.trim()}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed h-fit"
+                    className="px-6 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed h-fit font-bold"
                   >
                     {sending ? 'Sending...' : 'Send'}
                   </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">Press Ctrl+Enter to send</p>
+                <p className="text-xs text-slate-600 mt-2">Press Ctrl+Enter to send • Mode: {composerMode}</p>
               </div>
             </>
           ) : (
@@ -788,9 +1169,10 @@ export default function MetaWhatsAppPage() {
         </div>
 
         {/* RIGHT SIDEBAR: Lead Details & Tools */}
-        <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto flex flex-col">
-          <div className="p-4 border-b border-gray-200 sticky top-0 bg-white">
-            <h3 className="font-bold text-gray-900">Lead Details</h3>
+        <div className="w-[360px] bg-white border-l border-slate-200 overflow-y-auto flex flex-col">
+          <div className="p-4 border-b border-slate-200 sticky top-0 bg-white">
+            <h3 className="font-extrabold text-slate-900">Customer Details</h3>
+            <p className="text-xs text-slate-500">Status, labels, follow-ups, reminders, todos, notes.</p>
           </div>
 
           {!selected ? (
@@ -799,6 +1181,17 @@ export default function MetaWhatsAppPage() {
             <div className="p-4 text-center text-gray-500">Loading...</div>
           ) : (
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                <div className="text-sm font-extrabold text-slate-900 truncate">{selectedLeadName}</div>
+                <div className="mt-1 text-xs text-slate-600 font-mono">{selected.phoneNumber}</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="px-2 py-1 rounded-full bg-slate-900 text-white text-xs font-semibold">admin user</span>
+                  <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold">
+                    unread: {Number(selected?.unreadCount || 0)}
+                  </span>
+                </div>
+              </div>
+
               {/* Status Dropdown */}
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-2">Status</label>
@@ -811,6 +1204,15 @@ export default function MetaWhatsAppPage() {
                   <option value="prospect">Prospect</option>
                   <option value="customer">Customer</option>
                   <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Admin User</label>
+                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" defaultValue="admin">
+                  <option value="admin">admin</option>
+                  <option value="team">team</option>
+                  <option value="sales">sales</option>
                 </select>
               </div>
 
@@ -860,6 +1262,20 @@ export default function MetaWhatsAppPage() {
                     <div className="text-xs text-gray-500">No follow-ups yet.</div>
                   )}
                 </div>
+              </details>
+
+              <details className="border rounded-lg">
+                <summary className="p-3 font-semibold text-gray-700 cursor-pointer bg-gray-50 hover:bg-gray-100">
+                  Reminders (0)
+                </summary>
+                <div className="p-3 border-t text-xs text-gray-500">Coming soon</div>
+              </details>
+
+              <details className="border rounded-lg">
+                <summary className="p-3 font-semibold text-gray-700 cursor-pointer bg-gray-50 hover:bg-gray-100">
+                  Todos (0)
+                </summary>
+                <div className="p-3 border-t text-xs text-gray-500">Coming soon</div>
               </details>
 
               {/* Notes */}
@@ -952,6 +1368,15 @@ export default function MetaWhatsAppPage() {
                   </div>
                 </div>
               </details>
+
+              <div className="p-4 rounded-xl border border-slate-200 bg-white">
+                <div className="text-xs font-extrabold text-slate-700">Next Follow-up</div>
+                <div className="mt-1 text-xs text-slate-500">Use Follow-ups to schedule.</div>
+                <div className="mt-3">
+                  <label className="block text-xs font-bold text-gray-700 mb-2">Remark</label>
+                  <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Remark..." />
+                </div>
+              </div>
             </div>
           )}
         </div>

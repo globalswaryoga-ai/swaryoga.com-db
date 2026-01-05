@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureDefaultCommunities } from '@/lib/communitySeed';
 import { requireCommunityMembership } from '@/lib/communityAuth';
 import { CommunityPost } from '@/lib/db';
+import { contentHasLink, enforceCommunityChatPolicy, getMyCommunityChatPolicy } from '@/lib/communityChatPolicy';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -39,6 +40,10 @@ export async function POST(request: NextRequest) {
 
     const communityId = String((post as any).communityId || '');
     const userId = await requireCommunityMembership(request, communityId);
+
+    // Enforce per-member chat policy.
+    const policy = await getMyCommunityChatPolicy({ request, communityId });
+    enforceCommunityChatPolicy({ policy, messageType: 'text', hasLink: contentHasLink(text) });
 
     await CommunityPost.updateOne(
       { _id: postId },

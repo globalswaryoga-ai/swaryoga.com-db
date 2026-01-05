@@ -18,14 +18,14 @@ export async function requireCommunityMembership(request: NextRequest, community
     throw err;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(communityId)) {
-    const err = new Error('Community not found');
-    (err as any).status = 404;
-    throw err;
-  }
-
   await connectDB();
-  const community = await Community.findById(communityId).select({ members: 1 }).lean();
+
+  // Support both legacy Mongo ObjectId community ids and newer stable string ids (slugs).
+  const query = mongoose.Types.ObjectId.isValid(communityId)
+    ? ({ _id: communityId } as any)
+    : ({ id: communityId } as any);
+
+  const community = await Community.findOne(query).select({ members: 1 }).lean();
   if (!community) {
     const err = new Error('Community not found');
     (err as any).status = 404;

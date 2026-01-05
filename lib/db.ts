@@ -291,6 +291,7 @@ export const Offer = mongoose.models.Offer || mongoose.model('Offer', offerSchem
 // Community Schema (for community module)
 // NOTE: Per repo convention, all models live in this file.
 const communitySchema = new mongoose.Schema({
+  id: { type: String, index: true },
   name: { type: String, required: true, index: true },
   description: { type: String, default: '' },
   // Store user ids as strings (JWT userId is typically a stringified ObjectId)
@@ -299,6 +300,7 @@ const communitySchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
+communitySchema.index({ id: 1 }, { unique: true, sparse: true });
 communitySchema.index({ name: 1 }, { unique: true });
 
 export const Community = mongoose.models.Community || mongoose.model('Community', communitySchema);
@@ -318,6 +320,7 @@ const communityPostSchema = new mongoose.Schema({
   userId: { type: String, required: true, index: true },
   content: { type: String, required: true },
   images: { type: [String], default: [] },
+  metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   likes: { type: [String], default: [] },
   comments: { type: [communityCommentSchema], default: [] },
   createdAt: { type: Date, default: Date.now, index: true },
@@ -838,6 +841,17 @@ const communityMemberSchema = new mongoose.Schema({
   approved: { type: Boolean, default: false }, // For 'general' community: can send messages only if approved
   approvedAt: { type: Date }, // When admin approved this member
   approvedBy: { type: String }, // Admin who approved
+  chatEnabled: { type: Boolean, default: true },
+  chatPermissions: {
+    // If false, member can read but cannot send.
+    canSend: { type: Boolean, default: true },
+    // Allowed content types.
+    allowText: { type: Boolean, default: true },
+    allowLinks: { type: Boolean, default: true },
+    allowImages: { type: Boolean, default: true },
+    allowVideos: { type: Boolean, default: true },
+    allowDocuments: { type: Boolean, default: true },
+  },
   messageCount: { type: Number, default: 0 },
   lastMessageAt: { type: Date },
   reactions: { type: Number, default: 0 }, // Count of reactions given
