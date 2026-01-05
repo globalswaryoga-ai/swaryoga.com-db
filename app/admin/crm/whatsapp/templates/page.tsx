@@ -74,6 +74,14 @@ function TemplatesContent() {
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
+  // Bulk selection + header actions
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
+
+  useEffect(() => {
+    setBulkActionsOpen(selectedTemplateIds.size >= 2);
+  }, [selectedTemplateIds]);
+
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -204,6 +212,51 @@ function TemplatesContent() {
       setError(err instanceof Error ? err.message : 'Failed to delete template');
     }
   };
+
+  const toggleTemplateSelection = useCallback((templateId: string, opts?: { force?: boolean }) => {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set(prev);
+      const exists = next.has(templateId);
+      const shouldSelect = opts?.force ?? !exists;
+      if (shouldSelect) next.add(templateId);
+      else next.delete(templateId);
+      return next;
+    });
+  }, []);
+
+  const clearTemplateSelection = useCallback(() => {
+    setSelectedTemplateIds(new Set());
+  }, []);
+
+  const allSelectedOnPage = filteredTemplates.length > 0 && filteredTemplates.every((t) => selectedTemplateIds.has(t._id));
+  const toggleSelectAllOnPage = useCallback(() => {
+    setSelectedTemplateIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        for (const t of filteredTemplates) next.delete(t._id);
+      } else {
+        for (const t of filteredTemplates) next.add(t._id);
+      }
+      return next;
+    });
+  }, [allSelectedOnPage, filteredTemplates]);
+
+  const bulkDeleteSelected = useCallback(async () => {
+    const ids = Array.from(selectedTemplateIds);
+    if (!ids.length) return;
+    const ok = window.confirm(`Delete ${ids.length} selected template(s)? This cannot be undone.`);
+    if (!ok) return;
+    try {
+      setError(null);
+      await Promise.all(ids.map((id) => crmFetch(`/api/admin/crm/templates/${id}`, { method: 'DELETE' })));
+      clearTemplateSelection();
+      await fetchTemplates();
+      setSuccess('Templates deleted');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk delete failed');
+    }
+  }, [clearTemplateSelection, crmFetch, fetchTemplates, selectedTemplateIds]);
 
   const saveEdit = async () => {
     if (!editingId || !editForm.templateName) {
@@ -412,6 +465,47 @@ function TemplatesContent() {
         <div className="flex-1 overflow-auto p-8">
           {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
           {success && <AlertBox type="success" message={success} onClose={() => setSuccess(null)} />}
+
+          {/* Bulk actions (header) */}
+          {selectedTemplateIds.size > 0 ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="font-semibold text-emerald-900">Selected: {selectedTemplateIds.size}</div>
+
+                <button
+                  onClick={clearTemplateSelection}
+                  className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-100 transition-colors"
+                >
+                  Clear
+                </button>
+
+                <button
+                  onClick={toggleSelectAllOnPage}
+                  className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-100 transition-colors"
+                  title="Select/deselect all templates in current view"
+                >
+                  Actions All
+                </button>
+
+                <button
+                  onClick={() => setBulkActionsOpen(true)}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Actions
+                </button>
+
+                <button
+                  onClick={bulkDeleteSelected}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+                  title="Delete selected templates"
+                >
+                  Delete Selected
+                </button>
+              </div>
+
+              <div className="text-sm text-emerald-900/70">Tip: select 2+ templates to auto-open actions.</div>
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="flex justify-center items-center h-64">
@@ -771,6 +865,23 @@ function TemplatesContent() {
                   className="bg-white rounded-xl border border-gray-200 shadow-md hover:shadow-lg transition-all overflow-hidden"
                 >
                   <div className="p-6 space-y-4">
+                    {/* Select */}
+                    <div className="flex items-center justify-between">
+                      <label className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={selectedTemplateIds.has(t._id)}
+                          onChange={() => toggleTemplateSelection(t._id)}
+                          className="h-4 w-4 accent-emerald-600 cursor-pointer"
+                        />
+                        Select
+                      </label>
+
+                      <div className="text-xs text-gray-500">
+                        {allSelectedOnPage ? 'All selected' : ''}
+                      </div>
+                    </div>
+
                     {/* Header */}
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-bold text-lg text-gray-900 flex-1 line-clamp-2">
@@ -841,6 +952,51 @@ function TemplatesContent() {
           )}
         </div>
       </div>
+
+      {/* Bulk actions modal (simple) */}
+      {bulkActionsOpen && selectedTemplateIds.size > 0 ? (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="font-bold text-gray-900">Bulk actions</div>
+              <button
+                type="button"
+                onClick={() => setBulkActionsOpen(false)}
+                className="text-gray-500 hover:text-gray-800 font-bold text-xl"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="text-sm text-gray-600">Selected templates: {selectedTemplateIds.size}</div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={bulkDeleteSelected}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold"
+              >
+                Delete selected
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearTemplateSelection();
+                  setBulkActionsOpen(false);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-lg font-semibold"
+              >
+                Clear
+              </button>
+            </div>
+
+            <div className="text-xs text-gray-500">
+              Note: bulk actions are available when you select two or more templates.
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
