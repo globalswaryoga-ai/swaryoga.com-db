@@ -120,6 +120,30 @@ function SignUpInner() {
     'Australian Capital Territory', 'New South Wales', 'Northern Territory', 'Queensland', 'South Australia', 'Tasmania', 'Victoria', 'Western Australia'
   ];
 
+  // Italy is divided into 20 administrative regions (often treated as state/province).
+  const italianRegions = [
+    'Abruzzo',
+    'Aosta Valley',
+    'Apulia',
+    'Basilicata',
+    'Calabria',
+    'Campania',
+    'Emilia-Romagna',
+    'Friuli-Venezia Giulia',
+    'Lazio',
+    'Liguria',
+    'Lombardy',
+    'Marche',
+    'Molise',
+    'Piedmont',
+    'Sardinia',
+    'Sicily',
+    'Trentino-South Tyrol',
+    'Tuscany',
+    'Umbria',
+    'Veneto'
+  ];
+
   const getStatesList = (country: string) => {
     switch (country) {
       case 'India':
@@ -130,6 +154,8 @@ function SignUpInner() {
         return canadianProvinces;
       case 'Australia':
         return australianStates;
+      case 'Italy':
+        return italianRegions;
       default:
         return [];
     }
