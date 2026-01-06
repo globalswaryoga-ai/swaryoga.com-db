@@ -678,6 +678,8 @@ export default function BroadcastPage() {
             <div>
               <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Template</div>
               <select
+                id="template-select"
+                name="template"
                 value={selectedTemplateId}
                 onChange={(e) => setSelectedTemplateId(e.target.value)}
                 style={{ width: '100%' }}
@@ -803,6 +805,8 @@ export default function BroadcastPage() {
               <div>
                 <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Schedule at</div>
                 <input
+                  id="schedule-datetime"
+                  name="scheduledAt"
                   type="datetime-local"
                   value={scheduleAt}
                   onChange={(e) => setScheduleAt(e.target.value)}
@@ -818,6 +822,8 @@ export default function BroadcastPage() {
               <div>
                 <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Delay (minutes)</div>
                 <input
+                  id="delay-minutes"
+                  name="delayMinutes"
                   type="number"
                   min={1}
                   value={delayMins}
