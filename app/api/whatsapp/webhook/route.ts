@@ -375,6 +375,7 @@ async function handleWebhookPayload(payload: any) {
                   deliveredAt: now,
                   sentAt: now,
                   waMessageId: inboundWaMessageId,
+                  isRead: false, // Mark as unread for notification badge
                   // Styling: incoming messages appear in green background with white text
                   backgroundColor: '#22c55e', // Bright green
                   textColor: '#ffffff', // White text
@@ -400,6 +401,7 @@ async function handleWebhookPayload(payload: any) {
               status: 'delivered',
               deliveredAt: now,
               sentAt: now,
+              isRead: false, // Mark as unread for notification badge
               // Styling: incoming messages appear in green background with white text
               backgroundColor: '#22c55e', // Bright green
               textColor: '#ffffff', // White text

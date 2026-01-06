@@ -262,9 +262,9 @@ export async function PUT(request: NextRequest) {
         {
           leadId: toObjectId(String(leadId)),
           direction: 'inbound',
-          status: { $ne: 'read' },
+          isRead: { $ne: true },
         },
-        { $set: { status: 'read', readAt: new Date(), updatedAt: new Date() } }
+        { $set: { isRead: true, status: 'read', readAt: new Date(), updatedAt: new Date() } }
       );
 
       return formatCrmSuccess({ modifiedCount: res.modifiedCount });
@@ -281,7 +281,7 @@ export async function PUT(request: NextRequest) {
     if (normalizedAction === 'markAsRead') {
       const message = await WhatsAppMessage.findByIdAndUpdate(
         messageId,
-        { $set: { status: 'read', readAt: new Date() } },
+        { $set: { isRead: true, status: 'read', readAt: new Date(), updatedAt: new Date() } },
         { new: true }
       );
       if (!message) {
@@ -292,7 +292,7 @@ export async function PUT(request: NextRequest) {
       const message = await WhatsAppMessage.findByIdAndUpdate(
         messageId,
         {
-          $set: { status: 'delivered' },
+          $set: { isRead: false, status: 'delivered', updatedAt: new Date() },
           $unset: { readAt: 1 },
         },
         { new: true }

@@ -116,7 +116,7 @@ export default function MessagesPage() {
         },
       });
 
-      setMessages(result?.messages || []);
+      setMessages(result?.data?.messages || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch messages');
     }
