@@ -107,8 +107,9 @@ export default function BroadcastPage() {
   const [total, setTotal] = useState(0);
   const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
   const [templates, setTemplates] = useState<WhatsAppTemplateRow[]>([]);
+  const [broadcastLists, setBroadcastLists] = useState<any[]>([]);
 
-  // Options for filters (don’t depend on current leads result set).
+  // Options for filters (don't depend on current leads result set).
   const [labelOptions, setLabelOptions] = useState<string[]>([]);
   const [workshopOptions, setWorkshopOptions] = useState<string[]>([]);
 
@@ -195,6 +196,17 @@ export default function BroadcastPage() {
     } catch {
       // not fatal
       setAdminUsers([]);
+    }
+  }, [crm]);
+
+  const fetchBroadcastLists = useCallback(async () => {
+    try {
+      const res: any = await crm.fetch('/api/admin/crm/broadcast-lists', { method: 'GET' });
+      const lists = Array.isArray(res?.data?.lists) ? res.data.lists : [];
+      setBroadcastLists(lists);
+    } catch {
+      // not fatal
+      setBroadcastLists([]);
     }
   }, [crm]);
 
@@ -310,6 +322,7 @@ export default function BroadcastPage() {
     if (!token) return;
     void fetchAdminUsers();
     void fetchTemplates();
+    void fetchBroadcastLists();
     void fetchMetadata();
     void fetchLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -443,6 +456,43 @@ export default function BroadcastPage() {
           <AlertBox type="error" message={error} />
         </div>
       ) : null}
+
+      {/* Broadcast Lists Selection */}
+      {broadcastLists.length > 0 && (
+        <div style={{ marginTop: 12, padding: 12, border: '1px solid rgba(17, 24, 39, 0.08)', borderRadius: 14, background: '#F9FAFB' }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>📋 Your Broadcast Lists</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+            {broadcastLists.map((list) => (
+              <button
+                key={list._id}
+                onClick={() => router.push(`/admin/crm/broadcast?listId=${list._id}`)}
+                style={{
+                  padding: 12,
+                  border: '1px solid #D1D5DB',
+                  borderRadius: 8,
+                  background: '#fff',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#9CA3AF';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = '#fff';
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB';
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{list.name}</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                  {list.description || 'No description'}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Top stats cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 12 }}>
