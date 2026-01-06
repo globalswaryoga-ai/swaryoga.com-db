@@ -16,6 +16,13 @@ try {
 // NOTE:
 // This script intentionally does NOT hardcode any credentials.
 // Provide connection + admin credentials via environment variables.
+//
+// Examples:
+//   # Create (if missing)
+//   ADMIN_USERID=admincrm ADMIN_PASSWORD='your-password' node create-admin.js
+//
+//   # Reset password + force admin flags (if already exists)
+//   ADMIN_RESET=1 ADMIN_USERID=admincrm ADMIN_PASSWORD='your-password' node create-admin.js
 
 const mongoUri = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';

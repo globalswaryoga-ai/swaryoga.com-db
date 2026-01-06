@@ -126,6 +126,7 @@ export default function CRMDashboard() {
             {[
               { href: '/admin/crm', label: 'Overview', icon: '📊' },
               { href: '/admin/crm/leads', label: 'Leads', icon: '👥' },
+              { href: '/admin/crm/whatsapp-meta', label: 'WhatsApp Meta', icon: '🟢' },
               { href: '/admin/crm/leads-followup', label: 'Leads Followup', icon: '📋' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
               { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
