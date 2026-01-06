@@ -17,6 +17,7 @@ import {
   PageHeader,
   LoadingSpinner,
   AlertBox,
+  AddToBroadcastModal,
 } from '@/components/admin/crm';
 
 interface Lead {
@@ -85,6 +86,9 @@ export default function LeadsPage() {
   const [bulkActionBusy, setBulkActionBusy] = useState(false);
 
   const [backfillBusy, setBackfillBusy] = useState(false);
+
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
+  const [leadsForBroadcast, setLeadsForBroadcast] = useState<Lead[]>([]);
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [userFilter, setUserFilter] = useState<string>('');
@@ -669,6 +673,16 @@ export default function LeadsPage() {
               📤 Bulk Upload
             </button>
             <button
+              onClick={() => {
+                setLeadsForBroadcast(leads);
+                setBroadcastModalOpen(true);
+              }}
+              className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg transition-all font-semibold border border-blue-200 flex items-center gap-2"
+              title="Send broadcast message to all filtered leads"
+            >
+              📢 Broadcast
+            </button>
+            <button
               onClick={modal.open}
               className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white px-6 py-2 rounded-lg transition-all font-bold shadow-md hover:shadow-lg"
             >
@@ -1231,6 +1245,27 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+
+      {/* Add to Broadcast Modal */}
+      <AddToBroadcastModal
+        isOpen={broadcastModalOpen}
+        onClose={() => {
+          setBroadcastModalOpen(false);
+          setLeadsForBroadcast([]);
+        }}
+        leads={leadsForBroadcast}
+        token={token || undefined}
+        onSuccess={(result) => {
+          setError(null);
+          // Show success message
+          setTimeout(() => {
+            alert(`✓ Successfully added ${result.added} leads to broadcast list "${result.listName}"`);
+            if (result.skipped > 0) {
+              alert(`ℹ️ ${result.skipped} leads were already in the list`);
+            }
+          }, 100);
+        }}
+      />
     </div>
   );
 }

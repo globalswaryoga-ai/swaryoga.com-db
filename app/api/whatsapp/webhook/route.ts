@@ -82,22 +82,26 @@ export async function POST(request: NextRequest) {
     // This protects against random internet POSTs that would otherwise be accepted.
     const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
     if (appSecret) {
-      const signatureHeader = request.headers.get('x-hub-signature-256') || '';
-      // Expected format: "sha256=<hex>"
-      const provided = signatureHeader.startsWith('sha256=') ? signatureHeader.slice('sha256='.length) : '';
+      const signatureHeader =
+        request.headers.get('x-hub-signature-256') || request.headers.get('x-hub-signature') || '';
+      const equalsIndex = signatureHeader.indexOf('=');
+      const algo = equalsIndex > 0 ? signatureHeader.slice(0, equalsIndex).toLowerCase() : '';
+      const provided = equalsIndex > 0 ? signatureHeader.slice(equalsIndex + 1) : '';
+      const supportedAlgo = algo === 'sha1' ? 'sha1' : 'sha256';
+
       if (!provided) {
         await logWebhookEvent({
           kind: 'error',
           ok: false,
-          message: 'Missing x-hub-signature-256',
+          message: 'Missing webhook signature header',
         });
         const res = NextResponse.json(
           debug
             ? {
-                error: 'Missing x-hub-signature-256',
-                hint: 'If META_APP_SECRET/WHATSAPP_APP_SECRET is set, Meta must send x-hub-signature-256 and your edge/proxy must not strip it.',
+                error: 'Missing x-hub-signature',
+                hint: 'If META_APP_SECRET/WHATSAPP_APP_SECRET is set, Meta must send a webhook signature header (x-hub-signature or x-hub-signature-256).',
               }
-            : { error: 'Missing x-hub-signature-256' },
+            : { error: 'Missing webhook signature' },
           { status: 401 }
         );
         res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
@@ -106,8 +110,8 @@ export async function POST(request: NextRequest) {
         return res;
       }
 
-      // Basic validation: invalid hex or wrong length should fail safely.
-      if (provided.length !== 64 || !/^[0-9a-fA-F]+$/.test(provided)) {
+      const expectedLength = supportedAlgo === 'sha256' ? 64 : 40;
+      if (provided.length !== expectedLength || !/^[0-9a-fA-F]+$/.test(provided)) {
         await logWebhookEvent({
           kind: 'error',
           ok: false,
@@ -121,8 +125,7 @@ export async function POST(request: NextRequest) {
       }
 
       const rawBody = await request.text();
-      const expected = crypto.createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex');
-      // timingSafeEqual throws if buffer lengths differ, so keep it defensive.
+      const expected = crypto.createHmac(supportedAlgo, appSecret).update(rawBody, 'utf8').digest('hex');
       const providedBuf = Buffer.from(provided, 'hex');
       const expectedBuf = Buffer.from(expected, 'hex');
       if (providedBuf.length !== expectedBuf.length) {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
-import { AlertBox, LoadingSpinner } from '@/components/admin/crm';
+import { AlertBox, LoadingSpinner, AddToBroadcastModal } from '@/components/admin/crm';
 import { buildLabelOptions } from '@/lib/crm/labels';
 
 type LeadRow = {
@@ -114,6 +114,9 @@ export default function BroadcastPage() {
 
   // Selection
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  
+  // Broadcast list modal
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
 
   // Track last fetch to prevent rapid retries on errors
   const lastFetchTimeRef = useRef<number>(0);
@@ -519,13 +522,35 @@ export default function BroadcastPage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' as any }}>
               <div style={{ fontSize: 12, color: '#6B7280' }}>
                 {loading ? 'Loading…' : `${leads.length} leads`} {total ? `(total: ${total})` : ''}
               </div>
-              <button type="button" onClick={toggleAllVisible} disabled={!leads.length || loading}>
-                {leads.length && leads.every((l) => selectedLeadIds.has(l._id)) ? 'Unselect all' : 'Select all'}
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={toggleAllVisible} disabled={!leads.length || loading}>
+                  {leads.length && leads.every((l) => selectedLeadIds.has(l._id)) ? 'Unselect all' : 'Select all'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBroadcastModalOpen(true);
+                  }}
+                  disabled={!leads.length || loading}
+                  title="Add all filtered leads to a broadcast list"
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: '1px solid rgba(17, 24, 39, 0.08)',
+                    borderRadius: 6,
+                    background: '#DBEAFE',
+                    color: '#1e40af',
+                    cursor: 'pointer',
+                  }}
+                >
+                  📢 Add All to Broadcast
+                </button>
+              </div>
             </div>
           </div>
 
@@ -788,6 +813,24 @@ export default function BroadcastPage() {
           Loaded from listId: <code>{listId}</code>
         </div>
       ) : null}
+
+      {/* Add to Broadcast List Modal */}
+      <AddToBroadcastModal
+        isOpen={broadcastModalOpen}
+        onClose={() => setBroadcastModalOpen(false)}
+        leads={leads.filter((l) => l.phoneNumber) as any[]}
+        token={token || undefined}
+        onSuccess={(result) => {
+          setError(null);
+          // Show success message
+          setTimeout(() => {
+            alert(`✓ Successfully added ${result.added} leads to broadcast list "${result.listName}"`);
+            if (result.skipped > 0) {
+              alert(`ℹ️ ${result.skipped} leads were already in the list`);
+            }
+          }, 100);
+        }}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ export { DataTable, DataTableHeader, DataTableFooter } from './DataTable';
 export { Modal, FormModal, ConfirmModal } from './Modal';
 export { Form, FormField, FormGroup, FormActions } from './Form';
 export { BulkActionsModal } from './BulkActionsModal';
+export { AddToBroadcastModal } from './AddToBroadcastModal';
 export {
   StatusBadge,
   StatCard,
