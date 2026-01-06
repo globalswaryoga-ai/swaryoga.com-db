@@ -364,8 +364,10 @@ export default function AutomationPage() {
                   </div>
 
                   <div className="flex items-end gap-4">
-                    <label className="flex items-center gap-3">
+                    <label htmlFor="edit-enabled" className="flex items-center gap-3">
                       <input
+                        id="edit-enabled"
+                        name="enabled"
                         type="checkbox"
                         checked={editRuleForm.enabled}
                         onChange={(e) => setEditRuleForm((p) => ({ ...p, enabled: e.target.checked }))}
@@ -408,8 +410,10 @@ export default function AutomationPage() {
 
                   {editRuleForm.triggerType === 'keyword' && (
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-bold text-purple-100 mb-2">Keywords</label>
+                      <label htmlFor="edit-keywords" className="block text-sm font-bold text-purple-100 mb-2">Keywords</label>
                       <input
+                        id="edit-keywords"
+                        name="keywords"
                         value={editRuleForm.keywords}
                         onChange={(e) => setEditRuleForm((p) => ({ ...p, keywords: e.target.value }))}
                         className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
@@ -419,8 +423,10 @@ export default function AutomationPage() {
                   )}
 
                   <div>
-                    <label className="block text-sm font-bold text-purple-100 mb-2">Action Type</label>
+                    <label htmlFor="edit-action-type" className="block text-sm font-bold text-purple-100 mb-2">Action Type</label>
                     <select
+                      id="edit-action-type"
+                      name="actionType"
                       value={editRuleForm.actionType}
                       onChange={(e) => setEditRuleForm((p) => ({ ...p, actionType: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
@@ -432,8 +438,10 @@ export default function AutomationPage() {
 
                   {editRuleForm.actionType === 'send_template' ? (
                     <div>
-                      <label className="block text-sm font-bold text-purple-100 mb-2">Template ID</label>
+                      <label htmlFor="edit-template-id" className="block text-sm font-bold text-purple-100 mb-2">Template ID</label>
                       <input
+                        id="edit-template-id"
+                        name="actionTemplateId"
                         value={editRuleForm.actionTemplateId}
                         onChange={(e) => setEditRuleForm((p) => ({ ...p, actionTemplateId: e.target.value }))}
                         className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
@@ -442,8 +450,10 @@ export default function AutomationPage() {
                     </div>
                   ) : (
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-bold text-purple-100 mb-2">Message Text</label>
+                      <label htmlFor="edit-action-text" className="block text-sm font-bold text-purple-100 mb-2">Message Text</label>
                       <textarea
+                        id="edit-action-text"
+                        name="actionText"
                         value={editRuleForm.actionText}
                         onChange={(e) => setEditRuleForm((p) => ({ ...p, actionText: e.target.value }))}
                         rows={4}
@@ -871,8 +881,10 @@ export default function AutomationPage() {
 
             <form onSubmit={handleCreateRule} className="space-y-4">
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Rule Name</label>
+                <label htmlFor="new-rule-name" className="block text-purple-200 text-sm mb-2">Rule Name</label>
                 <input
+                  id="new-rule-name"
+                  name="newRuleName"
                   type="text"
                   value={newRuleName}
                   onChange={(e) => setNewRuleName(e.target.value)}
@@ -882,8 +894,10 @@ export default function AutomationPage() {
               </div>
 
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Trigger Type</label>
+                <label htmlFor="new-trigger-type" className="block text-purple-200 text-sm mb-2">Trigger Type</label>
                 <select
+                  id="new-trigger-type"
+                  name="newRuleTrigger"
                   value={newRuleTrigger}
                   onChange={(e) => setNewRuleTrigger(e.target.value)}
                   className="w-full bg-slate-700 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
@@ -895,8 +909,10 @@ export default function AutomationPage() {
               </div>
 
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Action Type</label>
+                <label htmlFor="new-action-type" className="block text-purple-200 text-sm mb-2">Action Type</label>
                 <select
+                  id="new-action-type"
+                  name="newRuleAction"
                   value={newRuleAction}
                   onChange={(e) => setNewRuleAction(e.target.value)}
                   className="w-full bg-slate-700 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
@@ -908,8 +924,10 @@ export default function AutomationPage() {
               </div>
 
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Message / Action</label>
+                <label htmlFor="new-rule-content" className="block text-purple-200 text-sm mb-2">Message / Action</label>
                 <textarea
+                  id="new-rule-content"
+                  name="newRuleContent"
                   value={newRuleContent}
                   onChange={(e) => setNewRuleContent(e.target.value)}
                   placeholder="Enter message text or action details"
