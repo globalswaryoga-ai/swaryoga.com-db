@@ -140,24 +140,21 @@ export default function MetaWhatsAppPage() {
     // that can feel like the page is "not showing").
   }, [token, enableMetaWhatsApp, router]);
 
-  if (token && !enableMetaWhatsApp) {
-    return (
-      <div className="min-h-screen bg-slate-50 p-8">
-        <div className="max-w-2xl mx-auto bg-white border border-slate-200 rounded-xl p-6 space-y-3">
-          <h1 className="text-xl font-bold text-slate-900">Meta Chat is disabled</h1>
-          <p className="text-slate-700">
-            Turn on <code className="px-1 py-0.5 bg-slate-100 rounded">NEXT_PUBLIC_ENABLE_META_WHATSAPP=true</code>{' '}
-            and restart the server to use this page.
-          </p>
-          <div>
-            <Link href="/admin/crm/whatsapp" className="text-emerald-700 font-semibold hover:underline">
-              Go back to WhatsApp Inbox
-            </Link>
-          </div>
-        </div>
+  const metaDisabledBanner = token && !enableMetaWhatsApp ? (
+    <div className="mb-4 rounded-xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-amber-900">
+      <div className="font-semibold">Meta Chat is disabled</div>
+      <div className="text-sm mt-1">
+        Set{' '}
+        <code className="px-1 py-0.5 bg-amber-100 rounded">NEXT_PUBLIC_ENABLE_META_WHATSAPP=true</code>{' '}
+        and redeploy/restart to enable Meta Cloud inbox features.
       </div>
-    );
-  }
+      <div className="text-sm mt-2">
+        <Link href="/admin/crm/whatsapp" className="font-semibold hover:underline">
+          Go back to WhatsApp Inbox
+        </Link>
+      </div>
+    </div>
+  ) : null;
 
   // Avoid callback dependency chains causing re-renders / TDZ issues.
   // We keep the latest tool loaders in refs and call them from fetchMessages.
@@ -705,6 +702,7 @@ export default function MetaWhatsAppPage() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-50">
+      <div className="mx-auto w-full max-w-[1400px] px-6 pt-6">{metaDisabledBanner}</div>
       {/* Header */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
         <div className="mx-auto w-full max-w-[1400px] px-6 py-4 flex items-center justify-between gap-6">

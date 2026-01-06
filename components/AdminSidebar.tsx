@@ -101,7 +101,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     },
     {
       icon: MessageCircle,
-      label: 'Meta Chat',
+      label: 'WhatsApp Chat',
       href: '/admin/crm/whatsapp-meta',
       color: 'text-cyan-600'
     },
