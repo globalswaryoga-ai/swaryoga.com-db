@@ -61,12 +61,6 @@ export default function AutomationPage() {
   // Avoid redirecting during hydration. Wait for first client paint.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  
-  // Guard against hydration mismatch + early auth redirects. AFTER all hooks.
-  if (typeof window === 'undefined') return <LoadingSpinner />;
-  
-  // Early auth check - redirect if no token (AFTER hooks)
-  if (!token) return <LoadingSpinner />;
 
   const [activeTab, setActiveTab] = useState<'welcome' | 'keywords' | 'scheduled' | 'broadcast'>('welcome');
   const [rules, setRules] = useState<AutomationRule[]>([]);
@@ -96,6 +90,12 @@ export default function AutomationPage() {
     actionTemplateId: '',
     throttleMinutesPerLead: 5,
   });
+
+  // Guard against hydration mismatch + early auth redirects. AFTER all hooks.
+  if (typeof window === 'undefined') return <LoadingSpinner />;
+  
+  // Early auth check - redirect if no token (AFTER hooks)
+  if (!token) return <LoadingSpinner />;
 
   const fetchRules = useCallback(async () => {
     if (inFlightRef.current) return;
