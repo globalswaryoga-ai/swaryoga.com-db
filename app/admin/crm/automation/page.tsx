@@ -44,8 +44,15 @@ interface BroadcastList {
 }
 
 export default function AutomationPage() {
+  // Guard against hydration mismatch + early auth redirects. Must happen FIRST, before all hooks.
+  if (typeof window === 'undefined') return <LoadingSpinner />;
+  
   const router = useRouter();
   const token = useAuth();
+  
+  // Early auth check - redirect if no token
+  if (!token) return <LoadingSpinner />;
+  
   // Ensure we don't recreate the `useCRM` options object every render.
   const crmOptions = useMemo(() => ({ token }), [token]);
   const crm = useCRM(crmOptions);
@@ -310,8 +317,6 @@ export default function AutomationPage() {
       setLoadingScope('page');
     }
   };
-
-  if (!token) return <LoadingSpinner />;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
