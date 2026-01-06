@@ -161,7 +161,7 @@ export default function AutomationPage() {
     lastFetchKeyRef.current = key;
     setLoadingScope('page');
     void fetchRules();
-  }, [mounted, token, router, fetchRules]);
+  }, [mounted, token, fetchRules]);
 
   const handleTabChange = (tab: typeof activeTab) => {
     setActiveTab(tab);
