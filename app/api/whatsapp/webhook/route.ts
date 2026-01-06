@@ -372,6 +372,10 @@ async function handleWebhookPayload(payload: any) {
                   deliveredAt: now,
                   sentAt: now,
                   waMessageId: inboundWaMessageId,
+                  // Styling: incoming messages appear in green background with white text
+                  backgroundColor: '#22c55e', // Bright green
+                  textColor: '#ffffff', // White text
+                  borderRadius: '8px',
                   metadata: {
                     webhook: {
                       messageId: inboundWaMessageId,
@@ -393,6 +397,10 @@ async function handleWebhookPayload(payload: any) {
               status: 'delivered',
               deliveredAt: now,
               sentAt: now,
+              // Styling: incoming messages appear in green background with white text
+              backgroundColor: '#22c55e', // Bright green
+              textColor: '#ffffff', // White text
+              borderRadius: '8px',
               metadata: {
                 webhook: {
                   messageId: msg?.id,

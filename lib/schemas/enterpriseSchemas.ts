@@ -207,6 +207,11 @@ const WhatsAppMessageSchema = new mongoose.Schema(
     },
     failureReason: String,
     waMessageId: String, // WhatsApp message ID from Meta API
+    // Message styling for UI display
+    backgroundColor: { type: String, default: '#ffffff' }, // bg color (e.g., '#22c55e' for green)
+    textColor: { type: String, default: '#000000' }, // text color (e.g., '#ffffff' for white)
+    borderColor: String, // optional border color
+    borderRadius: { type: String, default: '8px' }, // border radius for rounded corners
     // Optional because admin JWTs may not map to a User document.
     sentBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
     sentByLabel: String,

@@ -21,6 +21,11 @@ export type WhatsAppSendTextResult = {
   raw: any;
 };
 
+export type WhatsAppSendMediaResult = {
+  waMessageId?: string;
+  raw: any;
+};
+
 export type WhatsAppTemplateHeaderMedia = {
   kind: 'image' | 'video';
   url: string;
@@ -168,6 +173,117 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
     throw err;
   }
   // Bridge typically returns { success: true, messageId?: "..." }
+  const waMessageId = data?.messageId || data?.waMessageId;
+  return { waMessageId, raw: { ...data, provider: 'whatsapp_web_bridge' } };
+}
+
+/**
+ * Send image or video media directly (non-template)
+ * Used for: sending new images/videos via Meta Cloud API
+ */
+export async function sendWhatsAppMedia(
+  toRaw: string,
+  mediaUrl: string,
+  mediaType: 'image' | 'video',
+  caption?: string
+): Promise<WhatsAppSendMediaResult> {
+  const env = getWhatsAppEnv();
+
+  // If Cloud API is configured, use it
+  if (env) {
+    const { accessToken, phoneNumberId } = env;
+    const to = normalizePhone(toRaw);
+
+    const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
+    
+    // Build payload based on media type
+    const mediaTypeKey = mediaType === 'video' ? 'video' : 'image';
+    const payload: any = {
+      messaging_product: 'whatsapp',
+      to,
+      type: mediaTypeKey,
+      [mediaTypeKey]: {
+        link: mediaUrl,
+      },
+    };
+
+    // Add caption if provided (works for both image and video)
+    if (caption && caption.trim()) {
+      payload[mediaTypeKey].caption = String(caption).trim();
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const message =
+        data?.error?.message || data?.error?.error_user_msg || data?.error || 'WhatsApp API error';
+      const err = new Error(String(message));
+      (err as any).status = res.status;
+      (err as any).data = data;
+      throw err;
+    }
+
+    const waMessageId =
+      Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+
+    return { waMessageId, raw: { ...data, provider: 'meta' } };
+  }
+
+  // Fallback: Cloud API not configured → use WhatsApp Web bridge
+  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
+  if (!bridgeUrl) {
+    throw new Error(
+      'WhatsApp media sending unavailable: ' +
+        'Cloud API not configured (missing WHATSAPP_ACCESS_TOKEN) ' +
+        'and no Web bridge URL set (WHATSAPP_BRIDGE_HTTP_URL). ' +
+        'Media sending requires Cloud API.'
+    );
+  }
+
+  const to = normalizePhone(toRaw);
+  const sendUrl = `${bridgeUrl.replace(/\/+$/, '')}/api/send`;
+  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (bridgeSecret) {
+    headers['X-WhatsApp-Bridge-Secret'] = bridgeSecret;
+  }
+
+  // Web bridge format for media
+  const res = await fetch(sendUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      phone: to,
+      mediaUrl: mediaUrl,
+      mediaType: mediaType,
+      caption: caption || undefined,
+    }),
+    cache: 'no-store',
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const message =
+      data?.error || data?.message || `WhatsApp Web bridge error (HTTP ${res.status})`;
+    const err = new Error(String(message));
+    (err as any).status = res.status;
+    (err as any).data = data;
+    throw err;
+  }
+
   const waMessageId = data?.messageId || data?.waMessageId;
   return { waMessageId, raw: { ...data, provider: 'whatsapp_web_bridge' } };
 }
