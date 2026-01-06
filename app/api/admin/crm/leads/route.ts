@@ -41,7 +41,12 @@ export async function GET(request: NextRequest) {
     const workshop = url.searchParams.get('workshop');
     const q = url.searchParams.get('q');
     const userIdParam = url.searchParams.get('userId');
-    const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
+  // NOTE: Some admin screens (e.g., Broadcast) need a large dataset so client-side
+  // segmentation/filtering is accurate. We allow a higher cap for super-admin.
+  const requestedLimit = Number(url.searchParams.get('limit') || 50) || 50;
+  const selectAll = url.searchParams.get('selectAll') === 'true';
+  const maxLimit = selectAll ? 5000 : 200;
+  const limit = Math.min(requestedLimit, maxLimit);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
     await connectDB();

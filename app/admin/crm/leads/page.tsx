@@ -516,6 +516,22 @@ export default function LeadsPage() {
           </button>
 
           <button
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (filterStatus) params.set('status', filterStatus);
+              if (filterWorkshop) params.set('workshop', filterWorkshop);
+              if (isSuperAdmin && userFilter) params.set('userId', userFilter);
+              // Hint: keep the same lead highlighted by selecting just this lead.
+              params.set('leadId', lead._id);
+              router.push(`/admin/crm/broadcast?${params.toString()}`);
+            }}
+            className="px-3 py-1.5 bg-violet-100 hover:bg-violet-200 text-violet-800 rounded-lg text-sm font-medium transition-colors"
+            title="Open Broadcast with current filters"
+          >
+            📢 Broadcast
+          </button>
+
+          <button
             onClick={() => handleDeleteLead(lead._id)}
             className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
             title="Delete lead"

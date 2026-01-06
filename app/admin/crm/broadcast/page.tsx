@@ -31,6 +31,33 @@ type WhatsAppTemplateRow = {
   headerMedia?: { kind?: 'image' | 'video'; url?: string };
 };
 
+type TemplatePreviewPayload = {
+  headerMedia?: { kind?: 'image' | 'video'; url?: string };
+  buttons?: Array<{ title?: string }>;
+  body?: string;
+  footer?: string;
+};
+
+function safeParseTemplatePreview(content: string): TemplatePreviewPayload | null {
+  try {
+    const trimmed = String(content || '').trim();
+    if (!trimmed) return null;
+    if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return null;
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== 'object') return null;
+    // Accept either {body, footer, headerMedia, buttons} or nested {preview: {...}}
+    const candidate = (parsed as any).preview && typeof (parsed as any).preview === 'object' ? (parsed as any).preview : parsed;
+    return {
+      headerMedia: candidate?.headerMedia,
+      buttons: Array.isArray(candidate?.buttons) ? candidate.buttons : undefined,
+      body: typeof candidate?.body === 'string' ? candidate.body : undefined,
+      footer: typeof candidate?.footer === 'string' ? candidate.footer : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function uniq(values: string[]) {
   return Array.from(new Set(values.map((x) => String(x).trim()).filter(Boolean)));
 }
@@ -48,12 +75,29 @@ export default function BroadcastPage() {
   const crm = useCRM({ token });
 
   const listId = sp.get('listId') || '';
+  const deepLinkLeadId = sp.get('leadId') || '';
 
   // Filter controls
   const [status, setStatus] = useState('');
   const [workshopName, setWorkshopName] = useState('');
   const [adminUserId, setAdminUserId] = useState('');
   const [label, setLabel] = useState('');
+
+  // Support deep-links from other pages (e.g., Leads page) so Broadcast can open
+  // with filters pre-selected.
+  useEffect(() => {
+    const qsStatus = sp.get('status') || '';
+    const qsWorkshop = sp.get('workshop') || '';
+    const qsUserId = sp.get('userId') || '';
+    const qsLabel = sp.get('label') || '';
+
+    // Only set if currently empty to avoid overriding user interactions.
+    setStatus((prev) => (prev ? prev : qsStatus));
+    setWorkshopName((prev) => (prev ? prev : qsWorkshop));
+    setAdminUserId((prev) => (prev ? prev : qsUserId));
+    setLabel((prev) => (prev ? prev : qsLabel));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +125,12 @@ export default function BroadcastPage() {
     () => templates.find((t) => t._id === selectedTemplateId) || null,
     [templates, selectedTemplateId]
   );
+
+  const selectedTemplatePreview = useMemo(() => {
+    if (!selectedTemplate) return null;
+    const parsed = safeParseTemplatePreview(selectedTemplate.templateContent);
+    return parsed;
+  }, [selectedTemplate]);
 
   // Mode
   const [sendMode, setSendMode] = useState<'now' | 'schedule' | 'delay'>('now');
@@ -176,6 +226,8 @@ export default function BroadcastPage() {
       // otherwise filters will "miss" leads that exist beyond the first page.
       params.set('limit', '5000');
       params.set('skip', '0');
+  // Allows super-admin to request a larger dataset from the API.
+  params.set('selectAll', 'true');
       // Status is a client-side segmentation bucket (leads/prospect/customer/inactive).
       // The server stores granular statuses, so we fetch broadly and filter locally.
       if (workshopName) params.set('workshop', workshopName);
@@ -186,7 +238,7 @@ export default function BroadcastPage() {
       const res: any = await crm.fetch(url, { method: 'GET' });
 
       const rows: LeadRow[] = Array.isArray(res?.data?.leads) ? res.data.leads : [];
-  const serverTotal: number = Number(res?.data?.total ?? rows.length ?? 0);
+    const serverTotal: number = Number(res?.data?.total ?? rows.length ?? 0);
 
       const normalizeStatus = (s: any) => String(s || '').trim().toLowerCase();
       const statusBucket = (s: any): 'lead' | 'prospect' | 'customer' | 'inactive' | '' => {
@@ -232,7 +284,13 @@ export default function BroadcastPage() {
       // Keep selection only for visible leads
       setSelectedLeadIds((prev) => {
         const visible = new Set(filtered.map((l) => l._id));
-        return new Set(Array.from(prev).filter((id) => visible.has(id)));
+        const next = new Set(Array.from(prev).filter((id) => visible.has(id)));
+        // Deep-link convenience: if a leadId query param is provided, auto-select it
+        // (only if it's visible in the current filtered results).
+        if (deepLinkLeadId && visible.has(deepLinkLeadId)) {
+          next.add(deepLinkLeadId);
+        }
+        return next;
       });
     } catch (e) {
       setLeads([]);
@@ -241,7 +299,7 @@ export default function BroadcastPage() {
     } finally {
       setLoading(false);
     }
-  }, [adminUserId, crm, label, status, workshopName]);
+  }, [adminUserId, crm, deepLinkLeadId, label, status, workshopName]);
 
   useEffect(() => {
     if (!token) return;
@@ -577,18 +635,43 @@ export default function BroadcastPage() {
                 <div style={{ marginTop: 8, color: '#6B7280', fontSize: 13 }}>Pick a template to preview here.</div>
               ) : (
                 <>
-                  {selectedTemplate.headerMedia?.kind === 'image' && selectedTemplate.headerMedia.url ? (
+                  {((selectedTemplatePreview?.headerMedia || selectedTemplate.headerMedia)?.kind === 'image') &&
+                  (selectedTemplatePreview?.headerMedia || selectedTemplate.headerMedia)?.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={selectedTemplate.headerMedia.url}
+                      src={(selectedTemplatePreview?.headerMedia || selectedTemplate.headerMedia)!.url!}
                       alt="template header"
                       style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 12, marginTop: 8 }}
                     />
                   ) : null}
+
                   <div style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: 13, color: '#111827' }}>
-                    {selectedTemplate.templateContent}
+                    {selectedTemplatePreview?.body ?? selectedTemplate.templateContent}
                   </div>
-                  {Array.isArray(selectedTemplate.buttons) && selectedTemplate.buttons.length ? (
+
+                  {selectedTemplatePreview?.footer ? (
+                    <div style={{ marginTop: 10, fontSize: 12, color: '#6B7280' }}>{selectedTemplatePreview.footer}</div>
+                  ) : null}
+
+                  {Array.isArray(selectedTemplatePreview?.buttons) && selectedTemplatePreview!.buttons!.length ? (
+                    <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                      {selectedTemplatePreview!.buttons!.map((b, idx) => (
+                        <div
+                          key={`${String(b?.title || 'btn')}-${idx}`}
+                          style={{
+                            border: '1px solid rgba(17, 24, 39, 0.12)',
+                            borderRadius: 10,
+                            background: '#fff',
+                            padding: '10px 12px',
+                            textAlign: 'center',
+                            fontSize: 13,
+                          }}
+                        >
+                          {String(b?.title || 'Button')}
+                        </div>
+                      ))}
+                    </div>
+                  ) : Array.isArray(selectedTemplate.buttons) && selectedTemplate.buttons.length ? (
                     <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
                       {selectedTemplate.buttons.map((b, idx) => (
                         <div
