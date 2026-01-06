@@ -697,8 +697,10 @@ export default function LeadsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Status Filter */}
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-3">Status</label>
+              <label htmlFor="filter-status" className="block text-slate-700 text-sm font-semibold mb-3">Status</label>
               <select
+                id="filter-status"
+                name="status"
                 value={filterStatus}
                 onChange={(e) => {
                   setFilterStatus(e.target.value);
@@ -716,8 +718,10 @@ export default function LeadsPage() {
 
             {/* Workshop Filter */}
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-3">Program/Workshop</label>
+              <label htmlFor="filter-workshop" className="block text-slate-700 text-sm font-semibold mb-3">Program/Workshop</label>
               <select
+                id="filter-workshop"
+                name="workshop"
                 value={filterWorkshop}
                 onChange={(e) => {
                   setFilterWorkshop(e.target.value);
@@ -737,8 +741,10 @@ export default function LeadsPage() {
             {/* User Filter */}
             {isSuperAdmin && (
               <div>
-                <label className="block text-slate-700 text-sm font-semibold mb-3">Admin User</label>
+                <label htmlFor="filter-user" className="block text-slate-700 text-sm font-semibold mb-3">Admin User</label>
                 <select
+                  id="filter-user"
+                  name="user"
                   value={userFilter}
                   onChange={(e) => {
                     setUserFilter(e.target.value);
@@ -758,8 +764,10 @@ export default function LeadsPage() {
 
             {/* Search Box */}
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-3">Search</label>
+              <label htmlFor="search-input" className="block text-slate-700 text-sm font-semibold mb-3">Search</label>
               <input
+                id="search-input"
+                name="search"
                 type="text"
                 placeholder="Name, email, phone..."
                 value={search.query}

@@ -347,8 +347,10 @@ export default function AutomationPage() {
               <form onSubmit={handleSaveEditRule} className="p-6 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-purple-100 mb-2">Rule Name</label>
+                    <label htmlFor="rule-name" className="block text-sm font-bold text-purple-100 mb-2">Rule Name</label>
                     <input
+                      id="rule-name"
+                      name="ruleName"
                       value={editRuleForm.name}
                       onChange={(e) => setEditRuleForm((p) => ({ ...p, name: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
@@ -369,8 +371,10 @@ export default function AutomationPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-purple-100 mb-2">Trigger</label>
+                    <label htmlFor="trigger-type" className="block text-sm font-bold text-purple-100 mb-2">Trigger</label>
                     <select
+                      id="trigger-type"
+                      name="triggerType"
                       value={editRuleForm.triggerType}
                       onChange={(e) => setEditRuleForm((p) => ({ ...p, triggerType: e.target.value }))}
                       className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
@@ -383,8 +387,10 @@ export default function AutomationPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-purple-100 mb-2">Throttle minutes (per lead)</label>
+                    <label htmlFor="throttle-minutes" className="block text-sm font-bold text-purple-100 mb-2">Throttle minutes (per lead)</label>
                     <input
+                      id="throttle-minutes"
+                      name="throttleMinutes"
                       type="number"
                       min={0}
                       value={String(editRuleForm.throttleMinutesPerLead ?? 0)}
