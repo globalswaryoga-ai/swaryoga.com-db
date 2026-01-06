@@ -13,7 +13,8 @@ function getViewerUserId(decoded: any): string {
 function isSuperAdmin(decoded: any): boolean {
   return (
     decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
+    (Array.isArray(decoded?.permissions) && 
+      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
   );
 }
 
