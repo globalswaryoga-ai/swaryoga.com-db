@@ -705,115 +705,61 @@ export default function MetaWhatsAppPage() {
       <div className="mx-auto w-full max-w-[1400px] px-6 pt-6">{metaDisabledBanner}</div>
       {/* Header */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="mx-auto w-full max-w-[1400px] px-6 py-4 flex items-center justify-between gap-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">WhatsApp Meta Inbox</h1>
-            <p className="text-sm text-gray-600">Official Business Number Messages</p>
-
-            {/* Header nav tabs */}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link href="/admin/crm/broadcast" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
-                Broadcast
-              </Link>
-              <Link href="/admin/crm/chatbots" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
-                Chatbot
-              </Link>
-              <Link href="/admin/crm/automation" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
-                Automation
-              </Link>
-              <Link href="/admin/crm/whatsapp/settings" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
-                Settings
-              </Link>
-              <Link href="/admin/crm/templates" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100">
-                Templates
-              </Link>
-            </div>
-
-            {/* Webhook diagnostics strip */}
-            <div className="mt-2 text-xs text-gray-700">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="font-semibold">Inbound Webhook:</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full border ${
-                    webhookStatus?.verifyTokenSet ? 'bg-green-50 border-green-300 text-green-700' : 'bg-red-50 border-red-300 text-red-700'
-                  }`}
-                >
-                  verify token {webhookStatus?.verifyTokenSet ? 'set' : 'missing'}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded-full border ${
-                    webhookStatus?.appSecretSet ? 'bg-green-50 border-green-300 text-green-700' : 'bg-yellow-50 border-yellow-300 text-yellow-700'
-                  }`}
-                >
-                  signature {webhookStatus?.appSecretSet ? 'enabled' : 'not enabled'}
-                </span>
-                <span className="truncate max-w-[520px]">
-                  callback: <span className="font-mono">{webhookStatus?.callbackUrl || 'unknown'}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={fetchWebhookDiagnostics}
-                  disabled={webhookLoading}
-                  className={`px-2 py-1 rounded border text-xs ${webhookLoading ? 'opacity-50' : 'hover:bg-gray-50'}`}
-                >
-                  {webhookLoading ? 'Refreshing…' : 'Refresh'}
-                </button>
-              </div>
-
-              {webhookEvents.length === 0 ? (
-                <div className="mt-1 text-gray-500">
-                  No webhook events logged yet. If messages are sent but not received, Meta is likely not hitting the callback URL.
-                </div>
-              ) : (
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {webhookEvents.slice(0, 5).map((e) => (
-                    <span
-                      key={String(e?._id || e?.receivedAt || Math.random())}
-                      className={`px-2 py-0.5 rounded border ${
-                        e?.ok === false ? 'bg-red-50 border-red-300 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-700'
-                      }`}
-                      title={String(e?.message || '')}
-                    >
-                      {String(e?.kind || 'event')} {e?.phoneNumber ? `• ${String(e.phoneNumber).slice(-6)}` : ''}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-3 items-center">
-            <button
-              onClick={checkMetaConnection}
-              disabled={connectionStatus === 'checking'}
-              className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
-                connectionStatus === 'connected'
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : connectionStatus === 'disconnected'
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              } ${connectionStatus === 'checking' ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {connectionStatus === 'checking' && <span className="animate-spin">⟳</span>}
-              {connectionStatus === 'connected' && <span>✓</span>}
-              {connectionStatus === 'disconnected' && <span>✕</span>}
-              {!connectionStatus && <span>⚡</span>}
-              {connectionStatus === 'checking' ? 'Checking...' : connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'disconnected' ? 'Disconnected' : 'Check Connection'}
-            </button>
+        <div className="mx-auto w-full max-w-[1400px] px-6 py-3">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left (small label/link) */}
             <Link
-              href="/admin/crm/leads"
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              href="/admin/crm/whatsapp-meta"
+              className="text-xs font-semibold text-slate-700 hover:text-slate-900 whitespace-nowrap"
+              title="Meta WhatsApp Inbox"
             >
-              ← Back to Leads
+              Meta WhatsApp Inbox
             </Link>
 
-            <button
-              type="button"
-              onClick={() => setCreateLeadOpen(true)}
-              title="Create lead"
-              className="h-10 w-10 rounded-full bg-red-600 text-white text-2xl font-extrabold shadow hover:bg-red-700 flex items-center justify-center"
-            >
-              +
-            </button>
+            {/* Header buttons (single row) */}
+            <nav className="flex-1 overflow-x-auto">
+              <div className="flex flex-nowrap items-center justify-end gap-2 min-w-max">
+                <Link href="/admin/crm/broadcast" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
+                  Broadcast
+                </Link>
+                <Link href="/admin/crm/chatbots" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
+                  Chatbot
+                </Link>
+                <Link href="/admin/crm/automation" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
+                  Automation
+                </Link>
+                <Link href="/admin/crm/whatsapp/settings" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
+                  Settings
+                </Link>
+                <Link href="/admin/crm/templates" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
+                  Templates
+                </Link>
+                <Link href="/admin/crm/sales" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
+                  Sales
+                </Link>
+                <Link href="/admin/crm/leads" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
+                  Leads
+                </Link>
+                <button
+                  type="button"
+                  onClick={checkMetaConnection}
+                  disabled={connectionStatus === 'checking'}
+                  className={`px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 whitespace-nowrap transition-colors ${
+                    connectionStatus === 'connected'
+                      ? 'bg-green-600 hover:bg-green-700 text-white border-green-700'
+                      : connectionStatus === 'disconnected'
+                        ? 'bg-red-600 hover:bg-red-700 text-white border-red-700'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-900'
+                  } ${connectionStatus === 'checking' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title="Connect/Disconnect status"
+                >
+                  {connectionStatus === 'connected' ? 'Disconnect' : 'Connect'}
+                </button>
+                <Link href="/admin/crm/whatsapp" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
+                  Home
+                </Link>
+              </div>
+            </nav>
           </div>
         </div>
       </div>
