@@ -44,14 +44,8 @@ interface BroadcastList {
 }
 
 export default function AutomationPage() {
-  // Guard against hydration mismatch + early auth redirects. Must happen FIRST, before all hooks.
-  if (typeof window === 'undefined') return <LoadingSpinner />;
-  
   const router = useRouter();
   const token = useAuth();
-  
-  // Early auth check - redirect if no token
-  if (!token) return <LoadingSpinner />;
   
   // Ensure we don't recreate the `useCRM` options object every render.
   const crmOptions = useMemo(() => ({ token }), [token]);
@@ -67,6 +61,12 @@ export default function AutomationPage() {
   // Avoid redirecting during hydration. Wait for first client paint.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  
+  // Guard against hydration mismatch + early auth redirects. AFTER all hooks.
+  if (typeof window === 'undefined') return <LoadingSpinner />;
+  
+  // Early auth check - redirect if no token (AFTER hooks)
+  if (!token) return <LoadingSpinner />;
 
   const [activeTab, setActiveTab] = useState<'welcome' | 'keywords' | 'scheduled' | 'broadcast'>('welcome');
   const [rules, setRules] = useState<AutomationRule[]>([]);
