@@ -1,8 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { useCRM } from '@/hooks/useCRM';
 import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -12,6 +14,29 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen = true, onClose = () => {} }: AdminSidebarProps) {
   const router = useRouter();
+  const token = useAuth();
+  const crm = useCRM({ token });
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread message count
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchUnreadCount = async () => {
+      try {
+        const result = await crm.fetch('/api/admin/crm/messages/unread-count');
+        setUnreadCount(result?.unreadCount || 0);
+      } catch (err) {
+        console.error('Failed to fetch unread count:', err);
+      }
+    };
+
+    fetchUnreadCount();
+
+    // Poll every 30 seconds for new messages
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [token, crm]);
 
   const handleNavClick = () => {
     // Auto-close sidebar on mobile when a link is clicked
@@ -183,15 +208,21 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
         <nav className="flex-1 p-4 sm:p-6 space-y-1 sm:space-y-2 overflow-y-auto">
           {visibleMenuItems.map((item) => {
             const Icon = item.icon;
+            const showBadge = item.label === 'WhatsApp Chat' && unreadCount > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={handleNavClick}
-                className="flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-gray-800 transition-colors group touch-target text-sm sm:text-base active:scale-95"
+                className="flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg hover:bg-gray-800 transition-colors group touch-target text-sm sm:text-base active:scale-95 relative"
               >
                 <Icon className={`h-5 w-5 flex-shrink-0 ${item.color}`} />
                 <span className="font-medium truncate">{item.label}</span>
+                {showBadge && (
+                  <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}

@@ -1,12 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import {
-  DataTable,
-  FormModal,
   PageHeader,
   LoadingSpinner,
   AlertBox,
@@ -26,64 +24,103 @@ interface Message {
   isArchived?: boolean;
   failureReason?: string;
   sentAt?: string;
+  backgroundColor?: string;
+  textColor?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ConversationThread {
+  phoneNumber: string;
+  leadId?: string;
+  leadName?: string;
+  unreadCount: number;
+  lastMessage: Message;
+  lastMessageAt: Date;
+  messages: Message[];
 }
 
 export default function MessagesPage() {
   const router = useRouter();
   const token = useAuth();
   const crm = useCRM({ token });
-  const crmFetch = crm.fetch;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const [showSendModal, setShowSendModal] = useState(false);
+  const [view, setView] = useState<'incoming' | 'all'>('incoming');
+  const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'queued' | 'sent' | 'delivered' | 'failed' | 'read'>('all');
-  const [directionFilter, setDirectionFilter] = useState<'all' | 'inbound' | 'outbound'>('all');
-  const [readFilter, setReadFilter] = useState<'all' | 'read' | 'unread'>('all');
-  const [formData, setFormData] = useState({
-    leadId: '',
-    phoneNumber: '',
-    messageContent: '',
-  });
-  const [page, setPage] = useState(1);
-  const [totalMessages, setTotalMessages] = useState(0);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const pageSize = 20;
+  // Group messages into conversation threads
+  const buildThreads = useCallback((msgs: Message[]): ConversationThread[] => {
+    const threadMap = new Map<string, ConversationThread>();
 
-  // Filter messages based on search query
-  const filteredMessages = messages.filter((msg) => {
-    const leadName = typeof msg.leadId === 'string' ? '' : msg.leadId?.name || '';
-    const phone = msg.phoneNumber || '';
-    const query = searchQuery.toLowerCase();
-    
-    return (
-      leadName.toLowerCase().includes(query) ||
-      phone.includes(query)
-    );
-  });
+    msgs.forEach((msg) => {
+      const phone = msg.phoneNumber;
+      const leadId = typeof msg.leadId === 'string' ? msg.leadId : msg.leadId?._id;
+      const leadName = typeof msg.leadId === 'string' ? undefined : msg.leadId?.name;
+
+      if (!threadMap.has(phone)) {
+        threadMap.set(phone, {
+          phoneNumber: phone,
+          leadId,
+          leadName,
+          unreadCount: 0,
+          lastMessage: msg,
+          lastMessageAt: new Date(msg.sentAt || msg.createdAt),
+          messages: [],
+        });
+      }
+
+      const thread = threadMap.get(phone)!;
+      thread.messages.push(msg);
+
+      if (msg.direction === 'inbound' && !msg.isRead) {
+        thread.unreadCount += 1;
+      }
+
+      // Update last message
+      const msgTime = new Date(msg.sentAt || msg.createdAt);
+      if (msgTime > thread.lastMessageAt) {
+        thread.lastMessage = msg;
+        thread.lastMessageAt = msgTime;
+      }
+    });
+
+    // Sort threads by most recent message first
+    const threads = Array.from(threadMap.values());
+    threads.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
+
+    // Sort messages within each thread by oldest first
+    threads.forEach((thread) => {
+      thread.messages.sort((a, b) => {
+        const aTime = new Date(a.sentAt || a.createdAt).getTime();
+        const bTime = new Date(b.sentAt || b.createdAt).getTime();
+        return aTime - bTime;
+      });
+    });
+
+    return threads;
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     try {
       setError(null);
-      const result = await crmFetch('/api/admin/crm/messages', {
+      const result = await crm.fetch('/api/admin/crm/messages', {
         params: {
-          limit: pageSize,
-          skip: (page - 1) * pageSize,
-          status: statusFilter === 'all' ? undefined : statusFilter,
-          direction: directionFilter === 'all' ? undefined : directionFilter,
+          limit: 1000, // Fetch enough for thread grouping
+          direction: view === 'incoming' ? 'inbound' : undefined,
         },
       });
 
       setMessages(result?.messages || []);
-      setTotalMessages(result?.total || 0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : 'Failed to fetch messages');
     }
-  }, [crmFetch, directionFilter, page, pageSize, statusFilter]);
+  }, [crm, view]);
 
   useEffect(() => {
     if (!token) {
@@ -91,482 +128,263 @@ export default function MessagesPage() {
       return;
     }
     fetchMessages();
-  }, [token, router, fetchMessages]);
+  }, [token, router, fetchMessages, view]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Auto-refresh incoming messages every 5 seconds
+  useEffect(() => {
+    if (view !== 'incoming') return;
+    const interval = setInterval(() => {
+      fetchMessages();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [view, fetchMessages]);
+
+  const threads = buildThreads(messages);
+
+  const filteredThreads = threads.filter((thread) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      thread.phoneNumber.includes(query) ||
+      (thread.leadName && thread.leadName.toLowerCase().includes(query))
+    );
+  });
+
+  const handleSendReply = async () => {
+    if (!selectedThread || !replyText.trim()) return;
+    if (!selectedThread.leadId) {
+      setError('Cannot reply: no lead associated with this conversation');
+      return;
+    }
+
+    setIsSendingReply(true);
     try {
       await crm.fetch('/api/admin/crm/messages', {
         method: 'POST',
         body: {
-          leadId: formData.leadId,
-          phoneNumber: formData.phoneNumber,
-          messageContent: formData.messageContent,
+          leadId: selectedThread.leadId,
+          phoneNumber: selectedThread.phoneNumber,
+          messageContent: replyText.trim(),
           messageType: 'text',
         },
       });
 
-      setShowSendModal(false);
-      setFormData({ leadId: '', phoneNumber: '', messageContent: '' });
-      setPage(1);
-      fetchMessages();
+      setReplyText('');
+      setSelectedThread(null);
+      await fetchMessages();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send message');
+      setError(err instanceof Error ? err.message : 'Failed to send reply');
+    } finally {
+      setIsSendingReply(false);
     }
   };
 
-  const handleRetryMessage = async (messageId: string) => {
+  const handleMarkThreadAsRead = async (thread: ConversationThread) => {
     try {
-      await crm.fetch('/api/admin/crm/messages', {
-        method: 'PUT',
-        body: { messageId, action: 'retry' },
-      });
-      fetchMessages();
+      for (const msg of thread.messages) {
+        if (msg.direction === 'inbound' && !msg.isRead) {
+          await crm.fetch('/api/admin/crm/messages', {
+            method: 'PUT',
+            body: { messageId: msg._id, action: 'mark-read' },
+          });
+        }
+      }
+      await fetchMessages();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to retry');
+      setError(err instanceof Error ? err.message : 'Failed to mark thread as read');
     }
   };
-
-  const handleDeleteMessage = async (messageId: string) => {
-    if (!confirm('Delete this message?')) return;
-    try {
-      await crm.fetch('/api/admin/crm/messages', {
-        method: 'DELETE',
-        params: { messageId },
-      });
-      fetchMessages();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete');
-    }
-  };
-
-  const handleMarkAsRead = async (messageId: string) => {
-    try {
-      await crm.fetch('/api/admin/crm/messages', {
-        method: 'PUT',
-        body: { messageId, action: 'mark-read' },
-      });
-      fetchMessages();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark as read');
-    }
-  };
-
-  const handleMarkAsUnread = async (messageId: string) => {
-    try {
-      await crm.fetch('/api/admin/crm/messages', {
-        method: 'PUT',
-        body: { messageId, action: 'mark-unread' },
-      });
-      fetchMessages();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark as unread');
-    }
-  };
-
-  const handleArchiveMessage = async (messageId: string) => {
-    try {
-      await crm.fetch('/api/admin/crm/messages', {
-        method: 'PUT',
-        body: { messageId, action: 'archive' },
-      });
-      fetchMessages();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to archive');
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      queued: 'bg-yellow-500/20 text-yellow-200 border-yellow-500/30',
-      sent: 'bg-blue-500/20 text-blue-200 border-blue-500/30',
-      delivered: 'bg-purple-500/20 text-purple-200 border-purple-500/30',
-      failed: 'bg-red-500/20 text-red-200 border-red-500/30',
-      read: 'bg-green-500/20 text-green-200 border-green-500/30',
-    };
-    return colors[status] || colors.queued;
-  };
-
-  const getDirectionIcon = (direction: string) => {
-    return direction === 'inbound' ? '📨' : '📤';
-  };
-
-  const columns = [
-    {
-      key: 'direction',
-      label: 'Type',
-      render: (dir: string) => `${getDirectionIcon(dir)} ${dir}`,
-    },
-    {
-      key: 'leadId',
-      label: 'Lead',
-      render: (lead: string | PopulatedLead) =>
-        typeof lead === 'string' ? lead.slice(-6) : lead?._id?.slice(-6) || 'N/A',
-    },
-    {
-      key: 'messageContent',
-      label: 'Message',
-      render: (msg: string) => <div className="line-clamp-2">{msg}</div>,
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (status: string) => (
-        <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${getStatusColor(status)}`}>
-          {status}
-        </span>
-      ),
-    },
-    {
-      key: 'sentAt',
-      label: 'Date',
-      render: (date: string) => (date ? new Date(date).toLocaleDateString() : '-'),
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (_: any, msg: Message) => (
-        <div className="flex gap-1 flex-wrap">
-          <button
-            onClick={() => setSelectedMessage(msg)}
-            className="px-2 py-1 bg-slate-100 text-black font-bold rounded text-xs hover:bg-slate-200 transition-colors border border-slate-300"
-            title="View details"
-          >
-            View
-          </button>
-          {msg.status === 'failed' && (
-            <button
-              onClick={() => handleRetryMessage(msg._id)}
-              className="px-2 py-1 bg-yellow-100 text-black font-bold rounded text-xs hover:bg-yellow-200 transition-colors border border-yellow-300"
-              title="Retry failed message"
-            >
-              Retry
-            </button>
-          )}
-          {!msg.isRead ? (
-            <button
-              onClick={() => handleMarkAsRead(msg._id)}
-              className="px-2 py-1 bg-green-100 text-black font-bold rounded text-xs hover:bg-green-200 transition-colors border border-green-300"
-              title="Mark as read"
-            >
-              ✓ Read
-            </button>
-          ) : (
-            <button
-              onClick={() => handleMarkAsUnread(msg._id)}
-              className="px-2 py-1 bg-white text-black font-bold rounded text-xs hover:bg-slate-100 transition-colors border border-slate-300"
-              title="Mark as unread"
-            >
-              Unread
-            </button>
-          )}
-          <button
-            onClick={() => handleArchiveMessage(msg._id)}
-            className="px-2 py-1 bg-purple-100 text-black font-bold rounded text-xs hover:bg-purple-200 transition-colors border border-purple-300"
-            title="Archive message"
-          >
-            📁 Archive
-          </button>
-          <button
-            onClick={() => handleDeleteMessage(msg._id)}
-            className="px-2 py-1 bg-red-100 text-black font-bold rounded text-xs hover:bg-red-200 transition-colors border border-red-300"
-            title="Delete message"
-          >
-            🗑️
-          </button>
-        </div>
-      ),
-    },
-  ];
 
   return (
-    <div className="min-h-screen bg-white p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Page Header */}
-        <PageHeader
-          title="Messages & WhatsApp"
-          action={
-            <button
-              onClick={() => setShowSendModal(true)}
-              className="bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-2 rounded-lg transition-all font-semibold"
-            >
-              + Send Message
-            </button>
-          }
-        />
-
-        {/* Filters */}
-        <div className="space-y-4">
-          {/* Search Bar */}
-          <div>
-            <label className="block text-purple-200 text-sm mb-2">🔍 Search by Name / Mobile / Email</label>
-            <input
-              type="text"
-              placeholder="Enter name, phone number, or email..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
-              className="w-full bg-slate-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 placeholder-purple-300/50"
-            />
-          </div>
-
-          {/* Filter Selects */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-purple-200 text-sm mb-2">Filter by Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as any);
-                setPage(1);
-              }}
-              className="w-full bg-slate-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-            >
-              <option value="all">All Status</option>
-              <option value="queued">Queued</option>
-              <option value="sent">Sent</option>
-              <option value="delivered">Delivered</option>
-              <option value="failed">Failed</option>
-              <option value="read">Read</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-purple-200 text-sm mb-2">Filter by Direction</label>
-            <select
-              value={directionFilter}
-              onChange={(e) => {
-                setDirectionFilter(e.target.value as any);
-                setPage(1);
-              }}
-              className="w-full bg-slate-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-            >
-              <option value="all">All Directions</option>
-              <option value="inbound">Inbound (Received)</option>
-              <option value="outbound">Outbound (Sent)</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-purple-200 text-sm mb-2">Filter by Read Status</label>
-            <select
-              value={readFilter}
-              onChange={(e) => {
-                setReadFilter(e.target.value as any);
-                setPage(1);
-              }}
-              className="w-full bg-slate-800/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-            >
-              <option value="all">All Messages</option>
-              <option value="read">Read</option>
-              <option value="unread">Unread</option>
-            </select>
-          </div>
-        </div>
-        </div>
-
-        {/* Content */}
-        {crm.loading ? (
-          <LoadingSpinner />
-        ) : error ? (
-          <AlertBox type="error" message={error} onClose={() => setError(null)} />
-        ) : (
-          <div className="space-y-6">
-            {/* Data Table */}
-            <DataTable
-              columns={columns}
-              data={filteredMessages}
-              emptyMessage="No messages found"
-            />
-
-            {/* Pagination */}
-            {totalMessages > 0 && (
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-4 py-2 bg-purple-500/20 text-purple-200 rounded-lg disabled:opacity-50 hover:bg-purple-500/30 transition-colors"
-                >
-                  Previous
-                </button>
-                <div className="text-purple-200 text-sm">
-                  {totalMessages > 0 ? `Showing ${(page - 1) * pageSize + 1} - ${Math.min(page * pageSize, totalMessages)} of ${totalMessages}` : 'No messages'}
-                </div>
-                <button
-                  onClick={() => setPage(p => p + 1)}
-                  disabled={page * pageSize >= totalMessages}
-                  className="px-4 py-2 bg-purple-500/20 text-purple-200 rounded-lg disabled:opacity-50 hover:bg-purple-500/30 transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Message Detail Modal */}
-        {selectedMessage && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
-            <div className="bg-slate-800 rounded-xl border border-purple-500/50 p-8 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-              <h2 className="text-2xl font-bold text-white mb-6">Message Details</h2>
-
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-purple-300 text-sm mb-1">Direction</label>
-                  <div className="text-white capitalize">{selectedMessage.direction} - {getDirectionIcon(selectedMessage.direction)}</div>
-                </div>
-                <div>
-                  <label className="block text-purple-300 text-sm mb-1">Lead ID</label>
-                  <div className="text-white font-mono">
-                    {typeof selectedMessage.leadId === 'string'
-                      ? selectedMessage.leadId
-                      : selectedMessage.leadId?._id}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-purple-300 text-sm mb-1">Status</label>
-                  <span className={`inline-block px-3 py-1 rounded-lg text-sm font-medium border ${getStatusColor(selectedMessage.status)}`}>
-                    {selectedMessage.status}
-                  </span>
-                </div>
-                <div>
-                  <label className="block text-purple-300 text-sm mb-1">Message</label>
-                  <div className="bg-slate-700/50 rounded-lg p-4 text-purple-200 whitespace-pre-wrap">
-                    {selectedMessage.messageContent}
-                  </div>
-                </div>
-                {selectedMessage.failureReason && (
-                  <div>
-                    <label className="block text-purple-300 text-sm mb-1">Failure Reason</label>
-                    <div className="text-red-200 text-sm">{selectedMessage.failureReason}</div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-purple-300 text-sm mb-1">Created</label>
-                    <div className="text-white text-sm">{new Date(selectedMessage.createdAt).toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <label className="block text-purple-300 text-sm mb-1">Updated</label>
-                    <div className="text-white text-sm">{new Date(selectedMessage.updatedAt).toLocaleString()}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                {selectedMessage.status === 'failed' && (
-                  <button
-                    onClick={() => {
-                      handleRetryMessage(selectedMessage._id);
-                      setSelectedMessage(null);
-                    }}
-                    className="flex-1 px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200 rounded-lg transition-colors"
-                  >
-                    Retry Message
-                  </button>
-                )}
-                {!selectedMessage.isRead && (
-                  <button
-                    onClick={() => {
-                      handleMarkAsRead(selectedMessage._id);
-                      setSelectedMessage(null);
-                    }}
-                    className="flex-1 px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-200 rounded-lg transition-colors"
-                  >
-                    ✓ Mark as Read
-                  </button>
-                )}
-                {selectedMessage.isRead && (
-                  <button
-                    onClick={() => {
-                      handleMarkAsUnread(selectedMessage._id);
-                      setSelectedMessage(null);
-                    }}
-                    className="flex-1 px-4 py-2 bg-gray-500/20 hover:bg-gray-500/30 text-gray-200 rounded-lg transition-colors"
-                  >
-                    Mark as Unread
-                  </button>
-                )}
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <PageHeader
+            title="WhatsApp Messages"
+            action={
+              <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    handleArchiveMessage(selectedMessage._id);
-                    setSelectedMessage(null);
+                    setView('incoming');
+                    setSelectedThread(null);
                   }}
-                  className="flex-1 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 rounded-lg transition-colors"
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    view === 'incoming'
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
                 >
-                  📁 Archive
+                  📨 Incoming Messages
                 </button>
                 <button
                   onClick={() => {
-                    handleDeleteMessage(selectedMessage._id);
-                    setSelectedMessage(null);
+                    setView('all');
+                    setSelectedThread(null);
                   }}
-                  className="flex-1 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-200 rounded-lg transition-colors"
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    view === 'all'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
                 >
-                  Delete Message
-                </button>
-                <button
-                  onClick={() => setSelectedMessage(null)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-                >
-                  Close
+                  📧 All Messages
                 </button>
               </div>
+            }
+          />
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex max-w-7xl mx-auto w-full">
+        {/* Thread List */}
+        <div className={`${selectedThread ? 'w-1/3' : 'w-full'} border-r border-gray-200 bg-white transition-all`}>
+          <div className="h-full flex flex-col">
+            {/* Search */}
+            <div className="p-4 border-b border-gray-200">
+              <input
+                type="text"
+                placeholder="Search by name or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            {/* Threads List */}
+            <div className="flex-1 overflow-y-auto">
+              {error && !selectedThread && (
+                <div className="p-4">
+                  <AlertBox type="error" message={error} onClose={() => setError(null)} />
+                </div>
+              )}
+
+              {crm.loading ? (
+                <div className="p-8 flex items-center justify-center">
+                  <LoadingSpinner />
+                </div>
+              ) : filteredThreads.length === 0 ? (
+                <div className="p-6 text-center text-gray-500">
+                  <p className="text-lg">No messages found</p>
+                  <p className="text-sm mt-1">Messages from customers will appear here</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {filteredThreads.map((thread) => (
+                    <button
+                      key={thread.phoneNumber}
+                      onClick={() => {
+                        setSelectedThread(thread);
+                        handleMarkThreadAsRead(thread);
+                      }}
+                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
+                        selectedThread?.phoneNumber === thread.phoneNumber
+                          ? 'bg-green-50 border-green-500'
+                          : 'border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="font-semibold text-gray-900">
+                            {thread.leadName || 'Unknown'}
+                          </div>
+                          <div className="text-sm text-gray-600">{thread.phoneNumber}</div>
+                        </div>
+                        {thread.unreadCount > 0 && (
+                          <span className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                            {thread.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-600 line-clamp-2">
+                        {thread.lastMessage.messageContent}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {new Date(thread.lastMessageAt).toLocaleDateString()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Send Message Modal */}
-        <FormModal
-          isOpen={showSendModal}
-          title="Send Message"
-          onSubmit={handleSendMessage}
-          submitLabel="Send"
-          cancelLabel="Cancel"
-          onClose={() => {
-            setShowSendModal(false);
-            setFormData({ leadId: '', phoneNumber: '', messageContent: '' });
-          }}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-purple-200 text-sm mb-2">Lead ID *</label>
-              <input
-                type="text"
-                required
-                value={formData.leadId}
-                onChange={(e) => setFormData({ ...formData, leadId: e.target.value })}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                placeholder="Mongo Lead ID"
-              />
+        {/* Thread Detail */}
+        {selectedThread && (
+          <div className="w-2/3 bg-white flex flex-col">
+            {/* Thread Header */}
+            <div className="border-b border-gray-200 p-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{selectedThread.leadName || 'Unknown'}</h2>
+                <p className="text-sm text-gray-600">{selectedThread.phoneNumber}</p>
+              </div>
+              <button
+                onClick={() => setSelectedThread(null)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-900 text-2xl"
+              >
+                ✕
+              </button>
             </div>
 
-            <div>
-              <label className="block text-purple-200 text-sm mb-2">Phone Number *</label>
-              <input
-                type="text"
-                required
-                value={formData.phoneNumber}
-                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                placeholder="91XXXXXXXXXX"
-              />
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {selectedThread.messages.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">
+                  <p>No messages in this conversation</p>
+                </div>
+              ) : (
+                selectedThread.messages.map((msg) => (
+                  <div
+                    key={msg._id}
+                    className={`flex ${msg.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
+                  >
+                    <div
+                      className="max-w-xs px-4 py-3 rounded-lg"
+                      style={{
+                        backgroundColor: msg.backgroundColor || (msg.direction === 'inbound' ? '#22c55e' : '#e5e7eb'),
+                        color: msg.textColor || (msg.direction === 'inbound' ? '#ffffff' : '#000000'),
+                      }}
+                    >
+                      <p className="text-sm break-words">{msg.messageContent}</p>
+                      <p className="text-xs opacity-75 mt-1">
+                        {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                      {msg.direction === 'outbound' && (
+                        <p className="text-xs opacity-75 mt-1">
+                          {msg.status === 'delivered' && '✓✓'} {msg.status}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
-            <div>
-              <label className="block text-purple-200 text-sm mb-2">Message *</label>
+            {/* Reply Input */}
+            <div className="border-t border-gray-200 p-6 space-y-3">
               <textarea
-                required
-                rows={5}
+                ref={replyInputRef}
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Type your reply..."
+                rows={3}
                 maxLength={1000}
-                value={formData.messageContent}
-                onChange={(e) => setFormData({ ...formData, messageContent: e.target.value })}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
-                placeholder="Type your message..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
               />
+              <button
+                onClick={handleSendReply}
+                disabled={!replyText.trim() || isSendingReply}
+                className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-semibold py-2 rounded-lg transition-colors"
+              >
+                {isSendingReply ? 'Sending...' : 'Send Reply'}
+              </button>
             </div>
           </div>
-        </FormModal>
+        )}
       </div>
     </div>
   );
