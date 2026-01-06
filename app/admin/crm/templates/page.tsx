@@ -18,11 +18,39 @@ interface Template {
   templateContent: string;
   headerFormat?: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | string;
   headerContent?: string;
+  headerMedia?: { kind?: 'image' | 'video'; url?: string };
   footerText?: string;
+  buttons?: Array<{ title?: string }>;
   variables?: string[];
   status: 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'disabled';
   createdAt: string;
   updatedAt: string;
+}
+
+type TemplatePreviewPayload = {
+  headerMedia?: { kind?: 'image' | 'video'; url?: string };
+  buttons?: Array<{ title?: string }>;
+  body?: string;
+  footer?: string;
+};
+
+function safeParseTemplatePreview(content: string): TemplatePreviewPayload | null {
+  try {
+    const trimmed = String(content || '').trim();
+    if (!trimmed) return null;
+    if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return null;
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const candidate = (parsed as any).preview && typeof (parsed as any).preview === 'object' ? (parsed as any).preview : parsed;
+    return {
+      headerMedia: candidate?.headerMedia,
+      buttons: Array.isArray(candidate?.buttons) ? candidate.buttons : undefined,
+      body: typeof candidate?.body === 'string' ? candidate.body : undefined,
+      footer: typeof candidate?.footer === 'string' ? candidate.footer : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 type HeaderFormat = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO';
@@ -457,7 +485,13 @@ export default function TemplatesPage() {
                 </div>
               ) : (
                 templates.map((template) => {
-                  const variables = extractVariables(template.templateContent);
+                  const parsedPreview = safeParseTemplatePreview(template.templateContent);
+                  const previewBody = parsedPreview?.body ?? template.templateContent;
+                  const previewFooter = parsedPreview?.footer ?? template.footerText ?? '';
+                  const previewButtons = (parsedPreview?.buttons && parsedPreview.buttons.length ? parsedPreview.buttons : template.buttons) || [];
+                  const previewHeaderMedia = parsedPreview?.headerMedia ?? template.headerMedia;
+
+                  const variables = extractVariables(previewBody);
                   const checked = selectedTemplateIds.has(template._id);
                   return (
                     <div
@@ -485,8 +519,52 @@ export default function TemplatesPage() {
                       </div>
 
                       {/* Content Preview */}
-                      <div className="bg-slate-700/50 rounded-lg p-4 mb-4 max-h-24 overflow-hidden">
-                        <p className="text-purple-200 text-sm line-clamp-4">{template.templateContent}</p>
+                      <div className="bg-slate-700/50 rounded-lg p-4 mb-4 space-y-3">
+                        {/* Header media */}
+                        {previewHeaderMedia?.url ? (
+                          <div className="rounded-lg overflow-hidden border border-purple-500/20 bg-slate-900/30">
+                            {previewHeaderMedia.kind === 'video' ? (
+                              <video
+                                src={previewHeaderMedia.url}
+                                controls
+                                className="w-full max-h-40 object-cover"
+                              />
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={previewHeaderMedia.url}
+                                alt="Header"
+                                className="w-full max-h-40 object-cover"
+                              />
+                            )}
+                          </div>
+                        ) : null}
+
+                        {/* Body */}
+                        <div className="max-h-20 overflow-hidden">
+                          <p className="text-purple-200 text-sm line-clamp-4 whitespace-pre-wrap break-words">{previewBody}</p>
+                        </div>
+
+                        {/* Footer */}
+                        {previewFooter ? (
+                          <div className="text-purple-300 text-xs border-t border-purple-500/20 pt-2 whitespace-pre-wrap break-words">
+                            {previewFooter}
+                          </div>
+                        ) : null}
+
+                        {/* Buttons */}
+                        {previewButtons.length ? (
+                          <div className="space-y-2">
+                            {previewButtons.slice(0, 3).map((b, idx) => (
+                              <div
+                                key={`${template._id}-btn-${idx}`}
+                                className="w-full text-center text-xs text-blue-200 border border-blue-400/30 rounded-lg py-2 bg-slate-900/20"
+                              >
+                                {b?.title || `Button ${idx + 1}`}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
 
                       {/* Variables */}

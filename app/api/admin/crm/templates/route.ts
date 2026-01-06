@@ -116,6 +116,30 @@ export async function POST(request: NextRequest) {
     const allowedStatuses = ['draft', 'pending_approval', 'approved', 'rejected', 'disabled'];
     const safeStatus = allowedStatuses.includes(status) ? status : 'draft';
 
+    // If UI provided headerFormat+headerContent (URL), auto-derive headerMedia.
+    // This is important because Cloud API template sending uses headerMedia.url,
+    // while some UIs only store the URL in headerContent.
+    const headerFormatNorm = String(headerFormat || '').trim().toUpperCase();
+    const headerUrl = String(headerContent || '').trim();
+    const derivedHeaderMedia =
+      (headerFormatNorm === 'IMAGE' || headerFormatNorm === 'VIDEO') && headerUrl
+        ? {
+            kind: headerFormatNorm === 'VIDEO' ? 'video' : 'image',
+            url: headerUrl,
+          }
+        : null;
+
+    // Normalize buttons to schema: [{ title }]
+    const normalizedButtons = Array.isArray(buttons)
+      ? buttons
+          .map((b: any) => {
+            if (!b) return null;
+            const title = String(b.title || b.label || b.text || '').trim();
+            return title ? ({ title } as any) : null;
+          })
+          .filter(Boolean)
+      : undefined;
+
     const template = await WhatsAppTemplate.create({
       templateName,
       category,
@@ -124,8 +148,11 @@ export async function POST(request: NextRequest) {
       headerFormat: headerFormat || undefined,
       headerContent: headerContent || undefined,
       footerText: footerText || undefined,
-      buttons: Array.isArray(buttons) ? buttons : undefined,
-      headerMedia: headerMedia && typeof headerMedia === 'object' ? headerMedia : undefined,
+      buttons: normalizedButtons,
+      headerMedia:
+        (headerMedia && typeof headerMedia === 'object' ? headerMedia : null) ||
+        derivedHeaderMedia ||
+        undefined,
       variables: Array.isArray(variables) ? variables : [],
       status: safeStatus,
       createdBy,
@@ -151,7 +178,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { templateId, action, ...updates } = body;
+  const { templateId, action, ...updates } = body;
 
     if (!templateId) {
       return NextResponse.json({ error: 'Missing: templateId' }, { status: 400 });
@@ -190,6 +217,31 @@ export async function PUT(request: NextRequest) {
       }
       return NextResponse.json({ success: true, data: template }, { status: 200 });
     } else {
+      // Generic update: keep schema consistent for header media + buttons.
+      const headerFormatNorm = String((updates as any)?.headerFormat || '').trim().toUpperCase();
+      const headerUrl = String((updates as any)?.headerContent || '').trim();
+      const derivedHeaderMedia =
+        (headerFormatNorm === 'IMAGE' || headerFormatNorm === 'VIDEO') && headerUrl
+          ? {
+              kind: headerFormatNorm === 'VIDEO' ? 'video' : 'image',
+              url: headerUrl,
+            }
+          : null;
+
+      if ((updates as any)?.headerMedia == null && derivedHeaderMedia) {
+        (updates as any).headerMedia = derivedHeaderMedia;
+      }
+
+      if (Array.isArray((updates as any)?.buttons)) {
+        (updates as any).buttons = (updates as any).buttons
+          .map((b: any) => {
+            if (!b) return null;
+            const title = String(b.title || b.label || b.text || '').trim();
+            return title ? ({ title } as any) : null;
+          })
+          .filter(Boolean);
+      }
+
       // Generic update
       const template = await WhatsAppTemplate.findByIdAndUpdate(
         templateId,

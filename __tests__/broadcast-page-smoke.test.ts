@@ -12,4 +12,12 @@ describe('Broadcast page smoke', () => {
     const src = fs.readFileSync(p, 'utf8');
     expect(src).toContain('href="/admin/crm/broadcast"');
   });
+
+  it('lead status filter uses bucket mapping', () => {
+    const p = path.join(process.cwd(), 'app', 'admin', 'crm', 'broadcast', 'page.tsx');
+    const src = fs.readFileSync(p, 'utf8');
+    // We want bucket-to-bucket comparison so the UI "lead" option matches
+    // underlying values like "new"/"leads".
+    expect(src).toContain('const wanted = statusBucket(status)');
+  });
 });

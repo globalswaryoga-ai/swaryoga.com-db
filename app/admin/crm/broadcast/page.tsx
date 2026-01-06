@@ -263,7 +263,9 @@ export default function BroadcastPage() {
       let filtered = rows;
 
       if (status) {
-        const wanted = normalizeStatus(status);
+        const wanted = statusBucket(status);
+        // Compare bucket-to-bucket so that user-facing "lead" matches
+        // underlying values like "new" or legacy "leads".
         filtered = filtered.filter((l) => statusBucket(l.status) === wanted);
       }
 
@@ -372,7 +374,8 @@ export default function BroadcastPage() {
 
       const created: any = await crm.fetch('/api/admin/crm/broadcast-runs', {
         method: 'POST',
-        body: JSON.stringify(payload),
+        // useCRM will JSON.stringify() the body for us.
+        body: payload,
       });
 
       const run = created?.data?.run;

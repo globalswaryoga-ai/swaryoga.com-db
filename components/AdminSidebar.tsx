@@ -13,12 +13,6 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ isOpen = true, onClose = () => {} }: AdminSidebarProps) {
   const router = useRouter();
 
-  // Client bundles can end up with NEXT_PUBLIC_* missing (treated as empty string) if not
-  // defined at build time. For navigation visibility, default to showing Meta Chat unless
-  // explicitly disabled.
-  const metaDisableUi = (process.env.NEXT_PUBLIC_DISABLE_META_WHATSAPP_UI || '').toLowerCase() === 'true';
-  const enableMetaWhatsApp = !metaDisableUi;
-
   const handleNavClick = () => {
     // Auto-close sidebar on mobile when a link is clicked
     if (window.innerWidth < 768) {
@@ -106,22 +100,22 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       color: 'text-emerald-600'
     },
     {
-      icon: MessageSquare,
-      label: 'Lead Followup',
-      href: '/admin/crm/leads-followup',
-      color: 'text-violet-600'
-    },
-    {
       icon: MessageCircle,
       label: 'Meta Chat',
       href: '/admin/crm/whatsapp-meta',
       color: 'text-cyan-600'
+    },
+    {
+      icon: MessageSquare,
+      label: 'Lead Followup',
+      href: '/admin/crm/leads-followup',
+      color: 'text-violet-600'
     }
   ];
 
-  const visibleMenuItems = enableMetaWhatsApp
-    ? menuItems
-    : menuItems.filter((item) => item.href !== '/admin/crm/whatsapp-meta');
+  // Meta WhatsApp chat should always be visible in CRM sidebar.
+  // Even if Cloud sending isn't enabled, the screen can show setup/status guidance.
+  const visibleMenuItems = menuItems;
 
   return (
     <>

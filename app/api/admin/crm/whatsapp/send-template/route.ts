@@ -4,6 +4,17 @@ import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate, sendWhatsAppText } from '@/lib/whatsapp';
 
+function isHttpUrl(value: unknown): boolean {
+  const s = String(value || '').trim();
+  if (!s) return false;
+  try {
+    const u = new URL(s);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * POST /api/admin/crm/whatsapp/send-template
  * NOTE: In "WhatsApp Web first" mode (bridge), true template (image+buttons) cannot be sent.
@@ -51,6 +62,26 @@ export async function POST(request: NextRequest) {
 
     const to = normalizePhone(String(phoneNumber));
 
+    // Validation: if template needs header media, it MUST be sent via Cloud API.
+    // In community/bridge mode we can only send plain text, which would drop the media.
+    const headerFormat = String(t?.headerFormat || '').trim().toUpperCase();
+    const needsHeaderMedia = headerFormat === 'IMAGE' || headerFormat === 'VIDEO';
+    const headerMediaUrl = String(t?.headerMedia?.url || t?.headerContent || '').trim();
+    if (needsHeaderMedia) {
+      if (!headerMediaUrl) {
+        return NextResponse.json(
+          { error: 'Template header media missing. Please add an image/video URL and re-save the template.' },
+          { status: 400 }
+        );
+      }
+      if (!isHttpUrl(headerMediaUrl)) {
+        return NextResponse.json(
+          { error: 'Template header media must be a public http/https URL.' },
+          { status: 400 }
+        );
+      }
+    }
+
     const messageRecord = await WhatsAppMessage.create({
       leadId: lead._id,
       phoneNumber: to,
@@ -80,23 +111,64 @@ export async function POST(request: NextRequest) {
     // - Else fallback to WhatsApp Web bridge: send template body as plain text.
     try {
       let apiResult: any;
-      let warning: string | undefined;
 
-      try {
+      // IMPORTANT: Do not silently degrade media templates to text.
+      // If a template requires media (IMAGE/VIDEO header), fail with a clear error.
+      if (needsHeaderMedia) {
         const cloudInput = buildCloudTemplateSendInput(t, to);
-        apiResult = await sendWhatsAppTemplate(cloudInput);
-      } catch (cloudErr) {
-        // Cloud not enabled/configured or template payload rejected.
-        // For community/bridge mode, just send template body as text.
-        // We keep a warning for CRM transparency.
-        const msg = cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
-        warning = `Template sent as plain text fallback. Reason: ${msg.substring(0, 140)}`;
-        apiResult = await sendWhatsAppText(to, String(t.templateContent || '').trim());
+        apiResult = await sendWhatsAppTemplate({
+          ...cloudInput,
+          headerMedia: {
+            // Ensure kind matches headerFormat if template saved partially.
+            kind: headerFormat === 'VIDEO' ? 'video' : 'image',
+            url: headerMediaUrl,
+          },
+        });
+      } else {
+        let warning: string | undefined;
+
+        try {
+          const cloudInput = buildCloudTemplateSendInput(t, to);
+          apiResult = await sendWhatsAppTemplate(cloudInput);
+        } catch (cloudErr) {
+          // Cloud not enabled/configured or template payload rejected.
+          // For community/bridge mode, just send template body as text.
+          // We keep a warning for CRM transparency.
+          const msg = cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
+          warning = `Template sent as plain text fallback. Reason: ${msg.substring(0, 140)}`;
+          apiResult = await sendWhatsAppText(to, String(t.templateContent || '').trim());
+        }
+
+        await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
+          status: 'sent',
+          provider: apiResult?.raw?.provider || 'sent',
+          waMessageId: apiResult.waMessageId,
+        });
+
+        return NextResponse.json(
+          {
+            success: true,
+            data: {
+              messageId: messageRecord._id,
+              status: 'sent',
+              waMessageId: apiResult.waMessageId,
+              ...(warning
+                ? { warning }
+                : apiResult?.raw?.provider === 'meta'
+                  ? { via: 'meta_template' }
+                  : {
+                      warning:
+                        'Template was sent as plain text (WhatsApp Web / community number mode does not support image/buttons sending).',
+                    }),
+            },
+          },
+          { status: 200 }
+        );
       }
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
-        provider: apiResult?.raw?.provider || 'sent',
+        provider: apiResult?.raw?.provider || 'meta',
         waMessageId: apiResult.waMessageId,
       });
 
@@ -107,14 +179,7 @@ export async function POST(request: NextRequest) {
             messageId: messageRecord._id,
             status: 'sent',
             waMessageId: apiResult.waMessageId,
-            ...(warning
-              ? { warning }
-              : apiResult?.raw?.provider === 'meta'
-                ? { via: 'meta_template' }
-                : {
-                    warning:
-                      'Template was sent as plain text (WhatsApp Web / community number mode does not support image/buttons sending).',
-                  }),
+            via: 'meta_template',
           },
         },
         { status: 200 }
@@ -126,6 +191,15 @@ export async function POST(request: NextRequest) {
         provider: 'none',
         errorMessage: message,
       });
+
+      // For media templates, treat errors as hard failures to surface immediately.
+      if (needsHeaderMedia) {
+        return NextResponse.json(
+          { error: `Failed to send media template. ${message.substring(0, 200)}` },
+          { status: 400 }
+        );
+      }
+
       return NextResponse.json(
         {
           success: true,
