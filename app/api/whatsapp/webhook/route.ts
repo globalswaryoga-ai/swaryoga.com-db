@@ -29,28 +29,55 @@ type WebhookStatus = {
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
+  const debug = url.searchParams.get('debug') === '1';
   const mode = url.searchParams.get('hub.mode');
   const token = url.searchParams.get('hub.verify_token');
   const challenge = url.searchParams.get('hub.challenge');
 
   const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
   if (!expectedToken) {
-    return NextResponse.json(
+    const res = NextResponse.json(
       { error: 'WHATSAPP_WEBHOOK_VERIFY_TOKEN is not set' },
       { status: 500 }
     );
+    res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+    res.headers.set('x-swar-webhook-method', 'GET');
+    res.headers.set('x-swar-webhook-reason', 'verify-token-missing');
+    return res;
   }
 
   if (mode === 'subscribe' && token === expectedToken && challenge) {
     // Meta expects the raw challenge string.
-    return new NextResponse(challenge, { status: 200 });
+    const res = new NextResponse(challenge, { status: 200 });
+    res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+    res.headers.set('x-swar-webhook-method', 'GET');
+    res.headers.set('x-swar-webhook-ok', '1');
+    return res;
   }
 
-  return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const res = NextResponse.json(
+    debug
+      ? {
+          error: 'Forbidden',
+          hint: 'Check Meta callback URL and WHATSAPP_WEBHOOK_VERIFY_TOKEN match.',
+          mode,
+          hasChallenge: Boolean(challenge),
+          tokenMatched: token === expectedToken,
+        }
+      : { error: 'Forbidden' },
+    { status: 403 }
+  );
+  res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+  res.headers.set('x-swar-webhook-method', 'GET');
+  res.headers.set('x-swar-webhook-reason', 'verify-forbidden');
+  return res;
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const url = new URL(request.url);
+    const debug = url.searchParams.get('debug') === '1';
+
     // Recommended: verify Meta webhook signature if APP_SECRET is available.
     // This protects against random internet POSTs that would otherwise be accepted.
     const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
@@ -64,7 +91,19 @@ export async function POST(request: NextRequest) {
           ok: false,
           message: 'Missing x-hub-signature-256',
         });
-        return NextResponse.json({ error: 'Missing x-hub-signature-256' }, { status: 401 });
+        const res = NextResponse.json(
+          debug
+            ? {
+                error: 'Missing x-hub-signature-256',
+                hint: 'If META_APP_SECRET/WHATSAPP_APP_SECRET is set, Meta must send x-hub-signature-256 and your edge/proxy must not strip it.',
+              }
+            : { error: 'Missing x-hub-signature-256' },
+          { status: 401 }
+        );
+        res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+        res.headers.set('x-swar-webhook-method', 'POST');
+        res.headers.set('x-swar-webhook-reason', 'signature-missing');
+        return res;
       }
 
       // Basic validation: invalid hex or wrong length should fail safely.
@@ -74,7 +113,11 @@ export async function POST(request: NextRequest) {
           ok: false,
           message: 'Invalid webhook signature format',
         });
-        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        const res = NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+        res.headers.set('x-swar-webhook-method', 'POST');
+        res.headers.set('x-swar-webhook-reason', 'signature-format');
+        return res;
       }
 
       const rawBody = await request.text();
@@ -88,7 +131,11 @@ export async function POST(request: NextRequest) {
           ok: false,
           message: 'Invalid webhook signature length',
         });
-        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        const res = NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+        res.headers.set('x-swar-webhook-method', 'POST');
+        res.headers.set('x-swar-webhook-reason', 'signature-length');
+        return res;
       }
       const ok = crypto.timingSafeEqual(providedBuf, expectedBuf);
       if (!ok) {
@@ -97,14 +144,23 @@ export async function POST(request: NextRequest) {
           ok: false,
           message: 'Invalid webhook signature (HMAC mismatch)',
         });
-        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        const res = NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+        res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+        res.headers.set('x-swar-webhook-method', 'POST');
+        res.headers.set('x-swar-webhook-reason', 'signature-mismatch');
+        return res;
       }
 
       // Re-parse the JSON from the already-read raw body.
       const payload = JSON.parse(rawBody);
       // Continue below using this payload.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      return await handleWebhookPayload(payload);
+      const res = await handleWebhookPayload(payload);
+      res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+      res.headers.set('x-swar-webhook-method', 'POST');
+      res.headers.set('x-swar-webhook-ok', '1');
+      res.headers.set('x-swar-webhook-signature', 'verified');
+      return res;
     }
 
     const payload = await request.json().catch(() => null);
@@ -114,10 +170,19 @@ export async function POST(request: NextRequest) {
         ok: false,
         message: 'Invalid JSON body',
       });
-      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      const res = NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+      res.headers.set('x-swar-webhook-method', 'POST');
+      res.headers.set('x-swar-webhook-reason', 'invalid-json');
+      return res;
     }
 
-    return await handleWebhookPayload(payload);
+    const res = await handleWebhookPayload(payload);
+    res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+    res.headers.set('x-swar-webhook-method', 'POST');
+    res.headers.set('x-swar-webhook-ok', '1');
+    res.headers.set('x-swar-webhook-signature', appSecret ? 'expected' : 'not-configured');
+    return res;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook handler error';
 
@@ -130,7 +195,11 @@ export async function POST(request: NextRequest) {
       message,
     });
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    const res = NextResponse.json({ error: message }, { status: 500 });
+    res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+    res.headers.set('x-swar-webhook-method', 'POST');
+    res.headers.set('x-swar-webhook-reason', 'unhandled');
+    return res;
   }
 }
 

@@ -110,6 +110,7 @@ export default function MetaWhatsAppPage() {
   const [bulkAction, setBulkAction] = useState<BulkAction>('markRead');
   const [bulkLabel, setBulkLabel] = useState('');
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [metaDisabledHelpOpen, setMetaDisabledHelpOpen] = useState(false);
   const [composerMode, setComposerMode] = useState<'text' | 'template' | 'quick-reply' | 'chatbot'>('text');
   const [scheduleAt, setScheduleAt] = useState('');
   const [delaySeconds, setDelaySeconds] = useState('');
@@ -140,21 +141,7 @@ export default function MetaWhatsAppPage() {
     // that can feel like the page is "not showing").
   }, [token, enableMetaWhatsApp, router]);
 
-  const metaDisabledBanner = token && !enableMetaWhatsApp ? (
-    <div className="mb-4 rounded-xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-amber-900">
-      <div className="font-semibold">Meta Chat is disabled</div>
-      <div className="text-sm mt-1">
-        Set{' '}
-        <code className="px-1 py-0.5 bg-amber-100 rounded">NEXT_PUBLIC_ENABLE_META_WHATSAPP=true</code>{' '}
-        and redeploy/restart to enable Meta Cloud inbox features.
-      </div>
-      <div className="text-sm mt-2">
-        <Link href="/admin/crm/whatsapp" className="font-semibold hover:underline">
-          Go back to WhatsApp Inbox
-        </Link>
-      </div>
-    </div>
-  ) : null;
+  const metaDisabledBanner = null;
 
   // Avoid callback dependency chains causing re-renders / TDZ issues.
   // We keep the latest tool loaders in refs and call them from fetchMessages.
@@ -702,7 +689,6 @@ export default function MetaWhatsAppPage() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-50">
-      <div className="mx-auto w-full max-w-[1400px] px-6 pt-6">{metaDisabledBanner}</div>
       {/* Header */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
         <div className="mx-auto w-full max-w-[1400px] px-6 py-3">
@@ -710,7 +696,7 @@ export default function MetaWhatsAppPage() {
             {/* Left (small label/link) */}
             <Link
               href="/admin/crm/whatsapp-meta"
-              className="text-xs font-semibold text-slate-700 hover:text-slate-900 whitespace-nowrap"
+              className="text-2xl font-semibold text-slate-700 hover:text-slate-900 whitespace-nowrap"
               title="Meta WhatsApp Inbox"
             >
               Meta WhatsApp Inbox
@@ -719,6 +705,53 @@ export default function MetaWhatsAppPage() {
             {/* Header buttons (single row) */}
             <nav className="flex-1 overflow-x-auto">
               <div className="flex flex-nowrap items-center justify-end gap-2 min-w-max">
+                {!enableMetaWhatsApp && token ? (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMetaDisabledHelpOpen((v) => !v)}
+                      className="px-3 py-1.5 rounded-full text-sm font-semibold border border-amber-300/60 bg-amber-50 text-amber-900 hover:bg-amber-100 whitespace-nowrap"
+                      title="Meta inbox is disabled"
+                    >
+                      Meta disabled
+                    </button>
+                    {metaDisabledHelpOpen ? (
+                      <div
+                        className="absolute right-0 mt-2 w-[340px] rounded-xl border border-amber-300/40 bg-white p-3 text-sm text-slate-800 shadow-lg z-50"
+                        role="dialog"
+                        aria-label="Meta disabled help"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-semibold text-amber-900">Meta Chat is disabled</div>
+                          <button
+                            type="button"
+                            onClick={() => setMetaDisabledHelpOpen(false)}
+                            className="text-slate-500 hover:text-slate-800"
+                            aria-label="Close"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div className="mt-2 text-slate-700">
+                          Set{' '}
+                          <code className="px-1 py-0.5 bg-amber-50 border border-amber-200 rounded">
+                            NEXT_PUBLIC_ENABLE_META_WHATSAPP=true
+                          </code>{' '}
+                          and redeploy/restart.
+                        </div>
+                        <div className="mt-2">
+                          <Link
+                            href="/admin/crm/whatsapp"
+                            className="font-semibold text-emerald-700 hover:underline"
+                            onClick={() => setMetaDisabledHelpOpen(false)}
+                          >
+                            Go back to WhatsApp Inbox
+                          </Link>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 <Link href="/admin/crm/broadcast" className="px-3 py-1.5 rounded-full text-sm font-semibold border border-slate-200 bg-slate-50 hover:bg-slate-100 whitespace-nowrap">
                   Broadcast
                 </Link>

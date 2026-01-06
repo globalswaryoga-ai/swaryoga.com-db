@@ -28,36 +28,6 @@ module.exports = {
       // Restart policies
       max_restarts: 10,
       min_uptime: '10s'
-    },
-    
-    // Backend API (MongoDB + PayU)
-    {
-      name: 'swar-backend',
-      script: 'npm',
-      args: 'run api',
-      cwd: '/Users/mohankalburgi/Downloads/swar-yoga-web-mohan',
-      
-      // Auto-restart configuration
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '500M',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3001
-      },
-      
-      // Error handling
-      error_file: './logs/backend-error.log',
-      out_file: './logs/backend-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      
-      // Instance management
-      instances: 1,
-      exec_mode: 'fork',
-      
-      // Restart policies
-      max_restarts: 10,
-      min_uptime: '10s'
     }
   ],
   
