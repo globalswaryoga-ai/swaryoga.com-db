@@ -326,63 +326,67 @@ async function handleWebhookPayload(payload: any) {
           });
         }
 
-        // 2) Inbound messages (from user to us)
-        const messages = Array.isArray(value?.messages) ? value.messages : [];
-        console.log('[WEBHOOK DEBUG] Messages in this change:', messages.length);
+    // 2) Inbound messages (from user to us)
+    const messages = Array.isArray(value?.messages) ? value.messages : [];
+    console.log('[WEBHOOK] Messages in this change:', messages.length);
+    
+    for (const msg of messages) {
+      try {
+        console.log('[WEBHOOK] Message:', JSON.stringify(msg).substring(0, 200));
         
-        for (const msg of messages) {
-          try {
-            console.log('[WEBHOOK DEBUG] Processing message:', JSON.stringify(msg, null, 2).substring(0, 300));
-            
-            const from = normalizePhone(String(msg?.from || ''));
-            console.log('[WEBHOOK DEBUG] Normalized phone:', from);
-            
-            if (!from) {
-              console.log('[WEBHOOK DEBUG] Skipping: no valid phone number');
-              continue;
-            }
+        const from = normalizePhone(String(msg?.from || ''));
+        console.log('[WEBHOOK] Normalized from:', from);
+        
+        if (!from) {
+          console.log('[WEBHOOK] Skipping: no phone');
+          continue;
+        }
 
-            const body = extractTextMessageBody(msg);
-            console.log('[WEBHOOK DEBUG] Message body:', body);
-            
-            if (!body) {
-              console.log('[WEBHOOK DEBUG] Skipping: no message body');
-              continue;
-            }
+        const body = extractTextMessageBody(msg);
+        console.log('[WEBHOOK] Body extracted:', body?.substring(0, 50));
+        
+        if (!body) {
+          console.log('[WEBHOOK] Skipping: no body');
+          continue;
+        }
 
-            const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
-            console.log('[WEBHOOK DEBUG] Processing inbound message from', from, 'with ID', inboundWaMessageId);
+        const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
+        console.log('[WEBHOOK] Message ID:', inboundWaMessageId);
 
-            await logWebhookEvent({
-              kind: 'inbound_message',
-              ok: true,
-              phoneNumber: from,
-              waMessageId: msg?.id ? String(msg.id) : undefined,
-              sample: {
-                type: msg?.type,
-                ts: msg?.timestamp,
-                // store tiny preview to avoid PII bloat
-                preview: body.slice(0, 80),
-              },
-            });
+        await logWebhookEvent({
+          kind: 'inbound_message',
+          ok: true,
+          phoneNumber: from,
+          waMessageId: msg?.id ? String(msg.id) : undefined,
+          sample: {
+            type: msg?.type,
+            ts: msg?.timestamp,
+            preview: body.slice(0, 80),
+          },
+        });
 
-            // Ensure a Lead exists
-            let lead: { _id: unknown } | null = (await Lead.findOne({ phoneNumber: from }).lean()) as { _id: unknown } | null;
-            if (!lead) {
-              const created = await Lead.create({
-                phoneNumber: from,
-                source: 'whatsapp',
-                status: 'lead',
-                lastMessageAt: now,
-              });
-              lead = created.toObject() as { _id: unknown };
-            } else {
-              await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now, updatedAt: now } });
-            }
+        // Ensure a Lead exists
+        console.log('[WEBHOOK] Looking up lead for:', from);
+        let lead: { _id: unknown } | null = (await Lead.findOne({ phoneNumber: from }).lean()) as { _id: unknown } | null;
+        if (!lead) {
+          console.log('[WEBHOOK] Creating new lead for:', from);
+          const created = await Lead.create({
+            phoneNumber: from,
+            source: 'whatsapp',
+            status: 'lead',
+            lastMessageAt: now,
+          });
+          lead = created.toObject() as { _id: unknown };
+          console.log('[WEBHOOK] Created lead:', lead._id);
+        } else {
+          console.log('[WEBHOOK] Found existing lead:', lead._id);
+          await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now, updatedAt: now } });
+        }
 
-            if (!lead?._id) continue;
-
-            // Detect if this is the first inbound message for welcome automation.
+        if (!lead?._id) {
+          console.log('[WEBHOOK] No lead ID, skipping');
+          continue;
+        }            // Detect if this is the first inbound message for welcome automation.
             const previousInbound = await WhatsAppMessage.findOne({ leadId: lead._id, direction: 'inbound' })
               .sort({ sentAt: -1 })
               .lean();
@@ -398,7 +402,8 @@ async function handleWebhookPayload(payload: any) {
             // Idempotency: Meta retries webhooks. Prevent duplicate inbound rows by upserting on waMessageId.
             // If Meta doesn't provide an id (rare), we fall back to create (best-effort).
             if (inboundWaMessageId) {
-              await WhatsAppMessage.updateOne(
+              console.log('[WEBHOOK] Upserting message:', inboundWaMessageId);
+              const result = await WhatsAppMessage.updateOne(
                 { waMessageId: inboundWaMessageId, direction: 'inbound' },
                 {
                   $setOnInsert: {
@@ -427,7 +432,9 @@ async function handleWebhookPayload(payload: any) {
                 },
                 { upsert: true }
               );
+              console.log('[WEBHOOK] Message upserted - matched:', result?.matchedCount, 'upserted:', result?.upsertedCount);
             } else {
+              console.log('[WEBHOOK] Creating message (no ID)');
               await WhatsAppMessage.create({
                 leadId: lead._id,
                 phoneNumber: from,
