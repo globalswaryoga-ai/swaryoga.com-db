@@ -259,7 +259,7 @@ export default function MetaWhatsAppPage() {
   }, [fetchFollowUps]);
 
   // Fetch messages for selected conversation
-  const fetchMessages = useCallback(async (phoneNumber: string) => {
+  const fetchMessages = useCallback(async (phoneNumber: string, leadId?: string) => {
     try {
       setLoadingMessages(true);
       setError(null);
@@ -271,11 +271,11 @@ export default function MetaWhatsAppPage() {
       setMessages(rows);
       
       // Load lead details if leadId is available
-      if (selected?.leadId) {
+      if (leadId) {
         setLoadingTools(true);
         await Promise.all([
-          fetchNotesRef.current(selected.leadId),
-          fetchFollowUpsRef.current(selected.leadId)
+          fetchNotesRef.current(leadId),
+          fetchFollowUpsRef.current(leadId)
         ]);
       }
       
@@ -290,7 +290,7 @@ export default function MetaWhatsAppPage() {
       setLoadingMessages(false);
       setLoadingTools(false);
     }
-  }, [crmFetch, selected?.leadId]);
+  }, [crmFetch]);
 
   const createNote = useCallback(async () => {
     if (!selected?.leadId || !newNote.trim()) return;
@@ -516,7 +516,7 @@ export default function MetaWhatsAppPage() {
       // Best-effort optimistic UI: clear unread badge when opening chat
       setConversations((prev) => prev.map((c) => (c._id === row._id ? { ...c, unreadCount: 0 } : c)));
 
-      await fetchMessages(row.phoneNumber);
+      await fetchMessages(row.phoneNumber, row.leadId);
     },
     [fetchMessages]
   );
