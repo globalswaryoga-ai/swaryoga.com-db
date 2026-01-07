@@ -1207,45 +1207,68 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
 
 // ============================================================================
-// MODEL INITIALIZATION (DIRECT, LAZY-SAFE)
+// MODEL INITIALIZATION (LAZY - TRULY DEFERRED)
 // ============================================================================
-// All models are initialized directly but safely because:
-// 1. Each model uses the pattern: crmDb.models.X || crmDb.model('X', Schema)
-// 2. getCrmDb() will be called AFTER connectDB() is guaranteed by the route handlers
-// 3. The || caching pattern prevents duplicate registration
+// Models are NOT initialized at module load time.
+// Instead, they use a Proxy-like pattern where accessing the model
+// triggers initialization after connectDB() is guaranteed to have been called.
 
-function initModel(modelName: string, schema: any) {
-  const crmDb = getCrmDb();
-  if (crmDb.models[modelName]) {
-    return crmDb.models[modelName];
+const modelCache: Record<string, any> = {};
+
+function getLazyModel(modelName: string, schema: any): any {
+  // Check cache first
+  if (modelCache[modelName]) {
+    return modelCache[modelName];
   }
-  return crmDb.model(modelName, schema);
+  
+  // Initialize on first access (safe because this happens in route handlers after connectDB)
+  const crmDb = getCrmDb();
+  
+  if (crmDb.models[modelName]) {
+    modelCache[modelName] = crmDb.models[modelName];
+  } else {
+    modelCache[modelName] = crmDb.model(modelName, schema);
+  }
+  
+  return modelCache[modelName];
 }
 
-export const Lead = initModel('Lead', LeadSchema);
-export const CrmCounter = initModel('CrmCounter', CrmCounterSchema);
-export const DeletedLead = initModel('DeletedLead', DeletedLeadSchema);
-export const WhatsAppMessage = initModel('WhatsAppMessage', WhatsAppMessageSchema);
-export const WhatsAppWebhookEvent = initModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
-export const WhatsAppAccount = initModel('WhatsAppAccount', WhatsAppAccountSchema);
-export const UserConsent = initModel('UserConsent', UserConsentSchema);
-export const MessageStatus = initModel('MessageStatus', MessageStatusSchema);
-export const AuditLog = initModel('AuditLog', AuditLogSchema);
-export const WhatsAppTemplate = initModel('WhatsAppTemplate', WhatsAppTemplateSchema);
-export const RateLimit = initModel('RateLimit', RateLimitSchema);
-export const Backup = initModel('Backup', BackupSchema);
-export const Permission = initModel('Permission', PermissionSchema);
-export const AnalyticsEvent = initModel('AnalyticsEvent', AnalyticsEventSchema);
-export const SalesReport = initModel('SalesReport', SalesReportSchema);
-export const WhatsAppScheduledJob = initModel('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
-export const WhatsAppAutomationRule = initModel('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
-export const LeadNote = initModel('LeadNote', LeadNoteSchema);
-export const LeadFollowUp = initModel('LeadFollowUp', LeadFollowUpSchema);
-export const QuickReply = initModel('QuickReply', QuickReplySchema);
-export const BroadcastList = initModel('BroadcastList', BroadcastListSchema);
-export const BroadcastListMember = initModel('BroadcastListMember', BroadcastListMemberSchema);
-export const BroadcastRun = initModel('BroadcastRun', BroadcastRunSchema);
-export const BroadcastRunMessage = initModel('BroadcastRunMessage', BroadcastRunMessageSchema);
-export const ChatbotFlow = initModel('ChatbotFlow', ChatbotFlowSchema);
-export const ChatbotSettings = initModel('ChatbotSettings', ChatbotSettingsSchema);
-export const CrmReceipt = initModel('CrmReceipt', CrmReceiptSchema);
+// Create a Proxy handler to intercept property access
+function createLazyModelProxy(modelName: string, schema: any) {
+  return new Proxy({} as any, {
+    get(target: any, prop: string | symbol) {
+      // When any method is accessed, ensure model is initialized
+      const model = getLazyModel(modelName, schema);
+      return model[prop];
+    },
+  });
+}
+
+// Export all models as lazy-loaded proxies
+export const Lead = createLazyModelProxy('Lead', LeadSchema);
+export const CrmCounter = createLazyModelProxy('CrmCounter', CrmCounterSchema);
+export const DeletedLead = createLazyModelProxy('DeletedLead', DeletedLeadSchema);
+export const WhatsAppMessage = createLazyModelProxy('WhatsAppMessage', WhatsAppMessageSchema);
+export const WhatsAppWebhookEvent = createLazyModelProxy('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
+export const WhatsAppAccount = createLazyModelProxy('WhatsAppAccount', WhatsAppAccountSchema);
+export const UserConsent = createLazyModelProxy('UserConsent', UserConsentSchema);
+export const MessageStatus = createLazyModelProxy('MessageStatus', MessageStatusSchema);
+export const AuditLog = createLazyModelProxy('AuditLog', AuditLogSchema);
+export const WhatsAppTemplate = createLazyModelProxy('WhatsAppTemplate', WhatsAppTemplateSchema);
+export const RateLimit = createLazyModelProxy('RateLimit', RateLimitSchema);
+export const Backup = createLazyModelProxy('Backup', BackupSchema);
+export const Permission = createLazyModelProxy('Permission', PermissionSchema);
+export const AnalyticsEvent = createLazyModelProxy('AnalyticsEvent', AnalyticsEventSchema);
+export const SalesReport = createLazyModelProxy('SalesReport', SalesReportSchema);
+export const WhatsAppScheduledJob = createLazyModelProxy('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
+export const WhatsAppAutomationRule = createLazyModelProxy('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
+export const LeadNote = createLazyModelProxy('LeadNote', LeadNoteSchema);
+export const LeadFollowUp = createLazyModelProxy('LeadFollowUp', LeadFollowUpSchema);
+export const QuickReply = createLazyModelProxy('QuickReply', QuickReplySchema);
+export const BroadcastList = createLazyModelProxy('BroadcastList', BroadcastListSchema);
+export const BroadcastListMember = createLazyModelProxy('BroadcastListMember', BroadcastListMemberSchema);
+export const BroadcastRun = createLazyModelProxy('BroadcastRun', BroadcastRunSchema);
+export const BroadcastRunMessage = createLazyModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const ChatbotFlow = createLazyModelProxy('ChatbotFlow', ChatbotFlowSchema);
+export const ChatbotSettings = createLazyModelProxy('ChatbotSettings', ChatbotSettingsSchema);
+export const CrmReceipt = createLazyModelProxy('CrmReceipt', CrmReceiptSchema);
