@@ -1210,7 +1210,7 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 // MODEL INITIALIZATION (LAZY - DEFERRED TO FIRST USE)
 // ============================================================================
 // CRITICAL: We DO NOT call getCrmDb() at module load time!
-// Instead, we use getter functions that defer initialization until
+// Instead, we use Proxy objects that defer initialization until
 // the model is actually used (guaranteed after connectDB() is called).
 
 const modelCache: Record<string, any> = {};
@@ -1229,21 +1229,15 @@ function getModel(modelName: string, schema: any) {
 }
 
 /**
- * Create a Proxy handler for a model with proper function binding.
- * This ensures that Mongoose methods maintain their `this` context.
- * 
- * NOTE: We use a Proxy instead of direct model exports to ensure
- * getCrmDb() is only called after connectDB() in the route handlers.
+ * Create a Proxy that lazy-loads a Mongoose model.
+ * The Proxy defers initialization to the first property access,
+ * which is guaranteed to be after connectDB() is called in route handlers.
  */
 function createModelProxy(modelName: string, schema: any) {
   return new Proxy({} as any, {
     get: (target, prop, receiver) => {
-      // Get the actual model (cached after first use)
       const model = getModel(modelName, schema);
-      // Get the property from the model
-      const value = Reflect.get(model, prop, model);
-      // Return it directly - Mongoose methods don't need binding since they're async
-      return value;
+      return Reflect.get(model, prop, model);
     }
   });
 }
