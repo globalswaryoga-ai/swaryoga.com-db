@@ -9,10 +9,17 @@ import mongoose from 'mongoose';
 //   Example: swaryoga_admin_crm (for separate DB) or swaryogaDB (same as main)
 const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
 
+// Cache for CRM database connection to avoid repeated useDb() calls
+let cachedCrmDb: any = null;
+
 function getCrmDb() {
   // Note: connectDB() should be called before using these models.
   // useDb() is safe and will reuse the underlying connection.
-  return mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
+  // Cache the result to avoid calling useDb() repeatedly on the same connection
+  if (!cachedCrmDb) {
+    cachedCrmDb = mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
+  }
+  return cachedCrmDb;
 }
 
 /**
@@ -1200,37 +1207,53 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
 
 // ============================================================================
-// MODEL INITIALIZATION (DEFERRED TO RUNTIME)
+// MODEL INITIALIZATION (LAZY GETTERS - TRUE DEFERRED LOADING)
 // ============================================================================
-// CRITICAL: Models must be registered AFTER connectDB() is called!
-// We also must use getCrmDb() to route to the correct database (swaryoga_admin_crm).
-// FIX: Check the CRM database's model cache instead of global mongoose.models
-// to avoid mixing models between databases.
+// CRITICAL: Models must NOT be initialized at module load time!
+// Use a factory pattern that initializes models on first access,
+// after connectDB() has been called.
 
-export const Lead = getCrmDb().models.Lead || getCrmDb().model('Lead', LeadSchema);
-export const CrmCounter = getCrmDb().models.CrmCounter || getCrmDb().model('CrmCounter', CrmCounterSchema);
-export const DeletedLead = getCrmDb().models.DeletedLead || getCrmDb().model('DeletedLead', DeletedLeadSchema);
-export const WhatsAppMessage = getCrmDb().models.WhatsAppMessage || getCrmDb().model('WhatsAppMessage', WhatsAppMessageSchema);
-export const WhatsAppWebhookEvent = getCrmDb().models.WhatsAppWebhookEvent || getCrmDb().model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
-export const WhatsAppAccount = getCrmDb().models.WhatsAppAccount || getCrmDb().model('WhatsAppAccount', WhatsAppAccountSchema);
-export const UserConsent = getCrmDb().models.UserConsent || getCrmDb().model('UserConsent', UserConsentSchema);
-export const MessageStatus = getCrmDb().models.MessageStatus || getCrmDb().model('MessageStatus', MessageStatusSchema);
-export const AuditLog = getCrmDb().models.AuditLog || getCrmDb().model('AuditLog', AuditLogSchema);
-export const WhatsAppTemplate = getCrmDb().models.WhatsAppTemplate || getCrmDb().model('WhatsAppTemplate', WhatsAppTemplateSchema);
-export const RateLimit = getCrmDb().models.RateLimit || getCrmDb().model('RateLimit', RateLimitSchema);
-export const Backup = getCrmDb().models.Backup || getCrmDb().model('Backup', BackupSchema);
-export const Permission = getCrmDb().models.Permission || getCrmDb().model('Permission', PermissionSchema);
-export const AnalyticsEvent = getCrmDb().models.AnalyticsEvent || getCrmDb().model('AnalyticsEvent', AnalyticsEventSchema);
-export const SalesReport = getCrmDb().models.SalesReport || getCrmDb().model('SalesReport', SalesReportSchema);
-export const WhatsAppScheduledJob = getCrmDb().models.WhatsAppScheduledJob || getCrmDb().model('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
-export const WhatsAppAutomationRule = getCrmDb().models.WhatsAppAutomationRule || getCrmDb().model('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
-export const LeadNote = getCrmDb().models.LeadNote || getCrmDb().model('LeadNote', LeadNoteSchema);
-export const LeadFollowUp = getCrmDb().models.LeadFollowUp || getCrmDb().model('LeadFollowUp', LeadFollowUpSchema);
-export const QuickReply = getCrmDb().models.QuickReply || getCrmDb().model('QuickReply', QuickReplySchema);
-export const BroadcastList = getCrmDb().models.BroadcastList || getCrmDb().model('BroadcastList', BroadcastListSchema);
-export const BroadcastListMember = getCrmDb().models.BroadcastListMember || getCrmDb().model('BroadcastListMember', BroadcastListMemberSchema);
-export const BroadcastRun = getCrmDb().models.BroadcastRun || getCrmDb().model('BroadcastRun', BroadcastRunSchema);
-export const BroadcastRunMessage = getCrmDb().models.BroadcastRunMessage || getCrmDb().model('BroadcastRunMessage', BroadcastRunMessageSchema);
-export const ChatbotFlow = getCrmDb().models.ChatbotFlow || getCrmDb().model('ChatbotFlow', ChatbotFlowSchema);
-export const ChatbotSettings = getCrmDb().models.ChatbotSettings || getCrmDb().model('ChatbotSettings', ChatbotSettingsSchema);
-export const CrmReceipt = getCrmDb().models.CrmReceipt || getCrmDb().model('CrmReceipt', CrmReceiptSchema);
+const modelCache: Record<string, any> = {};
+
+function getModel(modelName: string, schema: any) {
+  if (!modelCache[modelName]) {
+    const crmDb = getCrmDb();
+    // Check CRM database's model cache first
+    if (crmDb.models[modelName]) {
+      modelCache[modelName] = crmDb.models[modelName];
+    } else {
+      // Register model for first time
+      modelCache[modelName] = crmDb.model(modelName, schema);
+    }
+  }
+  return modelCache[modelName];
+}
+
+// Export models using getter functions for lazy initialization
+export const Lead = () => getModel('Lead', LeadSchema);
+export const CrmCounter = () => getModel('CrmCounter', CrmCounterSchema);
+export const DeletedLead = () => getModel('DeletedLead', DeletedLeadSchema);
+export const WhatsAppMessage = () => getModel('WhatsAppMessage', WhatsAppMessageSchema);
+export const WhatsAppWebhookEvent = () => getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
+export const WhatsAppAccount = () => getModel('WhatsAppAccount', WhatsAppAccountSchema);
+export const UserConsent = () => getModel('UserConsent', UserConsentSchema);
+export const MessageStatus = () => getModel('MessageStatus', MessageStatusSchema);
+export const AuditLog = () => getModel('AuditLog', AuditLogSchema);
+export const WhatsAppTemplate = () => getModel('WhatsAppTemplate', WhatsAppTemplateSchema);
+export const RateLimit = () => getModel('RateLimit', RateLimitSchema);
+export const Backup = () => getModel('Backup', BackupSchema);
+export const Permission = () => getModel('Permission', PermissionSchema);
+export const AnalyticsEvent = () => getModel('AnalyticsEvent', AnalyticsEventSchema);
+export const SalesReport = () => getModel('SalesReport', SalesReportSchema);
+export const WhatsAppScheduledJob = () => getModel('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
+export const WhatsAppAutomationRule = () => getModel('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
+export const LeadNote = () => getModel('LeadNote', LeadNoteSchema);
+export const LeadFollowUp = () => getModel('LeadFollowUp', LeadFollowUpSchema);
+export const QuickReply = () => getModel('QuickReply', QuickReplySchema);
+export const BroadcastList = () => getModel('BroadcastList', BroadcastListSchema);
+export const BroadcastListMember = () => getModel('BroadcastListMember', BroadcastListMemberSchema);
+export const BroadcastRun = () => getModel('BroadcastRun', BroadcastRunSchema);
+export const BroadcastRunMessage = () => getModel('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const ChatbotFlow = () => getModel('ChatbotFlow', ChatbotFlowSchema);
+export const ChatbotSettings = () => getModel('ChatbotSettings', ChatbotSettingsSchema);
+export const CrmReceipt = () => getModel('CrmReceipt', CrmReceiptSchema);
