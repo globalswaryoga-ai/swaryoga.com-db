@@ -1,0 +1,81 @@
+═══════════════════════════════════════════════════════════════════════════════════════
+⚠️  CRITICAL: META IS NOT SENDING WEBHOOKS
+═══════════════════════════════════════════════════════════════════════════════════════
+
+STATUS:
+✅ Your webhook endpoint is working
+✅ Webhook verify token is correct
+✅ Webhook can receive messages (tested with curl)
+✅ Database can store messages
+❌ META IS NOT CALLING YOUR WEBHOOK
+
+═══════════════════════════════════════════════════════════════════════════════════════
+
+DIAGNOSIS:
+When you sent 50 messages from 919309986820 to 919779006820:
+- Your system SENT them successfully (outgoing works)
+- But ZERO incoming webhooks were received from Meta
+- This means Meta's webhook is NOT subscribed or NOT configured
+
+═══════════════════════════════════════════════════════════════════════════════════════
+
+IMMEDIATE ACTION REQUIRED:
+
+Go to Meta Developer Dashboard NOW:
+https://developers.facebook.com/
+
+1. Click on your WhatsApp Business App
+2. Go to "Configuration" or "Webhooks" section
+3. Look for "Webhook" settings
+
+═══════════════════════════════════════════════════════════════════════════════════════
+
+CHECKLIST - Make sure ALL of these are done:
+
+□ STEP 1: Webhook URL is set to:
+   https://crm.swaryoga.com/api/whatsapp/webhook
+
+□ STEP 2: Verify Token is set to:
+   ce353ae0e9367a387963a60657848f20a665584e719d0d5c34d8f08e12a7e73d
+
+□ STEP 3: Click "Verify and Save" or "Confirm"
+   (Meta will test your webhook with a GET request)
+
+□ STEP 4: Wait for green checkmark "✓ Webhook Verified"
+
+□ STEP 5: Find "Webhook Fields" or "Subscribe to" section
+
+□ STEP 6: Make sure these are CHECKED/ENABLED:
+   ✓ messages
+   ✓ message_status
+   (Do NOT uncheck)
+
+□ STEP 7: Click "Save" or "Subscribe"
+
+□ STEP 8: Send a test message
+   From: 919309986820
+   To: 919779006820 (your business number)
+   Message: "Test"
+
+□ STEP 9: Run this command (it should show new message):
+   node check-incoming-meta-messages.js
+
+═══════════════════════════════════════════════════════════════════════════════════════
+
+If webhook still doesn't work after these steps:
+1. Take a SCREENSHOT of Meta webhook settings
+2. Share with us
+3. We'll debug the Meta app configuration
+
+═══════════════════════════════════════════════════════════════════════════════════════
+
+YOUR WEBHOOK STATUS:
+Callback URL: https://crm.swaryoga.com/api/whatsapp/webhook
+✅ Responds to GET (verification)
+✅ Responds to POST (accepts messages)
+✅ Database ready to store
+
+WHAT'S MISSING:
+Meta is not configured to CALL this webhook
+
+═══════════════════════════════════════════════════════════════════════════════════════

@@ -1098,11 +1098,11 @@ export default function MetaWhatsAppPage() {
                         className={`max-w-xs px-4 py-2 rounded-lg ${
                           msg.direction === 'outbound'
                             ? 'bg-slate-100 text-slate-950 border border-slate-200'
-                            : 'bg-slate-900 text-white border border-slate-800'
+                            : 'bg-green-500 text-white border border-green-600'
                         }`}
                       >
                         <p className="break-words whitespace-pre-wrap">{msg.messageContent}</p>
-                        <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-slate-500' : 'text-slate-300'}`}>
+                        <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-slate-500' : 'text-green-100'}`}>
                           {formatTime(msg.createdAt)}
                         </p>
                       </div>
