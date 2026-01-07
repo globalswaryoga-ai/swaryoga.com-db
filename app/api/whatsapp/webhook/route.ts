@@ -80,8 +80,10 @@ export async function POST(request: NextRequest) {
 
     // Recommended: verify Meta webhook signature if APP_SECRET is available.
     // This protects against random internet POSTs that would otherwise be accepted.
+    // TEMPORARY: Skip signature verification for debugging (will re-enable after confirming messages arrive)
     const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
-    if (appSecret) {
+    const skipSignatureVerification = process.env.SKIP_WEBHOOK_SIGNATURE === 'true'; // Debug flag
+    if (appSecret && !skipSignatureVerification) {
       const signatureHeader =
         request.headers.get('x-hub-signature-256') || request.headers.get('x-hub-signature') || '';
       const equalsIndex = signatureHeader.indexOf('=');
