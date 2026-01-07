@@ -65,11 +65,6 @@ export async function GET(request: NextRequest) {
           mode,
           hasChallenge: Boolean(challenge),
           tokenMatched: token === expectedToken,
-          expectedTokenExists: Boolean(expectedToken),
-          expectedToken: expectedToken || 'MISSING',
-          providedToken: token || 'MISSING',
-          expectedLength: expectedToken?.length || 0,
-          providedLength: token?.length || 0,
         }
       : { error: 'Forbidden' },
     { status: 403 }
