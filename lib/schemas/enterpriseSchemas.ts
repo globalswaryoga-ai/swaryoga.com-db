@@ -497,6 +497,26 @@ const WhatsAppTemplateSchema = new mongoose.Schema(
         title: { type: String },
       },
     ],
+    // Media fields - images (JPG/PNG/WebP), documents (PDF/Word/Excel/PowerPoint/ZIP), videos (URL only)
+    imageFile: {
+      url: { type: String },           // S3 URL
+      fileName: { type: String },
+      mimeType: { type: String },      // image/jpeg, image/png, etc
+      sizeBytes: { type: Number },
+      uploadedAt: { type: Date, default: Date.now },
+    },
+    documents: [
+      {
+        url: { type: String },         // S3 URL
+        fileName: { type: String },
+        mimeType: { type: String },    // application/pdf, application/msword, etc
+        sizeBytes: { type: Number },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
+    videoUrl: { type: String },        // YouTube, Vimeo, or any video URL (NO file upload)
+    
+    // Legacy media field (kept for backward compatibility)
     headerMedia: {
       kind: { type: String, enum: ['image', 'video'] },
       url: { type: String },

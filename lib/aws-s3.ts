@@ -280,3 +280,164 @@ export function isValidS3Url(url: string): boolean {
     return false;
   }
 }
+
+// ============================================================================
+// TEMPLATE-SPECIFIC FILE UPLOAD FUNCTIONS
+// ============================================================================
+
+// File size limits (in bytes)
+const MAX_IMAGE_SIZE = parseInt(process.env.MAX_IMAGE_SIZE || '26214400'); // 25MB
+const MAX_DOCUMENT_SIZE = parseInt(process.env.MAX_DOCUMENT_SIZE || '52428800'); // 50MB
+
+// Allowed MIME types
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_DOCUMENT_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/zip',
+  'application/x-zip-compressed',
+];
+
+interface TemplateFileUploadOptions {
+  file: Buffer;
+  fileName: string;
+  mimeType: string;
+  fileType: 'image' | 'document';
+  templateId: string;
+}
+
+interface TemplateFileUploadResult {
+  success: boolean;
+  url?: string;
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  error?: string;
+}
+
+/**
+ * Validate template file before upload
+ */
+export function validateTemplateFile(
+  file: Buffer,
+  mimeType: string,
+  fileType: 'image' | 'document'
+): { valid: boolean; error?: string } {
+  // Check file size
+  const maxSize = fileType === 'image' ? MAX_IMAGE_SIZE : MAX_DOCUMENT_SIZE;
+  if (file.length > maxSize) {
+    const sizeLimitMB = maxSize / (1024 * 1024);
+    return {
+      valid: false,
+      error: `File size exceeds ${sizeLimitMB}MB limit for ${fileType}s`,
+    };
+  }
+
+  // Check MIME type
+  const allowedTypes =
+    fileType === 'image' ? ALLOWED_IMAGE_TYPES : ALLOWED_DOCUMENT_TYPES;
+  if (!allowedTypes.includes(mimeType)) {
+    return {
+      valid: false,
+      error: `Invalid MIME type: ${mimeType}. Allowed types: ${allowedTypes.join(', ')}`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Generate unique S3 key for template file
+ */
+export function generateTemplateS3Key(
+  templateId: string,
+  fileName: string,
+  fileType: 'image' | 'document'
+): string {
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).substring(2, 8);
+  const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+  return `templates/${templateId}/${fileType}/${timestamp}_${randomSuffix}_${cleanFileName}`;
+}
+
+/**
+ * Upload template file to S3
+ */
+export async function uploadTemplateFileToS3(
+  options: TemplateFileUploadOptions
+): Promise<TemplateFileUploadResult> {
+  try {
+    const { file, fileName, mimeType, fileType, templateId } = options;
+
+    // Validate file
+    const validation = validateTemplateFile(file, mimeType, fileType);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error,
+      };
+    }
+
+    // Generate S3 key
+    const s3Key = generateTemplateS3Key(templateId, fileName, fileType);
+
+    // Upload to S3
+    const s3Url = await uploadToS3(file, s3Key, {
+      acl: 'public-read',
+      metadata: {
+        'template-id': templateId,
+        'file-type': fileType,
+        'original-name': fileName,
+        'uploaded-at': new Date().toISOString(),
+      },
+    });
+
+    return {
+      success: true,
+      url: s3Url,
+      fileName: fileName,
+      mimeType: mimeType,
+      sizeBytes: file.length,
+    };
+  } catch (error) {
+    console.error('Error uploading template file to S3:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Delete template file from S3 using URL
+ */
+export async function deleteTemplateFileFromS3(s3Url: string): Promise<boolean> {
+  try {
+    const s3Key = extractS3Key(s3Url);
+    await deleteFromS3(s3Key);
+    return true;
+  } catch (error) {
+    console.error('Error deleting template file from S3:', error);
+    return false;
+  }
+}
+
+/**
+ * Delete multiple template files from S3
+ */
+export async function deleteTemplateFilesFromS3(s3Urls: string[]): Promise<boolean> {
+  try {
+    const deletePromises = s3Urls.map((url) => deleteTemplateFileFromS3(url));
+    await Promise.all(deletePromises);
+    return true;
+  } catch (error) {
+    console.error('Error deleting template files from S3:', error);
+    return false;
+  }
+}
+
