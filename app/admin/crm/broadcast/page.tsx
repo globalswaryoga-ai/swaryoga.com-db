@@ -527,10 +527,17 @@ export default function BroadcastPage() {
       </div>
 
       {/* Main layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 12, marginTop: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 12, marginTop: 12, minHeight: '70vh' }}>
         {/* Left: filters + leads */}
-        <div style={{ border: '1px solid rgba(17, 24, 39, 0.08)', borderRadius: 14, background: '#fff' }}>
-          <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)' }}>
+        <div style={{ 
+          border: '1px solid rgba(17, 24, 39, 0.08)', 
+          borderRadius: 14, 
+          background: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '70vh'
+        }}>
+          <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)', flexShrink: 0 }}>
             <div style={{ fontWeight: 800 }}>Filters</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginTop: 10 }}>
               <div>
@@ -614,77 +621,106 @@ export default function BroadcastPage() {
             </div>
           </div>
 
-          <div style={{ padding: 12 }}>
-            {loading ? (
-              <LoadingSpinner />
-            ) : leads.length === 0 ? (
-              <div style={{ color: '#6B7280', fontSize: 13 }}>No leads match your filters.</div>
-            ) : (
-              <div style={{ display: 'grid', gap: 8 }}>
-                {leads.map((l) => {
-                  const checked = selectedLeadIds.has(l._id);
-                  return (
-                    <label
-                      key={l._id}
-                      style={{
-                        display: 'flex',
-                        gap: 10,
-                        alignItems: 'center',
-                        padding: 10,
-                        borderRadius: 12,
-                        border: '1px solid rgba(17, 24, 39, 0.08)',
-                        background: checked ? '#EEF2FF' : '#fff',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <input type="checkbox" checked={checked} onChange={() => toggleLead(l._id)} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 800, color: '#111827' }}>
-                          {l.name || 'Unnamed'}{' '}
-                          <span style={{ fontWeight: 600, color: '#6B7280' }}>{l.phoneNumber || ''}</span>
-                        </div>
-                        <div style={{ fontSize: 12, color: '#6B7280' }}>
-                          {l.status ? `Status: ${l.status}` : ''}
-                          {l.status && l.workshopName ? ' • ' : ''}
-                          {l.workshopName ? `Workshop: ${l.workshopName}` : ''}
-                        </div>
-                        {Array.isArray(l.labels) && l.labels.length ? (
-                          <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' as any }}>
-                            {l.labels.slice(0, 6).map((lb) => (
-                              <span
-                                key={lb}
-                                style={{
-                                  fontSize: 11,
-                                  padding: '2px 8px',
-                                  borderRadius: 999,
-                                  background: '#F3F4F6',
-                                  color: '#374151',
-                                }}
-                              >
-                                {lb}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    </label>
-                  );
-                })}
+          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* Selected count header */}
+            {leads.length > 0 && (
+              <div style={{ 
+                padding: '8px 10px', 
+                marginBottom: 10,
+                background: '#F0F9FF',
+                border: '1px solid #E0F2FE',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#0369A1',
+                textAlign: 'center'
+              }}>
+                ✅ {selectedLeadIds.size} of {leads.length} leads selected
               </div>
             )}
+
+            {/* Leads list container */}
+            <div style={{ overflowY: 'auto', flex: 1, paddingRight: 8 }}>
+              {loading ? (
+                <LoadingSpinner />
+              ) : leads.length === 0 ? (
+                <div style={{ color: '#6B7280', fontSize: 13 }}>No leads match your filters.</div>
+              ) : (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {leads.map((l) => {
+                    const checked = selectedLeadIds.has(l._id);
+                    return (
+                      <label
+                        key={l._id}
+                        style={{
+                          display: 'flex',
+                          gap: 10,
+                          alignItems: 'center',
+                          padding: 10,
+                          borderRadius: 12,
+                          border: '1px solid rgba(17, 24, 39, 0.08)',
+                          background: checked ? '#EEF2FF' : '#fff',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <input type="checkbox" checked={checked} onChange={() => toggleLead(l._id)} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 800, color: '#111827' }}>
+                            {l.name || 'Unnamed'}{' '}
+                            <span style={{ fontWeight: 600, color: '#6B7280' }}>{l.phoneNumber || ''}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#6B7280' }}>
+                            {l.status ? `Status: ${l.status}` : ''}
+                            {l.status && l.workshopName ? ' • ' : ''}
+                            {l.workshopName ? `Workshop: ${l.workshopName}` : ''}
+                          </div>
+                          {Array.isArray(l.labels) && l.labels.length ? (
+                            <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' as any }}>
+                              {l.labels.slice(0, 6).map((lb) => (
+                                <span
+                                  key={lb}
+                                  style={{
+                                    fontSize: 11,
+                                    padding: '2px 8px',
+                                    borderRadius: 999,
+                                    background: '#F3F4F6',
+                                    color: '#374151',
+                                  }}
+                                >
+                                  {lb}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Right: template + preview + actions */}
-        <div style={{ border: '1px solid rgba(17, 24, 39, 0.08)', borderRadius: 14, background: '#fff' }}>
-          <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)' }}>
+        <div style={{ 
+          border: '1px solid rgba(17, 24, 39, 0.08)', 
+          borderRadius: 14, 
+          background: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '70vh',
+          overflowY: 'auto'
+        }}>
+          <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)', flexShrink: 0 }}>
             <div style={{ fontWeight: 800 }}>Message</div>
             <div style={{ fontSize: 12, color: '#6B7280' }}>
               Select template, preview, then choose send mode
             </div>
           </div>
 
-          <div style={{ padding: 12, display: 'grid', gap: 10 }}>
+          <div style={{ padding: 12, display: 'grid', gap: 10, overflowY: 'auto', flex: 1 }}>
             <div>
               <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Template</div>
               <select
