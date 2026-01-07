@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
-import { Lead, WhatsAppMessage, WhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
+// NOTE: Models are imported DYNAMICALLY after connectDB() is called in the handler
+// to avoid calling mongoose.model() before the connection is established
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 
 import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
@@ -221,6 +222,9 @@ async function logWebhookEvent(event: {
     // This route should be resilient: never break the webhook path due to logging.
     await connectDB();
     
+    // Import models after connectDB() to ensure connection is established
+    const { WhatsAppWebhookEvent } = await import('@/lib/schemas/enterpriseSchemas');
+    
     await WhatsAppWebhookEvent.create({
       source: 'meta',
       kind: event.kind,
@@ -263,6 +267,9 @@ async function handleWebhookPayload(payload: any) {
     }
 
     await connectDB();
+    
+    // Import models after connectDB() to ensure connection is established
+    const { Lead, WhatsAppMessage } = await import('@/lib/schemas/enterpriseSchemas');
 
     const now = new Date();
 

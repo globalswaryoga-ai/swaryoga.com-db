@@ -1200,70 +1200,37 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
 
 // ============================================================================
-// MODEL INITIALIZATION (LAZY-LOADED AT RUNTIME)
+// MODEL INITIALIZATION
 // ============================================================================
-// CRITICAL: Models are registered AFTER connectDB() is called in route handlers
-// DO NOT call mongoose.model() at import time - it fails with no connection!
-// Solution: Use lazy getter that defers model registration to first ACCESS
+// Models are exported DIRECTLY. When imported in a route handler, the module
+// will be loaded AFTER connectDB() has already established the connection.
+// The || pattern checks mongoose.models cache FIRST (which gets populated
+// during connectDB), so we never actually call mongoose.model() with no connection.
 
-// Cache to store models after first registration
-const modelCache: { [key: string]: any } = {};
-
-// Register model lazily (on first access, not at module load time)
-function getOrCreateModel(modelName: string, schema: mongoose.Schema) {
-  if (!modelCache[modelName]) {
-    modelCache[modelName] = mongoose.models[modelName] || mongoose.model(modelName, schema);
-  }
-  return modelCache[modelName];
-}
-
-// Create proxy objects that behave like models but are lazy-loaded
-// When you access a property (like .create or .findOne), it triggers the getter
-class ModelProxy {
-  constructor(private modelName: string, private schema: mongoose.Schema) {}
-
-  private getModel() {
-    return getOrCreateModel(this.modelName, this.schema);
-  }
-
-  [key: string]: any;
-}
-
-// Override Proxy to forward all property accesses to the actual model
-function createModelProxy(modelName: string, schema: mongoose.Schema) {
-  return new Proxy({} as any, {
-    get: (target, prop) => {
-      const model = getOrCreateModel(modelName, schema);
-      return model[prop as string];
-    },
-  });
-}
-
-// Export all models as lazy-loaded proxies
-export const Lead = createModelProxy('Lead', LeadSchema);
-export const CrmCounter = createModelProxy('CrmCounter', CrmCounterSchema);
-export const DeletedLead = createModelProxy('DeletedLead', DeletedLeadSchema);
-export const WhatsAppMessage = createModelProxy('WhatsAppMessage', WhatsAppMessageSchema);
-export const WhatsAppWebhookEvent = createModelProxy('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
-export const WhatsAppAccount = createModelProxy('WhatsAppAccount', WhatsAppAccountSchema);
-export const UserConsent = createModelProxy('UserConsent', UserConsentSchema);
-export const MessageStatus = createModelProxy('MessageStatus', MessageStatusSchema);
-export const AuditLog = createModelProxy('AuditLog', AuditLogSchema);
-export const WhatsAppTemplate = createModelProxy('WhatsAppTemplate', WhatsAppTemplateSchema);
-export const RateLimit = createModelProxy('RateLimit', RateLimitSchema);
-export const Backup = createModelProxy('Backup', BackupSchema);
-export const Permission = createModelProxy('Permission', PermissionSchema);
-export const AnalyticsEvent = createModelProxy('AnalyticsEvent', AnalyticsEventSchema);
-export const SalesReport = createModelProxy('SalesReport', SalesReportSchema);
-export const WhatsAppScheduledJob = createModelProxy('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
-export const WhatsAppAutomationRule = createModelProxy('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
-export const LeadNote = createModelProxy('LeadNote', LeadNoteSchema);
-export const LeadFollowUp = createModelProxy('LeadFollowUp', LeadFollowUpSchema);
-export const QuickReply = createModelProxy('QuickReply', QuickReplySchema);
-export const BroadcastList = createModelProxy('BroadcastList', BroadcastListSchema);
-export const BroadcastListMember = createModelProxy('BroadcastListMember', BroadcastListMemberSchema);
-export const BroadcastRun = createModelProxy('BroadcastRun', BroadcastRunSchema);
-export const BroadcastRunMessage = createModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
-export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
-export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
-export const CrmReceipt = createModelProxy('CrmReceipt', CrmReceiptSchema);
+export const Lead = mongoose.models.Lead || mongoose.model('Lead', LeadSchema);
+export const CrmCounter = mongoose.models.CrmCounter || mongoose.model('CrmCounter', CrmCounterSchema);
+export const DeletedLead = mongoose.models.DeletedLead || mongoose.model('DeletedLead', DeletedLeadSchema);
+export const WhatsAppMessage = mongoose.models.WhatsAppMessage || mongoose.model('WhatsAppMessage', WhatsAppMessageSchema);
+export const WhatsAppWebhookEvent = mongoose.models.WhatsAppWebhookEvent || mongoose.model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
+export const WhatsAppAccount = mongoose.models.WhatsAppAccount || mongoose.model('WhatsAppAccount', WhatsAppAccountSchema);
+export const UserConsent = mongoose.models.UserConsent || mongoose.model('UserConsent', UserConsentSchema);
+export const MessageStatus = mongoose.models.MessageStatus || mongoose.model('MessageStatus', MessageStatusSchema);
+export const AuditLog = mongoose.models.AuditLog || mongoose.model('AuditLog', AuditLogSchema);
+export const WhatsAppTemplate = mongoose.models.WhatsAppTemplate || mongoose.model('WhatsAppTemplate', WhatsAppTemplateSchema);
+export const RateLimit = mongoose.models.RateLimit || mongoose.model('RateLimit', RateLimitSchema);
+export const Backup = mongoose.models.Backup || mongoose.model('Backup', BackupSchema);
+export const Permission = mongoose.models.Permission || mongoose.model('Permission', PermissionSchema);
+export const AnalyticsEvent = mongoose.models.AnalyticsEvent || mongoose.model('AnalyticsEvent', AnalyticsEventSchema);
+export const SalesReport = mongoose.models.SalesReport || mongoose.model('SalesReport', SalesReportSchema);
+export const WhatsAppScheduledJob = mongoose.models.WhatsAppScheduledJob || mongoose.model('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
+export const WhatsAppAutomationRule = mongoose.models.WhatsAppAutomationRule || mongoose.model('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
+export const LeadNote = mongoose.models.LeadNote || mongoose.model('LeadNote', LeadNoteSchema);
+export const LeadFollowUp = mongoose.models.LeadFollowUp || mongoose.model('LeadFollowUp', LeadFollowUpSchema);
+export const QuickReply = mongoose.models.QuickReply || mongoose.model('QuickReply', QuickReplySchema);
+export const BroadcastList = mongoose.models.BroadcastList || mongoose.model('BroadcastList', BroadcastListSchema);
+export const BroadcastListMember = mongoose.models.BroadcastListMember || mongoose.model('BroadcastListMember', BroadcastListMemberSchema);
+export const BroadcastRun = mongoose.models.BroadcastRun || mongoose.model('BroadcastRun', BroadcastRunSchema);
+export const BroadcastRunMessage = mongoose.models.BroadcastRunMessage || mongoose.model('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const ChatbotFlow = mongoose.models.ChatbotFlow || mongoose.model('ChatbotFlow', ChatbotFlowSchema);
+export const ChatbotSettings = mongoose.models.ChatbotSettings || mongoose.model('ChatbotSettings', ChatbotSettingsSchema);
+export const CrmReceipt = mongoose.models.CrmReceipt || mongoose.model('CrmReceipt', CrmReceiptSchema);
