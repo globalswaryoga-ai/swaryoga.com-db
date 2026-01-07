@@ -23,7 +23,7 @@ export default function SessionPlayer({
   const [isSeeking, setIsSeeking] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const controlsTimeout = useRef<NodeJS.Timeout>();
+  const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
   const [percentageWatched, setPercentageWatched] = useState(0);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -33,7 +33,9 @@ export default function SessionPlayer({
   // Auto-hide controls on mouse move
   const handleMouseMove = () => {
     setShowControls(true);
-    clearTimeout(controlsTimeout.current);
+    if (controlsTimeout.current) {
+      clearTimeout(controlsTimeout.current);
+    }
     controlsTimeout.current = setTimeout(() => {
       if (isPlaying) setShowControls(false);
     }, 3000);
