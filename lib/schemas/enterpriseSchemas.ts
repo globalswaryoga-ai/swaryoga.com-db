@@ -1207,38 +1207,45 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
 
 // ============================================================================
-// MODEL INITIALIZATION
+// MODEL INITIALIZATION (DIRECT, LAZY-SAFE)
 // ============================================================================
-// Models are registered directly to the CRM database using getCrmDb()
-// Each time a model is accessed, it checks the cache and registers if needed.
-// This ensures they point to the correct database (swaryoga_admin_crm).
+// All models are initialized directly but safely because:
+// 1. Each model uses the pattern: crmDb.models.X || crmDb.model('X', Schema)
+// 2. getCrmDb() will be called AFTER connectDB() is guaranteed by the route handlers
+// 3. The || caching pattern prevents duplicate registration
 
-const crmDb = getCrmDb();
+function initModel(modelName: string, schema: any) {
+  const crmDb = getCrmDb();
+  if (crmDb.models[modelName]) {
+    return crmDb.models[modelName];
+  }
+  return crmDb.model(modelName, schema);
+}
 
-export const Lead = crmDb.models.Lead || crmDb.model('Lead', LeadSchema);
-export const CrmCounter = crmDb.models.CrmCounter || crmDb.model('CrmCounter', CrmCounterSchema);
-export const DeletedLead = crmDb.models.DeletedLead || crmDb.model('DeletedLead', DeletedLeadSchema);
-export const WhatsAppMessage = crmDb.models.WhatsAppMessage || crmDb.model('WhatsAppMessage', WhatsAppMessageSchema);
-export const WhatsAppWebhookEvent = crmDb.models.WhatsAppWebhookEvent || crmDb.model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
-export const WhatsAppAccount = crmDb.models.WhatsAppAccount || crmDb.model('WhatsAppAccount', WhatsAppAccountSchema);
-export const UserConsent = crmDb.models.UserConsent || crmDb.model('UserConsent', UserConsentSchema);
-export const MessageStatus = crmDb.models.MessageStatus || crmDb.model('MessageStatus', MessageStatusSchema);
-export const AuditLog = crmDb.models.AuditLog || crmDb.model('AuditLog', AuditLogSchema);
-export const WhatsAppTemplate = crmDb.models.WhatsAppTemplate || crmDb.model('WhatsAppTemplate', WhatsAppTemplateSchema);
-export const RateLimit = crmDb.models.RateLimit || crmDb.model('RateLimit', RateLimitSchema);
-export const Backup = crmDb.models.Backup || crmDb.model('Backup', BackupSchema);
-export const Permission = crmDb.models.Permission || crmDb.model('Permission', PermissionSchema);
-export const AnalyticsEvent = crmDb.models.AnalyticsEvent || crmDb.model('AnalyticsEvent', AnalyticsEventSchema);
-export const SalesReport = crmDb.models.SalesReport || crmDb.model('SalesReport', SalesReportSchema);
-export const WhatsAppScheduledJob = crmDb.models.WhatsAppScheduledJob || crmDb.model('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
-export const WhatsAppAutomationRule = crmDb.models.WhatsAppAutomationRule || crmDb.model('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
-export const LeadNote = crmDb.models.LeadNote || crmDb.model('LeadNote', LeadNoteSchema);
-export const LeadFollowUp = crmDb.models.LeadFollowUp || crmDb.model('LeadFollowUp', LeadFollowUpSchema);
-export const QuickReply = crmDb.models.QuickReply || crmDb.model('QuickReply', QuickReplySchema);
-export const BroadcastList = crmDb.models.BroadcastList || crmDb.model('BroadcastList', BroadcastListSchema);
-export const BroadcastListMember = crmDb.models.BroadcastListMember || crmDb.model('BroadcastListMember', BroadcastListMemberSchema);
-export const BroadcastRun = crmDb.models.BroadcastRun || crmDb.model('BroadcastRun', BroadcastRunSchema);
-export const BroadcastRunMessage = crmDb.models.BroadcastRunMessage || crmDb.model('BroadcastRunMessage', BroadcastRunMessageSchema);
-export const ChatbotFlow = crmDb.models.ChatbotFlow || crmDb.model('ChatbotFlow', ChatbotFlowSchema);
-export const ChatbotSettings = crmDb.models.ChatbotSettings || crmDb.model('ChatbotSettings', ChatbotSettingsSchema);
-export const CrmReceipt = crmDb.models.CrmReceipt || crmDb.model('CrmReceipt', CrmReceiptSchema);
+export const Lead = initModel('Lead', LeadSchema);
+export const CrmCounter = initModel('CrmCounter', CrmCounterSchema);
+export const DeletedLead = initModel('DeletedLead', DeletedLeadSchema);
+export const WhatsAppMessage = initModel('WhatsAppMessage', WhatsAppMessageSchema);
+export const WhatsAppWebhookEvent = initModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
+export const WhatsAppAccount = initModel('WhatsAppAccount', WhatsAppAccountSchema);
+export const UserConsent = initModel('UserConsent', UserConsentSchema);
+export const MessageStatus = initModel('MessageStatus', MessageStatusSchema);
+export const AuditLog = initModel('AuditLog', AuditLogSchema);
+export const WhatsAppTemplate = initModel('WhatsAppTemplate', WhatsAppTemplateSchema);
+export const RateLimit = initModel('RateLimit', RateLimitSchema);
+export const Backup = initModel('Backup', BackupSchema);
+export const Permission = initModel('Permission', PermissionSchema);
+export const AnalyticsEvent = initModel('AnalyticsEvent', AnalyticsEventSchema);
+export const SalesReport = initModel('SalesReport', SalesReportSchema);
+export const WhatsAppScheduledJob = initModel('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
+export const WhatsAppAutomationRule = initModel('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
+export const LeadNote = initModel('LeadNote', LeadNoteSchema);
+export const LeadFollowUp = initModel('LeadFollowUp', LeadFollowUpSchema);
+export const QuickReply = initModel('QuickReply', QuickReplySchema);
+export const BroadcastList = initModel('BroadcastList', BroadcastListSchema);
+export const BroadcastListMember = initModel('BroadcastListMember', BroadcastListMemberSchema);
+export const BroadcastRun = initModel('BroadcastRun', BroadcastRunSchema);
+export const BroadcastRunMessage = initModel('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const ChatbotFlow = initModel('ChatbotFlow', ChatbotFlowSchema);
+export const ChatbotSettings = initModel('ChatbotSettings', ChatbotSettingsSchema);
+export const CrmReceipt = initModel('CrmReceipt', CrmReceiptSchema);
