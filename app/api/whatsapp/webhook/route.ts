@@ -81,24 +81,48 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url);
     const debug = url.searchParams.get('debug') === '1';
 
+    const signatureDebug: {
+      enabled: boolean;
+      headerPresent: boolean;
+      headerName?: 'x-hub-signature-256' | 'x-hub-signature' | 'none';
+      algo?: 'sha256' | 'sha1' | 'unknown';
+      providedPrefix?: string;
+      expectedPrefix?: string;
+      expectedLength?: number;
+      providedLength?: number;
+    } = { enabled: debug, headerPresent: false };
+
     // Recommended: verify Meta webhook signature if APP_SECRET is available.
     // This protects against random internet POSTs that would otherwise be accepted.
     // TEMPORARY: Skip signature verification for debugging (will re-enable after confirming messages arrive)
     const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
     const skipSignatureVerification = process.env.SKIP_WEBHOOK_SIGNATURE === 'true'; // Debug flag
     if (appSecret && !skipSignatureVerification) {
-      const signatureHeader =
-        request.headers.get('x-hub-signature-256') || request.headers.get('x-hub-signature') || '';
+      const sig256 = request.headers.get('x-hub-signature-256');
+      const sig1 = request.headers.get('x-hub-signature');
+      const signatureHeader = sig256 || sig1 || '';
+
+      if (debug) {
+        signatureDebug.headerPresent = Boolean(signatureHeader);
+        signatureDebug.headerName = sig256 ? 'x-hub-signature-256' : sig1 ? 'x-hub-signature' : 'none';
+      }
+
       const equalsIndex = signatureHeader.indexOf('=');
       const algo = equalsIndex > 0 ? signatureHeader.slice(0, equalsIndex).toLowerCase() : '';
       const provided = equalsIndex > 0 ? signatureHeader.slice(equalsIndex + 1) : '';
       const supportedAlgo = algo === 'sha1' ? 'sha1' : 'sha256';
+
+      if (debug) {
+        signatureDebug.algo = supportedAlgo === 'sha1' ? 'sha1' : 'sha256';
+        signatureDebug.providedLength = provided.length;
+      }
 
       if (!provided) {
         await logWebhookEvent({
           kind: 'error',
           ok: false,
           message: 'Missing webhook signature header',
+          sample: debug ? { signatureDebug } : undefined,
         });
         const res = NextResponse.json(
           debug
@@ -116,11 +140,13 @@ export async function POST(request: NextRequest) {
       }
 
       const expectedLength = supportedAlgo === 'sha256' ? 64 : 40;
+      if (debug) signatureDebug.expectedLength = expectedLength;
       if (provided.length !== expectedLength || !/^[0-9a-fA-F]+$/.test(provided)) {
         await logWebhookEvent({
           kind: 'error',
           ok: false,
           message: 'Invalid webhook signature format',
+          sample: debug ? { signatureDebug } : undefined,
         });
         const res = NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
         res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
@@ -131,6 +157,12 @@ export async function POST(request: NextRequest) {
 
       const rawBody = await request.text();
       const expected = crypto.createHmac(supportedAlgo, appSecret).update(rawBody, 'utf8').digest('hex');
+
+      if (debug) {
+        signatureDebug.providedPrefix = provided.slice(0, 12);
+        signatureDebug.expectedPrefix = expected.slice(0, 12);
+      }
+
       const providedBuf = Buffer.from(provided, 'hex');
       const expectedBuf = Buffer.from(expected, 'hex');
       if (providedBuf.length !== expectedBuf.length) {
@@ -138,6 +170,7 @@ export async function POST(request: NextRequest) {
           kind: 'error',
           ok: false,
           message: 'Invalid webhook signature length',
+          sample: debug ? { signatureDebug } : undefined,
         });
         const res = NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
         res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
@@ -151,6 +184,7 @@ export async function POST(request: NextRequest) {
           kind: 'error',
           ok: false,
           message: 'Invalid webhook signature (HMAC mismatch)',
+          sample: debug ? { signatureDebug } : undefined,
         });
         const res = NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
         res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
