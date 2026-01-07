@@ -127,7 +127,7 @@ class PermanentStorageManager {
   /**
    * Load from IndexedDB
    */
-  private loadFromIndexedDB(key: string): any {
+  private async loadFromIndexedDB(key: string): Promise<any> {
     if (typeof window === 'undefined' || !window.indexedDB) return null;
 
     return new Promise((resolve) => {
@@ -160,9 +160,9 @@ class PermanentStorageManager {
   }
 
   /**
-   * Sync all data (creates backup)
+   * Sync all data (creates backup) - Now async
    */
-  private syncAllData(): void {
+  private async syncAllData(): Promise<void> {
     if (typeof window === 'undefined') return;
 
     try {

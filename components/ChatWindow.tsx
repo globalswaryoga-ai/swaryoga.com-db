@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { Loader } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -14,8 +15,9 @@ interface ChatWindowProps {
   contactName: string;
   contactPhone?: string;
   status: 'lead' | 'prospect' | 'customer' | 'inactive';
-  onSendMessage?: (message: string, templates?: string[]) => void;
+  onSendMessage?: (message: string) => void;
   onStatusChange?: (newStatus: string) => void;
+  phoneNumber?: string;
 }
 
 export default function ChatWindow({
@@ -24,16 +26,13 @@ export default function ChatWindow({
   status,
   onSendMessage,
   onStatusChange,
+  phoneNumber,
 }: ChatWindowProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', text: 'Hi! I saw your yoga course...', sender: 'contact', timestamp: '10:30 AM', status: 'read' },
-    { id: '2', text: 'Would love to know more about the prenatal yoga class', sender: 'contact', timestamp: '10:32 AM', status: 'read' },
-    { id: '3', text: 'Sure! We have a great beginner-friendly program 🧘', sender: 'user', timestamp: '10:35 AM', status: 'read' },
-    { id: '4', text: 'Can I try a free demo session?', sender: 'contact', timestamp: '10:36 AM', status: 'read' },
-  ]);
-
+  const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const templates = [
@@ -44,6 +43,63 @@ export default function ChatWindow({
     '💝 Special offer: Get 20% off today! Limited time.',
   ];
 
+  // Fetch messages from database
+  useEffect(() => {
+    const fetchMessages = async () => {
+      const phone = phoneNumber || contactPhone?.replace(/\D/g, '');
+      if (!phone) return;
+
+      setLoading(true);
+      setError('');
+
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/whatsapp/messages?phone=${encodeURIComponent(phone)}`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to fetch messages: ${response.statusText}`);
+          setMessages([]);
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.messages && Array.isArray(data.messages)) {
+          // Sort messages by date (ascending - oldest first)
+          const sorted = [...data.messages].sort((a: any, b: any) => 
+            new Date(a.sentAt || a.createdAt).getTime() - new Date(b.sentAt || b.createdAt).getTime()
+          );
+
+          const formattedMessages: Message[] = sorted.map((msg: any) => ({
+            id: msg._id?.toString() || msg.waMessageId || Date.now().toString(),
+            text: msg.messageContent || '',
+            sender: msg.direction === 'inbound' ? 'contact' : 'user',
+            timestamp: new Date(msg.sentAt || msg.createdAt).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            status: (msg.status || 'delivered') as 'sent' | 'delivered' | 'read',
+          }));
+
+          setMessages(formattedMessages);
+        }
+      } catch (err) {
+        console.error('Error fetching messages:', err);
+        setMessages([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMessages();
+    // Poll for new messages every 3 seconds
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, [phoneNumber, contactPhone]);
+
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -107,32 +163,48 @@ export default function ChatWindow({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                msg.sender === 'user'
-                  ? 'bg-yoga-600 text-white rounded-br-none'
-                  : 'bg-gray-200 text-gray-900 rounded-bl-none'
-              }`}
-            >
-              <p className="text-sm">{msg.text}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <p className="text-xs opacity-70">{msg.timestamp}</p>
-                {msg.sender === 'user' && (
-                  <span className="text-xs">
-                    {msg.status === 'sent' && '✓'}
-                    {msg.status === 'delivered' && '✓✓'}
-                    {msg.status === 'read' && '✓✓'}
-                  </span>
-                )}
-              </div>
+        {loading && messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-2">
+              <Loader className="w-6 h-6 animate-spin text-yoga-600" />
+              <p className="text-sm text-gray-500">Loading messages...</p>
             </div>
           </div>
-        ))}
+        ) : messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <p className="text-gray-500 text-sm">No messages yet</p>
+              <p className="text-gray-400 text-xs mt-1">Messages will appear here when received</p>
+            </div>
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                  msg.sender === 'user'
+                    ? 'bg-yoga-600 text-white rounded-br-none'
+                    : 'bg-gray-200 text-gray-900 rounded-bl-none'
+                }`}
+              >
+                <p className="text-sm break-words">{msg.text}</p>
+                <div className="flex items-center gap-1 mt-1 justify-end">
+                  <p className="text-xs opacity-70">{msg.timestamp}</p>
+                  {msg.sender === 'user' && (
+                    <span className="text-xs ml-1">
+                      {msg.status === 'sent' && '✓'}
+                      {msg.status === 'delivered' && '✓✓'}
+                      {msg.status === 'read' && '✓✓'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
         <div ref={messagesEndRef} />
       </div>
 
