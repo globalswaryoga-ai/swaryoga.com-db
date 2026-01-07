@@ -218,9 +218,20 @@ async function logWebhookEvent(event: {
   sample?: any;
 }) {
   try {
+    console.log('[WEBHOOK LOG START] Attempting to log:', event.kind);
+    
     // This route should be resilient: never break the webhook path due to logging.
+    // CRITICAL: connectDB() first THEN use the model, because the model needs an active connection
+    console.log('[WEBHOOK LOG] Calling connectDB()...');
     await connectDB();
-    await WhatsAppWebhookEvent.create({
+    console.log('[WEBHOOK LOG] connectDB() complete, DB connected');
+    
+    // Re-import the model to ensure we get the freshly-connected version
+    console.log('[WEBHOOK LOG] Importing WhatsAppWebhookEvent model...');
+    const { WhatsAppWebhookEvent: WebhookEventModel } = await import('@/lib/schemas/enterpriseSchemas');
+    console.log('[WEBHOOK LOG] Model imported, attempting create...');
+    
+    const eventData = {
       source: 'meta',
       kind: event.kind,
       ok: event.ok ?? true,
@@ -230,9 +241,17 @@ async function logWebhookEvent(event: {
       status: event.status,
       sample: event.sample,
       receivedAt: new Date(),
-    });
-  } catch {
-    // swallow
+    };
+    console.log('[WEBHOOK LOG] Event data prepared:', JSON.stringify(eventData).substring(0, 200));
+    
+    const result = await WebhookEventModel.create(eventData);
+    console.log(`[WEBHOOK LOG SUCCESS] Event logged: ${event.kind} | Phone: ${event.phoneNumber} | ID: ${result._id} | DB: ${result.__proto__.constructor.collection.dbName || 'unknown'}`);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error && err.stack ? err.stack.split('\n').slice(0, 5).join('\n') : 'no stack';
+    console.error('[WEBHOOK LOG ERROR] Failed to log event:', errMsg);
+    console.error('[WEBHOOK LOG STACK]', stack);
+    console.error('[WEBHOOK LOG EVENT]', event);
   }
 }
 

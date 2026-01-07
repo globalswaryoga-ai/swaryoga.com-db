@@ -1201,37 +1201,143 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 // ============================================================================
 // EXPORT MODELS
 // ============================================================================
-const crmDb = getCrmDb();
+// CRITICAL: getCrmDb() must be called AFTER MongoDB is connected!
+// We delay the crmDb variable to a getter function for lazy evaluation.
+function getCrmDbInstance() {
+  return mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
+}
 
-export const Lead = crmDb.models.Lead || crmDb.model('Lead', LeadSchema);
-export const CrmCounter = crmDb.models.CrmCounter || crmDb.model('CrmCounter', CrmCounterSchema);
-export const DeletedLead = crmDb.models.DeletedLead || crmDb.model('DeletedLead', DeletedLeadSchema);
-export const WhatsAppMessage = crmDb.models.WhatsAppMessage || crmDb.model('WhatsAppMessage', WhatsAppMessageSchema);
-export const WhatsAppWebhookEvent =
-  crmDb.models.WhatsAppWebhookEvent || crmDb.model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
-export const WhatsAppAccount = crmDb.models.WhatsAppAccount || crmDb.model('WhatsAppAccount', WhatsAppAccountSchema);
-export const UserConsent = crmDb.models.UserConsent || crmDb.model('UserConsent', UserConsentSchema);
-export const MessageStatus = crmDb.models.MessageStatus || crmDb.model('MessageStatus', MessageStatusSchema);
-export const AuditLog = crmDb.models.AuditLog || crmDb.model('AuditLog', AuditLogSchema);
-export const WhatsAppTemplate = crmDb.models.WhatsAppTemplate || crmDb.model('WhatsAppTemplate', WhatsAppTemplateSchema);
-export const RateLimit = crmDb.models.RateLimit || crmDb.model('RateLimit', RateLimitSchema);
-export const Backup = crmDb.models.Backup || crmDb.model('Backup', BackupSchema);
-export const Permission = crmDb.models.Permission || crmDb.model('Permission', PermissionSchema);
-export const AnalyticsEvent = crmDb.models.AnalyticsEvent || crmDb.model('AnalyticsEvent', AnalyticsEventSchema);
-export const SalesReport = crmDb.models.SalesReport || crmDb.model('SalesReport', SalesReportSchema);
-export const WhatsAppScheduledJob =
-  crmDb.models.WhatsAppScheduledJob || crmDb.model('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
-export const WhatsAppAutomationRule =
-  crmDb.models.WhatsAppAutomationRule || crmDb.model('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
-export const LeadNote = crmDb.models.LeadNote || crmDb.model('LeadNote', LeadNoteSchema);
-export const LeadFollowUp = crmDb.models.LeadFollowUp || crmDb.model('LeadFollowUp', LeadFollowUpSchema);
-export const QuickReply = crmDb.models.QuickReply || crmDb.model('QuickReply', QuickReplySchema);
-export const BroadcastList = crmDb.models.BroadcastList || crmDb.model('BroadcastList', BroadcastListSchema);
-export const BroadcastListMember =
-  crmDb.models.BroadcastListMember || crmDb.model('BroadcastListMember', BroadcastListMemberSchema);
-export const BroadcastRun = crmDb.models.BroadcastRun || crmDb.model('BroadcastRun', BroadcastRunSchema);
-export const BroadcastRunMessage =
-  crmDb.models.BroadcastRunMessage || crmDb.model('BroadcastRunMessage', BroadcastRunMessageSchema);
-export const ChatbotFlow = crmDb.models.ChatbotFlow || crmDb.model('ChatbotFlow', ChatbotFlowSchema);
-export const ChatbotSettings = crmDb.models.ChatbotSettings || crmDb.model('ChatbotSettings', ChatbotSettingsSchema);
-export const CrmReceipt = crmDb.models.CrmReceipt || crmDb.model('CrmReceipt', CrmReceiptSchema);
+export const Lead = (() => {
+  const db = getCrmDbInstance();
+  return db.models.Lead || db.model('Lead', LeadSchema);
+})();
+
+export const CrmCounter = (() => {
+  const db = getCrmDbInstance();
+  return db.models.CrmCounter || db.model('CrmCounter', CrmCounterSchema);
+})();
+
+export const DeletedLead = (() => {
+  const db = getCrmDbInstance();
+  return db.models.DeletedLead || db.model('DeletedLead', DeletedLeadSchema);
+})();
+
+export const WhatsAppMessage = (() => {
+  const db = getCrmDbInstance();
+  return db.models.WhatsAppMessage || db.model('WhatsAppMessage', WhatsAppMessageSchema);
+})();
+
+export const WhatsAppWebhookEvent = (() => {
+  const db = getCrmDbInstance();
+  return db.models.WhatsAppWebhookEvent || db.model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
+})();
+
+export const WhatsAppAccount = (() => {
+  const db = getCrmDbInstance();
+  return db.models.WhatsAppAccount || db.model('WhatsAppAccount', WhatsAppAccountSchema);
+})();
+
+export const UserConsent = (() => {
+  const db = getCrmDbInstance();
+  return db.models.UserConsent || db.model('UserConsent', UserConsentSchema);
+})();
+
+export const MessageStatus = (() => {
+  const db = getCrmDbInstance();
+  return db.models.MessageStatus || db.model('MessageStatus', MessageStatusSchema);
+})();
+
+export const AuditLog = (() => {
+  const db = getCrmDbInstance();
+  return db.models.AuditLog || db.model('AuditLog', AuditLogSchema);
+})();
+
+export const WhatsAppTemplate = (() => {
+  const db = getCrmDbInstance();
+  return db.models.WhatsAppTemplate || db.model('WhatsAppTemplate', WhatsAppTemplateSchema);
+})();
+
+export const RateLimit = (() => {
+  const db = getCrmDbInstance();
+  return db.models.RateLimit || db.model('RateLimit', RateLimitSchema);
+})();
+
+export const Backup = (() => {
+  const db = getCrmDbInstance();
+  return db.models.Backup || db.model('Backup', BackupSchema);
+})();
+
+export const Permission = (() => {
+  const db = getCrmDbInstance();
+  return db.models.Permission || db.model('Permission', PermissionSchema);
+})();
+
+export const AnalyticsEvent = (() => {
+  const db = getCrmDbInstance();
+  return db.models.AnalyticsEvent || db.model('AnalyticsEvent', AnalyticsEventSchema);
+})();
+
+export const SalesReport = (() => {
+  const db = getCrmDbInstance();
+  return db.models.SalesReport || db.model('SalesReport', SalesReportSchema);
+})();
+
+export const WhatsAppScheduledJob = (() => {
+  const db = getCrmDbInstance();
+  return db.models.WhatsAppScheduledJob || db.model('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
+})();
+
+export const WhatsAppAutomationRule = (() => {
+  const db = getCrmDbInstance();
+  return db.models.WhatsAppAutomationRule || db.model('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
+})();
+
+export const LeadNote = (() => {
+  const db = getCrmDbInstance();
+  return db.models.LeadNote || db.model('LeadNote', LeadNoteSchema);
+})();
+
+export const LeadFollowUp = (() => {
+  const db = getCrmDbInstance();
+  return db.models.LeadFollowUp || db.model('LeadFollowUp', LeadFollowUpSchema);
+})();
+
+export const QuickReply = (() => {
+  const db = getCrmDbInstance();
+  return db.models.QuickReply || db.model('QuickReply', QuickReplySchema);
+})();
+
+export const BroadcastList = (() => {
+  const db = getCrmDbInstance();
+  return db.models.BroadcastList || db.model('BroadcastList', BroadcastListSchema);
+})();
+
+export const BroadcastListMember = (() => {
+  const db = getCrmDbInstance();
+  return db.models.BroadcastListMember || db.model('BroadcastListMember', BroadcastListMemberSchema);
+})();
+
+export const BroadcastRun = (() => {
+  const db = getCrmDbInstance();
+  return db.models.BroadcastRun || db.model('BroadcastRun', BroadcastRunSchema);
+})();
+
+export const BroadcastRunMessage = (() => {
+  const db = getCrmDbInstance();
+  return db.models.BroadcastRunMessage || db.model('BroadcastRunMessage', BroadcastRunMessageSchema);
+})();
+
+export const ChatbotFlow = (() => {
+  const db = getCrmDbInstance();
+  return db.models.ChatbotFlow || db.model('ChatbotFlow', ChatbotFlowSchema);
+})();
+
+export const ChatbotSettings = (() => {
+  const db = getCrmDbInstance();
+  return db.models.ChatbotSettings || db.model('ChatbotSettings', ChatbotSettingsSchema);
+})();
+
+export const CrmReceipt = (() => {
+  const db = getCrmDbInstance();
+  return db.models.CrmReceipt || db.model('CrmReceipt', CrmReceiptSchema);
+})();

@@ -1,47 +1,44 @@
-#!/usr/bin/env node
-
-const mongoose = require('mongoose');
 require('dotenv').config();
+const mongoose = require('mongoose');
 
-const MONGODB_URI = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI;
-const MAIN_DB_NAME = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+const mongoUri = process.env.MONGODB_URI;
+const dbName = 'swaryogaDB';
 
-async function checkMessages() {
+async function check() {
   try {
-    await mongoose.connect(MONGODB_URI, {
-      dbName: MAIN_DB_NAME,
-      tls: true,
-      retryWrites: true,
-    });
+    await mongoose.connect(mongoUri, { dbName });
 
-    const db = mongoose.connection;
+    const WhatsAppMessageSchema = new mongoose.Schema(
+      {
+        leadId: mongoose.Schema.Types.ObjectId,
+        phoneNumber: String,
+        direction: String,
+        messageContent: String,
+        sentAt: Date,
+      },
+      { collection: 'whatsappmessages' }
+    );
 
-    // Get all messages
-    const messages = await db.collection('whatsappmessages').find({}).sort({ createdAt: -1 }).limit(5).toArray();
+    const WhatsAppMessage = mongoose.model('WhatsAppMessage', WhatsAppMessageSchema);
 
-    console.log('\n╔════════════════════════════════════════════════════════════════╗');
-    console.log('║            RECENT WHATSAPP MESSAGES (Last 5)                   ║');
-    console.log('╚════════════════════════════════════════════════════════════════╝\n');
+    const messages = await WhatsAppMessage.find({ phoneNumber: '919779006820' }).sort({ sentAt: -1 }).limit(20).lean();
 
+    console.log('\n📨 Messages for 919779006820:');
+    console.log(`Total: ${messages.length}\n`);
     if (messages.length === 0) {
-      console.log('❌ NO MESSAGES FOUND\n');
+      console.log('❌ NO MESSAGES FOUND');
     } else {
       messages.forEach((msg, i) => {
-        console.log(`\n[${i + 1}] ID: ${msg._id}`);
-        console.log(`    Phone: ${msg.phoneNumber}`);
-        console.log(`    Direction: ${msg.direction}`);
-        console.log(`    Content: ${msg.messageContent?.substring(0, 100)}`);
-        console.log(`    Status: ${msg.status}`);
-        console.log(`    Created: ${msg.createdAt}`);
+        console.log(`[${i+1}] ${msg.direction?.toUpperCase()} @ ${new Date(msg.sentAt).toISOString()}`);
+        console.log(`    "${msg.messageContent}"\n`);
       });
     }
 
-    console.log('\n');
-    process.exit(0);
-  } catch (error) {
-    console.error('Error:', error.message);
+    await mongoose.disconnect();
+  } catch (err) {
+    console.error('Error:', err.message);
     process.exit(1);
   }
 }
 
-checkMessages();
+check();
