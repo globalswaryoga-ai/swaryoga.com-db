@@ -674,13 +674,20 @@ export default function LeadsPage() {
             </button>
             <button
               onClick={() => {
-                setLeadsForBroadcast(leads);
-                setBroadcastModalOpen(true);
+                // Build query params with current filters
+                const params = new URLSearchParams();
+                if (filterStatus) params.set('status', filterStatus);
+                if (filterWorkshop) params.set('workshop', filterWorkshop);
+                if (userFilter) params.set('userId', userFilter);
+                
+                // Navigate to broadcast page with filters preserved
+                const queryString = params.toString();
+                router.push(`/admin/crm/broadcast${queryString ? `?${queryString}` : ''}`);
               }}
-              className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-lg transition-all font-semibold border border-blue-200 flex items-center gap-2"
-              title="Send broadcast message to all filtered leads"
+              className="bg-purple-50 hover:bg-purple-100 text-purple-700 px-4 py-2 rounded-lg transition-all font-semibold border border-purple-200 flex items-center gap-2"
+              title="Go to broadcast page with current filters applied"
             >
-              📢 Broadcast
+              � To Broadcast
             </button>
             <button
               onClick={modal.open}
