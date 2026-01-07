@@ -238,10 +238,14 @@ async function logWebhookEvent(event: {
 
 async function handleWebhookPayload(payload: any) {
   try {
+    // DEBUG: Log raw payload for troubleshooting
+    console.log('[WEBHOOK DEBUG] Payload received:', JSON.stringify(payload, null, 2).substring(0, 500));
 
     // Meta sends events with object: 'whatsapp_business_account'.
     // We accept others too, but ignore unknown shapes safely.
     const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+    console.log('[WEBHOOK DEBUG] Entries count:', entries.length);
+    
     if (entries.length === 0) {
       await logWebhookEvent({
         kind: 'unknown',
@@ -310,14 +314,29 @@ async function handleWebhookPayload(payload: any) {
 
         // 2) Inbound messages (from user to us)
         const messages = Array.isArray(value?.messages) ? value.messages : [];
+        console.log('[WEBHOOK DEBUG] Messages in this change:', messages.length);
+        
         for (const msg of messages) {
+          console.log('[WEBHOOK DEBUG] Processing message:', JSON.stringify(msg, null, 2).substring(0, 300));
+          
           const from = normalizePhone(String(msg?.from || ''));
-          if (!from) continue;
+          console.log('[WEBHOOK DEBUG] Normalized phone:', from);
+          
+          if (!from) {
+            console.log('[WEBHOOK DEBUG] Skipping: no valid phone number');
+            continue;
+          }
 
           const body = extractTextMessageBody(msg);
-          if (!body) continue;
+          console.log('[WEBHOOK DEBUG] Message body:', body);
+          
+          if (!body) {
+            console.log('[WEBHOOK DEBUG] Skipping: no message body');
+            continue;
+          }
 
           const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
+          console.log('[WEBHOOK DEBUG] Processing inbound message from', from, 'with ID', inboundWaMessageId);
 
           await logWebhookEvent({
             kind: 'inbound_message',
