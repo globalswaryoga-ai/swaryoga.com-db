@@ -52,7 +52,11 @@ export default function MessagesPage() {
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaCaption, setMediaCaption] = useState('');
+  const [isSendingMedia, setIsSendingMedia] = useState(false);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Group messages into conversation threads
   const buildThreads = useCallback((msgs: Message[]): ConversationThread[] => {
@@ -175,6 +179,74 @@ export default function MessagesPage() {
       setError(err instanceof Error ? err.message : 'Failed to send reply');
     } finally {
       setIsSendingReply(false);
+    }
+  };
+
+  const handleSendMedia = async () => {
+    if (!selectedThread || !mediaFile) return;
+    if (!selectedThread.leadId) {
+      setError('Cannot send media: no lead associated with this conversation');
+      return;
+    }
+
+    setIsSendingMedia(true);
+    try {
+      // Step 1: Upload file to S3
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', mediaFile);
+
+      const uploadResponse = await fetch('/api/admin/crm/templates/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: uploadFormData,
+      });
+
+      if (!uploadResponse.ok) {
+        const data = await uploadResponse.json();
+        throw new Error(data.error || 'Failed to upload file');
+      }
+
+      const uploadData = await uploadResponse.json();
+      const mediaUrl = uploadData.fileUrl;
+
+      // Step 2: Send media via WhatsApp API
+      const isImage = mediaFile.type.startsWith('image/');
+      const isVideo = mediaFile.type.startsWith('video/');
+      const mediaType = isImage ? 'image' : isVideo ? 'video' : 'document';
+
+      const response = await fetch('/api/admin/crm/whatsapp/send-media', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadId: selectedThread.leadId,
+          phoneNumber: selectedThread.phoneNumber,
+          mediaUrl,
+          mediaType,
+          caption: mediaCaption.trim() || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to send media');
+      }
+
+      // Reset media state
+      setMediaFile(null);
+      setMediaCaption('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      await fetchMessages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send media');
+    } finally {
+      setIsSendingMedia(false);
     }
   };
 
@@ -375,6 +447,88 @@ export default function MessagesPage() {
                 maxLength={1000}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
               />
+              
+              {/* Media Upload Section */}
+              {!mediaFile ? (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                    }}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    📸 Send Image
+                  </button>
+                  <button
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                    }}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    🎬 Send Video
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setMediaFile(file);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{mediaFile.type.startsWith('image/') ? '📸' : '🎬'}</span>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">{mediaFile.name}</p>
+                        <p className="text-xs text-gray-600">{(mediaFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setMediaFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="text-red-500 hover:text-red-700 font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <textarea
+                    value={mediaCaption}
+                    onChange={(e) => setMediaCaption(e.target.value)}
+                    placeholder="Add caption (optional)..."
+                    rows={2}
+                    maxLength={500}
+                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSendMedia}
+                      disabled={isSendingMedia}
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-semibold py-2 rounded-lg transition-colors"
+                    >
+                      {isSendingMedia ? 'Sending...' : '📤 Send Media'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMediaFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-900 font-semibold py-2 rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={handleSendReply}
                 disabled={!replyText.trim() || isSendingReply}
