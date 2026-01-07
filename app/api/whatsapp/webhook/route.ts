@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('★★★ WEBHOOK POST HANDLER CALLED ★★★');
     const url = new URL(request.url);
     const debug = url.searchParams.get('debug') === '1';
 
@@ -171,6 +172,7 @@ export async function POST(request: NextRequest) {
 
     const payload = await request.json().catch(() => null);
     if (!payload) {
+      console.log('★★★ PAYLOAD WAS NULL/EMPTY ★★★');
       await logWebhookEvent({
         kind: 'error',
         ok: false,
@@ -183,6 +185,7 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
+    console.log('★★★ PAYLOAD RECEIVED, CALLING handleWebhookPayload ★★★');
     const res = await handleWebhookPayload(payload);
     res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
     res.headers.set('x-swar-webhook-method', 'POST');
