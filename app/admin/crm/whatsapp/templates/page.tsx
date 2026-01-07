@@ -63,6 +63,21 @@ type Template = {
   headerFormat?: string;
   headerContent?: string;
   footerText?: string;
+  imageFile?: {
+    url: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    uploadedAt?: string;
+  };
+  documents?: Array<{
+    url: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    uploadedAt?: string;
+  }>;
+  videoUrl?: string;
 };
 
 type StatusType = 'all' | 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'disabled';
@@ -105,6 +120,9 @@ function TemplatesContent() {
   const [editFooterText, setEditFooterText] = useState('');
   const [editButtons, setEditButtons] = useState<Array<{ title: string }>>([{ title: '' }]);
   const [editHeaderMedia, setEditHeaderMedia] = useState<HeaderMedia>(null);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editDocuments, setEditDocuments] = useState<File[]>([]);
+  const [editVideoUrl, setEditVideoUrl] = useState('');
   const editBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const emojiRow = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍'];
 
@@ -271,35 +289,86 @@ function TemplatesContent() {
     }
 
     try {
+      setLoading(true);
+      const body: any = {
+        ...editForm,
+        templateContent: resolvedContent,
+        headerFormat: editHeaderMedia
+          ? editHeaderMedia.kind === 'image'
+            ? 'IMAGE'
+            : 'VIDEO'
+          : editHeaderText.trim()
+            ? 'TEXT'
+            : undefined,
+        headerContent: editHeaderText.trim() || undefined,
+        footerText: editFooterText.trim() || undefined,
+        content: {
+          headerText: editHeaderText,
+          hasHeaderMedia: Boolean(editHeaderMedia),
+          bodyText: editBodyText,
+          footerText: editFooterText,
+          buttons: editButtons,
+        },
+      };
+
+      // Add media fields if present
+      if (editImageFile) {
+        const formData = new FormData();
+        formData.append('file', editImageFile);
+        formData.append('fileType', 'image');
+        
+        const uploadRes = await fetch('/api/admin/crm/templates/upload', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (!uploadRes.ok) throw new Error('Image upload failed');
+        const uploadData = await uploadRes.json();
+        body.imageFile = uploadData;
+      }
+
+      if (editDocuments.length > 0) {
+        const docUrls: any[] = [];
+        for (const doc of editDocuments) {
+          const formData = new FormData();
+          formData.append('file', doc);
+          formData.append('fileType', 'document');
+          
+          const uploadRes = await fetch('/api/admin/crm/templates/upload', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+
+          if (!uploadRes.ok) throw new Error('Document upload failed');
+          const uploadData = await uploadRes.json();
+          docUrls.push(uploadData);
+        }
+        body.documents = docUrls;
+      }
+
+      if (editVideoUrl.trim()) {
+        body.videoUrl = editVideoUrl.trim();
+      }
+
       await crmFetch(`/api/admin/crm/templates/${editingId}`, {
         method: 'PUT',
-        body: {
-          ...editForm,
-          templateContent: resolvedContent,
-          headerFormat: editHeaderMedia
-            ? editHeaderMedia.kind === 'image'
-              ? 'IMAGE'
-              : 'VIDEO'
-            : editHeaderText.trim()
-              ? 'TEXT'
-              : undefined,
-          headerContent: editHeaderText.trim() || undefined,
-          footerText: editFooterText.trim() || undefined,
-          content: {
-            headerText: editHeaderText,
-            hasHeaderMedia: Boolean(editHeaderMedia),
-            bodyText: editBodyText,
-            footerText: editFooterText,
-            buttons: editButtons,
-          },
-        },
+        body,
       });
+      
       setEditingId(null);
       await fetchTemplates();
       setSuccess('Template updated!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -326,6 +395,11 @@ function TemplatesContent() {
     setEditBodyText(body);
     setEditButtons([{ title: '' }]);
     setEditHeaderMedia(null);
+    
+    // Set media fields from existing template
+    setEditImageFile(null);
+    setEditDocuments([]);
+    setEditVideoUrl(template.videoUrl || '');
   };
 
   const statusButtons = [
@@ -758,6 +832,87 @@ function TemplatesContent() {
                         </div>
                       </div>
 
+                      {/* Media Section */}
+                      <div className="space-y-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                        <h4 className="text-sm font-semibold text-gray-900">📦 Media & Attachments</h4>
+                        
+                        {/* Image Upload */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-900 mb-2">📷 Image (max 25MB)</label>
+                          <label className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-300 hover:bg-gray-50 cursor-pointer bg-white">
+                            <span className="text-sm text-gray-600">Choose image or drag & drop</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => setEditImageFile(e.target.files?.[0] || null)}
+                            />
+                          </label>
+                          {editImageFile && (
+                            <div className="mt-2 flex items-center justify-between p-2 bg-green-50 rounded border border-green-200">
+                              <span className="text-sm text-green-700">{editImageFile.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setEditImageFile(null)}
+                                className="text-sm text-red-600 hover:text-red-700 font-semibold"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Document Upload */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-900 mb-2">📎 Documents (max 50MB each)</label>
+                          <label className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-300 hover:bg-gray-50 cursor-pointer bg-white">
+                            <span className="text-sm text-gray-600">Add PDF, DOC, XLS, etc.</span>
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files) {
+                                  setEditDocuments(prev => [...prev, ...Array.from(e.target.files || [])]);
+                                }
+                              }}
+                            />
+                          </label>
+                          {editDocuments.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {editDocuments.map((doc, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-2 bg-green-50 rounded border border-green-200">
+                                  <span className="text-sm text-green-700 truncate">{doc.name}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditDocuments(prev => prev.filter((_, i) => i !== idx))}
+                                    className="text-sm text-red-600 hover:text-red-700 font-semibold"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Video URL */}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-900 mb-2">🎬 Video URL</label>
+                          <input
+                            type="url"
+                            placeholder="https://example.com/video.mp4"
+                            value={editVideoUrl}
+                            onChange={(e) => setEditVideoUrl(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent"
+                          />
+                          {editVideoUrl && (
+                            <div className="mt-2 text-xs text-gray-600">✅ Video URL set</div>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="flex gap-3 pt-4 border-t border-gray-200">
                         <button
                           type="button"
@@ -928,6 +1083,58 @@ function TemplatesContent() {
                       <p className="text-xs text-gray-500">
                         Created: {new Date(t.createdAt).toLocaleDateString()}
                       </p>
+                    )}
+
+                    {/* Media Display Section */}
+                    {(t.imageFile || (t.documents && t.documents.length > 0) || t.videoUrl) && (
+                      <div className="space-y-3 py-3 border-t border-b border-gray-200">
+                        {/* Image Thumbnail */}
+                        {t.imageFile && (
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-gray-700">📷 Image</p>
+                            <div className="h-24 w-24 bg-gray-100 rounded-lg overflow-hidden border border-gray-300 flex items-center justify-center">
+                              <img
+                                src={t.imageFile.url}
+                                alt="Template image"
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"%3E%3Cpath stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /%3E%3C/svg%3E';
+                                }}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 truncate">{t.imageFile.fileName}</p>
+                          </div>
+                        )}
+
+                        {/* Document Count */}
+                        {t.documents && t.documents.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-gray-700">📎 Documents ({t.documents.length})</p>
+                            <div className="flex gap-2 flex-wrap">
+                              {t.documents.map((doc, idx) => (
+                                <div key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded truncate max-w-[150px]" title={doc.fileName}>
+                                  {doc.fileName}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Video Indicator */}
+                        {t.videoUrl && (
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-gray-700">🎬 Video attached</p>
+                            <a
+                              href={t.videoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline truncate block"
+                            >
+                              View video →
+                            </a>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* Actions */}

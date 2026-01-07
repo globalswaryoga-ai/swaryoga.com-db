@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { User } from '@/lib/db';
+import { deleteTemplateFilesFromS3 } from '@/lib/aws-s3';
 import mongoose from 'mongoose';
 
 /**
@@ -78,6 +79,9 @@ export async function POST(request: NextRequest) {
       headerMedia,
       variables,
       status,
+      imageFile,
+      documents,
+      videoUrl,
     } = body;
 
     const resolvedTemplateContent = templateContent || bodyText || content;
@@ -156,6 +160,10 @@ export async function POST(request: NextRequest) {
       variables: Array.isArray(variables) ? variables : [],
       status: safeStatus,
       createdBy,
+      // New file fields
+      imageFile: (imageFile && typeof imageFile === 'object') ? imageFile : undefined,
+      documents: Array.isArray(documents) ? documents.filter((d: any) => d && typeof d === 'object') : [],
+      videoUrl: videoUrl && typeof videoUrl === 'string' ? videoUrl.trim() : undefined,
     });
 
     return NextResponse.json({ success: true, data: template }, { status: 201 });
@@ -242,6 +250,56 @@ export async function PUT(request: NextRequest) {
           .filter(Boolean);
       }
 
+      // Handle file updates (imageFile, documents, videoUrl)
+      // If imageFile is being updated, delete old file from S3
+      if ((updates as any)?.imageFile !== undefined) {
+        const oldTemplate = await WhatsAppTemplate.findById(templateId).lean();
+        if (oldTemplate && (oldTemplate as any)?.imageFile?.url) {
+          try {
+            await deleteTemplateFilesFromS3([(oldTemplate as any).imageFile.url]);
+          } catch (err) {
+            console.warn('Failed to delete old image from S3:', err);
+          }
+        }
+        // Validate new imageFile if provided
+        if ((updates as any)?.imageFile && !(typeof (updates as any).imageFile === 'object')) {
+          return NextResponse.json({ error: 'Invalid imageFile format' }, { status: 400 });
+        }
+      }
+
+      // If documents are being updated, delete old documents from S3
+      if ((updates as any)?.documents !== undefined) {
+        const oldTemplate = await WhatsAppTemplate.findById(templateId).lean();
+        if (oldTemplate && Array.isArray((oldTemplate as any)?.documents)) {
+          const oldUrls = (oldTemplate as any).documents
+            .map((d: any) => d?.url)
+            .filter(Boolean);
+          if (oldUrls.length > 0) {
+            try {
+              await deleteTemplateFilesFromS3(oldUrls);
+            } catch (err) {
+              console.warn('Failed to delete old documents from S3:', err);
+            }
+          }
+        }
+        // Validate new documents if provided
+        if ((updates as any)?.documents && !Array.isArray((updates as any).documents)) {
+          return NextResponse.json({ error: 'Invalid documents format' }, { status: 400 });
+        }
+        if (Array.isArray((updates as any)?.documents)) {
+          (updates as any).documents = (updates as any).documents.filter(
+            (d: any) => d && typeof d === 'object'
+          );
+        }
+      }
+
+      // Validate videoUrl if provided
+      if ((updates as any)?.videoUrl !== undefined) {
+        if ((updates as any)?.videoUrl && typeof (updates as any).videoUrl !== 'string') {
+          return NextResponse.json({ error: 'Invalid videoUrl format' }, { status: 400 });
+        }
+      }
+
       // Generic update
       const template = await WhatsAppTemplate.findByIdAndUpdate(
         templateId,
@@ -279,6 +337,33 @@ export async function DELETE(request: NextRequest) {
     }
 
     await connectDB();
+
+    // Get template before deleting to clean up S3 files
+    const template = await WhatsAppTemplate.findById(templateId).lean();
+    if (!template) {
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    }
+
+    // Delete files from S3
+    const filesToDelete: string[] = [];
+    if ((template as any)?.imageFile?.url) {
+      filesToDelete.push((template as any).imageFile.url);
+    }
+    if (Array.isArray((template as any)?.documents)) {
+      (template as any).documents.forEach((doc: any) => {
+        if (doc?.url) {
+          filesToDelete.push(doc.url);
+        }
+      });
+    }
+
+    if (filesToDelete.length > 0) {
+      try {
+        await deleteTemplateFilesFromS3(filesToDelete);
+      } catch (err) {
+        console.warn('Failed to delete template files from S3:', err);
+      }
+    }
 
     const result = await WhatsAppTemplate.findByIdAndDelete(templateId);
 
