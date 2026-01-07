@@ -317,26 +317,27 @@ async function handleWebhookPayload(payload: any) {
         console.log('[WEBHOOK DEBUG] Messages in this change:', messages.length);
         
         for (const msg of messages) {
-          console.log('[WEBHOOK DEBUG] Processing message:', JSON.stringify(msg, null, 2).substring(0, 300));
-          
-          const from = normalizePhone(String(msg?.from || ''));
-          console.log('[WEBHOOK DEBUG] Normalized phone:', from);
-          
-          if (!from) {
-            console.log('[WEBHOOK DEBUG] Skipping: no valid phone number');
-            continue;
-          }
+          try {
+            console.log('[WEBHOOK DEBUG] Processing message:', JSON.stringify(msg, null, 2).substring(0, 300));
+            
+            const from = normalizePhone(String(msg?.from || ''));
+            console.log('[WEBHOOK DEBUG] Normalized phone:', from);
+            
+            if (!from) {
+              console.log('[WEBHOOK DEBUG] Skipping: no valid phone number');
+              continue;
+            }
 
-          const body = extractTextMessageBody(msg);
-          console.log('[WEBHOOK DEBUG] Message body:', body);
-          
-          if (!body) {
-            console.log('[WEBHOOK DEBUG] Skipping: no message body');
-            continue;
-          }
+            const body = extractTextMessageBody(msg);
+            console.log('[WEBHOOK DEBUG] Message body:', body);
+            
+            if (!body) {
+              console.log('[WEBHOOK DEBUG] Skipping: no message body');
+              continue;
+            }
 
-          const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
-          console.log('[WEBHOOK DEBUG] Processing inbound message from', from, 'with ID', inboundWaMessageId);
+            const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
+            console.log('[WEBHOOK DEBUG] Processing inbound message from', from, 'with ID', inboundWaMessageId);
 
           await logWebhookEvent({
             kind: 'inbound_message',
@@ -438,12 +439,21 @@ async function handleWebhookPayload(payload: any) {
           }
 
           // Run automations (welcome/greetings/chatbot/AI). Best-effort: failures are swallowed.
-          handleInboundWhatsAppAutomations({
-            leadId: lead._id,
-            phoneNumber: from,
-            messageBody: body,
-            wasFirstInbound,
-          }).catch(() => {});
+            handleInboundWhatsAppAutomations({
+              leadId: lead._id,
+              phoneNumber: from,
+              messageBody: body,
+              wasFirstInbound,
+            }).catch(() => {});
+          } catch (msgError) {
+            const errMsg = msgError instanceof Error ? msgError.message : 'Unknown error';
+            console.error('[WEBHOOK ERROR] Failed to process message:', errMsg);
+            await logWebhookEvent({
+              kind: 'error',
+              ok: false,
+              message: 'Message processing error: ' + errMsg,
+            });
+          }
         }
       }
     }
