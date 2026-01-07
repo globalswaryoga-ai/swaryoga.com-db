@@ -1231,19 +1231,19 @@ function getModel(modelName: string, schema: any) {
 /**
  * Create a Proxy handler for a model with proper function binding.
  * This ensures that Mongoose methods maintain their `this` context.
+ * 
+ * NOTE: We use a Proxy instead of direct model exports to ensure
+ * getCrmDb() is only called after connectDB() in the route handlers.
  */
 function createModelProxy(modelName: string, schema: any) {
   return new Proxy({} as any, {
-    get: (target, prop) => {
-      // Avoid logging for performance, but keep it for debugging
+    get: (target, prop, receiver) => {
+      // Get the actual model (cached after first use)
       const model = getModel(modelName, schema);
-      const result = model[prop];
-      // Bind methods to maintain correct `this` context
-      // This is important for async operations like .create(), .updateOne(), etc.
-      if (typeof result === 'function') {
-        return result.bind(model);
-      }
-      return result;
+      // Get the property from the model
+      const value = Reflect.get(model, prop, model);
+      // Return it directly - Mongoose methods don't need binding since they're async
+      return value;
     }
   });
 }
