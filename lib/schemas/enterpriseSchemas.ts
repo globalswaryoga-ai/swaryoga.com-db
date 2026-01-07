@@ -1218,16 +1218,12 @@ const modelCache: Record<string, any> = {};
 function getModel(modelName: string, schema: any) {
   // Return cached model if available
   if (modelCache[modelName]) {
-    console.log(`[MODELS] getModel(${modelName}) - returning cached`);
     return modelCache[modelName];
   }
   
   // Initialize on first use (safe because this happens after connectDB)
-  console.log(`[MODELS] getModel(${modelName}) - initializing...`);
   const crmDb = getCrmDb();
-  console.log(`[MODELS] getCrmDb() returned, connection state: ${crmDb?.connection?.readyState || 'unknown'}`);
   const model = crmDb.models[modelName] || crmDb.model(modelName, schema);
-  console.log(`[MODELS] Model created: ${modelName}`);
   modelCache[modelName] = model;
   return model;
 }
@@ -1239,11 +1235,11 @@ function getModel(modelName: string, schema: any) {
 function createModelProxy(modelName: string, schema: any) {
   return new Proxy({} as any, {
     get: (target, prop) => {
-      console.log(`[PROXY] ${modelName}.${String(prop)} accessed`);
+      // Avoid logging for performance, but keep it for debugging
       const model = getModel(modelName, schema);
       const result = model[prop];
-      console.log(`[PROXY] ${modelName}.${String(prop)} = ${typeof result}`);
       // Bind methods to maintain correct `this` context
+      // This is important for async operations like .create(), .updateOne(), etc.
       if (typeof result === 'function') {
         return result.bind(model);
       }
