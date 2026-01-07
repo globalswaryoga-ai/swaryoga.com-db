@@ -222,9 +222,8 @@ async function logWebhookEvent(event: {
     // This route should be resilient: never break the webhook path due to logging.
     await connectDB();
     
-    // Import model factory function after connectDB() to ensure connection is established
-    const { WhatsAppWebhookEvent: getWebhookEventModel } = await import('@/lib/schemas/enterpriseSchemas');
-    const WhatsAppWebhookEvent = getWebhookEventModel();
+    // Import models after connectDB() to ensure connection is established
+    const { WhatsAppWebhookEvent } = await import('@/lib/schemas/enterpriseSchemas');
     
     await WhatsAppWebhookEvent.create({
       source: 'meta',
