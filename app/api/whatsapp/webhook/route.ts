@@ -282,10 +282,21 @@ async function handleWebhookPayload(payload: any) {
     const { getWhatsAppMessage: getWhatsAppMessageModel } = await import('@/lib/schemas/enterpriseSchemas');
     const WhatsAppMessage = getWhatsAppMessageModel();
     
+    if (!WhatsAppMessage) {
+      console.error('[WEBHOOK ERROR] WhatsAppMessage model is null/undefined!');
+      return NextResponse.json({ error: 'Model initialization failed' }, { status: 500 });
+    }
+    
     const { getLead: getLeadModel } = await import('@/lib/schemas/enterpriseSchemas');
     const Lead = getLeadModel();
+    
+    if (!Lead) {
+      console.error('[WEBHOOK ERROR] Lead model is null/undefined!');
+      return NextResponse.json({ error: 'Model initialization failed' }, { status: 500 });
+    }
 
     console.log('[WEBHOOK] Processing webhook - entries:', entries.length);
+    console.log('[WEBHOOK] Models loaded - WhatsAppMessage:', !!WhatsAppMessage, ', Lead:', !!Lead);
     
     // CRITICAL DEBUG: Marker to verify webhook code is executing
     const debugMsg = `★★★ WEBHOOK HANDLER EXECUTING - ENTRIES: ${entries.length} ★★★`;
