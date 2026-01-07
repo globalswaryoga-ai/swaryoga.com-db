@@ -246,12 +246,17 @@ async function logWebhookEvent(event: {
 async function handleWebhookPayload(payload: any) {
   try {
     // DEBUG: Log raw payload for troubleshooting
+    console.log('[WEBHOOK DEBUG] Raw payload keys:', Object.keys(payload || {}));
+    console.log('[WEBHOOK DEBUG] Payload.entry type:', Array.isArray(payload?.entry) ? 'array' : typeof payload?.entry);
     console.log('[WEBHOOK DEBUG] Payload received:', JSON.stringify(payload, null, 2).substring(0, 500));
 
     // Meta sends events with object: 'whatsapp_business_account'.
     // We accept others too, but ignore unknown shapes safely.
     const entries = Array.isArray(payload?.entry) ? payload.entry : [];
-    console.log('[WEBHOOK DEBUG] Entries count:', entries.length);
+    console.log('[WEBHOOK DEBUG] Parsed entries count:', entries.length);
+    if (entries.length > 0) {
+      console.log('[WEBHOOK DEBUG] First entry keys:', Object.keys(entries[0] || {}));
+    }
     
     if (entries.length === 0) {
       await logWebhookEvent({
