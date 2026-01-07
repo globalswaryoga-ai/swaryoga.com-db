@@ -6,8 +6,8 @@ import mongoose from 'mongoose';
 //
 // Configure via env:
 // - MONGODB_CRM_DB_NAME (recommended)
-//   Example: swaryoga_admin_crm
-const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
+//   Example: swaryoga_admin_crm (for separate DB) or swaryogaDB (same as main)
+const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
 
 function getCrmDb() {
   // Note: connectDB() should be called before using these models.
