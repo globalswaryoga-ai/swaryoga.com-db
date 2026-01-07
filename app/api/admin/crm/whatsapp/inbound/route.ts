@@ -10,14 +10,20 @@ export const revalidate = 0;
 /**
  * Inbound WhatsApp Web bridge -> CRM ingestion endpoint.
  *
+ * ⚠️  DEPRECATED: This endpoint is for local WhatsApp Web bridge only.
+ * ACTIVE SYSTEM: Meta API (/api/whatsapp/webhook) is the primary system.
+ * EC2 Bridge should only be used if Meta API is unavailable.
+ *
  * Security model:
  * - This is NOT a public endpoint.
  * - The local WhatsApp Web bridge (services/whatsapp-web/qrServer.js) calls it.
  * - Auth uses a shared secret header: X-WhatsApp-Bridge-Secret.
  *
  * Required env (set on the CRM server runtime, e.g. Vercel Project → Environment Variables):
- * - WHATSAPP_WEB_BRIDGE_SECRET (preferred)
- * - WHATSAPP_BRIDGE_SECRET (fallback)
+ * - WHATSAPP_WEB_BRIDGE_SECRET (preferred) - CLEAR THIS TO DISABLE
+ * - WHATSAPP_BRIDGE_SECRET (fallback) - CLEAR THIS TO DISABLE
+ *
+ * To disable this endpoint, clear both environment variables.
  */
 
 export async function POST(request: NextRequest) {
