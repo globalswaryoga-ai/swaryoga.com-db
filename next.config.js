@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+// Force rebuild with env vars - 2026-01-07
 const fs = require('fs');
 const path = require('path');
 
