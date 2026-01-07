@@ -339,106 +339,106 @@ async function handleWebhookPayload(payload: any) {
             const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
             console.log('[WEBHOOK DEBUG] Processing inbound message from', from, 'with ID', inboundWaMessageId);
 
-          await logWebhookEvent({
-            kind: 'inbound_message',
-            ok: true,
-            phoneNumber: from,
-            waMessageId: msg?.id ? String(msg.id) : undefined,
-            sample: {
-              type: msg?.type,
-              ts: msg?.timestamp,
-              // store tiny preview to avoid PII bloat
-              preview: body.slice(0, 80),
-            },
-          });
-
-          // Ensure a Lead exists
-          let lead: { _id: unknown } | null = (await Lead.findOne({ phoneNumber: from }).lean()) as { _id: unknown } | null;
-          if (!lead) {
-            const created = await Lead.create({
+            await logWebhookEvent({
+              kind: 'inbound_message',
+              ok: true,
               phoneNumber: from,
-              source: 'whatsapp',
-              status: 'lead',
-              lastMessageAt: now,
+              waMessageId: msg?.id ? String(msg.id) : undefined,
+              sample: {
+                type: msg?.type,
+                ts: msg?.timestamp,
+                // store tiny preview to avoid PII bloat
+                preview: body.slice(0, 80),
+              },
             });
-            lead = created.toObject() as { _id: unknown };
-          } else {
-            await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now, updatedAt: now } });
-          }
 
-          if (!lead?._id) continue;
+            // Ensure a Lead exists
+            let lead: { _id: unknown } | null = (await Lead.findOne({ phoneNumber: from }).lean()) as { _id: unknown } | null;
+            if (!lead) {
+              const created = await Lead.create({
+                phoneNumber: from,
+                source: 'whatsapp',
+                status: 'lead',
+                lastMessageAt: now,
+              });
+              lead = created.toObject() as { _id: unknown };
+            } else {
+              await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now, updatedAt: now } });
+            }
 
-          // Detect if this is the first inbound message for welcome automation.
-          const previousInbound = await WhatsAppMessage.findOne({ leadId: lead._id, direction: 'inbound' })
-            .sort({ sentAt: -1 })
-            .lean();
-          const wasFirstInbound = !previousInbound;
+            if (!lead?._id) continue;
 
-          // Handle STOP/OPTOUT keywords
-          const keyword = body.trim().toUpperCase();
-          if (keyword === 'STOP' || keyword === 'UNSUBSCRIBE' || keyword === 'OPTOUT') {
-            await ConsentManager.handleUnsubscribeKeyword(from, keyword as any);
-          }
+            // Detect if this is the first inbound message for welcome automation.
+            const previousInbound = await WhatsAppMessage.findOne({ leadId: lead._id, direction: 'inbound' })
+              .sort({ sentAt: -1 })
+              .lean();
+            const wasFirstInbound = !previousInbound;
 
-          // Store inbound as a WhatsAppMessage record for a unified thread view.
-          // Idempotency: Meta retries webhooks. Prevent duplicate inbound rows by upserting on waMessageId.
-          // If Meta doesn't provide an id (rare), we fall back to create (best-effort).
-          if (inboundWaMessageId) {
-            await WhatsAppMessage.updateOne(
-              { waMessageId: inboundWaMessageId, direction: 'inbound' },
-              {
-                $setOnInsert: {
-                  leadId: lead._id,
-                  phoneNumber: from,
-                  direction: 'inbound',
-                  messageType: 'text',
-                  messageContent: body,
-                  status: 'delivered',
-                  deliveredAt: now,
-                  sentAt: now,
-                  waMessageId: inboundWaMessageId,
-                  isRead: false, // Mark as unread for notification badge
-                  // Styling: incoming messages appear in green background with white text
-                  backgroundColor: '#22c55e', // Bright green
-                  textColor: '#ffffff', // White text
-                  borderRadius: '8px',
-                  metadata: {
-                    webhook: {
-                      messageId: inboundWaMessageId,
-                      timestamp: msg?.timestamp,
-                      rawType: msg?.type,
+            // Handle STOP/OPTOUT keywords
+            const keyword = body.trim().toUpperCase();
+            if (keyword === 'STOP' || keyword === 'UNSUBSCRIBE' || keyword === 'OPTOUT') {
+              await ConsentManager.handleUnsubscribeKeyword(from, keyword as any);
+            }
+
+            // Store inbound as a WhatsAppMessage record for a unified thread view.
+            // Idempotency: Meta retries webhooks. Prevent duplicate inbound rows by upserting on waMessageId.
+            // If Meta doesn't provide an id (rare), we fall back to create (best-effort).
+            if (inboundWaMessageId) {
+              await WhatsAppMessage.updateOne(
+                { waMessageId: inboundWaMessageId, direction: 'inbound' },
+                {
+                  $setOnInsert: {
+                    leadId: lead._id,
+                    phoneNumber: from,
+                    direction: 'inbound',
+                    messageType: 'text',
+                    messageContent: body,
+                    status: 'delivered',
+                    deliveredAt: now,
+                    sentAt: now,
+                    waMessageId: inboundWaMessageId,
+                    isRead: false, // Mark as unread for notification badge
+                    // Styling: incoming messages appear in green background with white text
+                    backgroundColor: '#22c55e', // Bright green
+                    textColor: '#ffffff', // White text
+                    borderRadius: '8px',
+                    metadata: {
+                      webhook: {
+                        messageId: inboundWaMessageId,
+                        timestamp: msg?.timestamp,
+                        rawType: msg?.type,
+                      },
                     },
                   },
                 },
-              },
-              { upsert: true }
-            );
-          } else {
-            await WhatsAppMessage.create({
-              leadId: lead._id,
-              phoneNumber: from,
-              direction: 'inbound',
-              messageType: 'text',
-              messageContent: body,
-              status: 'delivered',
-              deliveredAt: now,
-              sentAt: now,
-              isRead: false, // Mark as unread for notification badge
-              // Styling: incoming messages appear in green background with white text
-              backgroundColor: '#22c55e', // Bright green
-              textColor: '#ffffff', // White text
-              borderRadius: '8px',
-              metadata: {
-                webhook: {
-                  messageId: msg?.id,
-                  timestamp: msg?.timestamp,
-                  rawType: msg?.type,
+                { upsert: true }
+              );
+            } else {
+              await WhatsAppMessage.create({
+                leadId: lead._id,
+                phoneNumber: from,
+                direction: 'inbound',
+                messageType: 'text',
+                messageContent: body,
+                status: 'delivered',
+                deliveredAt: now,
+                sentAt: now,
+                isRead: false, // Mark as unread for notification badge
+                // Styling: incoming messages appear in green background with white text
+                backgroundColor: '#22c55e', // Bright green
+                textColor: '#ffffff', // White text
+                borderRadius: '8px',
+                metadata: {
+                  webhook: {
+                    messageId: msg?.id,
+                    timestamp: msg?.timestamp,
+                    rawType: msg?.type,
+                  },
                 },
-              },
-            });
-          }
+              });
+            }
 
-          // Run automations (welcome/greetings/chatbot/AI). Best-effort: failures are swallowed.
+            // Run automations (welcome/greetings/chatbot/AI). Best-effort: failures are swallowed.
             handleInboundWhatsAppAutomations({
               leadId: lead._id,
               phoneNumber: from,
