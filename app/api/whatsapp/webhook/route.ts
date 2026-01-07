@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 // NOTE: Models are imported DYNAMICALLY after connectDB() is called in the handler
@@ -277,6 +278,16 @@ async function handleWebhookPayload(payload: any) {
 
     await connectDB();
     
+    // DEBUG: Verify database connection
+    const readyState = mongoose.connection.readyState;
+    const readyStateMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+    console.log('[WEBHOOK] MongoDB connection state:', readyStateMap[readyState as keyof typeof readyStateMap] + ` (${readyState})`);
+    
+    if (readyState !== 1) {
+      console.error('[WEBHOOK ERROR] MongoDB not connected! State:', readyState);
+      return NextResponse.json({ error: 'Database not connected' }, { status: 500 });
+    }
+    
     // Import model getter functions after connectDB() to ensure connection is established
     // Using getter functions is more explicit and reliable than Proxy pattern
     const { getWhatsAppMessage: getWhatsAppMessageModel } = await import('@/lib/schemas/enterpriseSchemas');
@@ -303,14 +314,21 @@ async function handleWebhookPayload(payload: any) {
     
     // CRITICAL DEBUG: Try a test insert to verify database connectivity
     try {
+      const testId = 'TEST_WEBHOOK_CONNECTION_' + Date.now();
+      console.log('[WEBHOOK] 🧪 Attempting test database write with ID:', testId);
       const testResult = await WhatsAppMessage.updateOne(
-        { waMessageId: 'TEST_WEBHOOK_CONNECTION_' + Date.now() },
-        { $setOnInsert: { waMessageId: 'test', phoneNumber: '0000000000', direction: 'test', messageContent: 'Connection test' } },
+        { waMessageId: testId },
+        { $setOnInsert: { waMessageId: testId, phoneNumber: '0000000000', direction: 'test', messageContent: 'Connection test' } },
         { upsert: true }
       );
-      console.log('[WEBHOOK] ✅ TEST database write succeeded:', testResult?.upsertedCount > 0 ? 'INSERTED' : 'MATCHED');
+      console.log('[WEBHOOK] ✅ TEST database write completed - matched:', testResult?.matchedCount, 'upserted:', testResult?.upsertedCount);
+      if (testResult?.upsertedCount === 0 && testResult?.matchedCount === 0) {
+        console.warn('[WEBHOOK] ⚠️  TEST write returned 0 matched and 0 upserted - something is wrong');
+      }
     } catch (testErr) {
-      console.error('[WEBHOOK] ❌ TEST database write FAILED:', testErr instanceof Error ? testErr.message : String(testErr));
+      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
+      console.error('[WEBHOOK] ❌ TEST database write FAILED:', errMsg);
+      console.error('[WEBHOOK] Stack:', testErr instanceof Error ? testErr.stack : 'no stack');
     }
     
     console.log('[WEBHOOK] Processing webhook - entries:', entries.length);
