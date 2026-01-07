@@ -89,20 +89,30 @@ export async function POST(request: NextRequest) {
 
     // 4. Connect to DB
     await connectDB();
+    console.log('[META] DB connected');
 
     // 5. Create message record
     const now = new Date();
     // WhatsAppMessage schema requires leadId currently.
     // For ad-hoc sends (no leadId provided), allow storing without leadId.
-    const messageRecord = await WhatsAppMessage.create({
-      ...(leadId ? { leadId } : {}),
-      phoneNumber: normalizedPhone,
-      messageContent: String(messageContent),
-      direction: 'outbound',
-      status: 'queued',
-      sentAt: now,
-      method: 'meta', // Track that it came via Meta API
-    });
+    console.log('[META] About to call WhatsAppMessage.create()...');
+    let messageRecord;
+    try {
+      messageRecord = await WhatsAppMessage.create({
+        ...(leadId ? { leadId } : {}),
+        phoneNumber: normalizedPhone,
+        messageContent: String(messageContent),
+        direction: 'outbound',
+        status: 'queued',
+        sentAt: now,
+        method: 'meta', // Track that it came via Meta API
+      });
+      console.log('[META] Message record created:', messageRecord._id);
+    } catch (createErr) {
+      const errMsg = createErr instanceof Error ? createErr.message : String(createErr);
+      console.error('[META] ERROR creating message record:', errMsg);
+      throw createErr;
+    }
 
     // 6. Send via Meta API
   // WhatsApp Cloud API is served from graph.facebook.com (Meta Graph API).
@@ -143,10 +153,17 @@ export async function POST(request: NextRequest) {
         metaData?.message ||
         (metaRes.status ? `HTTP ${metaRes.status}` : 'Unknown error');
 
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'failed',
-        errorMessage: errMessage,
-      });
+      console.log('[META] Updating message status to failed...');
+      try {
+        await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
+          status: 'failed',
+          errorMessage: errMessage,
+        });
+        console.log('[META] Message status updated to failed');
+      } catch (updateErr) {
+        const errMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
+        console.error('[META] ERROR updating message status:', errMsg);
+      }
 
       return NextResponse.json(
         {
@@ -160,11 +177,18 @@ export async function POST(request: NextRequest) {
     // 7. Success - update message status
     const metaMessageId = metaData.messages?.[0]?.id;
 
-    await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-      status: 'sent',
-      sentAt: now,
-      externalMessageId: metaMessageId, // Store Meta's message ID for webhook tracking
-    });
+    console.log('[META] Updating message status to sent...');
+    try {
+      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
+        status: 'sent',
+        sentAt: now,
+        externalMessageId: metaMessageId, // Store Meta's message ID for webhook tracking
+      });
+      console.log('[META] Message status updated to sent');
+    } catch (updateErr) {
+      const errMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
+      console.error('[META] ERROR updating message status:', errMsg);
+    }
 
     console.log(`[META] ✅ Message sent! ID: ${metaMessageId}`);
 
