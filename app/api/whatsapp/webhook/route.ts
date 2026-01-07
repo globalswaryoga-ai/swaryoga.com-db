@@ -285,6 +285,16 @@ async function handleWebhookPayload(payload: any) {
     
     if (readyState !== 1) {
       console.error('[WEBHOOK ERROR] MongoDB not connected! State:', readyState);
+      // Try to write directly to a system collection to see if we can reach DB at all
+      try {
+        await mongoose.connection.collection('system_webhook_errors').insertOne({
+          timestamp: new Date(),
+          error: 'MongoDB not connected',
+          readyState,
+        });
+      } catch (writeErr) {
+        console.error('[WEBHOOK] Could not even write error log:', writeErr instanceof Error ? writeErr.message : String(writeErr));
+      }
       return NextResponse.json({ error: 'Database not connected' }, { status: 500 });
     }
     
@@ -313,22 +323,64 @@ async function handleWebhookPayload(payload: any) {
     console.log('[WEBHOOK] Database config: CRM_DB_NAME=' + crmDbName + ', MAIN_DB_NAME=' + mainDbName);
     
     // CRITICAL DEBUG: Try a test insert to verify database connectivity
+    // Write to system log so we can see if webhook code is executing
     try {
       const testId = 'TEST_WEBHOOK_CONNECTION_' + Date.now();
       console.log('[WEBHOOK] 🧪 Attempting test database write with ID:', testId);
+      
+      // FIRST: Try to write to system log collection (might bypass model issues)
+      try {
+        await mongoose.connection.collection('system_webhook_tests').insertOne({
+          timestamp: new Date(),
+          testId,
+          stage: 'before_updateone',
+          crmDbName,
+          mainDbName,
+        });
+        console.log('[WEBHOOK] ✅ System log write succeeded - code IS executing');
+      } catch (sysErr) {
+        console.error('[WEBHOOK] System log write failed:', sysErr instanceof Error ? sysErr.message : String(sysErr));
+      }
+      
+      // SECOND: Try model updateOne
       const testResult = await WhatsAppMessage.updateOne(
         { waMessageId: testId },
         { $setOnInsert: { waMessageId: testId, phoneNumber: '0000000000', direction: 'test', messageContent: 'Connection test' } },
         { upsert: true }
       );
       console.log('[WEBHOOK] ✅ TEST database write completed - matched:', testResult?.matchedCount, 'upserted:', testResult?.upsertedCount);
+      
+      // THIRD: Log the result to system collection
+      try {
+        await mongoose.connection.collection('system_webhook_tests').insertOne({
+          timestamp: new Date(),
+          testId,
+          stage: 'after_updateone',
+          result: { matched: testResult?.matchedCount, upserted: testResult?.upsertedCount },
+        });
+        console.log('[WEBHOOK] ✅ Result logged to system collection');
+      } catch (logErr) {
+        console.error('[WEBHOOK] Could not log result:', logErr instanceof Error ? logErr.message : String(logErr));
+      }
+      
       if (testResult?.upsertedCount === 0 && testResult?.matchedCount === 0) {
         console.warn('[WEBHOOK] ⚠️  TEST write returned 0 matched and 0 upserted - something is wrong');
       }
     } catch (testErr) {
       const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
       console.error('[WEBHOOK] ❌ TEST database write FAILED:', errMsg);
-      console.error('[WEBHOOK] Stack:', testErr instanceof Error ? testErr.stack : 'no stack');
+      console.error('[WEBHOOK] Stack:', testErr instanceof Error ? testErr.stack?.split('\n').slice(0, 3).join('\n') : 'no stack');
+      
+      // Log error to system collection
+      try {
+        await mongoose.connection.collection('system_webhook_tests').insertOne({
+          timestamp: new Date(),
+          stage: 'error',
+          error: errMsg,
+        });
+      } catch (logErr) {
+        console.error('[WEBHOOK] Could not log error:', logErr instanceof Error ? logErr.message : String(logErr));
+      }
     }
     
     console.log('[WEBHOOK] Processing webhook - entries:', entries.length);
