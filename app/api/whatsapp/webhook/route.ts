@@ -402,60 +402,73 @@ async function handleWebhookPayload(payload: any) {
             // If Meta doesn't provide an id (rare), we fall back to create (best-effort).
             if (inboundWaMessageId) {
               console.log('[WEBHOOK] Upserting message:', inboundWaMessageId);
-              const result = await WhatsAppMessage.updateOne(
-                { waMessageId: inboundWaMessageId, direction: 'inbound' },
-                {
-                  $setOnInsert: {
-                    leadId: lead._id,
-                    phoneNumber: from,
-                    direction: 'inbound',
-                    messageType: 'text',
-                    messageContent: body,
-                    status: 'delivered',
-                    deliveredAt: now,
-                    sentAt: now,
-                    waMessageId: inboundWaMessageId,
-                    isRead: false, // Mark as unread for notification badge
-                    // Styling: incoming messages appear in green background with white text
-                    backgroundColor: '#22c55e', // Bright green
-                    textColor: '#ffffff', // White text
-                    borderRadius: '8px',
-                    metadata: {
-                      webhook: {
-                        messageId: inboundWaMessageId,
-                        timestamp: msg?.timestamp,
-                        rawType: msg?.type,
+              try {
+                const result = await WhatsAppMessage.updateOne(
+                  { waMessageId: inboundWaMessageId, direction: 'inbound' },
+                  {
+                    $setOnInsert: {
+                      leadId: lead._id,
+                      phoneNumber: from,
+                      direction: 'inbound',
+                      messageType: 'text',
+                      messageContent: body,
+                      status: 'delivered',
+                      deliveredAt: now,
+                      sentAt: now,
+                      waMessageId: inboundWaMessageId,
+                      isRead: false, // Mark as unread for notification badge
+                      // Styling: incoming messages appear in green background with white text
+                      backgroundColor: '#22c55e', // Bright green
+                      textColor: '#ffffff', // White text
+                      borderRadius: '8px',
+                      metadata: {
+                        webhook: {
+                          messageId: inboundWaMessageId,
+                          timestamp: msg?.timestamp,
+                          rawType: msg?.type,
+                        },
                       },
                     },
                   },
-                },
-                { upsert: true }
-              );
-              console.log('[WEBHOOK] Message upserted - matched:', result?.matchedCount, 'upserted:', result?.upsertedCount);
+                  { upsert: true }
+                );
+                console.log('[WEBHOOK] Message upserted SUCCESS - matched:', result?.matchedCount, 'upserted:', result?.upsertedCount);
+              } catch (upsertErr) {
+                const errMsg = upsertErr instanceof Error ? upsertErr.message : String(upsertErr);
+                console.error('[WEBHOOK ERROR] Upsert failed:', errMsg);
+                throw upsertErr;
+              }
             } else {
               console.log('[WEBHOOK] Creating message (no ID)');
-              await WhatsAppMessage.create({
-                leadId: lead._id,
-                phoneNumber: from,
-                direction: 'inbound',
-                messageType: 'text',
-                messageContent: body,
-                status: 'delivered',
-                deliveredAt: now,
-                sentAt: now,
-                isRead: false, // Mark as unread for notification badge
-                // Styling: incoming messages appear in green background with white text
-                backgroundColor: '#22c55e', // Bright green
-                textColor: '#ffffff', // White text
-                borderRadius: '8px',
-                metadata: {
-                  webhook: {
-                    messageId: msg?.id,
-                    timestamp: msg?.timestamp,
-                    rawType: msg?.type,
+              try {
+                await WhatsAppMessage.create({
+                  leadId: lead._id,
+                  phoneNumber: from,
+                  direction: 'inbound',
+                  messageType: 'text',
+                  messageContent: body,
+                  status: 'delivered',
+                  deliveredAt: now,
+                  sentAt: now,
+                  isRead: false, // Mark as unread for notification badge
+                  // Styling: incoming messages appear in green background with white text
+                  backgroundColor: '#22c55e', // Bright green
+                  textColor: '#ffffff', // White text
+                  borderRadius: '8px',
+                  metadata: {
+                    webhook: {
+                      messageId: msg?.id,
+                      timestamp: msg?.timestamp,
+                      rawType: msg?.type,
+                    },
                   },
-                },
-              });
+                });
+                console.log('[WEBHOOK] Message created SUCCESS');
+              } catch (createErr) {
+                const errMsg = createErr instanceof Error ? createErr.message : String(createErr);
+                console.error('[WEBHOOK ERROR] Create failed:', errMsg);
+                throw createErr;
+              }
             }
 
             // Run automations (welcome/greetings/chatbot/AI). Best-effort: failures are swallowed.
