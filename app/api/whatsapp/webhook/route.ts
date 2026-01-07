@@ -272,10 +272,13 @@ async function handleWebhookPayload(payload: any) {
     // Import models after connectDB() to ensure connection is established
     const { Lead, WhatsAppMessage } = await import('@/lib/schemas/enterpriseSchemas');
 
+    console.log('[WEBHOOK] Processing webhook - entries:', entries.length);
+
     const now = new Date();
 
     for (const entry of entries) {
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+      console.log('[WEBHOOK] Entry has', changes.length, 'changes');
       for (const change of changes) {
         const value = change?.value;
 

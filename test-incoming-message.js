@@ -17,7 +17,7 @@ const testMessage = {
             "messages": [
               {
                 "from": "919779006820",
-                "id": "wamid.test.incoming.001",
+                "id": "wamid.test.incoming." + Date.now() + "." + Math.random().toString(36).substr(2, 9),
                 "timestamp": String(Math.floor(Date.now() / 1000)),
                 "type": "text",
                 "text": {
