@@ -1207,68 +1207,39 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
 
 // ============================================================================
-// MODEL INITIALIZATION (LAZY - TRULY DEFERRED)
+// MODEL INITIALIZATION
 // ============================================================================
-// Models are NOT initialized at module load time.
-// Instead, they use a Proxy-like pattern where accessing the model
-// triggers initialization after connectDB() is guaranteed to have been called.
+// All models are exported as direct Mongoose model instances.
+// They are initialized to the CRM database on first module load.
+// Safe because getCrmDb() will use the mongoose.connection which is
+// guaranteed to exist (though may not be connected yet).
 
-const modelCache: Record<string, any> = {};
+const crmDb = getCrmDb();
 
-function getLazyModel(modelName: string, schema: any): any {
-  // Check cache first
-  if (modelCache[modelName]) {
-    return modelCache[modelName];
-  }
-  
-  // Initialize on first access (safe because this happens in route handlers after connectDB)
-  const crmDb = getCrmDb();
-  
-  if (crmDb.models[modelName]) {
-    modelCache[modelName] = crmDb.models[modelName];
-  } else {
-    modelCache[modelName] = crmDb.model(modelName, schema);
-  }
-  
-  return modelCache[modelName];
-}
-
-// Create a Proxy handler to intercept property access
-function createLazyModelProxy(modelName: string, schema: any) {
-  return new Proxy({} as any, {
-    get(target: any, prop: string | symbol) {
-      // When any method is accessed, ensure model is initialized
-      const model = getLazyModel(modelName, schema);
-      return model[prop];
-    },
-  });
-}
-
-// Export all models as lazy-loaded proxies
-export const Lead = createLazyModelProxy('Lead', LeadSchema);
-export const CrmCounter = createLazyModelProxy('CrmCounter', CrmCounterSchema);
-export const DeletedLead = createLazyModelProxy('DeletedLead', DeletedLeadSchema);
-export const WhatsAppMessage = createLazyModelProxy('WhatsAppMessage', WhatsAppMessageSchema);
-export const WhatsAppWebhookEvent = createLazyModelProxy('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
-export const WhatsAppAccount = createLazyModelProxy('WhatsAppAccount', WhatsAppAccountSchema);
-export const UserConsent = createLazyModelProxy('UserConsent', UserConsentSchema);
-export const MessageStatus = createLazyModelProxy('MessageStatus', MessageStatusSchema);
-export const AuditLog = createLazyModelProxy('AuditLog', AuditLogSchema);
-export const WhatsAppTemplate = createLazyModelProxy('WhatsAppTemplate', WhatsAppTemplateSchema);
-export const RateLimit = createLazyModelProxy('RateLimit', RateLimitSchema);
-export const Backup = createLazyModelProxy('Backup', BackupSchema);
-export const Permission = createLazyModelProxy('Permission', PermissionSchema);
-export const AnalyticsEvent = createLazyModelProxy('AnalyticsEvent', AnalyticsEventSchema);
-export const SalesReport = createLazyModelProxy('SalesReport', SalesReportSchema);
-export const WhatsAppScheduledJob = createLazyModelProxy('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
-export const WhatsAppAutomationRule = createLazyModelProxy('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
-export const LeadNote = createLazyModelProxy('LeadNote', LeadNoteSchema);
-export const LeadFollowUp = createLazyModelProxy('LeadFollowUp', LeadFollowUpSchema);
-export const QuickReply = createLazyModelProxy('QuickReply', QuickReplySchema);
-export const BroadcastList = createLazyModelProxy('BroadcastList', BroadcastListSchema);
-export const BroadcastListMember = createLazyModelProxy('BroadcastListMember', BroadcastListMemberSchema);
-export const BroadcastRun = createLazyModelProxy('BroadcastRun', BroadcastRunSchema);
-export const BroadcastRunMessage = createLazyModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
-export const ChatbotFlow = createLazyModelProxy('ChatbotFlow', ChatbotFlowSchema);
-export const ChatbotSettings = createLazyModelProxy('ChatbotSettings', ChatbotSettingsSchema);
-export const CrmReceipt = createLazyModelProxy('CrmReceipt', CrmReceiptSchema);
+export const Lead = crmDb.models.Lead || crmDb.model('Lead', LeadSchema);
+export const CrmCounter = crmDb.models.CrmCounter || crmDb.model('CrmCounter', CrmCounterSchema);
+export const DeletedLead = crmDb.models.DeletedLead || crmDb.model('DeletedLead', DeletedLeadSchema);
+export const WhatsAppMessage = crmDb.models.WhatsAppMessage || crmDb.model('WhatsAppMessage', WhatsAppMessageSchema);
+export const WhatsAppWebhookEvent = crmDb.models.WhatsAppWebhookEvent || crmDb.model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
+export const WhatsAppAccount = crmDb.models.WhatsAppAccount || crmDb.model('WhatsAppAccount', WhatsAppAccountSchema);
+export const UserConsent = crmDb.models.UserConsent || crmDb.model('UserConsent', UserConsentSchema);
+export const MessageStatus = crmDb.models.MessageStatus || crmDb.model('MessageStatus', MessageStatusSchema);
+export const AuditLog = crmDb.models.AuditLog || crmDb.model('AuditLog', AuditLogSchema);
+export const WhatsAppTemplate = crmDb.models.WhatsAppTemplate || crmDb.model('WhatsAppTemplate', WhatsAppTemplateSchema);
+export const RateLimit = crmDb.models.RateLimit || crmDb.model('RateLimit', RateLimitSchema);
+export const Backup = crmDb.models.Backup || crmDb.model('Backup', BackupSchema);
+export const Permission = crmDb.models.Permission || crmDb.model('Permission', PermissionSchema);
+export const AnalyticsEvent = crmDb.models.AnalyticsEvent || crmDb.model('AnalyticsEvent', AnalyticsEventSchema);
+export const SalesReport = crmDb.models.SalesReport || crmDb.model('SalesReport', SalesReportSchema);
+export const WhatsAppScheduledJob = crmDb.models.WhatsAppScheduledJob || crmDb.model('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
+export const WhatsAppAutomationRule = crmDb.models.WhatsAppAutomationRule || crmDb.model('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
+export const LeadNote = crmDb.models.LeadNote || crmDb.model('LeadNote', LeadNoteSchema);
+export const LeadFollowUp = crmDb.models.LeadFollowUp || crmDb.model('LeadFollowUp', LeadFollowUpSchema);
+export const QuickReply = crmDb.models.QuickReply || crmDb.model('QuickReply', QuickReplySchema);
+export const BroadcastList = crmDb.models.BroadcastList || crmDb.model('BroadcastList', BroadcastListSchema);
+export const BroadcastListMember = crmDb.models.BroadcastListMember || crmDb.model('BroadcastListMember', BroadcastListMemberSchema);
+export const BroadcastRun = crmDb.models.BroadcastRun || crmDb.model('BroadcastRun', BroadcastRunSchema);
+export const BroadcastRunMessage = crmDb.models.BroadcastRunMessage || crmDb.model('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const ChatbotFlow = crmDb.models.ChatbotFlow || crmDb.model('ChatbotFlow', ChatbotFlowSchema);
+export const ChatbotSettings = crmDb.models.ChatbotSettings || crmDb.model('ChatbotSettings', ChatbotSettingsSchema);
+export const CrmReceipt = crmDb.models.CrmReceipt || crmDb.model('CrmReceipt', CrmReceiptSchema);
