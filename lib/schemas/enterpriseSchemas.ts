@@ -1201,11 +1201,12 @@ CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 // ============================================================================
 // EXPORT MODELS
 // ============================================================================
-// CRITICAL: Models must be accessed AFTER MongoDB is connected!
-// We go back to the simple approach: just use mongoose.connection.useDb()
-// which already defers database selection until the connection is ready.
+// CRITICAL: Models accessed via mongoose.connection.useDb() which defers
+// database selection until connection is ready. The || checks ensure we don't
+// re-register models if already defined.
 const crmDb = mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
 
+// Export models directly (not functions). Mongoose handles the deferred connection.
 export const Lead = crmDb.models.Lead || crmDb.model('Lead', LeadSchema);
 export const CrmCounter = crmDb.models.CrmCounter || crmDb.model('CrmCounter', CrmCounterSchema);
 export const DeletedLead = crmDb.models.DeletedLead || crmDb.model('DeletedLead', DeletedLeadSchema);
