@@ -295,8 +295,25 @@ async function handleWebhookPayload(payload: any) {
       return NextResponse.json({ error: 'Model initialization failed' }, { status: 500 });
     }
 
+    // DEBUG: Log database configuration
+    const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'not set';
+    const mainDbName = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+    console.log('[WEBHOOK] ✅ Models loaded successfully');
+    console.log('[WEBHOOK] Database config: CRM_DB_NAME=' + crmDbName + ', MAIN_DB_NAME=' + mainDbName);
+    
+    // CRITICAL DEBUG: Try a test insert to verify database connectivity
+    try {
+      const testResult = await WhatsAppMessage.updateOne(
+        { waMessageId: 'TEST_WEBHOOK_CONNECTION_' + Date.now() },
+        { $setOnInsert: { waMessageId: 'test', phoneNumber: '0000000000', direction: 'test', messageContent: 'Connection test' } },
+        { upsert: true }
+      );
+      console.log('[WEBHOOK] ✅ TEST database write succeeded:', testResult?.upsertedCount > 0 ? 'INSERTED' : 'MATCHED');
+    } catch (testErr) {
+      console.error('[WEBHOOK] ❌ TEST database write FAILED:', testErr instanceof Error ? testErr.message : String(testErr));
+    }
+    
     console.log('[WEBHOOK] Processing webhook - entries:', entries.length);
-    console.log('[WEBHOOK] Models loaded - WhatsAppMessage:', !!WhatsAppMessage, ', Lead:', !!Lead);
     
     // CRITICAL DEBUG: Marker to verify webhook code is executing
     const debugMsg = `★★★ WEBHOOK HANDLER EXECUTING - ENTRIES: ${entries.length} ★★★`;
