@@ -225,8 +225,9 @@ async function logWebhookEvent(event: {
     // This route should be resilient: never break the webhook path due to logging.
     await connectDB();
     
-    // Import models after connectDB() to ensure connection is established
-    const { WhatsAppWebhookEvent } = await import('@/lib/schemas/enterpriseSchemas');
+    // Import model getter function after connectDB() to ensure connection is established
+    const { getWhatsAppWebhookEvent } = await import('@/lib/schemas/enterpriseSchemas');
+    const WhatsAppWebhookEvent = getWhatsAppWebhookEvent();
     
     await WhatsAppWebhookEvent.create({
       source: 'meta',
@@ -276,8 +277,13 @@ async function handleWebhookPayload(payload: any) {
 
     await connectDB();
     
-    // Import models after connectDB() to ensure connection is established
-    const { Lead, WhatsAppMessage } = await import('@/lib/schemas/enterpriseSchemas');
+    // Import model getter functions after connectDB() to ensure connection is established
+    // Using getter functions is more explicit and reliable than Proxy pattern
+    const { getWhatsAppMessage: getWhatsAppMessageModel } = await import('@/lib/schemas/enterpriseSchemas');
+    const WhatsAppMessage = getWhatsAppMessageModel();
+    
+    const { getLead: getLeadModel } = await import('@/lib/schemas/enterpriseSchemas');
+    const Lead = getLeadModel();
 
     console.log('[WEBHOOK] Processing webhook - entries:', entries.length);
     

@@ -1250,10 +1250,40 @@ function createModelProxy(modelName: string, schema: any) {
   });
 }
 
-// Export all models using lazy initialization
-// Each export uses a Proxy to defer model initialization until first use
-// This ensures the model is created AFTER connectDB() is called in route handlers
+// Export getter functions instead of Proxies for clarity and reliability
+// Usage: const Lead = (await import('@/lib/schemas/enterpriseSchemas')).getLead();
+// Or simply: const { getLead } = await import('@/lib/schemas/enterpriseSchemas'); const lead = getLead();
 
+export function getLead() { return getModel('Lead', LeadSchema); }
+export function getCrmCounter() { return getModel('CrmCounter', CrmCounterSchema); }
+export function getDeletedLead() { return getModel('DeletedLead', DeletedLeadSchema); }
+export function getWhatsAppMessage() { return getModel('WhatsAppMessage', WhatsAppMessageSchema); }
+export function getWhatsAppWebhookEvent() { return getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema); }
+export function getWhatsAppAccount() { return getModel('WhatsAppAccount', WhatsAppAccountSchema); }
+export function getUserConsent() { return getModel('UserConsent', UserConsentSchema); }
+export function getMessageStatus() { return getModel('MessageStatus', MessageStatusSchema); }
+export function getAuditLog() { return getModel('AuditLog', AuditLogSchema); }
+export function getWhatsAppTemplate() { return getModel('WhatsAppTemplate', WhatsAppTemplateSchema); }
+export function getRateLimit() { return getModel('RateLimit', RateLimitSchema); }
+export function getBackup() { return getModel('Backup', BackupSchema); }
+export function getPermission() { return getModel('Permission', PermissionSchema); }
+export function getAnalyticsEvent() { return getModel('AnalyticsEvent', AnalyticsEventSchema); }
+export function getSalesReport() { return getModel('SalesReport', SalesReportSchema); }
+export function getWhatsAppScheduledJob() { return getModel('WhatsAppScheduledJob', WhatsAppScheduledJobSchema); }
+export function getWhatsAppAutomationRule() { return getModel('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema); }
+export function getLeadNote() { return getModel('LeadNote', LeadNoteSchema); }
+export function getLeadFollowUp() { return getModel('LeadFollowUp', LeadFollowUpSchema); }
+export function getQuickReply() { return getModel('QuickReply', QuickReplySchema); }
+export function getBroadcastList() { return getModel('BroadcastList', BroadcastListSchema); }
+export function getBroadcastListMember() { return getModel('BroadcastListMember', BroadcastListMemberSchema); }
+export function getBroadcastRun() { return getModel('BroadcastRun', BroadcastRunSchema); }
+export function getBroadcastRunMessage() { return getModel('BroadcastRunMessage', BroadcastRunMessageSchema); }
+export function getChatbotFlow() { return getModel('ChatbotFlow', ChatbotFlowSchema); }
+export function getChatbotSettings() { return getModel('ChatbotSettings', ChatbotSettingsSchema); }
+export function getCrmReceipt() { return getModel('CrmReceipt', CrmReceiptSchema); }
+
+// LEGACY PROXY EXPORTS - For backward compatibility with existing code
+// These use Proxies to defer initialization
 export const Lead = createModelProxy('Lead', LeadSchema);
 export const CrmCounter = createModelProxy('CrmCounter', CrmCounterSchema);
 export const DeletedLead = createModelProxy('DeletedLead', DeletedLeadSchema);
