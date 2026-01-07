@@ -483,30 +483,41 @@ async function handleWebhookPayload(payload: any) {
 
         // Ensure a Lead exists
         console.log('[WEBHOOK] Looking up lead for:', from);
-        let lead: { _id: unknown } | null = (await Lead.findOne({ phoneNumber: from }).lean()) as { _id: unknown } | null;
+        const db = mongoose.connection.db;
+        if (!db) {
+          console.error('[WEBHOOK] Database not available');
+          continue;
+        }
+        
+        let lead: { _id: unknown } | null = (await db.collection('leads').findOne({ phoneNumber: from })) as { _id: unknown } | null;
         if (!lead) {
           console.log('[WEBHOOK] Creating new lead for:', from);
-          const created = await Lead.create({
+          const leadResult = await db.collection('leads').insertOne({
             phoneNumber: from,
             source: 'whatsapp',
             status: 'lead',
             lastMessageAt: now,
+            createdAt: now,
+            updatedAt: now,
           });
-          lead = created.toObject() as { _id: unknown };
+          lead = { _id: leadResult.insertedId };
           console.log('[WEBHOOK] Created lead:', lead._id);
         } else {
           console.log('[WEBHOOK] Found existing lead:', lead._id);
-          await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now, updatedAt: now } });
+          await db.collection('leads').updateOne(
+            { _id: lead._id as any },
+            { $set: { lastMessageAt: now, updatedAt: now } }
+          );
         }
 
         if (!lead?._id) {
           console.log('[WEBHOOK] No lead ID, skipping');
           continue;
-        }            // Detect if this is the first inbound message for welcome automation.
-            const previousInbound = await WhatsAppMessage.findOne({ leadId: lead._id, direction: 'inbound' })
-              .sort({ sentAt: -1 })
-              .lean();
-            const wasFirstInbound = !previousInbound;
+        }
+        
+        // Detect if this is the first inbound message for welcome automation.
+        const previousInbound = await db.collection('whatsappmessages').findOne({ leadId: lead._id, direction: 'inbound' });
+        const wasFirstInbound = !previousInbound;
 
             // Handle STOP/OPTOUT keywords
             const keyword = body.trim().toUpperCase();
@@ -520,7 +531,14 @@ async function handleWebhookPayload(payload: any) {
             if (inboundWaMessageId) {
               console.log('[WEBHOOK] Upserting message:', inboundWaMessageId);
               try {
-                const result = await WhatsAppMessage.updateOne(
+                // FIX: Use direct collection write instead of Mongoose model to avoid serverless issues
+                // In Vercel serverless, Mongoose models sometimes don't persist writes properly
+                const db = mongoose.connection.db;
+                if (!db) {
+                  throw new Error('Database connection lost');
+                }
+                
+                const result = await db.collection('whatsappmessages').updateOne(
                   { waMessageId: inboundWaMessageId, direction: 'inbound' },
                   {
                     $setOnInsert: {
@@ -533,10 +551,9 @@ async function handleWebhookPayload(payload: any) {
                       deliveredAt: now,
                       sentAt: now,
                       waMessageId: inboundWaMessageId,
-                      isRead: false, // Mark as unread for notification badge
-                      // Styling: incoming messages appear in green background with white text
-                      backgroundColor: '#22c55e', // Bright green
-                      textColor: '#ffffff', // White text
+                      isRead: false,
+                      backgroundColor: '#22c55e',
+                      textColor: '#ffffff',
                       borderRadius: '8px',
                       metadata: {
                         webhook: {
@@ -558,7 +575,13 @@ async function handleWebhookPayload(payload: any) {
             } else {
               console.log('[WEBHOOK] Creating message (no ID)');
               try {
-                await WhatsAppMessage.create({
+                // FIX: Use direct collection write instead of Mongoose model
+                const db = mongoose.connection.db;
+                if (!db) {
+                  throw new Error('Database connection lost');
+                }
+                
+                await db.collection('whatsappmessages').insertOne({
                   leadId: lead._id,
                   phoneNumber: from,
                   direction: 'inbound',
@@ -567,10 +590,9 @@ async function handleWebhookPayload(payload: any) {
                   status: 'delivered',
                   deliveredAt: now,
                   sentAt: now,
-                  isRead: false, // Mark as unread for notification badge
-                  // Styling: incoming messages appear in green background with white text
-                  backgroundColor: '#22c55e', // Bright green
-                  textColor: '#ffffff', // White text
+                  isRead: false,
+                  backgroundColor: '#22c55e',
+                  textColor: '#ffffff',
                   borderRadius: '8px',
                   metadata: {
                     webhook: {
@@ -579,6 +601,8 @@ async function handleWebhookPayload(payload: any) {
                       rawType: msg?.type,
                     },
                   },
+                  createdAt: now,
+                  updatedAt: now,
                 });
                 console.log('[WEBHOOK] Message created SUCCESS');
               } catch (createErr) {
