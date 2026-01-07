@@ -273,19 +273,10 @@ async function handleWebhookPayload(payload: any) {
 
     console.log('[WEBHOOK] Processing webhook - entries:', entries.length);
     
-    // DEBUG: Write a marker to confirm webhook is executing
-    try {
-      const { AuditLog } = await import('@/lib/schemas/enterpriseSchemas');
-      await AuditLog.create({
-        action: 'webhook_test_marker',
-        userId: 'system',
-        resourceType: 'whatsapp_webhook',
-        timestamp: new Date(),
-        details: { entriesCount: entries.length },
-      }).catch(() => {});
-    } catch (e) {
-      // Ignore marker errors
-    }
+    // CRITICAL DEBUG: Marker to verify webhook code is executing
+    const debugMsg = `★★★ WEBHOOK HANDLER EXECUTING - ENTRIES: ${entries.length} ★★★`;
+    console.error(debugMsg);
+    console.log(debugMsg);
 
     const now = new Date();
 
