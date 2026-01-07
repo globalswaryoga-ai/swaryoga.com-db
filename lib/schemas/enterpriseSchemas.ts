@@ -1232,24 +1232,33 @@ function getModel(modelName: string, schema: any) {
  * Create a Proxy that lazy-loads a Mongoose model.
  * The Proxy defers initialization to the first property access,
  * which is guaranteed to be after connectDB() is called in route handlers.
+ * 
+ * This is critical for async operations like create(), updateOne(), findOne(), etc.
+ * which require proper `this` binding to the Mongoose model instance.
  */
 function createModelProxy(modelName: string, schema: any) {
   return new Proxy({} as any, {
-    get: (target, prop, receiver) => {
+    get: (target, prop) => {
       const model = getModel(modelName, schema);
-      return Reflect.get(model, prop, model);
+      const value = model[prop];
+      // For methods, we need to bind them to preserve Mongoose's internal state
+      if (typeof value === 'function') {
+        return value.bind(model);
+      }
+      return value;
     }
   });
 }
 
 // Export all models using lazy initialization
+// Each export uses a Proxy to defer model initialization until first use
+// This ensures the model is created AFTER connectDB() is called in route handlers
+
 export const Lead = createModelProxy('Lead', LeadSchema);
 export const CrmCounter = createModelProxy('CrmCounter', CrmCounterSchema);
 export const DeletedLead = createModelProxy('DeletedLead', DeletedLeadSchema);
-
 export const WhatsAppMessage = createModelProxy('WhatsAppMessage', WhatsAppMessageSchema);
 export const WhatsAppWebhookEvent = createModelProxy('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
-
 export const WhatsAppAccount = createModelProxy('WhatsAppAccount', WhatsAppAccountSchema);
 export const UserConsent = createModelProxy('UserConsent', UserConsentSchema);
 export const MessageStatus = createModelProxy('MessageStatus', MessageStatusSchema);
