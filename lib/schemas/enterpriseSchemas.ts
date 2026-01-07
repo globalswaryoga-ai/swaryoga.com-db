@@ -1218,19 +1218,28 @@ const modelCache: Record<string, any> = {};
 function getModel(modelName: string, schema: any) {
   // Return cached model if available
   if (modelCache[modelName]) {
+    console.log(`[MODELS] getModel(${modelName}) - returning cached`);
     return modelCache[modelName];
   }
   
   // Initialize on first use (safe because this happens after connectDB)
+  console.log(`[MODELS] getModel(${modelName}) - initializing...`);
   const crmDb = getCrmDb();
+  console.log(`[MODELS] getCrmDb() returned, connection state: ${crmDb?.connection?.readyState || 'unknown'}`);
   const model = crmDb.models[modelName] || crmDb.model(modelName, schema);
+  console.log(`[MODELS] Model created: ${modelName}`);
   modelCache[modelName] = model;
   return model;
 }
 
 // Export all models using lazy initialization
 export const Lead = new Proxy({} as any, {
-  get: (target, prop) => getModel('Lead', LeadSchema)[prop]
+  get: (target, prop) => {
+    console.log(`[PROXY] Lead.${String(prop)} accessed`);
+    const result = getModel('Lead', LeadSchema)[prop];
+    console.log(`[PROXY] Lead.${String(prop)} = ${typeof result}`);
+    return result;
+  }
 });
 
 export const CrmCounter = new Proxy({} as any, {
@@ -1242,11 +1251,21 @@ export const DeletedLead = new Proxy({} as any, {
 });
 
 export const WhatsAppMessage = new Proxy({} as any, {
-  get: (target, prop) => getModel('WhatsAppMessage', WhatsAppMessageSchema)[prop]
+  get: (target, prop) => {
+    console.log(`[PROXY] WhatsAppMessage.${String(prop)} accessed`);
+    const result = getModel('WhatsAppMessage', WhatsAppMessageSchema)[prop];
+    console.log(`[PROXY] WhatsAppMessage.${String(prop)} = ${typeof result}`);
+    return result;
+  }
 });
 
 export const WhatsAppWebhookEvent = new Proxy({} as any, {
-  get: (target, prop) => getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema)[prop]
+  get: (target, prop) => {
+    console.log(`[PROXY] WhatsAppWebhookEvent.${String(prop)} accessed`);
+    const result = getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema)[prop];
+    console.log(`[PROXY] WhatsAppWebhookEvent.${String(prop)} = ${typeof result}`);
+    return result;
+  }
 });
 
 export const WhatsAppAccount = new Proxy({} as any, {
