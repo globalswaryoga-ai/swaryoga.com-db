@@ -269,10 +269,8 @@ async function handleWebhookPayload(payload: any) {
 
     await connectDB();
     
-    // Import model factory functions after connectDB() to ensure connection is established
-    const { Lead: getLeadModel, WhatsAppMessage: getWhatsAppMessageModel } = await import('@/lib/schemas/enterpriseSchemas');
-    const Lead = getLeadModel();
-    const WhatsAppMessage = getWhatsAppMessageModel();
+    // Import models after connectDB() to ensure connection is established
+    const { Lead, WhatsAppMessage } = await import('@/lib/schemas/enterpriseSchemas');
 
     const now = new Date();
 
