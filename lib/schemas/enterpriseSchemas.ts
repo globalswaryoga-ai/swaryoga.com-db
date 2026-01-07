@@ -1198,44 +1198,43 @@ const CrmReceiptSchema = new mongoose.Schema(
 CrmReceiptSchema.index({ leadId: 1, issuedAt: -1 });
 CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
-// ============================================================================
-// EXPORT MODELS
-// ============================================================================
-// CRITICAL: Models accessed via mongoose.connection.useDb() which defers
-// database selection until connection is ready. The || checks ensure we don't
-// re-register models if already defined.
-const crmDb = mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
 
-// Export models directly (not functions). Mongoose handles the deferred connection.
-export const Lead = crmDb.models.Lead || crmDb.model('Lead', LeadSchema);
-export const CrmCounter = crmDb.models.CrmCounter || crmDb.model('CrmCounter', CrmCounterSchema);
-export const DeletedLead = crmDb.models.DeletedLead || crmDb.model('DeletedLead', DeletedLeadSchema);
-export const WhatsAppMessage = crmDb.models.WhatsAppMessage || crmDb.model('WhatsAppMessage', WhatsAppMessageSchema);
+// ============================================================================
+// EXPORT MODELS (USING MAIN CONNECTION)
+// ============================================================================
+// Use the main mongoose connection directly - no database switching needed
+// since connectDB() ensures we're connected to 'swaryogaDB' (or CRM_DB_NAME if same)
+
+// These will work after connectDB() is called in route handlers
+export const Lead = mongoose.models.Lead || mongoose.model('Lead', LeadSchema);
+export const CrmCounter = mongoose.models.CrmCounter || mongoose.model('CrmCounter', CrmCounterSchema);
+export const DeletedLead = mongoose.models.DeletedLead || mongoose.model('DeletedLead', DeletedLeadSchema);
+export const WhatsAppMessage = mongoose.models.WhatsAppMessage || mongoose.model('WhatsAppMessage', WhatsAppMessageSchema);
 export const WhatsAppWebhookEvent =
-  crmDb.models.WhatsAppWebhookEvent || crmDb.model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
-export const WhatsAppAccount = crmDb.models.WhatsAppAccount || crmDb.model('WhatsAppAccount', WhatsAppAccountSchema);
-export const UserConsent = crmDb.models.UserConsent || crmDb.model('UserConsent', UserConsentSchema);
-export const MessageStatus = crmDb.models.MessageStatus || crmDb.model('MessageStatus', MessageStatusSchema);
-export const AuditLog = crmDb.models.AuditLog || crmDb.model('AuditLog', AuditLogSchema);
-export const WhatsAppTemplate = crmDb.models.WhatsAppTemplate || crmDb.model('WhatsAppTemplate', WhatsAppTemplateSchema);
-export const RateLimit = crmDb.models.RateLimit || crmDb.model('RateLimit', RateLimitSchema);
-export const Backup = crmDb.models.Backup || crmDb.model('Backup', BackupSchema);
-export const Permission = crmDb.models.Permission || crmDb.model('Permission', PermissionSchema);
-export const AnalyticsEvent = crmDb.models.AnalyticsEvent || crmDb.model('AnalyticsEvent', AnalyticsEventSchema);
-export const SalesReport = crmDb.models.SalesReport || crmDb.model('SalesReport', SalesReportSchema);
+  mongoose.models.WhatsAppWebhookEvent || mongoose.model('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
+export const WhatsAppAccount = mongoose.models.WhatsAppAccount || mongoose.model('WhatsAppAccount', WhatsAppAccountSchema);
+export const UserConsent = mongoose.models.UserConsent || mongoose.model('UserConsent', UserConsentSchema);
+export const MessageStatus = mongoose.models.MessageStatus || mongoose.model('MessageStatus', MessageStatusSchema);
+export const AuditLog = mongoose.models.AuditLog || mongoose.model('AuditLog', AuditLogSchema);
+export const WhatsAppTemplate = mongoose.models.WhatsAppTemplate || mongoose.model('WhatsAppTemplate', WhatsAppTemplateSchema);
+export const RateLimit = mongoose.models.RateLimit || mongoose.model('RateLimit', RateLimitSchema);
+export const Backup = mongoose.models.Backup || mongoose.model('Backup', BackupSchema);
+export const Permission = mongoose.models.Permission || mongoose.model('Permission', PermissionSchema);
+export const AnalyticsEvent = mongoose.models.AnalyticsEvent || mongoose.model('AnalyticsEvent', AnalyticsEventSchema);
+export const SalesReport = mongoose.models.SalesReport || mongoose.model('SalesReport', SalesReportSchema);
 export const WhatsAppScheduledJob =
-  crmDb.models.WhatsAppScheduledJob || crmDb.model('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
+  mongoose.models.WhatsAppScheduledJob || mongoose.model('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
 export const WhatsAppAutomationRule =
-  crmDb.models.WhatsAppAutomationRule || crmDb.model('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
-export const LeadNote = crmDb.models.LeadNote || crmDb.model('LeadNote', LeadNoteSchema);
-export const LeadFollowUp = crmDb.models.LeadFollowUp || crmDb.model('LeadFollowUp', LeadFollowUpSchema);
-export const QuickReply = crmDb.models.QuickReply || crmDb.model('QuickReply', QuickReplySchema);
-export const BroadcastList = crmDb.models.BroadcastList || crmDb.model('BroadcastList', BroadcastListSchema);
+  mongoose.models.WhatsAppAutomationRule || mongoose.model('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
+export const LeadNote = mongoose.models.LeadNote || mongoose.model('LeadNote', LeadNoteSchema);
+export const LeadFollowUp = mongoose.models.LeadFollowUp || mongoose.model('LeadFollowUp', LeadFollowUpSchema);
+export const QuickReply = mongoose.models.QuickReply || mongoose.model('QuickReply', QuickReplySchema);
+export const BroadcastList = mongoose.models.BroadcastList || mongoose.model('BroadcastList', BroadcastListSchema);
 export const BroadcastListMember =
-  crmDb.models.BroadcastListMember || crmDb.model('BroadcastListMember', BroadcastListMemberSchema);
-export const BroadcastRun = crmDb.models.BroadcastRun || crmDb.model('BroadcastRun', BroadcastRunSchema);
+  mongoose.models.BroadcastListMember || mongoose.model('BroadcastListMember', BroadcastListMemberSchema);
+export const BroadcastRun = mongoose.models.BroadcastRun || mongoose.model('BroadcastRun', BroadcastRunSchema);
 export const BroadcastRunMessage =
-  crmDb.models.BroadcastRunMessage || crmDb.model('BroadcastRunMessage', BroadcastRunMessageSchema);
-export const ChatbotFlow = crmDb.models.ChatbotFlow || crmDb.model('ChatbotFlow', ChatbotFlowSchema);
-export const ChatbotSettings = crmDb.models.ChatbotSettings || crmDb.model('ChatbotSettings', ChatbotSettingsSchema);
-export const CrmReceipt = crmDb.models.CrmReceipt || crmDb.model('CrmReceipt', CrmReceiptSchema);
+  mongoose.models.BroadcastRunMessage || mongoose.model('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const ChatbotFlow = mongoose.models.ChatbotFlow || mongoose.model('ChatbotFlow', ChatbotFlowSchema);
+export const ChatbotSettings = mongoose.models.ChatbotSettings || mongoose.model('ChatbotSettings', ChatbotSettingsSchema);
+export const CrmReceipt = mongoose.models.CrmReceipt || mongoose.model('CrmReceipt', CrmReceiptSchema);
