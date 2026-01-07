@@ -1232,126 +1232,53 @@ function getModel(modelName: string, schema: any) {
   return model;
 }
 
+/**
+ * Create a Proxy handler for a model with proper function binding.
+ * This ensures that Mongoose methods maintain their `this` context.
+ */
+function createModelProxy(modelName: string, schema: any) {
+  return new Proxy({} as any, {
+    get: (target, prop) => {
+      console.log(`[PROXY] ${modelName}.${String(prop)} accessed`);
+      const model = getModel(modelName, schema);
+      const result = model[prop];
+      console.log(`[PROXY] ${modelName}.${String(prop)} = ${typeof result}`);
+      // Bind methods to maintain correct `this` context
+      if (typeof result === 'function') {
+        return result.bind(model);
+      }
+      return result;
+    }
+  });
+}
+
 // Export all models using lazy initialization
-export const Lead = new Proxy({} as any, {
-  get: (target, prop) => {
-    console.log(`[PROXY] Lead.${String(prop)} accessed`);
-    const result = getModel('Lead', LeadSchema)[prop];
-    console.log(`[PROXY] Lead.${String(prop)} = ${typeof result}`);
-    return result;
-  }
-});
+export const Lead = createModelProxy('Lead', LeadSchema);
+export const CrmCounter = createModelProxy('CrmCounter', CrmCounterSchema);
+export const DeletedLead = createModelProxy('DeletedLead', DeletedLeadSchema);
 
-export const CrmCounter = new Proxy({} as any, {
-  get: (target, prop) => getModel('CrmCounter', CrmCounterSchema)[prop]
-});
+export const WhatsAppMessage = createModelProxy('WhatsAppMessage', WhatsAppMessageSchema);
+export const WhatsAppWebhookEvent = createModelProxy('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema);
 
-export const DeletedLead = new Proxy({} as any, {
-  get: (target, prop) => getModel('DeletedLead', DeletedLeadSchema)[prop]
-});
-
-export const WhatsAppMessage = new Proxy({} as any, {
-  get: (target, prop) => {
-    console.log(`[PROXY] WhatsAppMessage.${String(prop)} accessed`);
-    const result = getModel('WhatsAppMessage', WhatsAppMessageSchema)[prop];
-    console.log(`[PROXY] WhatsAppMessage.${String(prop)} = ${typeof result}`);
-    return result;
-  }
-});
-
-export const WhatsAppWebhookEvent = new Proxy({} as any, {
-  get: (target, prop) => {
-    console.log(`[PROXY] WhatsAppWebhookEvent.${String(prop)} accessed`);
-    const result = getModel('WhatsAppWebhookEvent', WhatsAppWebhookEventSchema)[prop];
-    console.log(`[PROXY] WhatsAppWebhookEvent.${String(prop)} = ${typeof result}`);
-    return result;
-  }
-});
-
-export const WhatsAppAccount = new Proxy({} as any, {
-  get: (target, prop) => getModel('WhatsAppAccount', WhatsAppAccountSchema)[prop]
-});
-
-export const UserConsent = new Proxy({} as any, {
-  get: (target, prop) => getModel('UserConsent', UserConsentSchema)[prop]
-});
-
-export const MessageStatus = new Proxy({} as any, {
-  get: (target, prop) => getModel('MessageStatus', MessageStatusSchema)[prop]
-});
-
-export const AuditLog = new Proxy({} as any, {
-  get: (target, prop) => getModel('AuditLog', AuditLogSchema)[prop]
-});
-
-export const WhatsAppTemplate = new Proxy({} as any, {
-  get: (target, prop) => getModel('WhatsAppTemplate', WhatsAppTemplateSchema)[prop]
-});
-
-export const RateLimit = new Proxy({} as any, {
-  get: (target, prop) => getModel('RateLimit', RateLimitSchema)[prop]
-});
-
-export const Backup = new Proxy({} as any, {
-  get: (target, prop) => getModel('Backup', BackupSchema)[prop]
-});
-
-export const Permission = new Proxy({} as any, {
-  get: (target, prop) => getModel('Permission', PermissionSchema)[prop]
-});
-
-export const AnalyticsEvent = new Proxy({} as any, {
-  get: (target, prop) => getModel('AnalyticsEvent', AnalyticsEventSchema)[prop]
-});
-
-export const SalesReport = new Proxy({} as any, {
-  get: (target, prop) => getModel('SalesReport', SalesReportSchema)[prop]
-});
-
-export const WhatsAppScheduledJob = new Proxy({} as any, {
-  get: (target, prop) => getModel('WhatsAppScheduledJob', WhatsAppScheduledJobSchema)[prop]
-});
-
-export const WhatsAppAutomationRule = new Proxy({} as any, {
-  get: (target, prop) => getModel('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema)[prop]
-});
-
-export const LeadNote = new Proxy({} as any, {
-  get: (target, prop) => getModel('LeadNote', LeadNoteSchema)[prop]
-});
-
-export const LeadFollowUp = new Proxy({} as any, {
-  get: (target, prop) => getModel('LeadFollowUp', LeadFollowUpSchema)[prop]
-});
-
-export const QuickReply = new Proxy({} as any, {
-  get: (target, prop) => getModel('QuickReply', QuickReplySchema)[prop]
-});
-
-export const BroadcastList = new Proxy({} as any, {
-  get: (target, prop) => getModel('BroadcastList', BroadcastListSchema)[prop]
-});
-
-export const BroadcastListMember = new Proxy({} as any, {
-  get: (target, prop) => getModel('BroadcastListMember', BroadcastListMemberSchema)[prop]
-});
-
-export const BroadcastRun = new Proxy({} as any, {
-  get: (target, prop) => getModel('BroadcastRun', BroadcastRunSchema)[prop]
-});
-
-export const BroadcastRunMessage = new Proxy({} as any, {
-  get: (target, prop) => getModel('BroadcastRunMessage', BroadcastRunMessageSchema)[prop]
-});
-
-export const ChatbotFlow = new Proxy({} as any, {
-  get: (target, prop) => getModel('ChatbotFlow', ChatbotFlowSchema)[prop]
-});
-
-export const ChatbotSettings = new Proxy({} as any, {
-  get: (target, prop) => getModel('ChatbotSettings', ChatbotSettingsSchema)[prop]
-});
-
-export const CrmReceipt = new Proxy({} as any, {
-  get: (target, prop) => getModel('CrmReceipt', CrmReceiptSchema)[prop]
-});
+export const WhatsAppAccount = createModelProxy('WhatsAppAccount', WhatsAppAccountSchema);
+export const UserConsent = createModelProxy('UserConsent', UserConsentSchema);
+export const MessageStatus = createModelProxy('MessageStatus', MessageStatusSchema);
+export const AuditLog = createModelProxy('AuditLog', AuditLogSchema);
+export const WhatsAppTemplate = createModelProxy('WhatsAppTemplate', WhatsAppTemplateSchema);
+export const RateLimit = createModelProxy('RateLimit', RateLimitSchema);
+export const Backup = createModelProxy('Backup', BackupSchema);
+export const Permission = createModelProxy('Permission', PermissionSchema);
+export const AnalyticsEvent = createModelProxy('AnalyticsEvent', AnalyticsEventSchema);
+export const SalesReport = createModelProxy('SalesReport', SalesReportSchema);
+export const WhatsAppScheduledJob = createModelProxy('WhatsAppScheduledJob', WhatsAppScheduledJobSchema);
+export const WhatsAppAutomationRule = createModelProxy('WhatsAppAutomationRule', WhatsAppAutomationRuleSchema);
+export const LeadNote = createModelProxy('LeadNote', LeadNoteSchema);
+export const LeadFollowUp = createModelProxy('LeadFollowUp', LeadFollowUpSchema);
+export const QuickReply = createModelProxy('QuickReply', QuickReplySchema);
+export const BroadcastList = createModelProxy('BroadcastList', BroadcastListSchema);
+export const BroadcastListMember = createModelProxy('BroadcastListMember', BroadcastListMemberSchema);
+export const BroadcastRun = createModelProxy('BroadcastRun', BroadcastRunSchema);
+export const BroadcastRunMessage = createModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
+export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
+export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
+export const CrmReceipt = createModelProxy('CrmReceipt', CrmReceiptSchema);
