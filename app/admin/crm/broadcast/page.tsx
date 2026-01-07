@@ -140,6 +140,11 @@ export default function BroadcastPage() {
   const [sendMode, setSendMode] = useState<'now' | 'schedule' | 'delay'>('now');
   const [scheduleAt, setScheduleAt] = useState('');
   const [delayMins, setDelayMins] = useState('5');
+  
+  // Delay breakdown (days, hours, minutes, seconds)
+  const [delayDays, setDelayDays] = useState('0');
+  const [delayHours, setDelayHours] = useState('0');
+  const [delaySeconds, setDelaySeconds] = useState('0');
 
   // Broadcast run tracking
   const [activeRunId, setActiveRunId] = useState<string>('');
@@ -383,9 +388,14 @@ export default function BroadcastPage() {
         payload.scheduledAt = new Date(scheduleAt).toISOString();
       }
       if (sendMode === 'delay') {
+        const days = Number(delayDays || 0);
+        const hours = Number(delayHours || 0);
         const mins = Number(delayMins || 0);
-        if (!mins || mins < 1) throw new Error('Delay minutes must be >= 1');
-        payload.delaySeconds = Math.round(mins * 60);
+        const secs = Number(delaySeconds || 0);
+        
+        const totalSeconds = (days * 86400) + (hours * 3600) + (mins * 60) + secs;
+        if (!totalSeconds || totalSeconds < 1) throw new Error('Delay must be at least 1 second');
+        payload.delaySeconds = totalSeconds;
       }
 
       const created: any = await crm.fetch('/api/admin/crm/broadcast-runs', {
@@ -784,20 +794,115 @@ export default function BroadcastPage() {
                 flexWrap: 'wrap' as any,
               }}
             >
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as any }}>
-                <button type="button" onClick={() => setSendMode('now')} disabled={loading}>
-                  Send now
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as any, marginBottom: 12 }}>
+                <button 
+                  type="button" 
+                  onClick={() => setSendMode('now')} 
+                  disabled={loading}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: sendMode === 'now' ? '2px solid #10B981' : '1px solid #D1D5DB',
+                    borderRadius: 8,
+                    background: sendMode === 'now' ? '#ECFDF5' : '#fff',
+                    color: sendMode === 'now' ? '#065F46' : '#374151',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (sendMode !== 'now') {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#9CA3AF';
+                      (e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (sendMode !== 'now') {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB';
+                      (e.currentTarget as HTMLButtonElement).style.background = '#fff';
+                    }
+                  }}
+                >
+                  📤 Send now
                 </button>
-                <button type="button" onClick={() => setSendMode('schedule')} disabled={loading}>
-                  Schedule
+                <button 
+                  type="button" 
+                  onClick={() => setSendMode('schedule')} 
+                  disabled={loading}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: sendMode === 'schedule' ? '2px solid #3B82F6' : '1px solid #D1D5DB',
+                    borderRadius: 8,
+                    background: sendMode === 'schedule' ? '#EFF6FF' : '#fff',
+                    color: sendMode === 'schedule' ? '#1E40AF' : '#374151',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (sendMode !== 'schedule') {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#9CA3AF';
+                      (e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (sendMode !== 'schedule') {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB';
+                      (e.currentTarget as HTMLButtonElement).style.background = '#fff';
+                    }
+                  }}
+                >
+                  📅 Schedule
                 </button>
-                <button type="button" onClick={() => setSendMode('delay')} disabled={loading}>
-                  Delay
+                <button 
+                  type="button" 
+                  onClick={() => setSendMode('delay')} 
+                  disabled={loading}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: sendMode === 'delay' ? '2px solid #F59E0B' : '1px solid #D1D5DB',
+                    borderRadius: 8,
+                    background: sendMode === 'delay' ? '#FFFBEB' : '#fff',
+                    color: sendMode === 'delay' ? '#92400E' : '#374151',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (sendMode !== 'delay') {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#9CA3AF';
+                      (e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (sendMode !== 'delay') {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB';
+                      (e.currentTarget as HTMLButtonElement).style.background = '#fff';
+                    }
+                  }}
+                >
+                  ⏰ Delay
                 </button>
               </div>
 
-              <button type="button" onClick={submitBroadcast} disabled={loading}>
-                Submit
+              <button type="button" onClick={submitBroadcast} disabled={loading}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: '#10B981',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  width: '100%',
+                }}
+              >
+                {sendMode === 'now' && '🚀 Send Broadcast Now'}
+                {sendMode === 'schedule' && '📅 Schedule Broadcast'}
+                {sendMode === 'delay' && '⏰ Send with Delay'}
               </button>
             </div>
 
@@ -817,21 +922,64 @@ export default function BroadcastPage() {
                 </div>
               </div>
             ) : null}
-
             {sendMode === 'delay' ? (
               <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Delay (minutes)</div>
-                <input
-                  id="delay-minutes"
-                  name="delayMinutes"
-                  type="number"
-                  min={1}
-                  value={delayMins}
-                  onChange={(e) => setDelayMins(e.target.value)}
-                  style={{ width: '100%' }}
-                />
-                <div style={{ marginTop: 6, fontSize: 12, color: '#9CA3AF' }}>
-                  Delay for templates will be enabled in the next iteration.
+                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8, fontWeight: 600 }}>Delay Duration</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  <div>
+                    <label htmlFor="delay-days" style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Days</label>
+                    <input
+                      id="delay-days"
+                      name="delayDays"
+                      type="number"
+                      min={0}
+                      value={delayDays}
+                      onChange={(e) => setDelayDays(e.target.value)}
+                      style={{ width: '100%', padding: '6px 8px' }}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="delay-hours" style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Hours</label>
+                    <input
+                      id="delay-hours"
+                      name="delayHours"
+                      type="number"
+                      min={0}
+                      max={23}
+                      value={delayHours}
+                      onChange={(e) => setDelayHours(e.target.value)}
+                      style={{ width: '100%', padding: '6px 8px' }}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="delay-minutes" style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Minutes</label>
+                    <input
+                      id="delay-minutes"
+                      name="delayMinutes"
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={delayMins}
+                      onChange={(e) => setDelayMins(e.target.value)}
+                      style={{ width: '100%', padding: '6px 8px' }}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="delay-seconds" style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Seconds</label>
+                    <input
+                      id="delay-seconds"
+                      name="delaySeconds"
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={delaySeconds}
+                      onChange={(e) => setDelaySeconds(e.target.value)}
+                      style={{ width: '100%', padding: '6px 8px' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
+                  ⏰ Messages will be sent after the specified delay from send time.
                 </div>
               </div>
             ) : null}
