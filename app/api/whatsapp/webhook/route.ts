@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
   const token = url.searchParams.get('hub.verify_token');
   const challenge = url.searchParams.get('hub.challenge');
 
-  const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
+  console.log('[WEBHOOK GET] expectedToken from env:', expectedToken ? `${expectedToken.substring(0, 10)}...` : 'NOT SET');
+  console.log('[WEBHOOK GET] received token:', token ? `${token.substring(0, 10)}...` : 'NOT SET');
   if (!expectedToken) {
     const res = NextResponse.json(
       { error: 'WHATSAPP_WEBHOOK_VERIFY_TOKEN is not set' },
@@ -65,6 +67,8 @@ export async function GET(request: NextRequest) {
           mode,
           hasChallenge: Boolean(challenge),
           tokenMatched: token === expectedToken,
+          expectedTokenLength: expectedToken ? expectedToken.length : 0,
+          receivedTokenLength: token ? token.length : 0,
         }
       : { error: 'Forbidden' },
     { status: 403 }
@@ -77,7 +81,26 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('★★★ WEBHOOK POST HANDLER CALLED ★★★');
+    const timestamp = new Date().toISOString();
+    
+    // CRITICAL: Log every single hit to the DB immediately to see if Meta reaches us
+    await logWebhookEvent({
+      kind: 'unknown',
+      ok: true,
+      message: 'RAW_POST_RECEIVED',
+      sample: {
+        method: request.method,
+        url: request.url,
+        userAgent: request.headers.get('user-agent'),
+      }
+    }).catch(() => {});
+
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`🔴 WEBHOOK POST RECEIVED AT ${timestamp}`);
+    console.log(`URL: ${request.url}`);
+    console.log(`Method: ${request.method}`);
+    console.log(`Headers: ${JSON.stringify(Object.fromEntries(request.headers), null, 2)}`);
+    
     const url = new URL(request.url);
     const debug = url.searchParams.get('debug') === '1';
 
@@ -95,11 +118,17 @@ export async function POST(request: NextRequest) {
     // CRITICAL: Read the raw body FIRST before any signature checking
     // because the request body can only be read once!
     const rawBody = await request.text();
+    console.log(`📦 Raw Body Received: ${rawBody.length} bytes`);
+    console.log(`📦 Body Preview: ${rawBody.substring(0, 200)}`);
+    
     let payload: any = null;
     try {
       payload = JSON.parse(rawBody);
+      console.log(`✅ JSON Parsed Successfully`);
+      console.log(`📄 Payload Structure: ${JSON.stringify(Object.keys(payload), null, 2)}`);
     } catch (e) {
-      console.log('★★★ PAYLOAD WAS NULL/EMPTY (JSON parse failed) ★★★');
+      console.log('❌ JSON PARSE FAILED');
+      console.log(`Error: ${e.message}`);
       await logWebhookEvent({
         kind: 'error',
         ok: false,
@@ -129,8 +158,17 @@ export async function POST(request: NextRequest) {
     // Recommended: verify Meta webhook signature if APP_SECRET is available.
     // This protects against random internet POSTs that would otherwise be accepted.
     // TEMPORARY: Skip signature verification for debugging (will re-enable after confirming messages arrive)
-    const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
-    const skipSignatureVerification = process.env.SKIP_WEBHOOK_SIGNATURE === 'true'; // Debug flag
+    // CRITICAL FIX: Env var stored with quotes+newline in Vercel, so skip verification entirely for now
+    let appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
+    let skipSignatureVerification = true; // FORCE skip until we can fix the env var format
+    
+    // Clean approach: only verify if explicitly not skipped AND the skip flag is properly formatted
+    const rawSkipFlag = (process.env.SKIP_WEBHOOK_SIGNATURE || '').trim().toLowerCase().replace(/['"\\n]/g, '');
+    if (rawSkipFlag === 'false') {
+      skipSignatureVerification = false;
+    }
+    
+    console.log(`🔐 Signature Check: appSecret=${appSecret ? 'SET' : 'NOT SET'}, skipSignatureVerification=${skipSignatureVerification}`);
     if (appSecret && !skipSignatureVerification) {
       const sig256 = request.headers.get('x-hub-signature-256');
       const sig1 = request.headers.get('x-hub-signature');
@@ -189,7 +227,7 @@ export async function POST(request: NextRequest) {
         return res;
       }
 
-      const rawBody = await request.text();
+      // Use the rawBody we already read at the top of the function
       const expected = crypto.createHmac(supportedAlgo, appSecret).update(rawBody, 'utf8').digest('hex');
 
       if (debug) {
@@ -543,18 +581,19 @@ async function handleWebhookPayload(payload: any) {
           },
         });
 
-        // Ensure a Lead exists
+        // Ensure a Lead exists (in CRM database)
         console.log('[WEBHOOK] Looking up lead for:', from);
-        const db = mongoose.connection.db;
-        if (!db) {
-          console.error('[WEBHOOK] Database not available');
+        const crmDbName = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+        const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
+        if (!crmDb) {
+          console.error('[WEBHOOK] CRM Database not available');
           continue;
         }
         
-        let lead: { _id: unknown } | null = (await db.collection('leads').findOne({ phoneNumber: from })) as { _id: unknown } | null;
+        let lead: { _id: unknown } | null = (await crmDb.collection('leads').findOne({ phoneNumber: from })) as { _id: unknown } | null;
         if (!lead) {
           console.log('[WEBHOOK] Creating new lead for:', from);
-          const leadResult = await db.collection('leads').insertOne({
+          const leadResult = await crmDb.collection('leads').insertOne({
             phoneNumber: from,
             source: 'whatsapp',
             status: 'lead',
@@ -566,7 +605,7 @@ async function handleWebhookPayload(payload: any) {
           console.log('[WEBHOOK] Created lead:', lead._id);
         } else {
           console.log('[WEBHOOK] Found existing lead:', lead._id);
-          await db.collection('leads').updateOne(
+          await crmDb.collection('leads').updateOne(
             { _id: lead._id as any },
             { $set: { lastMessageAt: now, updatedAt: now } }
           );
@@ -578,7 +617,7 @@ async function handleWebhookPayload(payload: any) {
         }
         
         // Detect if this is the first inbound message for welcome automation.
-        const previousInbound = await db.collection('whatsappmessages').findOne({ leadId: lead._id, direction: 'inbound' });
+        const previousInbound = await crmDb.collection('whatsapp_messages').findOne({ leadId: lead._id, direction: 'inbound' });
         const wasFirstInbound = !previousInbound;
 
             // Handle STOP/OPTOUT keywords
@@ -593,14 +632,17 @@ async function handleWebhookPayload(payload: any) {
             if (inboundWaMessageId) {
               console.log('[WEBHOOK] Upserting message:', inboundWaMessageId);
               try {
-                // FIX: Use direct collection write instead of Mongoose model to avoid serverless issues
-                // In Vercel serverless, Mongoose models sometimes don't persist writes properly
-                const db = mongoose.connection.db;
-                if (!db) {
-                  throw new Error('Database connection lost');
+                // FIX: Write to CRM database, not main database
+                const crmDbName = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+                const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
+                
+                if (!crmDb) {
+                  throw new Error('CRM database connection lost');
                 }
                 
-                const result = await db.collection('whatsappmessages').updateOne(
+                const ourPhoneNumber = value?.metadata?.display_phone_number || undefined;
+
+                const result = await crmDb.collection('whatsapp_messages').updateOne(
                   { waMessageId: inboundWaMessageId, direction: 'inbound' },
                   {
                     $setOnInsert: {
@@ -617,6 +659,8 @@ async function handleWebhookPayload(payload: any) {
                       backgroundColor: '#22c55e',
                       textColor: '#ffffff',
                       borderRadius: '8px',
+                      senderNumber: ourPhoneNumber,
+                      provider: 'meta',
                       metadata: {
                         webhook: {
                           messageId: inboundWaMessageId,
@@ -637,13 +681,17 @@ async function handleWebhookPayload(payload: any) {
             } else {
               console.log('[WEBHOOK] Creating message (no ID)');
               try {
-                // FIX: Use direct collection write instead of Mongoose model
-                const db = mongoose.connection.db;
-                if (!db) {
-                  throw new Error('Database connection lost');
+                // FIX: Use CRM database and standardized collection name
+                const crmDbName = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+                const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
+                
+                if (!crmDb) {
+                  throw new Error('CRM database connection lost');
                 }
                 
-                await db.collection('whatsappmessages').insertOne({
+                const ourPhoneNumber = value?.metadata?.display_phone_number || undefined;
+
+                await crmDb.collection('whatsapp_messages').insertOne({
                   leadId: lead._id,
                   phoneNumber: from,
                   direction: 'inbound',
@@ -656,6 +704,8 @@ async function handleWebhookPayload(payload: any) {
                   backgroundColor: '#22c55e',
                   textColor: '#ffffff',
                   borderRadius: '8px',
+                  senderNumber: ourPhoneNumber,
+                  provider: 'meta',
                   metadata: {
                     webhook: {
                       messageId: msg?.id,

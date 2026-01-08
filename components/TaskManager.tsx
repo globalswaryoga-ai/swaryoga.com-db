@@ -343,7 +343,7 @@ export default function TaskManager({
                 <div className="space-y-2 text-sm text-swar-text mb-auto font-medium">
                   {task.goalId && <div className="flex items-center gap-2">🎯 {getGoalTitle(task.goalId)}</div>}
                   {task.dueDate && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" suppressHydrationWarning>
                       📅 {new Date(task.dueDate).toLocaleDateString()}
                     </div>
                   )}

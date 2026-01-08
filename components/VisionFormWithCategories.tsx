@@ -419,7 +419,7 @@ const VisionForm: React.FC<VisionFormProps> = ({ vision, onSave, onClose }) => {
                     <div className="flex-1">
                       <p className="font-medium text-swar-text">{milestone.title}</p>
                       {milestone.description && <p className="text-sm text-swar-text-secondary">{milestone.description}</p>}
-                      <p className="text-xs text-swar-text-secondary">Due: {new Date(milestone.endDate).toLocaleDateString()} • {milestone.status}</p>
+                      <p className="text-xs text-swar-text-secondary" suppressHydrationWarning>Due: {new Date(milestone.endDate).toLocaleDateString()} • {milestone.status}</p>
                     </div>
                     <button
                       type="button"

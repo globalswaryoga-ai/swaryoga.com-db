@@ -195,7 +195,7 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({
               <div className="flex flex-wrap items-center gap-6 text-swar-text-secondary text-sm md:text-base">
                 <div className="flex items-center">
                   <Calendar size={18} className="mr-2 text-swar-primary" />
-                  <span>{formatDate(date)}</span>
+                  <span suppressHydrationWarning>{formatDate(date)}</span>
                 </div>
                 <div className="flex items-center">
                   <User size={18} className="mr-2 text-swar-primary" />

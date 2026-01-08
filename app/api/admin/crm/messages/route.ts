@@ -9,11 +9,12 @@ import {
   buildMetadata,
   isValidObjectId,
   toObjectId,
+  normalizePhone,
 } from '@/lib/crm-handlers';
 import { WhatsAppMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
 import { ConsentManager } from '@/lib/consentManager';
 import { AuditLogger } from '@/lib/auditLogger';
-import { normalizePhone, sendWhatsAppText } from '@/lib/whatsapp';
+import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
 
 /**
  * WhatsApp message management - REFACTORED
@@ -55,27 +56,31 @@ export async function GET(request: NextRequest) {
     // Access control:
     // - Super admin (admincrm) can see all messages.
     // - Other admins can only see messages for leads assigned to them.
-    // - Unassigned leads are hidden from non-super-admin.
-    const baseQuery = WhatsAppMessage.find(filter)
+    if (!superAdmin) {
+      // Find leads assigned to this user
+      const assignedLeads = await Lead.find({ assignedToUserId: viewerUserId }).select('_id').lean();
+      const assignedIds = assignedLeads.map(l => l._id);
+      
+      if (filter.leadId) {
+        // If they requested a specific lead, check if it's in their assigned list
+        if (!assignedIds.some(id => String(id) === String(filter.leadId))) {
+          // Forbidden lead requested
+          return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
+        }
+      } else {
+        // No specific lead requested, filter by all assigned leads
+        filter.leadId = { $in: assignedIds };
+      }
+    }
+
+    const messages = await WhatsAppMessage.find(filter)
       .sort({ sentAt: sortDir })
       .skip(skip)
       .limit(limit)
-      .populate('leadId', 'name phoneNumber assignedToUserId');
+      .populate('leadId', 'name phoneNumber assignedToUserId')
+      .lean();
 
-    if (!superAdmin) {
-      // Only include messages whose lead is assigned to this admin.
-      baseQuery.where('leadId').ne(null);
-    }
-
-    const messagesRaw = await baseQuery.lean();
-    const messages = superAdmin
-      ? messagesRaw
-      : messagesRaw.filter((m: any) => String(m?.leadId?.assignedToUserId || '') === viewerUserId);
-
-    // Total count for pagination must match the filtered list.
-    const total = superAdmin
-      ? await WhatsAppMessage.countDocuments(filter)
-      : messages.length;
+    const total = await WhatsAppMessage.countDocuments(filter);
     const meta = buildMetadata(total, limit, skip);
 
     return formatCrmSuccess({ messages, total }, meta);
@@ -169,17 +174,34 @@ export async function POST(request: NextRequest) {
     // Update lead's lastMessageAt
     await Lead.updateOne({ _id: leadId }, { $set: { lastMessageAt: now } });
 
-    // Send immediately for text messages.
-    // For template/media/interactive, we still record the message as queued for now.
-    if (normalizedType === 'text') {
+    // Send immediately for recognized types
+    if (normalizedType === 'text' || normalizedType === 'image' || normalizedType === 'document' || normalizedType === 'video') {
       try {
-        const apiResult = await sendWhatsAppText(to, String(messageContent).trim());
+        let apiResult;
+        if (normalizedType === 'text') {
+          apiResult = await sendWhatsAppText(to, String(messageContent).trim());
+        } else {
+          // For media, we expect mediaUrl in the request body
+          const mediaUrl = body.mediaUrl || body.url || messageContent;
+          if (!mediaUrl) throw new Error(`Missing mediaUrl for type ${normalizedType}`);
+          
+          apiResult = await sendWhatsAppMedia(
+            to, 
+            mediaUrl, 
+            normalizedType === 'document' ? 'document' : normalizedType === 'video' ? 'video' : 'image',
+            normalizedType === 'image' || normalizedType === 'video' ? String(messageContent || '').trim() : undefined
+          );
+        }
+
         await WhatsAppMessage.updateOne(
           { _id: message._id },
           {
             $set: {
               status: 'sent',
               waMessageId: apiResult.waMessageId,
+              provider: apiResult.raw.provider,
+              // Meta number from known ID; Bridge number from known env/constant
+              senderNumber: apiResult.raw.provider === 'meta' ? '9779006820' : '9075358557',
               updatedAt: new Date(),
             },
             $unset: {

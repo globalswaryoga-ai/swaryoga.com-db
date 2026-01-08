@@ -239,7 +239,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({
                     <div className="flex items-center text-sm text-swar-text-secondary mb-4 flex-wrap gap-2">
                       {item.author && <span>{item.author}</span>}
                       {item.date && <span>•</span>}
-                      {item.date && <span>{formatDate(item.date)}</span>}
+                      {item.date && <span suppressHydrationWarning>{formatDate(item.date)}</span>}
                       {item.readTime && <span>•</span>}
                       {item.readTime && <span>{item.readTime[language]}</span>}
                     </div>

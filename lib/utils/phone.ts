@@ -20,6 +20,11 @@ export function normalizePhoneForMeta(input?: string): string {
   if (digits.length === 10) {
     digits = `91${digits}`;
   }
+  
+  // Remove leading 0s if it's like 091...
+  if (digits.startsWith('0') && digits.length > 10) {
+    digits = digits.replace(/^0+/, '');
+  }
 
   // If already starts with 91 (and likely 12 digits), keep.
   // For other countries, we keep digits-only as-is.

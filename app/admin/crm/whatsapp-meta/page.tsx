@@ -77,6 +77,11 @@ export default function MetaWhatsAppPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const enableMetaWhatsApp = (process.env.NEXT_PUBLIC_ENABLE_META_WHATSAPP || '').toLowerCase() === 'true';
   // IMPORTANT: memoize the object passed into useCRM.
@@ -684,6 +689,19 @@ export default function MetaWhatsAppPage() {
   }, [searchParams, conversations]);
 
   if (token === undefined) return null;
+
+  if (!hasMounted) return null;
+
+  if (!enableMetaWhatsApp) {
+    return (
+      <div className="flex items-center justify-center h-[70vh]">
+        <div className="text-center p-8 bg-white border rounded-xl shadow-sm">
+          <p className="text-gray-500 mb-2">Meta WhatsApp is currently disabled.</p>
+          <p className="text-sm text-gray-400">Set NEXT_PUBLIC_ENABLE_META_WHATSAPP=true to enable.</p>
+        </div>
+      </div>
+    );
+  }
 
   const selectedLeadName = selected?.name || selected?.phoneNumber || 'Conversation';
 

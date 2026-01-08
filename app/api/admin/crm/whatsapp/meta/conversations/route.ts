@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { WhatsAppMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
+import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { 
+  verifyAdminAccess, 
+  handleCrmError, 
+  formatCrmSuccess, 
+  isSuperAdmin,
+  getViewerUserId
+} from '@/lib/crm-handlers';
 
 function isMetaDisabled(): boolean {
   return [
@@ -24,27 +30,16 @@ export const revalidate = 0;
 export async function GET(request: NextRequest) {
   try {
     if (isMetaDisabled()) {
-      return NextResponse.json(
-        { error: 'Not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Meta functionality is disabled' }, { status: 404 });
     }
 
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const userId = verifyAdminAccess(request);
     await connectDB();
 
     // Get conversations grouped by leadId with lead details
-    const conversations = await WhatsAppMessage.aggregate([
+    const pipeline: any[] = [
       // Sort by most recent first
-      {
-        $sort: { sentAt: -1 },
-      },
+      { $sort: { sentAt: -1 } },
       // Group by leadId to get one conversation per lead
       {
         $group: {
@@ -54,6 +49,21 @@ export async function GET(request: NextRequest) {
           lastDirection: { $first: '$direction' },
           lastStatus: { $first: '$status' },
           phoneNumber: { $first: '$phoneNumber' },
+          unreadCount: {
+            $sum: {
+              $cond: [
+                { 
+                  $and: [
+                    { $eq: ['$direction', 'inbound'] }, 
+                    { $ne: ['$status', 'read'] },
+                    { $ne: ['$isRead', true] }
+                  ] 
+                },
+                1,
+                0,
+              ],
+            },
+          },
         },
       },
       // Join with Lead collection to get name, status, labels
@@ -71,14 +81,20 @@ export async function GET(request: NextRequest) {
           preserveNullAndEmptyArrays: true,
         },
       },
+    ];
+
+    // Access control:
+    const decoded = { userId }; // Rough mock for isSuperAdmin check if needed, or just use the logic
+    const superAdmin = userId === 'admincrm';
+    if (!superAdmin) {
+      pipeline.push({ $match: { 'lead.assignedToUserId': userId } });
+    }
+
+    pipeline.push(
       // Sort by last message time (newest first)
-      {
-        $sort: { lastMessageTime: -1 },
-      },
+      { $sort: { lastMessageTime: -1 } },
       // Limit to 100 conversations
-      {
-        $limit: 100,
-      },
+      { $limit: 100 },
       // Project final shape
       {
         $project: {
@@ -93,19 +109,14 @@ export async function GET(request: NextRequest) {
           lastMessageTime: 1,
           lastDirection: 1,
           lastStatus: 1,
+          unreadCount: 1,
         },
-      },
-    ]);
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: conversations,
-      },
-      { status: 200 }
+      }
     );
-  } catch (error: any) {
-    console.error('[Meta Conversations] Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch conversations' }, { status: 500 });
+
+    const conversations = await WhatsAppMessage.aggregate(pipeline);
+    return formatCrmSuccess(conversations);
+  } catch (error) {
+    return handleCrmError(error, 'GET meta conversations');
   }
 }

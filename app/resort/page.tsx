@@ -632,7 +632,7 @@ export default function ResortPage() {
                     <div className="bg-swar-primary-light border border-green-200 rounded-lg p-4">
                       <h4 className="font-semibold text-swar-primary mb-2">Booking Summary</h4>
                       <p className="text-swar-primary text-sm">
-                        Total Amount: ₹{calculateTotalAmount().toLocaleString()}
+                        Total Amount: <span suppressHydrationWarning>₹{calculateTotalAmount().toLocaleString()}</span>
                       </p>
                     </div>
                   )}

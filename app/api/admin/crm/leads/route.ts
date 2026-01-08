@@ -3,24 +3,12 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
-
-function escapeRegexLiteral(input: string): string {
-  // Escape any characters that have special meaning in regex so user queries
-  // can't crash the API with an invalid pattern (e.g. "(" or "[a-").
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && 
-      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
-  );
-}
+import { 
+  escapeRegexLiteral, 
+  getViewerUserId, 
+  isSuperAdmin, 
+  normalizePhone 
+} from '@/lib/crm-handlers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -120,10 +108,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const phoneNumber = String(body?.phoneNumber || '').trim();
-    if (!phoneNumber) {
+    const rawPhone = String(body?.phoneNumber || '').trim();
+    if (!rawPhone) {
       return NextResponse.json({ error: 'Missing: phoneNumber' }, { status: 400 });
     }
+    const phoneNumber = normalizePhone(rawPhone);
 
     const name = body?.name ? String(body.name).trim() : undefined;
     const email = body?.email ? String(body.email).trim().toLowerCase() : undefined;

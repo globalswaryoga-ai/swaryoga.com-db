@@ -477,7 +477,7 @@ export default function RegisterPage() {
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 md:gap-3">
                           <div>
                             <p className="text-xs md:text-sm text-gray-600 mb-0.5">Price</p>
-                            <p className="text-lg md:text-xl font-bold text-blue-600">
+                            <p className="text-lg md:text-xl font-bold text-blue-600" suppressHydrationWarning>
                               {getPriceDisplay(schedule.price, getSelectedCountryForSchedule(schedule.id))}
                             </p>
                           </div>

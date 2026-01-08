@@ -51,7 +51,13 @@ export async function GET(request: NextRequest) {
         unreadCount: {
           $sum: {
             $cond: [
-              { $and: [{ $eq: ['$direction', 'inbound'] }, { $ne: ['$status', 'read'] }] },
+              { 
+                $and: [
+                  { $eq: ['$direction', 'inbound'] }, 
+                  { $ne: ['$status', 'read'] },
+                  { $ne: ['$isRead', true] }
+                ] 
+              },
               1,
               0,
             ],

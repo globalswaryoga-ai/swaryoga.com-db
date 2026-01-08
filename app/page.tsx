@@ -349,7 +349,7 @@ const HomePage = () => {
                   <div className="flex justify-between items-center mb-4">
                     <div>
                       <p className="text-sm text-gray-300">Price</p>
-                      <p className="text-2xl sm:text-3xl font-bold">₹{membershipDetails.price.toLocaleString()}</p>
+                      <p className="text-2xl sm:text-3xl font-bold" suppressHydrationWarning>₹{membershipDetails.price.toLocaleString()}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-300">Valid for</p>
@@ -366,7 +366,7 @@ const HomePage = () => {
                 <div className="space-y-6">
                   <div>
                     <h4 className="font-semibold text-lg mb-2">Membership Details</h4>
-                    <p className="text-swar-text-secondary text-sm sm:text-base">
+                    <p className="text-swar-text-secondary text-sm sm:text-base" suppressHydrationWarning>
                       One-time payment of ₹{membershipDetails.price.toLocaleString()} for {membershipDetails.validity}. Limited membership spots available!
                     </p>
                   </div>

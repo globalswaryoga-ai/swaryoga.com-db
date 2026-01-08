@@ -1,39 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Types } from 'mongoose';
 import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { 
+  verifyAdminAccess, 
+  toObjectId, 
+  isValidObjectId, 
+  handleCrmError, 
+  formatCrmSuccess 
+} from '@/lib/crm-handlers';
 
 type Body = {
   leadIds: string[];
   assignedToUserId?: string;
   workshopName?: string;
+  status?: string;
+  labels?: string[];
+  addLabels?: string[];
+  removeLabels?: string[];
 };
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
+    verifyAdminAccess(request);
 
     const body = (await request.json().catch(() => null)) as Body | null;
     if (!body || !Array.isArray(body.leadIds) || body.leadIds.length === 0) {
       return NextResponse.json({ error: 'leadIds is required' }, { status: 400 });
     }
 
-    const assignedToUserId = body.assignedToUserId ? String(body.assignedToUserId).trim() : '';
-    const workshopName = body.workshopName ? String(body.workshopName).trim() : '';
-
-    if (!assignedToUserId && !workshopName) {
-      return NextResponse.json({ error: 'Nothing to update (assignedToUserId/workshopName missing)' }, { status: 400 });
-    }
+    const { assignedToUserId, workshopName, status, labels, addLabels, removeLabels } = body;
 
     const objectIds = body.leadIds
       .map((id) => String(id))
-      .filter((id) => Types.ObjectId.isValid(id))
-      .map((id) => new Types.ObjectId(id));
+      .filter((id) => isValidObjectId(id))
+      .map((id) => toObjectId(id));
 
     if (objectIds.length === 0) {
       return NextResponse.json({ error: 'No valid leadIds provided' }, { status: 400 });
@@ -42,23 +42,33 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const update: Record<string, any> = {};
-    if (assignedToUserId) update.assignedToUserId = assignedToUserId;
-    if (workshopName) update.workshopName = workshopName;
+    if (assignedToUserId !== undefined) update.assignedToUserId = String(assignedToUserId).trim();
+    if (workshopName !== undefined) update.workshopName = String(workshopName).trim();
+    if (status !== undefined) update.status = String(status).trim();
+    if (labels !== undefined) update.labels = labels;
 
-    const result = await Lead.updateMany({ _id: { $in: objectIds } }, { $set: update });
+    // Handle add/remove labels if provided (optional complexity)
+    const arrayUpdates: Record<string, any> = {};
+    if (Array.isArray(addLabels) && addLabels.length > 0) {
+      arrayUpdates.$addToSet = { labels: { $each: addLabels } };
+    }
+    if (Array.isArray(removeLabels) && removeLabels.length > 0) {
+      arrayUpdates.$pull = { labels: { $in: removeLabels } };
+    }
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          matchedCount: (result as any).matchedCount ?? (result as any).n ?? 0,
-          modifiedCount: (result as any).modifiedCount ?? (result as any).nModified ?? 0,
-        },
-      },
-      { status: 200 }
+    const result = await Lead.updateMany(
+      { _id: { $in: objectIds } },
+      { 
+        $set: update,
+        ...(Object.keys(arrayUpdates).length > 0 ? arrayUpdates : {})
+      }
     );
+
+    return formatCrmSuccess({
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Bulk update failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleCrmError(error, 'POST /api/admin/crm/leads/bulk-update');
   }
 }

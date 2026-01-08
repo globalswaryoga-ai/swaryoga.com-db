@@ -146,7 +146,7 @@ export default function NotesWidget({ visionId, token }: NotesWidgetProps) {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-lg">{moodEmoji}</span>
                       <h4 className="font-semibold text-swar-text line-clamp-1">{note.title}</h4>
-                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                      <span className="text-xs text-gray-400 whitespace-nowrap" suppressHydrationWarning>
                         {new Date(note.createdAt).toLocaleDateString()}
                       </span>
                     </div>

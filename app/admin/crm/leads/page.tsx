@@ -72,17 +72,17 @@ export default function LeadsPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [workshopCounts, setWorkshopCounts] = useState<Record<string, number>>({});
   const [loadingMetadata, setLoadingMetadata] = useState(false);
-  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkImportModalOpen, setBulkImportModalOpen] = useState(false);
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
   const [duplicateLead, setDuplicateLead] = useState<any>(null);
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
-  // Bulk actions panel should auto-open when 2+ leads are selected
-  useEffect(() => {
-    setBulkModalOpen(selectedLeadIds.size >= 2);
-  }, [selectedLeadIds]);
+  // Determine if bulk actions should be visible
+  const bulkActionsVisible = selectedLeadIds.size >= 1;
   const [bulkAssignedToUserId, setBulkAssignedToUserId] = useState<string>('');
   const [bulkWorkshopName, setBulkWorkshopName] = useState<string>('');
+  const [bulkStatus, setBulkStatus] = useState<string>('');
+  const [bulkLabels, setBulkLabels] = useState<string>('');
   const [bulkActionBusy, setBulkActionBusy] = useState(false);
 
   const [backfillBusy, setBackfillBusy] = useState(false);
@@ -97,6 +97,12 @@ export default function LeadsPage() {
   // Track last fetch to prevent rapid retries on errors
   const lastFetchTimeRef = useRef<number>(0);
   const MIN_FETCH_INTERVAL_MS = 2000; // Minimum 2 second interval between fetch attempts
+
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     // Determine if current admin has full access (admin / permissions: ['all'])
@@ -572,14 +578,17 @@ export default function LeadsPage() {
     const ids = Array.from(selectedLeadIds);
     if (ids.length === 0) return;
 
-    if (!bulkAssignedToUserId.trim() && !bulkWorkshopName.trim()) {
-      alert('Please set a User or Program/Workshop');
+    if (!bulkAssignedToUserId.trim() && !bulkWorkshopName.trim() && !bulkStatus.trim() && !bulkLabels.trim()) {
+      alert('Please set at least one field to update (User, Program/Workshop, Status, Labels)');
       return;
     }
 
     try {
       setBulkActionBusy(true);
       setError(null);
+      
+      const labelsArray = bulkLabels.split(',').map(s => s.trim()).filter(Boolean);
+
       const res = await fetch('/api/admin/crm/leads/bulk-update', {
         method: 'POST',
         headers: {
@@ -590,6 +599,8 @@ export default function LeadsPage() {
           leadIds: ids,
           assignedToUserId: bulkAssignedToUserId.trim() || undefined,
           workshopName: bulkWorkshopName.trim() || undefined,
+          status: bulkStatus || undefined,
+          addLabels: labelsArray.length > 0 ? labelsArray : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -598,18 +609,22 @@ export default function LeadsPage() {
       alert(`Updated ${data?.data?.modifiedCount ?? 0} leads.`);
       setBulkAssignedToUserId('');
       setBulkWorkshopName('');
+      setBulkStatus('');
+      setBulkLabels('');
       clearSelection();
-      fetchMetadata();
       fetchLeads();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Bulk update failed');
+      fetchMetadata();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk update failed');
     } finally {
       setBulkActionBusy(false);
     }
   };
 
+  if (!hasMounted) return null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 p-8">
+    <div className="min-h-screen bg-slate-50 flex">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Page Header - Professional */}
         <div className="flex items-center justify-between">
@@ -667,7 +682,7 @@ export default function LeadsPage() {
               </button>
             )}
             <button
-              onClick={() => setBulkModalOpen(true)}
+              onClick={() => setBulkImportModalOpen(true)}
               className="bg-teal-50 hover:bg-teal-100 text-teal-700 px-4 py-2 rounded-lg transition-all font-semibold border border-teal-200"
             >
               📤 Bulk Upload
@@ -842,13 +857,6 @@ export default function LeadsPage() {
                   >
                     Actions All
                   </button>
-
-                  <button
-                    onClick={() => setBulkModalOpen(true)}
-                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold transition-colors"
-                  >
-                    Actions
-                  </button>
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-2 md:items-center">
@@ -872,6 +880,26 @@ export default function LeadsPage() {
                     value={bulkWorkshopName}
                     onChange={(e) => setBulkWorkshopName(e.target.value)}
                     placeholder="Set Program/Workshop (optional)"
+                    className="bg-white border border-teal-200 rounded-lg px-3 py-2 text-teal-900 font-semibold"
+                  />
+
+                  <select
+                    value={bulkStatus}
+                    onChange={(e) => setBulkStatus(e.target.value)}
+                    className="bg-white border border-teal-200 rounded-lg px-3 py-2 text-teal-900 font-semibold"
+                  >
+                    <option value="">Set Status (optional)</option>
+                    <option value="lead">Lead</option>
+                    <option value="prospect">Prospect</option>
+                    <option value="customer">Customer</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+
+                  <input
+                    type="text"
+                    value={bulkLabels}
+                    onChange={(e) => setBulkLabels(e.target.value)}
+                    placeholder="Add labels (tag1, tag2) (optional)"
                     className="bg-white border border-teal-200 rounded-lg px-3 py-2 text-teal-900 font-semibold"
                   />
 
@@ -1140,7 +1168,7 @@ export default function LeadsPage() {
       )}
 
       {/* Bulk Import Modal */}
-      {bulkModalOpen && (
+      {bulkImportModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50">
           <div className="bg-white border-2 border-teal-300 rounded-xl p-8 max-w-md w-full space-y-6 shadow-2xl">
             <h2 className="text-xl font-bold text-teal-700">Bulk Import Leads</h2>
@@ -1235,7 +1263,7 @@ export default function LeadsPage() {
                     if (response.ok) {
                       const data = await response.json();
                       alert(`Successfully imported ${data.data.imported} leads!\n${data.data.skipped} duplicates skipped.`);
-                      setBulkModalOpen(false);
+                      setBulkImportModalOpen(false);
                       fetchMetadata();
                       fetchLeads();
                     } else {
@@ -1251,7 +1279,7 @@ export default function LeadsPage() {
                 Upload
               </button>
               <button
-                onClick={() => setBulkModalOpen(false)}
+                onClick={() => setBulkImportModalOpen(false)}
                 className="flex-1 bg-slate-100 border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors font-medium"
               >
                 Cancel

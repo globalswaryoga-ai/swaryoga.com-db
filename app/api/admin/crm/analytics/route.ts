@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
       // Message analytics
       const matchStage = hasDateRange ? { $match: { sentAt: dateRange } } : { $match: {} };
 
-      const [totalMessages, inboundCount, outboundCount, byStatus, avgRetryCount] = await Promise.all([
+      const [totalMessages, inboundCount, outboundCount, readCount, byStatus, avgRetryCount] = await Promise.all([
         WhatsAppMessage.countDocuments(hasDateRange ? { sentAt: dateRange } : {}),
         WhatsAppMessage.countDocuments({
           direction: 'inbound',
@@ -220,6 +220,13 @@ export async function GET(request: NextRequest) {
         }),
         WhatsAppMessage.countDocuments({
           direction: 'outbound',
+          ...(hasDateRange ? { sentAt: dateRange } : {}),
+        }),
+        WhatsAppMessage.countDocuments({
+          $or: [
+            { isRead: true },
+            { status: 'read' }
+          ],
           ...(hasDateRange ? { sentAt: dateRange } : {}),
         }),
         WhatsAppMessage.aggregate([
@@ -237,6 +244,7 @@ export async function GET(request: NextRequest) {
         totalMessages,
         inbound: inboundCount,
         outbound: outboundCount,
+        read: readCount,
         byStatus: Object.fromEntries(byStatus.map((item: any) => [item._id || 'unknown', item.count])),
         avgRetryCount: avgRetryCount[0]?.avg || 0,
       };

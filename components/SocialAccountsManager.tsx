@@ -181,7 +181,7 @@ export default function SocialAccountsManager({ token }: AccountManagerProps) {
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Connected</span>
-                  <span className="font-semibold">
+                  <span className="font-semibold" suppressHydrationWarning>
                     {new Date(account.connected_at).toLocaleDateString()}
                   </span>
                 </div>

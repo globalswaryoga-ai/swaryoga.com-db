@@ -101,19 +101,21 @@ export async function POST(request: NextRequest) {
 
     if (action === 'markRead' || action === 'markUnread') {
       const status = action === 'markRead' ? 'read' : 'delivered';
+      const isRead = action === 'markRead';
 
       // We only touch inbound messages; outbound read state is usually irrelevant.
       const result = await WhatsAppMessage.updateMany(
         {
           leadId: { $in: leadObjectIds },
           direction: 'inbound',
-          ...(action === 'markRead' ? { status: { $ne: 'read' } } : { status: 'read' }),
+          ...(action === 'markRead' ? { isRead: { $ne: true } } : { isRead: true }),
           // For safety, restrict to Meta-origin messages if method field exists.
           $or: [{ method: { $exists: false } }, { method: 'meta' }],
         } as any,
         {
           $set: {
             status,
+            isRead,
             ...(action === 'markRead' ? { readAt: new Date() } : { readAt: null }),
             updatedAt: new Date(),
           },

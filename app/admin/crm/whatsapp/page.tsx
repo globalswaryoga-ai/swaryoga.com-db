@@ -293,6 +293,12 @@ export default function WhatsAppChatDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuth();
+  const crm = useCRM({ token });
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const viewer = useMemo(() => {
     const t = String(token || '').trim();
@@ -303,7 +309,6 @@ export default function WhatsAppChatDashboardPage() {
       email: String(decoded?.email || '').trim(),
     };
   }, [token]);
-  const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
   // UI: resizable sidebar (chat list)
@@ -1773,8 +1778,10 @@ export default function WhatsAppChatDashboardPage() {
     }
   }, [token]);
 
+  if (!hasMounted) return null;
+
   return (
-    <div className="whatsapp-crm">
+    <div className="flex h-screen bg-white">
       {/* LEFT SIDEBAR (CRM + WhatsApp) */}
       <aside className="crm-sidebar">
         <div className="logo">Swar Yoga CRM</div>
@@ -3112,7 +3119,7 @@ export default function WhatsAppChatDashboardPage() {
                   <button type="button" onClick={addToBroadcastList} disabled={broadcastBusy}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M11 5h2v14h-2V5Zm-6 6h14v2H5v-2Z" fill="currentColor" />
+                        <path d="M11 5h2v14h-2V5Zm-6 6h14v2H5v-2Zm0 8h14v2H5v-2Z" fill="currentColor" />
                       </svg>
                       {broadcastBusy ? 'Adding…' : 'Add'}
                     </span>

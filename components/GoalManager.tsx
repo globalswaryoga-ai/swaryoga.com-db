@@ -353,7 +353,7 @@ export default function GoalManager({
                 <div className="space-y-2 text-sm text-swar-text mb-auto font-medium">
                   {goal.visionId && <div className="flex items-center gap-2">👁️ {getVisionTitle(goal.visionId)}</div>}
                   {goal.targetDate && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" suppressHydrationWarning>
                       📅 {new Date(goal.targetDate).toLocaleDateString()}
                     </div>
                   )}

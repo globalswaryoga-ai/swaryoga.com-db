@@ -155,7 +155,7 @@ export default function WorkshopDateBooking({
               onClick={() => setShowDatePicker(!showDatePicker)}
               className="w-full p-4 border-2 border-swar-200 rounded-lg hover:bg-swar-50 flex items-center justify-between"
             >
-              <span className="flex items-center gap-2 text-lg font-semibold">
+              <span className="flex items-center gap-2 text-lg font-semibold" suppressHydrationWarning>
                 <Calendar className="w-5 h-5 text-swar-600" />
                 {selectedDate
                   ? `Selected: ${selectedDate.date.toLocaleDateString()} (${selectedDate.mode})`
@@ -184,7 +184,7 @@ export default function WorkshopDateBooking({
                     : 'border-swar-200 hover:border-swar-400'
                 }`}
               >
-                <div className="font-semibold text-swar-700 mb-2">
+                <div className="font-semibold text-swar-700 mb-2" suppressHydrationWarning>
                   {dateOption.date.toLocaleDateString('en-IN', {
                     month: 'short',
                     day: 'numeric',
@@ -213,7 +213,7 @@ export default function WorkshopDateBooking({
                 <AlertCircle className="w-5 h-5 text-swar-600 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <h3 className="font-semibold text-swar-700 mb-1">Ready to Book?</h3>
-                  <p className="text-sm text-swar-text-secondary mb-3">
+                  <p className="text-sm text-swar-text-secondary mb-3" suppressHydrationWarning>
                     You have selected <strong>{workshopName}</strong> on{' '}
                     <strong>{selectedDate.date.toLocaleDateString()}</strong> for ₹
                     {selectedDate.price.toLocaleString()}

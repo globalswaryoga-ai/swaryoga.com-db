@@ -196,7 +196,7 @@ export default function MemberManager({
                     </td>
 
                     <td className="px-4 py-3 text-gray-600">
-                      <span className="text-xs">{new Date(member.joinDate).toLocaleDateString()}</span>
+                      <span className="text-xs" suppressHydrationWarning>{new Date(member.joinDate).toLocaleDateString()}</span>
                     </td>
 
                     <td className="px-4 py-3">
@@ -296,7 +296,7 @@ export default function MemberManager({
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="bg-white p-2 rounded">
               <p className="text-xs text-gray-600">Joined</p>
-              <p className="font-bold text-gray-900">{new Date(selectedMember.joinDate).toLocaleDateString()}</p>
+              <p className="font-bold text-gray-900" suppressHydrationWarning>{new Date(selectedMember.joinDate).toLocaleDateString()}</p>
             </div>
             <div className="bg-white p-2 rounded">
               <p className="text-xs text-gray-600">Posts</p>

@@ -1,43 +1,30 @@
 'use client';
 
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import {
-  PageHeader,
-  LoadingSpinner,
-  AlertBox,
-} from '@/components/admin/crm';
-
-type PopulatedLead = { _id: string; name?: string; phoneNumber?: string };
+import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
 
 interface Message {
   _id: string;
-  leadId: string | PopulatedLead;
+  leadId?: any;
   phoneNumber: string;
   messageContent: string;
-  messageType?: 'text' | 'template' | 'media' | 'interactive';
   direction: 'inbound' | 'outbound';
-  status: 'queued' | 'sent' | 'delivered' | 'failed' | 'read';
-  isRead?: boolean;
-  isArchived?: boolean;
-  failureReason?: string;
-  sentAt?: string;
-  backgroundColor?: string;
-  textColor?: string;
+  status: string;
+  sentAt: string;
   createdAt: string;
-  updatedAt: string;
+  provider?: 'meta' | 'whatsapp_web_bridge';
+  senderNumber?: string;
 }
 
-interface ConversationThread {
+interface Thread {
   phoneNumber: string;
   leadId?: string;
   leadName?: string;
-  unreadCount: number;
-  lastMessage: Message;
-  lastMessageAt: Date;
   messages: Message[];
+  lastMessageAt: Date;
 }
 
 export default function MessagesPage() {
@@ -45,496 +32,241 @@ export default function MessagesPage() {
   const token = useAuth();
   const crm = useCRM({ token });
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [msgs, setMsgs] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'incoming' | 'all'>('incoming');
-  const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
-  const [replyText, setReplyText] = useState('');
-  const [isSendingReply, setIsSendingReply] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaCaption, setMediaCaption] = useState('');
-  const [isSendingMedia, setIsSendingMedia] = useState(false);
-  const replyInputRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = useState<Thread | null>(null);
+  const [search, setSearch] = useState('');
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+  const isMountedRef = useRef(true);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const crmRef = useRef<any>(null);
 
-  // Group messages into conversation threads
-  const buildThreads = useCallback((msgs: Message[]): ConversationThread[] => {
-    const threadMap = new Map<string, ConversationThread>();
-
-    msgs.forEach((msg) => {
-      const phone = msg.phoneNumber;
-      const leadId = typeof msg.leadId === 'string' ? msg.leadId : msg.leadId?._id;
-      const leadName = typeof msg.leadId === 'string' ? undefined : msg.leadId?.name;
-
-      if (!threadMap.has(phone)) {
-        threadMap.set(phone, {
+  // Build threads from messages
+  const getThreads = (messages: Message[]): Thread[] => {
+    const map = new Map<string, Thread>();
+    messages.forEach((m) => {
+      const phone = m.phoneNumber;
+      const lead = typeof m.leadId === 'string' ? m.leadId : m.leadId?._id;
+      const name = typeof m.leadId === 'string' ? 'Unknown' : (m.leadId?.name || 'Unknown');
+      
+      if (!map.has(phone)) {
+        map.set(phone, {
           phoneNumber: phone,
-          leadId,
-          leadName,
-          unreadCount: 0,
-          lastMessage: msg,
-          lastMessageAt: new Date(msg.sentAt || msg.createdAt),
+          leadId: lead,
+          leadName: name,
           messages: [],
+          lastMessageAt: new Date(m.sentAt || m.createdAt),
         });
       }
-
-      const thread = threadMap.get(phone)!;
-      thread.messages.push(msg);
-
-      if (msg.direction === 'inbound' && !msg.isRead) {
-        thread.unreadCount += 1;
+      const t = map.get(phone)!;
+      t.messages.push(m);
+      
+      // Update metadata if this message is newer
+      const time = new Date(m.sentAt || m.createdAt);
+      if (time > t.lastMessageAt) {
+        t.lastMessageAt = time;
       }
-
-      // Update last message
-      const msgTime = new Date(msg.sentAt || msg.createdAt);
-      if (msgTime > thread.lastMessageAt) {
-        thread.lastMessage = msg;
-        thread.lastMessageAt = msgTime;
+      
+      // Try to get a better name if current is Unknown
+      if (t.leadName === 'Unknown' && name !== 'Unknown') {
+        t.leadName = name;
+        t.leadId = lead;
       }
     });
-
-    // Sort threads by most recent message first
-    const threads = Array.from(threadMap.values());
+    
+    const threads = Array.from(map.values());
     threads.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
-
-    // Sort messages within each thread by oldest first
-    threads.forEach((thread) => {
-      thread.messages.sort((a, b) => {
-        const aTime = new Date(a.sentAt || a.createdAt).getTime();
-        const bTime = new Date(b.sentAt || b.createdAt).getTime();
-        return aTime - bTime;
+    threads.forEach((t) => {
+      t.messages.sort((a, b) => {
+        const at = new Date(a.sentAt || a.createdAt).getTime();
+        const bt = new Date(b.sentAt || b.createdAt).getTime();
+        return at - bt;
       });
     });
-
     return threads;
-  }, []);
+  };
 
-  const fetchMessages = useCallback(async () => {
+  // Fetch function
+  const doFetch = async () => {
+    if (!isMountedRef.current || !token) return;
     try {
       setError(null);
-      const result = await crm.fetch('/api/admin/crm/messages', {
-        params: {
-          limit: 1000, // Fetch enough for thread grouping
-          direction: view === 'incoming' ? 'inbound' : undefined,
-        },
+      // Fetch all messages (not just inbound) to show full conversation
+      const result = await crmRef.current.fetch('/api/admin/crm/messages', {
+        params: { limit: 1000 },
       });
-
-      setMessages(result?.data?.messages || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch messages');
+      if (isMountedRef.current) {
+        const data = result?.data?.messages || result?.messages || [];
+        setMsgs(data);
+        
+        // Update selected thread with new messages
+        if (selected) {
+          const threads = getThreads(data);
+          const updated = threads.find(t => t.phoneNumber === selected.phoneNumber);
+          if (updated) {
+            setSelected(updated);
+          }
+        }
+      }
+    } catch (e) {
+      if (isMountedRef.current) {
+        setError(e instanceof Error ? e.message : 'Error');
+      }
     }
-  }, [crm, view]);
+  };
 
+  // Initial fetch + auto-refresh
   useEffect(() => {
+    isMountedRef.current = true;
+    
+    // Sync crmRef with current crm object
+    crmRef.current = crm;
+    
     if (!token) {
       router.push('/admin/login');
       return;
     }
-    fetchMessages();
-  }, [token, router, fetchMessages, view]);
+    doFetch();
+    intervalRef.current = setInterval(doFetch, 10000); // 10s refresh is enough
+    return () => {
+      isMountedRef.current = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [token]);
 
-  // Auto-refresh incoming messages every 5 seconds
   useEffect(() => {
-    if (view !== 'incoming') return;
-    const interval = setInterval(() => {
-      fetchMessages();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [view, fetchMessages]);
+    setHasMounted(true);
+  }, []);
 
-  const threads = buildThreads(messages);
-
-  const filteredThreads = threads.filter((thread) => {
-    const query = searchQuery.toLowerCase();
+  const threads = getThreads(msgs);
+  const filtered = threads.filter((t) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase().trim();
+    const qDigits = q.replace(/\D/g, '');
+    
     return (
-      thread.phoneNumber.includes(query) ||
-      (thread.leadName && thread.leadName.toLowerCase().includes(query))
+      t.phoneNumber.includes(q) || 
+      (qDigits && t.phoneNumber.includes(qDigits)) ||
+      (t.leadName?.toLowerCase().includes(q) ?? false)
     );
   });
 
-  const handleSendReply = async () => {
-    if (!selectedThread || !replyText.trim()) return;
-    if (!selectedThread.leadId) {
-      setError('Cannot reply: no lead associated with this conversation');
+  const send = async () => {
+    if (!selected || !reply.trim()) return;
+    if (!selected.leadId) {
+      setError('Cannot reply to unknown lead');
       return;
     }
-
-    setIsSendingReply(true);
+    setSending(true);
     try {
-      await crm.fetch('/api/admin/crm/messages', {
+      await crmRef.current.fetch('/api/admin/crm/messages', {
         method: 'POST',
         body: {
-          leadId: selectedThread.leadId,
-          phoneNumber: selectedThread.phoneNumber,
-          messageContent: replyText.trim(),
-          messageType: 'text',
+          leadId: selected.leadId,
+          phoneNumber: selected.phoneNumber,
+          messageContent: reply.trim(),
         },
       });
-
-      setReplyText('');
-      setSelectedThread(null);
-      await fetchMessages();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send reply');
+      setReply('');
+      // Don't clear selected! Keep chat open.
+      await doFetch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
     } finally {
-      setIsSendingReply(false);
+      setSending(false);
     }
   };
 
-  const handleSendMedia = async () => {
-    if (!selectedThread || !mediaFile) return;
-    if (!selectedThread.leadId) {
-      setError('Cannot send media: no lead associated with this conversation');
-      return;
-    }
-
-    setIsSendingMedia(true);
-    try {
-      // Step 1: Upload file to S3
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', mediaFile);
-
-      const uploadResponse = await fetch('/api/admin/crm/templates/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: uploadFormData,
-      });
-
-      if (!uploadResponse.ok) {
-        const data = await uploadResponse.json();
-        throw new Error(data.error || 'Failed to upload file');
-      }
-
-      const uploadData = await uploadResponse.json();
-      const mediaUrl = uploadData.fileUrl;
-
-      // Step 2: Send media via WhatsApp API
-      const isImage = mediaFile.type.startsWith('image/');
-      const isVideo = mediaFile.type.startsWith('video/');
-      const mediaType = isImage ? 'image' : isVideo ? 'video' : 'document';
-
-      const response = await fetch('/api/admin/crm/whatsapp/send-media', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          leadId: selectedThread.leadId,
-          phoneNumber: selectedThread.phoneNumber,
-          mediaUrl,
-          mediaType,
-          caption: mediaCaption.trim() || undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to send media');
-      }
-
-      // Reset media state
-      setMediaFile(null);
-      setMediaCaption('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      await fetchMessages();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send media');
-    } finally {
-      setIsSendingMedia(false);
-    }
-  };
-
-  const handleMarkThreadAsRead = async (thread: ConversationThread) => {
-    try {
-      for (const msg of thread.messages) {
-        if (msg.direction === 'inbound' && !msg.isRead) {
-          await crm.fetch('/api/admin/crm/messages', {
-            method: 'PUT',
-            body: { messageId: msg._id, action: 'mark-read' },
-          });
-        }
-      }
-      await fetchMessages();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark thread as read');
-    }
-  };
+  if (!hasMounted) return null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <PageHeader
-            title="WhatsApp Messages"
-            action={
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setView('incoming');
-                    setSelectedThread(null);
-                  }}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                    view === 'incoming'
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  📨 Incoming Messages
-                </button>
-                <button
-                  onClick={() => {
-                    setView('all');
-                    setSelectedThread(null);
-                  }}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-                    view === 'all'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  📧 All Messages
-                </button>
-              </div>
-            }
+            title="📥 Incoming WhatsApp Messages"
+            action={<button onClick={doFetch} className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600">�� Refresh</button>}
           />
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex max-w-7xl mx-auto w-full">
-        {/* Thread List */}
-        <div className={`${selectedThread ? 'w-1/3' : 'w-full'} border-r border-gray-200 bg-white transition-all`}>
+      <div className="flex-1 flex max-w-7xl mx-auto w-full gap-4 p-4">
+        <div className={`${selected ? 'w-1/3' : 'w-full'} bg-white rounded-lg shadow`}>
           <div className="h-full flex flex-col">
-            {/* Search */}
-            <div className="p-4 border-b border-gray-200">
+            <div className="p-4 border-b">
               <input
                 type="text"
-                placeholder="Search by name or phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
               />
             </div>
 
-            {/* Threads List */}
             <div className="flex-1 overflow-y-auto">
-              {error && !selectedThread && (
-                <div className="p-4">
-                  <AlertBox type="error" message={error} onClose={() => setError(null)} />
-                </div>
-              )}
-
-              {crm.loading ? (
-                <div className="p-8 flex items-center justify-center">
-                  <LoadingSpinner />
-                </div>
-              ) : filteredThreads.length === 0 ? (
-                <div className="p-6 text-center text-gray-500">
-                  <p className="text-lg">No messages found</p>
-                  <p className="text-sm mt-1">Messages from customers will appear here</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-200">
-                  {filteredThreads.map((thread) => (
-                    <button
-                      key={thread.phoneNumber}
-                      onClick={() => {
-                        setSelectedThread(thread);
-                        handleMarkThreadAsRead(thread);
-                      }}
-                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
-                        selectedThread?.phoneNumber === thread.phoneNumber
-                          ? 'bg-green-50 border-green-500'
-                          : 'border-transparent'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <div className="font-semibold text-gray-900">
-                            {thread.leadName || 'Unknown'}
-                          </div>
-                          <div className="text-sm text-gray-600">{thread.phoneNumber}</div>
-                        </div>
-                        {thread.unreadCount > 0 && (
-                          <span className="bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                            {thread.unreadCount}
-                          </span>
-                        )}
+              {error && <div className="p-4"><AlertBox type="error" message={error} onClose={() => setError(null)} /></div>}
+              {crm.loading ? <div className="p-8 flex items-center justify-center"><LoadingSpinner /></div>
+              : filtered.length === 0 ? <div className="p-6 text-center text-gray-500"><p>📭 No messages</p></div>
+              : <div className="divide-y">
+                  {filtered.map((t) => (
+                    <button key={t.phoneNumber} onClick={() => setSelected(t)} className={`w-full p-4 text-left hover:bg-green-50 border-l-4 ${selected?.phoneNumber === t.phoneNumber ? 'bg-green-100 border-green-500' : 'border-transparent'}`}>
+                      <div className="flex justify-between mb-2">
+                        <div><div className="font-semibold">{t.leadName}</div><div className="text-sm text-gray-600">{t.phoneNumber}</div></div>
+                        <div className="text-xs text-gray-400">{t.lastMessageAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                       </div>
-                      <div className="text-sm text-gray-600 line-clamp-2">
-                        {thread.lastMessage.messageContent}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(thread.lastMessageAt).toLocaleDateString()}
-                      </div>
+                      <div className="text-sm text-gray-600 line-clamp-2">{t.messages[t.messages.length - 1]?.messageContent}</div>
                     </button>
                   ))}
                 </div>
-              )}
+              }
             </div>
           </div>
         </div>
 
-        {/* Thread Detail */}
-        {selectedThread && (
-          <div className="w-2/3 bg-white flex flex-col">
-            {/* Thread Header */}
-            <div className="border-b border-gray-200 p-6 flex items-center justify-between">
+        {selected && (
+          <div className="w-2/3 bg-white rounded-lg shadow flex flex-col">
+            <div className="border-b p-6 flex justify-between bg-green-50">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">{selectedThread.leadName || 'Unknown'}</h2>
-                <p className="text-sm text-gray-600">{selectedThread.phoneNumber}</p>
+                <h2 className="text-xl font-bold">{selected.leadName}</h2>
+                <p className="text-sm text-gray-600">{selected.phoneNumber}</p>
               </div>
-              <button
-                onClick={() => setSelectedThread(null)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-900 text-2xl"
-              >
-                ✕
-              </button>
+              <button onClick={() => setSelected(null)} className="text-2xl">✕</button>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {selectedThread.messages.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">
-                  <p>No messages in this conversation</p>
-                </div>
-              ) : (
-                selectedThread.messages.map((msg) => (
-                  <div
-                    key={msg._id}
-                    className={`flex ${msg.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
-                  >
-                    <div
-                      className="max-w-xs px-4 py-3 rounded-lg"
-                      style={{
-                        backgroundColor: msg.backgroundColor || (msg.direction === 'inbound' ? '#22c55e' : '#e5e7eb'),
-                        color: msg.textColor || (msg.direction === 'inbound' ? '#ffffff' : '#000000'),
-                      }}
-                    >
-                      <p className="text-sm break-words">{msg.messageContent}</p>
-                      <p className="text-xs opacity-75 mt-1">
-                        {new Date(msg.sentAt || msg.createdAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                      {msg.direction === 'outbound' && (
-                        <p className="text-xs opacity-75 mt-1">
-                          {msg.status === 'delivered' && '✓✓'} {msg.status}
-                        </p>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+              {selected.messages.map((m) => (
+                <div key={m._id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] px-4 py-3 rounded-2xl shadow-sm ${
+                    m.direction === 'outbound' 
+                      ? 'bg-green-600 text-white rounded-tr-none' 
+                      : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'
+                  }`}>
+                    <p className="text-sm break-words leading-relaxed">{m.messageContent}</p>
+                    <div className={`text-[10px] mt-2 flex items-center gap-1 ${m.direction === 'outbound' ? 'text-green-100 justify-end' : 'text-gray-400'}`}>
+                      {m.provider && (
+                        <span className={`px-1 rounded ${m.direction === 'outbound' ? 'bg-green-700' : 'bg-gray-100'}`}>
+                          {m.provider === 'meta' ? 'Meta' : 'QR'}
+                          {m.senderNumber && <span className="ml-1">({m.senderNumber.slice(-4)})</span>}
+                        </span>
+                      )}
+                      {new Date(m.sentAt || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {m.direction === 'outbound' && (
+                        <span>
+                          {m.status === 'read' ? '✓✓' : m.status === 'delivered' ? '✓✓' : m.status === 'sent' ? '✓' : ''}
+                        </span>
                       )}
                     </div>
                   </div>
-                ))
-              )}
+                </div>
+              ))}
             </div>
 
-            {/* Reply Input */}
-            <div className="border-t border-gray-200 p-6 space-y-3">
-              <textarea
-                ref={replyInputRef}
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Type your reply..."
-                rows={3}
-                maxLength={1000}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-              />
-              
-              {/* Media Upload Section */}
-              {!mediaFile ? (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                    }}
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    📸 Send Image
-                  </button>
-                  <button
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                    }}
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    🎬 Send Video
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setMediaFile(file);
-                      }
-                    }}
-                    className="hidden"
-                  />
-                </div>
-              ) : (
-                <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{mediaFile.type.startsWith('image/') ? '📸' : '🎬'}</span>
-                      <div>
-                        <p className="font-semibold text-gray-900 text-sm">{mediaFile.name}</p>
-                        <p className="text-xs text-gray-600">{(mediaFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setMediaFile(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="text-red-500 hover:text-red-700 font-bold"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <textarea
-                    value={mediaCaption}
-                    onChange={(e) => setMediaCaption(e.target.value)}
-                    placeholder="Add caption (optional)..."
-                    rows={2}
-                    maxLength={500}
-                    className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSendMedia}
-                      disabled={isSendingMedia}
-                      className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-semibold py-2 rounded-lg transition-colors"
-                    >
-                      {isSendingMedia ? 'Sending...' : '📤 Send Media'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setMediaFile(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-900 font-semibold py-2 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <button
-                onClick={handleSendReply}
-                disabled={!replyText.trim() || isSendingReply}
-                className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-semibold py-2 rounded-lg transition-colors"
-              >
-                {isSendingReply ? 'Sending...' : 'Send Reply'}
+            <div className="border-t p-6 space-y-3">
+              <textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Type reply..." rows={3} className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500" />
+              <button onClick={send} disabled={!reply.trim() || sending} className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-semibold py-2 rounded-lg">
+                {sending ? 'Sending...' : '📤 Send'}
               </button>
             </div>
           </div>

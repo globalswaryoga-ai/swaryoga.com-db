@@ -80,6 +80,41 @@ export const toObjectId = (id: string): mongoose.Types.ObjectId => {
 };
 
 /**
+ * Robust phone number normalization for CRM.
+ * Standardizes to digits-only.
+ * Handles Indian 10-digit numbers by prepending '91'.
+ */
+export const normalizePhone = (raw: any): string => {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+  // Remove leading 0s if it's like 091...
+  if (digits.startsWith('0') && digits.length > 10) {
+    return digits.replace(/^0+/, '');
+  }
+  return digits;
+};
+
+/**
+ * Get the current viewer's user ID from decoded token
+ */
+export const getViewerUserId = (decoded: any): string => {
+  return String(decoded?.userId || decoded?.username || '').trim();
+};
+
+/**
+ * Check if the current user is a super admin
+ */
+export const isSuperAdmin = (decoded: any): boolean => {
+  return (
+    decoded?.userId === 'admin' ||
+    (Array.isArray(decoded?.permissions) && 
+      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
+  );
+};
+
+/**
  * Build MongoDB filter from string parameters
  */
 export const buildFilter = (

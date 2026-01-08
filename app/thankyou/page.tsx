@@ -230,8 +230,8 @@ function ThankYouInner() {
                 <div className="flex items-start gap-4">
                   <Calendar className="w-6 h-6 text-swar-primary mt-1" />
                   <div>
-                    <p className="text-sm text-swar-text-secondary font-semibold">Duration</p>
-                    <p className="text-lg text-swar-text">
+                    <p className="text-sm text-swar-text-secondary font-semibold">Program Dates</p>
+                    <p className="text-lg text-swar-text" suppressHydrationWarning>
                       {formatDate(registration.startDate)} to{' '}
                       {formatDate(registration.endDate)}
                     </p>
@@ -243,7 +243,7 @@ function ThankYouInner() {
                   <div className="text-2xl">💰</div>
                   <div>
                     <p className="text-sm text-swar-text-secondary font-semibold">Price</p>
-                    <p className="text-lg font-bold text-swar-primary">
+                    <p className="text-lg font-bold text-swar-primary" suppressHydrationWarning>
                       {registration.currency} {registration.price.toLocaleString()}
                     </p>
                   </div>

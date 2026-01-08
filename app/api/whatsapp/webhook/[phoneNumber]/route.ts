@@ -6,6 +6,36 @@ import { ConsentManager } from '@/lib/consentManager';
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
 
+async function logWebhookEvent(event: {
+  kind: 'verify' | 'inbound_message' | 'status_update' | 'error' | 'unknown';
+  ok?: boolean;
+  message?: string;
+  phoneNumber?: string;
+  waMessageId?: string;
+  status?: string;
+  sample?: any;
+}) {
+  try {
+    await connectDB();
+    const { getWhatsAppWebhookEvent } = await import('@/lib/schemas/enterpriseSchemas');
+    const WhatsAppWebhookEvent = getWhatsAppWebhookEvent();
+    
+    await WhatsAppWebhookEvent.create({
+      source: 'meta',
+      kind: event.kind,
+      ok: event.ok ?? true,
+      message: event.message,
+      phoneNumber: event.phoneNumber,
+      waMessageId: event.waMessageId,
+      status: event.status,
+      sample: event.sample,
+      receivedAt: new Date(),
+    });
+  } catch (err) {
+    console.error('[WEBHOOK LOG ERROR] Failed to log event:', err);
+  }
+}
+
 function normalizePhone(raw: string): string {
   return normalizePhoneDigits(raw);
 }
@@ -55,6 +85,7 @@ export async function POST(
     const payload = await request.json().catch(() => null);
     if (!payload) {
       console.log('[WEBHOOK] ❌ PAYLOAD WAS NULL/EMPTY');
+      await logWebhookEvent({ kind: 'error', ok: false, message: 'Invalid JSON body' });
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
@@ -79,6 +110,7 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
   console.log('[WEBHOOK] Entries:', entries.length);
 
   if (entries.length === 0) {
+    await logWebhookEvent({ kind: 'unknown', ok: true, message: 'No entries in payload', sample: { phoneContext: phoneNumberContext } });
     return NextResponse.json({ success: true }, { status: 200 });
   }
 
@@ -94,13 +126,16 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
     return NextResponse.json({ error: 'Database not connected' }, { status: 500 });
   }
 
-  const db = mongoose.connection.db;
+  // Use CRM database if configured
+  const crmDbName = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+  const db = mongoose.connection.useDb(crmDbName, { useCache: true });
+
   if (!db) {
     console.error('[WEBHOOK] ❌ Database object unavailable');
     return NextResponse.json({ error: 'Database not available' }, { status: 500 });
   }
 
-  console.log('[WEBHOOK] ✅ Database connected');
+  console.log('[WEBHOOK] ✅ CRM Database connected:', crmDbName);
   console.log('[WEBHOOK] Processing messages for phone context:', phoneNumberContext);
 
   const now = new Date();
@@ -111,10 +146,18 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
 
     for (const change of changes) {
       const value = change?.value;
-
-      // Process status updates
+      
+      // 1) Status updates
       const statuses: WebhookStatus[] = Array.isArray(value?.statuses) ? value.statuses : [];
       for (const st of statuses) {
+        await logWebhookEvent({
+          kind: 'status_update',
+          ok: true,
+          waMessageId: st.id,
+          status: st.status,
+          phoneNumber: st.recipient_id,
+        });
+
         const waMessageId = String(st?.id || '').trim();
         if (!waMessageId) continue;
 
@@ -131,42 +174,41 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
           update.readAt = now;
         }
 
-        await db.collection('whatsappmessages').updateOne(
+        await db.collection('whatsapp_messages').updateOne(
           { waMessageId },
           { $set: update }
         );
       }
 
-      // Process inbound messages
+      // 2) Inbound messages
       const messages = Array.isArray(value?.messages) ? value.messages : [];
-      console.log('[WEBHOOK] Messages in this change:', messages.length);
-
       for (const msg of messages) {
         try {
-          console.log('[WEBHOOK] Message:', JSON.stringify(msg).substring(0, 200));
-
           const from = normalizePhone(String(msg?.from || ''));
-          console.log('[WEBHOOK] Normalized from:', from);
+          const body = extractTextMessageBody(msg);
+          const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
+
+          await logWebhookEvent({
+            kind: 'inbound_message',
+            ok: true,
+            phoneNumber: from,
+            waMessageId: inboundWaMessageId,
+            sample: { preview: body?.substring(0, 50), phoneContext: phoneNumberContext }
+          });
 
           if (!from) {
             console.log('[WEBHOOK] ⚠️  Skipping: no phone');
             continue;
           }
 
-          const body = extractTextMessageBody(msg);
-          console.log('[WEBHOOK] Body extracted:', body?.substring(0, 50));
-
           if (!body) {
             console.log('[WEBHOOK] ⚠️  Skipping: no body');
             continue;
           }
 
-          const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
-          console.log('[WEBHOOK] Message ID:', inboundWaMessageId);
-
           // Ensure a Lead exists
           console.log('[WEBHOOK] 👤 Looking up lead for:', from);
-          let lead = await db.collection('leads').findOne({ phoneNumber: from });
+          let lead = await db.collection('leads').findOne({ phoneNumber: from }) as any;
 
           if (!lead) {
             console.log('[WEBHOOK] ➕ Creating new lead for:', from);
@@ -194,7 +236,7 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
           }
 
           // Detect if this is the first inbound message
-          const previousInbound = await db.collection('whatsappmessages').findOne({
+          const previousInbound = await db.collection('whatsapp_messages').findOne({
             leadId: lead._id,
             direction: 'inbound',
           });
@@ -210,7 +252,8 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
           if (inboundWaMessageId) {
             console.log('[WEBHOOK] 💾 Upserting message:', inboundWaMessageId);
             try {
-              const result = await db.collection('whatsappmessages').updateOne(
+              const detectedProvider = phoneNumberContext === '9075358557' ? 'whatsapp_web_bridge' : 'meta';
+              const result = await db.collection('whatsapp_messages').updateOne(
                 { waMessageId: inboundWaMessageId, direction: 'inbound' },
                 {
                   $setOnInsert: {
@@ -227,6 +270,8 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
                     backgroundColor: '#22c55e',
                     textColor: '#ffffff',
                     borderRadius: '8px',
+                    senderNumber: phoneNumberContext,
+                    provider: detectedProvider,
                     metadata: {
                       webhook: {
                         messageId: inboundWaMessageId,
@@ -248,7 +293,8 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
           } else {
             console.log('[WEBHOOK] 💾 Creating message (no ID)');
             try {
-              await db.collection('whatsappmessages').insertOne({
+              const detectedProvider = phoneNumberContext === '9075358557' ? 'whatsapp_web_bridge' : 'meta';
+              await db.collection('whatsapp_messages').insertOne({
                 leadId: lead._id,
                 phoneNumber: from,
                 direction: 'inbound',
@@ -261,6 +307,8 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
                 backgroundColor: '#22c55e',
                 textColor: '#ffffff',
                 borderRadius: '8px',
+                senderNumber: phoneNumberContext,
+                provider: detectedProvider,
                 metadata: {
                   webhook: {
                     messageId: msg?.id,

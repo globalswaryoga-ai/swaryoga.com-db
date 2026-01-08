@@ -38,6 +38,11 @@ export default function LeadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Lead>>({});
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Fetch lead details
   useEffect(() => {
@@ -125,10 +130,11 @@ export default function LeadDetailPage() {
     return <AlertBox type="error" message="Authentication required" />;
   }
 
+  if (!hasMounted) return null;
+
   if (loading) {
     return (
-      <div className="flex flex-col gap-4">
-        <PageHeader title="Lead Details" subtitle="Loading..." />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <LoadingSpinner />
       </div>
     );
@@ -367,31 +373,31 @@ export default function LeadDetailPage() {
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="bg-white/70 p-4 rounded-xl border border-slate-200">
                         <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Created</div>
-                        <div className="mt-2 text-slate-900 font-semibold">
+                        <div className="mt-2 text-slate-900 font-semibold" suppressHydrationWarning>
                           {new Date(lead.createdAt).toLocaleDateString('en-US', {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',
                           })}
                         </div>
-                        <div className="text-xs text-slate-500">{new Date(lead.createdAt).toLocaleTimeString()}</div>
+                        <div className="text-xs text-slate-500" suppressHydrationWarning>{new Date(lead.createdAt).toLocaleTimeString()}</div>
                       </div>
 
                       <div className="bg-white/70 p-4 rounded-xl border border-slate-200">
                         <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Updated</div>
-                        <div className="mt-2 text-slate-900 font-semibold">
+                        <div className="mt-2 text-slate-900 font-semibold" suppressHydrationWarning>
                           {new Date(lead.updatedAt).toLocaleDateString('en-US', {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',
                           })}
                         </div>
-                        <div className="text-xs text-slate-500">{new Date(lead.updatedAt).toLocaleTimeString()}</div>
+                        <div className="text-xs text-slate-500" suppressHydrationWarning>{new Date(lead.updatedAt).toLocaleTimeString()}</div>
                       </div>
 
                       <div className="bg-white/70 p-4 rounded-xl border border-slate-200">
                         <div className="text-xs font-semibold tracking-wider text-slate-600 uppercase">Last message</div>
-                        <div className="mt-2 text-slate-900 font-semibold">
+                        <div className="mt-2 text-slate-900 font-semibold" suppressHydrationWarning>
                           {lead.lastMessageAt
                             ? new Date(lead.lastMessageAt).toLocaleDateString('en-US', {
                                 year: 'numeric',
@@ -400,7 +406,7 @@ export default function LeadDetailPage() {
                               })
                             : '-'}
                         </div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-slate-500" suppressHydrationWarning>
                           {lead.lastMessageAt ? new Date(lead.lastMessageAt).toLocaleTimeString() : ''}
                         </div>
                       </div>

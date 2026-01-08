@@ -1,33 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import * as XLSX from 'xlsx';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhoneStrict } from '@/lib/crm/phone';
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && 
-      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
-  );
-}
+import { 
+  verifyAdminAccess, 
+  getViewerUserId, 
+  isSuperAdmin, 
+  handleCrmError, 
+  formatCrmSuccess, 
+  toObjectId,
+  normalizePhone
+} from '@/lib/crm-handlers';
+import { verifyToken } from '@/lib/auth';
 
 /**
  * POST: Upload bulk leads from Excel file
  */
 export async function POST(request: NextRequest) {
   try {
+    const userId = verifyAdminAccess(request);
+    
+    // We still need the decoded token for superAdmin check in this specific legacy route
+    // unless we refactor verifyAdminAccess to return decoded.
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
-    if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required' }, { status: 401 });
-    }
 
     const viewerUserId = getViewerUserId(decoded);
     if (!viewerUserId) {

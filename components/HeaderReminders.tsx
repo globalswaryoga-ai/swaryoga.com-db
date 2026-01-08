@@ -119,7 +119,7 @@ export default function HeaderReminders({ reminders = [], onReminderComplete }: 
                             )}
                             <div className="flex gap-2 mt-2 flex-wrap text-xs text-swar-text-secondary">
                               {reminder.dueDate && (
-                                <span className="bg-white px-2 py-1 rounded border border-orange-200">
+                                <span className="bg-white px-2 py-1 rounded border border-orange-200" suppressHydrationWarning>
                                   📅 {new Date(reminder.dueDate).toLocaleDateString()}
                                 </span>
                               )}

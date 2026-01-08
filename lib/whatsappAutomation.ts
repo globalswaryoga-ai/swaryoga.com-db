@@ -163,7 +163,16 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
     const apiResult = await sendWhatsAppText(to, text);
     await WhatsAppMessage.updateOne(
       { _id: message._id },
-      { $set: { status: 'sent', waMessageId: apiResult.waMessageId, updatedAt: new Date() }, $unset: { failureReason: 1 } }
+      { 
+        $set: { 
+          status: 'sent', 
+          waMessageId: apiResult.waMessageId, 
+          provider: apiResult.raw.provider,
+          senderNumber: apiResult.raw.provider === 'meta' ? '9779006820' : '9075358557',
+          updatedAt: new Date() 
+        }, 
+        $unset: { failureReason: 1 } 
+      }
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'WhatsApp send failed';

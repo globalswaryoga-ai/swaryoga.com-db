@@ -42,7 +42,7 @@ export default function ReminderModal({ reminders, onDismiss }: ReminderModalPro
             </div>
             <div>
               <h3 className="text-lg font-bold text-swar-text">Reminder</h3>
-              <p className="text-xs text-swar-text-secondary">
+              <p className="text-xs text-swar-text-secondary" suppressHydrationWarning>
                 {dueDateLabel}
               </p>
             </div>

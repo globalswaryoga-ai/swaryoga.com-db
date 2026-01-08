@@ -11,9 +11,15 @@ export function normalizePhone(raw: string): string {
   // - WhatsApp Web bridge formats
   // Common inbound formats include: "+91 98...", "0091 98...", "(98) ...".
   // We remove everything except digits.
-  return String(raw || '')
-    .trim()
-    .replace(/\D/g, '');
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+  // Remove leading 0s if it's like 091...
+  if (digits.startsWith('0') && digits.length > 10) {
+    return digits.replace(/^0+/, '');
+  }
+  return digits;
 }
 
 export type WhatsAppSendTextResult = {
@@ -184,7 +190,7 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
 export async function sendWhatsAppMedia(
   toRaw: string,
   mediaUrl: string,
-  mediaType: 'image' | 'video',
+  mediaType: 'image' | 'video' | 'document' = 'image',
   caption?: string
 ): Promise<WhatsAppSendMediaResult> {
   const env = getWhatsAppEnv();
@@ -197,19 +203,19 @@ export async function sendWhatsAppMedia(
     const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
     
     // Build payload based on media type
-    const mediaTypeKey = mediaType === 'video' ? 'video' : 'image';
+    const mediaTypeSlug = mediaType;
     const payload: any = {
       messaging_product: 'whatsapp',
       to,
-      type: mediaTypeKey,
-      [mediaTypeKey]: {
+      type: mediaTypeSlug,
+      [mediaTypeSlug]: {
         link: mediaUrl,
       },
     };
 
-    // Add caption if provided (works for both image and video)
+    // Add caption if provided
     if (caption && caption.trim()) {
-      payload[mediaTypeKey].caption = String(caption).trim();
+      payload[mediaTypeSlug].caption = String(caption).trim();
     }
 
     const res = await fetch(url, {

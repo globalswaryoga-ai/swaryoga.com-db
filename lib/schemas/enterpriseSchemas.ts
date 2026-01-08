@@ -227,6 +227,12 @@ const WhatsAppMessageSchema = new mongoose.Schema(
   // (Admin fixed as "Mohan Sir" in UI by default).
   senderDisplayName: String,
 
+  // NEW: Source tracking to avoid confusion between different WhatsApp numbers
+  // - senderNumber: our own phone number that sent/received this message
+  // - provider: 'meta' or 'whatsapp_web_bridge'
+  senderNumber: { type: String, index: true },
+  provider: { type: String, enum: ['meta', 'whatsapp_web_bridge'], index: true },
+
     sentAt: { type: Date, default: Date.now },
     deliveredAt: Date,
     readAt: Date,

@@ -335,7 +335,7 @@ export default function ReminderManager({
                 {/* Metadata (Vision style with icons) */}
                 <div className="space-y-2 text-xs text-swar-text mb-auto">
                   {reminder.nextDueDate && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" suppressHydrationWarning>
                       📅 {new Date(reminder.nextDueDate).toLocaleDateString()}
                     </div>
                   )}

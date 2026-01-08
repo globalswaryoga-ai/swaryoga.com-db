@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
         provider: apiResult?.raw?.provider || 'sent',
+        senderNumber: apiResult?.raw?.provider === 'meta' ? '9779006820' : '9075358557',
         waMessageId: apiResult.waMessageId,
       });
 
