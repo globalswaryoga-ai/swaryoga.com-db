@@ -247,7 +247,7 @@ export default function MessagesPage() {
                     <div className={`text-[10px] mt-2 flex items-center gap-1 ${m.direction === 'outbound' ? 'text-green-100 justify-end' : 'text-gray-400'}`}>
                       {m.provider && (
                         <span className={`px-1 rounded ${m.direction === 'outbound' ? 'bg-green-700' : 'bg-gray-100'}`}>
-                          {m.provider === 'meta' ? 'Meta' : 'QR'}
+                          {m.provider === 'meta' ? 'Meta' : 'QR (Deprecated)'}
                           {m.senderNumber && <span className="ml-1">({m.senderNumber.slice(-4)})</span>}
                         </span>
                       )}

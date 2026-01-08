@@ -1821,7 +1821,7 @@ export default function WhatsAppChatDashboardPage() {
                 {waDiagnostics?.meta?.message ? ` — ${waDiagnostics.meta.message}` : ''}
               </div>
               <div>
-                <strong>Bridge:</strong>{' '}
+                <strong>Bridge (Deprecated):</strong>{' '}
                 {String(waDiagnostics?.bridge?.reachable ?? waDiagnostics?.bridgeReachable ?? 'unknown')}
                 {waDiagnostics?.bridge?.authenticated != null
                   ? ` (authenticated: ${String(waDiagnostics.bridge.authenticated)})`

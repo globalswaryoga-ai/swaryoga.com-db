@@ -37,6 +37,14 @@ export async function GET(request: NextRequest) {
   const challenge = url.searchParams.get('hub.challenge');
 
   const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
+  
+  await logWebhookEvent({
+    kind: 'verify',
+    ok: mode === 'subscribe' && token === expectedToken,
+    message: `Verification Attempt: mode=${mode}, tokenMatched=${token === expectedToken}`,
+    sample: { receivedToken: token, expectedToken, challenge }
+  }).catch(() => {});
+
   console.log('[WEBHOOK GET] expectedToken from env:', expectedToken ? `${expectedToken.substring(0, 10)}...` : 'NOT SET');
   console.log('[WEBHOOK GET] received token:', token ? `${token.substring(0, 10)}...` : 'NOT SET');
   if (!expectedToken) {
@@ -51,12 +59,14 @@ export async function GET(request: NextRequest) {
   }
 
   if (mode === 'subscribe' && token === expectedToken && challenge) {
-    // Meta expects the raw challenge string.
-    const res = new NextResponse(challenge, { status: 200 });
-    res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
-    res.headers.set('x-swar-webhook-method', 'GET');
-    res.headers.set('x-swar-webhook-ok', '1');
-    return res;
+    // Meta expects the raw challenge string as plain text.
+    console.log('[WEBHOOK GET] VERIFICATION SUCCESSFUL');
+    return new Response(challenge, { 
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain',
+      }
+    });
   }
 
   const res = NextResponse.json(
@@ -83,6 +93,9 @@ export async function POST(request: NextRequest) {
   try {
     const timestamp = new Date().toISOString();
     
+    // CRITICAL: Read the raw body FIRST because it can only be read once!
+    const rawBody = await request.text();
+
     // CRITICAL: Log every single hit to the DB immediately to see if Meta reaches us
     await logWebhookEvent({
       kind: 'unknown',
@@ -92,6 +105,8 @@ export async function POST(request: NextRequest) {
         method: request.method,
         url: request.url,
         userAgent: request.headers.get('user-agent'),
+        rawBodyLength: rawBody.length,
+        rawBodyPreview: rawBody.substring(0, 1000), // Log more of the body for debugging
       }
     }).catch(() => {});
 
@@ -115,9 +130,6 @@ export async function POST(request: NextRequest) {
       providedLength?: number;
     } = { enabled: debug, headerPresent: false };
 
-    // CRITICAL: Read the raw body FIRST before any signature checking
-    // because the request body can only be read once!
-    const rawBody = await request.text();
     console.log(`📦 Raw Body Received: ${rawBody.length} bytes`);
     console.log(`📦 Body Preview: ${rawBody.substring(0, 200)}`);
     
@@ -351,179 +363,53 @@ async function logWebhookEvent(event: {
 async function handleWebhookPayload(payload: any) {
   try {
     // DEBUG: Log raw payload for troubleshooting
-    console.log('[WEBHOOK DEBUG] Raw payload keys:', Object.keys(payload || {}));
-    console.log('[WEBHOOK DEBUG] Payload.entry type:', Array.isArray(payload?.entry) ? 'array' : typeof payload?.entry);
-    console.log('[WEBHOOK DEBUG] Payload received:', JSON.stringify(payload, null, 2).substring(0, 500));
+    console.log('[WEBHOOK DEBUG] Raw payload:', JSON.stringify(payload, null, 2).substring(0, 500));
 
-    // Meta sends events with object: 'whatsapp_business_account'.
-    // We accept others too, but ignore unknown shapes safely.
     const entries = Array.isArray(payload?.entry) ? payload.entry : [];
-    console.log('[WEBHOOK DEBUG] Parsed entries count:', entries.length);
-    if (entries.length > 0) {
-      console.log('[WEBHOOK DEBUG] First entry keys:', Object.keys(entries[0] || {}));
-    }
-    
     if (entries.length === 0) {
       await logWebhookEvent({
         kind: 'unknown',
         ok: true,
         message: 'No entries in webhook payload',
-        sample: {
-          object: payload?.object,
-          hasEntry: Array.isArray(payload?.entry),
-        },
+        sample: { object: payload?.object, hasEntry: false },
       });
       return NextResponse.json({ success: true }, { status: 200 });
     }
 
     await connectDB();
+    const { getWhatsAppMessage, getLead } = await import('@/lib/schemas/enterpriseSchemas');
+    const WhatsAppMessage = getWhatsAppMessage();
+    const Lead = getLead();
     
-    // DEBUG: Verify database connection
-    const readyState = mongoose.connection.readyState;
-    const readyStateMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
-    console.log('[WEBHOOK] MongoDB connection state:', readyStateMap[readyState as keyof typeof readyStateMap] + ` (${readyState})`);
-    
-    if (readyState !== 1) {
-      console.error('[WEBHOOK ERROR] MongoDB not connected! State:', readyState);
-      // Try to write directly to a system collection to see if we can reach DB at all
-      try {
-        await mongoose.connection.collection('system_webhook_errors').insertOne({
-          timestamp: new Date(),
-          error: 'MongoDB not connected',
-          readyState,
-        });
-      } catch (writeErr) {
-        console.error('[WEBHOOK] Could not even write error log:', writeErr instanceof Error ? writeErr.message : String(writeErr));
-      }
-      return NextResponse.json({ error: 'Database not connected' }, { status: 500 });
+    if (!WhatsAppMessage || !Lead) {
+      console.error('[WEBHOOK ERROR] Models not initialized');
+      return NextResponse.json({ error: 'Database models not ready' }, { status: 500 });
     }
-    
-    // Import model getter functions after connectDB() to ensure connection is established
-    // Using getter functions is more explicit and reliable than Proxy pattern
-    const { getWhatsAppMessage: getWhatsAppMessageModel } = await import('@/lib/schemas/enterpriseSchemas');
-    const WhatsAppMessage = getWhatsAppMessageModel();
-    
-    if (!WhatsAppMessage) {
-      console.error('[WEBHOOK ERROR] WhatsAppMessage model is null/undefined!');
-      return NextResponse.json({ error: 'Model initialization failed' }, { status: 500 });
-    }
-    
-    const { getLead: getLeadModel } = await import('@/lib/schemas/enterpriseSchemas');
-    const Lead = getLeadModel();
-    
-    if (!Lead) {
-      console.error('[WEBHOOK ERROR] Lead model is null/undefined!');
-      return NextResponse.json({ error: 'Model initialization failed' }, { status: 500 });
-    }
-
-    // DEBUG: Log database configuration
-    const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
-    const mainDbName = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
-    console.log('[WEBHOOK] ✅ Models loaded successfully');
-    console.log('[WEBHOOK] Database config: CRM_DB_NAME=' + crmDbName + ', MAIN_DB_NAME=' + mainDbName);
-    
-    // CRITICAL DEBUG: Try a test insert to verify database connectivity
-    // Write to system log so we can see if webhook code is executing
-    try {
-      const testId = 'TEST_WEBHOOK_CONNECTION_' + Date.now();
-      console.log('[WEBHOOK] 🧪 Attempting test database write with ID:', testId);
-      
-      // FIRST: Try to write to system log collection (might bypass model issues)
-      try {
-        await mongoose.connection.collection('system_webhook_tests').insertOne({
-          timestamp: new Date(),
-          testId,
-          stage: 'before_updateone',
-          crmDbName,
-          mainDbName,
-        });
-        console.log('[WEBHOOK] ✅ System log write succeeded - code IS executing');
-      } catch (sysErr) {
-        console.error('[WEBHOOK] System log write failed:', sysErr instanceof Error ? sysErr.message : String(sysErr));
-      }
-      
-      // SECOND: Try model updateOne
-      const testResult = await WhatsAppMessage.updateOne(
-        { waMessageId: testId },
-        { $setOnInsert: { waMessageId: testId, phoneNumber: '0000000000', direction: 'test', messageContent: 'Connection test' } },
-        { upsert: true }
-      );
-      console.log('[WEBHOOK] ✅ TEST database write completed - matched:', testResult?.matchedCount, 'upserted:', testResult?.upsertedCount);
-      
-      // THIRD: Log the result to system collection
-      try {
-        await mongoose.connection.collection('system_webhook_tests').insertOne({
-          timestamp: new Date(),
-          testId,
-          stage: 'after_updateone',
-          result: { matched: testResult?.matchedCount, upserted: testResult?.upsertedCount },
-        });
-        console.log('[WEBHOOK] ✅ Result logged to system collection');
-      } catch (logErr) {
-        console.error('[WEBHOOK] Could not log result:', logErr instanceof Error ? logErr.message : String(logErr));
-      }
-      
-      if (testResult?.upsertedCount === 0 && testResult?.matchedCount === 0) {
-        console.warn('[WEBHOOK] ⚠️  TEST write returned 0 matched and 0 upserted - something is wrong');
-      }
-    } catch (testErr) {
-      const errMsg = testErr instanceof Error ? testErr.message : String(testErr);
-      console.error('[WEBHOOK] ❌ TEST database write FAILED:', errMsg);
-      console.error('[WEBHOOK] Stack:', testErr instanceof Error ? testErr.stack?.split('\n').slice(0, 3).join('\n') : 'no stack');
-      
-      // Log error to system collection
-      try {
-        await mongoose.connection.collection('system_webhook_tests').insertOne({
-          timestamp: new Date(),
-          stage: 'error',
-          error: errMsg,
-        });
-      } catch (logErr) {
-        console.error('[WEBHOOK] Could not log error:', logErr instanceof Error ? logErr.message : String(logErr));
-      }
-    }
-    
-    console.log('[WEBHOOK] Processing webhook - entries:', entries.length);
-    
-    // CRITICAL DEBUG: Marker to verify webhook code is executing
-    const debugMsg = `★★★ WEBHOOK HANDLER EXECUTING - ENTRIES: ${entries.length} ★★★`;
-    console.error(debugMsg);
-    console.log(debugMsg);
 
     const now = new Date();
 
     for (const entry of entries) {
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
-      console.log('[WEBHOOK] Entry has', changes.length, 'changes');
       for (const change of changes) {
         const value = change?.value;
+        if (!value) continue;
 
         // 1) Status updates for messages we previously sent
-        const statuses: WebhookStatus[] = Array.isArray(value?.statuses) ? value.statuses : [];
+        const statuses = Array.isArray(value?.statuses) ? value.statuses : [];
         for (const st of statuses) {
           const waMessageId = String(st?.id || '').trim();
           if (!waMessageId) continue;
 
           const status = String(st?.status || '').toLowerCase();
-          const update: any = { updatedAt: now };
+          const update: any = { status, updatedAt: now };
 
-          if (status === 'sent') update.status = 'sent';
-          if (status === 'delivered') {
-            update.status = 'delivered';
-            update.deliveredAt = now;
-          }
-          if (status === 'read') {
-            update.status = 'read';
-            update.readAt = now;
-          }
+          if (status === 'delivered') update.deliveredAt = now;
+          if (status === 'read') update.readAt = now;
           if (status === 'failed') {
-            update.status = 'failed';
             const err = Array.isArray(st?.errors) ? st.errors[0] : undefined;
-            const msg = err?.title || err?.message || err?.error_data?.details;
-            update.failureReason = msg ? String(msg) : 'Failed';
+            update.failureReason = err?.title || err?.message || 'Failed';
           }
 
-          // We may store Meta's id in different fields depending on the send path.
           await WhatsAppMessage.updateOne(
             { $or: [{ waMessageId }, { externalMessageId: waMessageId }] },
             { $set: update }
@@ -535,163 +421,42 @@ async function handleWebhookPayload(payload: any) {
             waMessageId,
             status,
             phoneNumber: st?.recipient_id ? normalizePhone(String(st.recipient_id)) : undefined,
-            sample: {
-              ts: st?.timestamp,
-              hasErrors: Array.isArray(st?.errors) && st.errors.length > 0,
-            },
           });
         }
 
-    // 2) Inbound messages (from user to us)
-    const messages = Array.isArray(value?.messages) ? value.messages : [];
-    console.log('[WEBHOOK] Messages in this change:', messages.length);
-    
-    for (const msg of messages) {
-      try {
-        console.log('[WEBHOOK] Message:', JSON.stringify(msg).substring(0, 200));
-        
-        const from = normalizePhone(String(msg?.from || ''));
-        console.log('[WEBHOOK] Normalized from:', from);
-        
-        if (!from) {
-          console.log('[WEBHOOK] Skipping: no phone');
-          continue;
-        }
+        // 2) Inbound messages (from user to us)
+        const messages = Array.isArray(value?.messages) ? value.messages : [];
+        for (const msg of messages) {
+          try {
+            const from = normalizePhone(String(msg?.from || ''));
+            if (!from) continue;
 
-        const body = extractTextMessageBody(msg);
-        console.log('[WEBHOOK] Body extracted:', body?.substring(0, 50));
-        
-        if (!body) {
-          console.log('[WEBHOOK] Skipping: no body');
-          continue;
-        }
+            const body = extractTextMessageBody(msg);
+            if (!body) continue;
 
-        const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
-        console.log('[WEBHOOK] Message ID:', inboundWaMessageId);
+            const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
 
-        await logWebhookEvent({
-          kind: 'inbound_message',
-          ok: true,
-          phoneNumber: from,
-          waMessageId: msg?.id ? String(msg.id) : undefined,
-          sample: {
-            type: msg?.type,
-            ts: msg?.timestamp,
-            preview: body.slice(0, 80),
-          },
-        });
-
-    // Ensure a Lead exists (in CRM database)
-    console.log('[WEBHOOK] Looking up lead for:', from);
-    const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
-    const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
-    if (!crmDb) {
-      console.error('[WEBHOOK] CRM Database not available');
-      continue;
-    }
-        
-        let lead: { _id: unknown } | null = (await crmDb.collection('leads').findOne({ phoneNumber: from })) as { _id: unknown } | null;
-        if (!lead) {
-          console.log('[WEBHOOK] Creating new lead for:', from);
-          const leadResult = await crmDb.collection('leads').insertOne({
-            phoneNumber: from,
-            source: 'whatsapp',
-            status: 'lead',
-            lastMessageAt: now,
-            createdAt: now,
-            updatedAt: now,
-          });
-          lead = { _id: leadResult.insertedId };
-          console.log('[WEBHOOK] Created lead:', lead._id);
-        } else {
-          console.log('[WEBHOOK] Found existing lead:', lead._id);
-          await crmDb.collection('leads').updateOne(
-            { _id: lead._id as any },
-            { $set: { lastMessageAt: now, updatedAt: now } }
-          );
-        }
-
-        if (!lead?._id) {
-          console.log('[WEBHOOK] No lead ID, skipping');
-          continue;
-        }
-        
-        // Detect if this is the first inbound message for welcome automation.
-        const previousInbound = await crmDb.collection('whatsapp_messages').findOne({ leadId: lead._id, direction: 'inbound' });
-        const wasFirstInbound = !previousInbound;
-
-            // Handle STOP/OPTOUT keywords
-            const keyword = body.trim().toUpperCase();
-            if (keyword === 'STOP' || keyword === 'UNSUBSCRIBE' || keyword === 'OPTOUT') {
-              await ConsentManager.handleUnsubscribeKeyword(from, keyword as any);
+            // Ensure Lead exists
+            let lead = await Lead.findOne({ phoneNumber: from });
+            if (!lead) {
+              lead = await Lead.create({
+                phoneNumber: from,
+                source: 'whatsapp',
+                status: 'lead',
+                lastMessageAt: now,
+              });
+            } else {
+              await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now } });
             }
 
-            // Store inbound as a WhatsAppMessage record for a unified thread view.
-            // Idempotency: Meta retries webhooks. Prevent duplicate inbound rows by upserting on waMessageId.
-            // If Meta doesn't provide an id (rare), we fall back to create (best-effort).
-            if (inboundWaMessageId) {
-              console.log('[WEBHOOK] Upserting message:', inboundWaMessageId);
-              try {
-                // FIX: Write to CRM database, not main database
-                const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
-                const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
-                
-                if (!crmDb) {
-                  throw new Error('CRM database connection lost');
-                }
-                
-                const ourPhoneNumber = value?.metadata?.display_phone_number || undefined;
-
-                const result = await crmDb.collection('whatsapp_messages').updateOne(
-                  { waMessageId: inboundWaMessageId, direction: 'inbound' },
-                  {
-                    $setOnInsert: {
-                      leadId: lead._id,
-                      phoneNumber: from,
-                      direction: 'inbound',
-                      messageType: 'text',
-                      messageContent: body,
-                      status: 'delivered',
-                      deliveredAt: now,
-                      sentAt: now,
-                      waMessageId: inboundWaMessageId,
-                      isRead: false,
-                      backgroundColor: '#22c55e',
-                      textColor: '#ffffff',
-                      borderRadius: '8px',
-                      senderNumber: ourPhoneNumber,
-                      provider: 'meta',
-                      metadata: {
-                        webhook: {
-                          messageId: inboundWaMessageId,
-                          timestamp: msg?.timestamp,
-                          rawType: msg?.type,
-                        },
-                      },
-                    },
-                  },
-                  { upsert: true }
-                );
-                console.log('[WEBHOOK] Message upserted SUCCESS - matched:', result?.matchedCount, 'upserted:', result?.upsertedCount);
-              } catch (upsertErr) {
-                const errMsg = upsertErr instanceof Error ? upsertErr.message : String(upsertErr);
-                console.error('[WEBHOOK ERROR] Upsert failed:', errMsg);
-                throw upsertErr;
-              }
-            } else {
-              console.log('[WEBHOOK] Creating message (no ID)');
-              try {
-                // FIX: Use CRM database and standardized collection name
-                const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
-                const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
-                
-                if (!crmDb) {
-                  throw new Error('CRM database connection lost');
-                }
-                
-                const ourPhoneNumber = value?.metadata?.display_phone_number || undefined;
-
-                await crmDb.collection('whatsapp_messages').insertOne({
+            // Store message
+            const ourPhoneNumber = value?.metadata?.display_phone_number;
+            
+            await WhatsAppMessage.updateOne(
+              { waMessageId: inboundWaMessageId, direction: 'inbound' },
+              {
+                $set: { updatedAt: now },
+                $setOnInsert: {
                   leadId: lead._id,
                   phoneNumber: from,
                   direction: 'inbound',
@@ -700,45 +465,33 @@ async function handleWebhookPayload(payload: any) {
                   status: 'delivered',
                   deliveredAt: now,
                   sentAt: now,
-                  isRead: false,
-                  backgroundColor: '#22c55e',
-                  textColor: '#ffffff',
-                  borderRadius: '8px',
+                  waMessageId: inboundWaMessageId,
                   senderNumber: ourPhoneNumber,
                   provider: 'meta',
-                  metadata: {
-                    webhook: {
-                      messageId: msg?.id,
-                      timestamp: msg?.timestamp,
-                      rawType: msg?.type,
-                    },
-                  },
                   createdAt: now,
-                  updatedAt: now,
-                });
-                console.log('[WEBHOOK] Message created SUCCESS');
-              } catch (createErr) {
-                const errMsg = createErr instanceof Error ? createErr.message : String(createErr);
-                console.error('[WEBHOOK ERROR] Create failed:', errMsg);
-                throw createErr;
-              }
-            }
+                },
+              },
+              { upsert: true }
+            );
 
-            // Run automations (welcome/greetings/chatbot/AI). Best-effort: failures are swallowed.
+            await logWebhookEvent({
+              kind: 'inbound_message',
+              ok: true,
+              phoneNumber: from,
+              waMessageId: inboundWaMessageId,
+              sample: { preview: body.slice(0, 80) },
+            });
+
+            // Automations
             handleInboundWhatsAppAutomations({
               leadId: lead._id,
               phoneNumber: from,
               messageBody: body,
-              wasFirstInbound,
+              wasFirstInbound: false, // Could be determined if needed
             }).catch(() => {});
-          } catch (msgError) {
-            const errMsg = msgError instanceof Error ? msgError.message : 'Unknown error';
-            console.error('[WEBHOOK ERROR] Failed to process message:', errMsg);
-            await logWebhookEvent({
-              kind: 'error',
-              ok: false,
-              message: 'Message processing error: ' + errMsg,
-            });
+
+          } catch (err) {
+            console.error('[WEBHOOK ERROR] Loop failure:', err);
           }
         }
       }

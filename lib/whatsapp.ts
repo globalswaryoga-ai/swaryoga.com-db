@@ -57,46 +57,25 @@ export type WhatsAppSendTemplateResult = {
 
 function getWhatsAppEnv() {
   // Primary (preferred) env keys
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER;
+  const accessToken = (process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN || '').trim();
+  const phoneNumberId = (process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER || '').trim();
 
-  // IMPORTANT default:
-  // This repo is currently operating in “WhatsApp Web first” mode.
-  // Even if Cloud API credentials exist in env, we should NOT send via Meta unless
-  // explicitly enabled. This prevents surprises where messages go to the verified
-  // Meta number while the Meta UI is hidden.
-  //
-  // To re-enable Meta sending, set:
-  //   WHATSAPP_ENABLE_CLOUD_SEND=true
   const enableCloud = String(process.env.WHATSAPP_ENABLE_CLOUD_SEND || '')
     .trim()
     .toLowerCase();
   const cloudExplicitlyEnabled = ['1', 'true', 'yes', 'on'].includes(enableCloud);
+  
   if (!cloudExplicitlyEnabled) {
-    return null;
-  }
-
-  // Operational kill-switch: allow temporarily forcing WhatsApp Web bridge sends
-  // even when Cloud API credentials are configured.
-  // Accept several spellings for convenience.
-  const disableCloud = String(
-    process.env.WHATSAPP_DISABLE_META_SEND ||
-      process.env.WHATSAPP_DISABLE_CLOUD_SEND ||
-      process.env.WHATSAPP_FORCE_WEB_BRIDGE ||
-      process.env.WHATSAPP_DISABLE_CLOUD ||
-      ''
-  )
-    .trim()
-    .toLowerCase();
-  if (disableCloud === '1' || disableCloud === 'true' || disableCloud === 'yes' || disableCloud === 'on') {
+    if (enableCloud) console.log(`[WHATSAPP] Cloud explicitly DISABLED (enableCloud=${enableCloud})`);
     return null;
   }
 
   if (!accessToken || !phoneNumberId) {
+    console.log(`[WHATSAPP] Cloud partially configured: token=${accessToken?.[0] ? 'SET' : 'MISSING'}, id=${phoneNumberId ? 'SET' : 'MISSING'}`);
     return null; // Cloud API not configured; fallback to Web bridge
   }
 
-  return { accessToken, phoneNumberId };
+  return { accessToken: accessToken.replace(/['"\n\r]/g, ''), phoneNumberId: phoneNumberId.replace(/['"\n\r]/g, '') };
 }
 
 export async function sendWhatsAppText(toRaw: string, body: string): Promise<WhatsAppSendTextResult> {
