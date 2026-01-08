@@ -92,6 +92,40 @@ export async function POST(request: NextRequest) {
       providedLength?: number;
     } = { enabled: debug, headerPresent: false };
 
+    // CRITICAL: Read the raw body FIRST before any signature checking
+    // because the request body can only be read once!
+    const rawBody = await request.text();
+    let payload: any = null;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (e) {
+      console.log('★★★ PAYLOAD WAS NULL/EMPTY (JSON parse failed) ★★★');
+      await logWebhookEvent({
+        kind: 'error',
+        ok: false,
+        message: 'Invalid JSON body',
+      });
+      const res = NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+      res.headers.set('x-swar-webhook-method', 'POST');
+      res.headers.set('x-swar-webhook-reason', 'invalid-json');
+      return res;
+    }
+
+    if (!payload) {
+      console.log('★★★ PAYLOAD WAS NULL/EMPTY ★★★');
+      await logWebhookEvent({
+        kind: 'error',
+        ok: false,
+        message: 'Invalid JSON body',
+      });
+      const res = NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+      res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
+      res.headers.set('x-swar-webhook-method', 'POST');
+      res.headers.set('x-swar-webhook-reason', 'invalid-json');
+      return res;
+    }
+
     // Recommended: verify Meta webhook signature if APP_SECRET is available.
     // This protects against random internet POSTs that would otherwise be accepted.
     // TEMPORARY: Skip signature verification for debugging (will re-enable after confirming messages arrive)
@@ -205,14 +239,8 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
-    const payload = await request.json().catch(() => null);
+    // If we reach here, we already have payload parsed from rawBody above
     if (!payload) {
-      console.log('★★★ PAYLOAD WAS NULL/EMPTY ★★★');
-      await logWebhookEvent({
-        kind: 'error',
-        ok: false,
-        message: 'Invalid JSON body',
-      });
       const res = NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
       res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
       res.headers.set('x-swar-webhook-method', 'POST');
