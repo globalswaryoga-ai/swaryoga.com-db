@@ -160,8 +160,10 @@ export default function MetaWhatsAppSetupPage() {
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">To (phone)</label>
+              <label htmlFor="test-phone-to" className="block text-sm font-medium text-gray-700">To (phone)</label>
               <input
+                id="test-phone-to"
+                name="test-phone-to"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
                 placeholder="919XXXXXXXXX"
@@ -169,8 +171,10 @@ export default function MetaWhatsAppSetupPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Message</label>
+              <label htmlFor="test-message-content" className="block text-sm font-medium text-gray-700">Message</label>
               <input
+                id="test-message-content"
+                name="test-message-content"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Hello from Swar Yoga"

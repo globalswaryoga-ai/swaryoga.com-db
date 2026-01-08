@@ -127,7 +127,7 @@ async function handleWebhookPayload(payload: any, phoneNumberContext: string): P
   }
 
   // Use CRM database if configured
-  const crmDbName = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+  const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
   const db = mongoose.connection.useDb(crmDbName, { useCache: true });
 
   if (!db) {

@@ -117,18 +117,17 @@ export async function GET(request: NextRequest) {
       // Project final shape
       {
         $project: {
-          _id: 1,
-          phoneNumber: 1,
-          leadId: '$_id',
+          _id: 1, // This is the phoneNumber
+          phoneNumber: '$_id',
+          leadId: '$leadId',
           name: { $ifNull: ['$lead.name', ''] },
-          email: { $ifNull: ['$lead.email', ''] },
-          status: { $ifNull: ['$lead.status', 'lead'] },
-          labels: { $ifNull: ['$lead.labels', []] },
           lastMessage: 1,
           lastMessageTime: 1,
           lastDirection: 1,
           lastStatus: 1,
           unreadCount: 1,
+          status: { $ifNull: ['$lead.status', ''] },
+          labels: { $ifNull: ['$lead.labels', []] },
         },
       }
     );

@@ -417,7 +417,7 @@ async function handleWebhookPayload(payload: any) {
     }
 
     // DEBUG: Log database configuration
-    const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'not set';
+    const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
     const mainDbName = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
     console.log('[WEBHOOK] ✅ Models loaded successfully');
     console.log('[WEBHOOK] Database config: CRM_DB_NAME=' + crmDbName + ', MAIN_DB_NAME=' + mainDbName);
@@ -581,14 +581,14 @@ async function handleWebhookPayload(payload: any) {
           },
         });
 
-        // Ensure a Lead exists (in CRM database)
-        console.log('[WEBHOOK] Looking up lead for:', from);
-        const crmDbName = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
-        const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
-        if (!crmDb) {
-          console.error('[WEBHOOK] CRM Database not available');
-          continue;
-        }
+    // Ensure a Lead exists (in CRM database)
+    console.log('[WEBHOOK] Looking up lead for:', from);
+    const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
+    const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
+    if (!crmDb) {
+      console.error('[WEBHOOK] CRM Database not available');
+      continue;
+    }
         
         let lead: { _id: unknown } | null = (await crmDb.collection('leads').findOne({ phoneNumber: from })) as { _id: unknown } | null;
         if (!lead) {
@@ -633,7 +633,7 @@ async function handleWebhookPayload(payload: any) {
               console.log('[WEBHOOK] Upserting message:', inboundWaMessageId);
               try {
                 // FIX: Write to CRM database, not main database
-                const crmDbName = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+                const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
                 const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
                 
                 if (!crmDb) {
@@ -682,7 +682,7 @@ async function handleWebhookPayload(payload: any) {
               console.log('[WEBHOOK] Creating message (no ID)');
               try {
                 // FIX: Use CRM database and standardized collection name
-                const crmDbName = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+                const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
                 const crmDb = mongoose.connection.useDb(crmDbName, { useCache: true });
                 
                 if (!crmDb) {
