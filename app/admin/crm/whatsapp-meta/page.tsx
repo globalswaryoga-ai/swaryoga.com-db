@@ -831,7 +831,10 @@ export default function MetaWhatsAppPage() {
               <div className="text-sm font-extrabold text-slate-900">Users</div>
               <div className="text-xs text-slate-500">{conversationsFiltered.length}</div>
             </div>
+            <label htmlFor="conversation-search" className="sr-only">Search conversations</label>
             <input
+              id="conversation-search"
+              name="conversation-search"
               type="text"
               value={conversationSearch}
               onChange={(e) => setConversationSearch(e.target.value)}
@@ -842,8 +845,10 @@ export default function MetaWhatsAppPage() {
             {/* Bulk actions */}
             <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
               <div className="flex items-center justify-between">
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                <label htmlFor="select-all-conv" className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
                   <input
+                    id="select-all-conv"
+                    name="select-all-conv"
                     type="checkbox"
                     checked={conversationsFiltered.length > 0 && selectedCount === conversationsFiltered.length}
                     onChange={(e) => setAllVisibleChecked(e.target.checked)}
@@ -856,7 +861,10 @@ export default function MetaWhatsAppPage() {
                 </button>
               </div>
               <div className="mt-2 flex gap-2">
+                <label htmlFor="bulk-action-select" className="sr-only">Select bulk action</label>
                 <select
+                  id="bulk-action-select"
+                  name="bulk-action-select"
                   value={bulkAction}
                   onChange={(e) => setBulkAction(e.target.value as BulkAction)}
                   className="flex-1 px-2 py-2 border border-slate-300 rounded-lg text-xs bg-white"
@@ -866,7 +874,10 @@ export default function MetaWhatsAppPage() {
                   <option value="addLabel">Add label</option>
                   <option value="removeLabel">Remove label</option>
                 </select>
+                <label htmlFor="bulk-label-input" className="sr-only">Bulk label</label>
                 <input
+                  id="bulk-label-input"
+                  name="bulk-label-input"
                   value={bulkLabel}
                   onChange={(e) => setBulkLabel(e.target.value)}
                   placeholder="Label"
@@ -900,11 +911,13 @@ export default function MetaWhatsAppPage() {
                     <div key={conv._id} className={isActive ? 'bg-emerald-50/40' : 'bg-white'}>
                       <div className="flex items-start gap-3 px-4 py-3">
                         <input
+                          id={`checkbox-conv-${conv._id}`}
+                          name={`checkbox-conv-${conv._id}`}
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleConversationChecked(conv)}
                           className="mt-1 h-4 w-4 rounded border-slate-300"
-                          aria-label="Select conversation"
+                          aria-label={`Select conversation with ${conv.name || conv.phoneNumber}`}
                         />
                         <button
                           onClick={() => handleSelect(conv)}
@@ -1236,14 +1249,20 @@ export default function MetaWhatsAppPage() {
                 </summary>
                 <div className="p-3 space-y-3 border-t">
                   <div className="space-y-2">
+                    <label htmlFor="followup-title" className="sr-only">Follow-up title</label>
                     <input
+                      id="followup-title"
+                      name="followup-title"
                       type="text"
                       value={newFollowUpTitle}
                       onChange={(e) => setNewFollowUpTitle(e.target.value)}
                       placeholder="Title"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
+                    <label htmlFor="followup-due-at" className="sr-only">Follow-up due date</label>
                     <input
+                      id="followup-due-at"
+                      name="followup-due-at"
                       type="datetime-local"
                       value={newFollowUpDueAt}
                       onChange={(e) => setNewFollowUpDueAt(e.target.value)}
@@ -1298,7 +1317,10 @@ export default function MetaWhatsAppPage() {
                 </summary>
                 <div className="p-3 space-y-3 border-t">
                   <div className="flex gap-2">
+                    <label htmlFor="new-note-input" className="sr-only">New note content</label>
                     <input
+                      id="new-note-input"
+                      name="new-note-input"
                       type="text"
                       value={newNote}
                       onChange={(e) => setNewNote(e.target.value)}
@@ -1343,7 +1365,10 @@ export default function MetaWhatsAppPage() {
                 </summary>
                 <div className="p-3 space-y-3 border-t">
                   <div className="flex gap-2">
+                    <label htmlFor="new-label-input" className="sr-only">New label name</label>
                     <input
+                      id="new-label-input"
+                      name="new-label-input"
                       type="text"
                       value={newLabel}
                       onChange={(e) => setNewLabel(e.target.value)}

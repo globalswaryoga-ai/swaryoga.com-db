@@ -36,14 +36,21 @@ export async function GET(request: NextRequest) {
     const userId = verifyAdminAccess(request);
     await connectDB();
 
-    // Get conversations grouped by leadId with lead details
+    // Get conversations grouped by phoneNumber with lead details
     const pipeline: any[] = [
+      // Filter for Meta messages (optional but recommended for this API)
+      { 
+        $match: { 
+          provider: { $ne: 'whatsapp_web_bridge' } 
+        } 
+      },
       // Sort by most recent first
       { $sort: { sentAt: -1 } },
-      // Group by leadId to get one conversation per lead
+      // Group by phoneNumber to get one conversation per phone
       {
         $group: {
-          _id: '$leadId',
+          _id: '$phoneNumber',
+          leadId: { $first: '$leadId' },
           lastMessage: { $first: '$messageContent' },
           lastMessageTime: { $first: '$sentAt' },
           lastDirection: { $first: '$direction' },
@@ -70,8 +77,20 @@ export async function GET(request: NextRequest) {
       {
         $lookup: {
           from: 'leads',
-          localField: '_id',
-          foreignField: '_id',
+          let: { leadId: '$leadId', phone: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $eq: ['$_id', '$$leadId'] },
+                    { $eq: ['$phoneNumber', '$$phone'] }
+                  ]
+                }
+              }
+            },
+            { $limit: 1 }
+          ],
           as: 'lead',
         },
       },
