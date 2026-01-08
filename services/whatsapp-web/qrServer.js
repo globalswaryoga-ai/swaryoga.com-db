@@ -245,7 +245,10 @@ function prepareChromeXdgDirs({ attempt = 1, clientId = 'wa' } = {}) {
 }
 // Ensure LocalAuth persistence location is explicit and stable.
 // IMPORTANT: This is NOT the Chromium profile. It's whatsapp-web.js session storage.
-const LOCALAUTH_DATA_PATH = process.env.LOCALAUTH_DATA_PATH || '/app/.wwebjs_auth';
+const LOCALAUTH_DATA_PATH = process.env.LOCALAUTH_DATA_PATH || path.join(process.cwd(), '.wwebjs_auth');
+
+// Ensure the LocalAuth directory exists before using it
+ensureDir(LOCALAUTH_DATA_PATH);
 
 // If whatsapp-web.js / puppeteer gets into a bad state (common symptom: "Evaluation failed: t"),
 // we can recover by restarting the client. We'll do this only after repeated failures.
