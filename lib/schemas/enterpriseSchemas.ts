@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 // Configure via env:
 // - MONGODB_CRM_DB_NAME (recommended)
 //   Example: swaryoga_admin_crm (for separate DB) or swaryogaDB (same as main)
-const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
+const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
 // Cache for CRM database connection to avoid repeated useDb() calls
 let cachedCrmDb: any = null;

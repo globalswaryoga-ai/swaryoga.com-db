@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
 
     const userId = verifyAdminAccess(request);
     await connectDB();
+    console.log('[Meta Conversations] Fetching conversations for user:', userId);
 
     // Get conversations grouped by phoneNumber with lead details
     const pipeline: any[] = [
@@ -109,31 +110,17 @@ export async function GET(request: NextRequest) {
       pipeline.push({ $match: { 'lead.assignedToUserId': userId } });
     }
 
-    pipeline.push(
-      // Sort by last message time (newest first)
-      { $sort: { lastMessageTime: -1 } },
-      // Limit to 100 conversations
-      { $limit: 100 },
-      // Project final shape
-      {
-        $project: {
-          _id: 1, // This is the phoneNumber
-          phoneNumber: '$_id',
-          leadId: '$leadId',
-          name: { $ifNull: ['$lead.name', ''] },
-          lastMessage: 1,
-          lastMessageTime: 1,
-          lastDirection: 1,
-          lastStatus: 1,
-          unreadCount: 1,
-          status: { $ifNull: ['$lead.status', ''] },
-          labels: { $ifNull: ['$lead.labels', []] },
-        },
-      }
-    );
-
     const conversations = await WhatsAppMessage.aggregate(pipeline);
-    return formatCrmSuccess(conversations);
+    console.log(`[Meta Conversations] Found ${conversations.length} conversations`);
+
+    return NextResponse.json(
+      {
+        success: true,
+        count: conversations.length,
+        data: conversations,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     return handleCrmError(error, 'GET meta conversations');
   }

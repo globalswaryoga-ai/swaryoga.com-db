@@ -43,17 +43,22 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB();
+    console.log('[Meta Messages] Fetching messages for phone:', phoneNumber);
 
     // Fetch all messages for this phone, sorted chronologically
     const messages = await WhatsAppMessage.find({
       phoneNumber,
     })
       .sort({ sentAt: 1 })
+      .limit(500)
       .lean();
+
+    console.log(`[Meta Messages] Found ${messages.length} messages`);
 
     return NextResponse.json(
       {
         success: true,
+        count: messages.length,
         data: messages,
       },
       { status: 200 }
