@@ -52,7 +52,7 @@ export async function uploadToS3(
     Key: fileName,
     Body: fileBuffer,
     ContentType: contentType,
-    ACL: options.acl || 'public-read',
+    // Removed ACL because some buckets disable ACLs
     Metadata: options.metadata || {
       'uploaded-at': new Date().toISOString(),
     },
@@ -193,7 +193,7 @@ export async function uploadStreamToS3(
     Key: fileName,
     Body: stream,
     ContentType: contentType,
-    ACL: options.acl || 'public-read',
+    // Removed ACL because some buckets disable ACLs
     Metadata: options.metadata || {
       'uploaded-at': new Date().toISOString(),
     },
@@ -407,7 +407,6 @@ export async function uploadTemplateFileToS3(
 
     // Upload to S3
     const s3Url = await uploadToS3(file, s3Key, {
-      acl: 'public-read',
       metadata: {
         'template-id': templateId,
         'file-type': fileType,

@@ -115,6 +115,28 @@ export default function AdminCommunityPage() {
   const [editingCommunityName, setEditingCommunityName] = useState(false);
   const [newCommunityName, setNewCommunityName] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
+
+  const renderFormattedText = (text: string) => {
+    if (!text) return 'Content Preview...';
+    
+    // Replace *bold* with <strong>
+    let formatted = text.replace(/\*(.*?)\*/g, '<strong class="font-bold">$1</strong>');
+    
+    // Replace _italic_ with <em>
+    formatted = formatted.replace(/_(.*?)_/g, '<em class="italic">$1</em>');
+    
+    // Replace ~strike~ with <del>
+    formatted = formatted.replace(/~(.*?)~/g, '<del class="line-through">$1</del>');
+    
+    // Replace ```code``` with <code>
+    formatted = formatted.replace(/```(.*?)```/g, '<code class="bg-slate-100 px-1 rounded">$1</code>');
+    
+    // New lines
+    formatted = formatted.replace(/\n/g, '<br />');
+    
+    return <div dangerouslySetInnerHTML={{ __html: formatted }} />;
+  };
+
   const [editedCommunities, setEditedCommunities] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [addMode, setAddMode] = useState<'search' | 'manual'>('search');
@@ -714,7 +736,9 @@ export default function AdminCommunityPage() {
                           {postHeader && <h4 className="text-xl font-bold font-serif leading-tight">{postHeader}</h4>}
                           {postType === 'image' && postImageUrls[0] && <div className="aspect-square rounded-2xl bg-slate-100 overflow-hidden"><img src={postImageUrls[0]} className="w-full h-full object-cover" /></div>}
                           {postType === 'video' && postVideoUrl && <div className="aspect-video rounded-2xl bg-slate-100 overflow-hidden"><video src={postVideoUrl} className="w-full h-full object-cover" controls /></div>}
-                          <p className="text-sm text-slate-600 leading-relaxed italic">{postContent || 'Content Preview...'}</p>
+                          <div className="text-sm text-slate-600 leading-relaxed font-normal">
+                             {renderFormattedText(postContent)}
+                          </div>
                           <div className="space-y-2">
                              {postButtons.map(b => <div key={b.id} className="w-full py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase text-center">{b.label}</div>)}
                           </div>

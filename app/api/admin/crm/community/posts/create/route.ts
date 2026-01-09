@@ -130,22 +130,8 @@ export async function POST(request: NextRequest) {
     const userId = decoded.userId || decoded.username || 'admin';
     const now = new Date();
 
-    // Admin is sending as themselves into each community. Enforce policy if admin also exists as a member.
-    // If not a member, allow posting (admin moderation capabilities).
-    await Promise.all(
-      communityIds.map(async (communityId) => {
-        const member = await CommunityMember.findOne({ userId, communityId }).select({ _id: 1 }).lean();
-        if (!member) return;
-
-        const policy = await getMyCommunityChatPolicy({ request, communityId });
-        enforceCommunityChatPolicy({
-          policy,
-          messageType: 'text',
-          hasLink: contentHasLink(message),
-        });
-      })
-    );
-
+    // Skip policy enforcement for admins creating campaigns
+    
     // Optional cross-post:
     // - media: create a MediaPost (published) so it appears on /media immediately.
     // - socialMedia: create a SocialMediaPost (draft) and mirror into MediaPost via existing helper.
@@ -256,6 +242,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Admin community multi-post error:', error);
-    return NextResponse.json({ error: 'Failed to create community post' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: `Failed to create community post: ${errorMessage}` }, { status: 500 });
   }
 }
