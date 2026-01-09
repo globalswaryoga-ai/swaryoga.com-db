@@ -64,8 +64,6 @@ export async function POST(request: NextRequest) {
 
     if (existingMember) {
       // Update existing member's info (allow them to "rejoin" after logout)
-      const isGeneralCommunity = communityId === 'general';
-      
       existingMember.name = name.trim();
       existingMember.email = email ? email.trim().toLowerCase() : existingMember.email;
       existingMember.countryCode = countryCode || '+91';
@@ -74,9 +72,7 @@ export async function POST(request: NextRequest) {
       
       await existingMember.save();
 
-      const message = isGeneralCommunity
-        ? '👋 Welcome back! You can view posts. Messaging will be enabled after admin approval.'
-        : '🎉 Welcome back to the community!';
+      const message = '👋 Welcome back! Messaging will be enabled after admin approval if not already done.';
 
       return NextResponse.json(
         {
@@ -89,10 +85,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new member
-    // General community members need admin approval to send messages
-    const isGeneralCommunity = communityId === 'general';
-    
+    // All members joining via public links now require admin approval
     const newMember = new CommunityMember({
       name: name.trim(),
       email: email ? email.trim().toLowerCase() : null,
@@ -102,15 +95,13 @@ export async function POST(request: NextRequest) {
       communityId,
       communityName,
       status: 'active',
-      approved: !isGeneralCommunity, // Enrolled communities auto-approve, general requires approval
+      approved: false, // Set to false for all groups as requested
       joinedAt: new Date(),
     });
 
     await newMember.save();
 
-    const message = isGeneralCommunity
-      ? '👋 Welcome! You can view posts. Messaging will be enabled after admin approval.'
-      : '🎉 Welcome to the community!';
+    const message = '👋 Welcome! You can view posts. Messaging will be enabled after admin approval.';
 
     return NextResponse.json(
       {
