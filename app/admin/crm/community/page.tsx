@@ -75,7 +75,7 @@ export default function AdminCommunityPage() {
   const [selectedCommunity, setSelectedCommunity] = useState('general');
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'banned'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'banned' | 'pending'>('all');
   const [loading, setLoading] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
@@ -114,6 +114,7 @@ export default function AdminCommunityPage() {
   
   const [editingCommunityName, setEditingCommunityName] = useState(false);
   const [newCommunityName, setNewCommunityName] = useState('');
+  const [approving, setApproving] = useState<string | null>(null);
   const [editedCommunities, setEditedCommunities] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [addMode, setAddMode] = useState<'search' | 'manual'>('search');
@@ -334,6 +335,24 @@ export default function AdminCommunityPage() {
     }
   };
 
+  const approveMember = async (memberId: string) => {
+    if (!token) return;
+    try {
+      setApproving(memberId);
+      const res = await fetch(`/api/admin/community/members/${memberId}/approve`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      setMembers(prev => prev.map(m => m._id === memberId ? { ...m, approved: true } : m));
+      alert('✅ Member Approved');
+    } catch (e) {
+      alert('❌ Failed to approve member');
+    } finally {
+      setApproving(null);
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
     const fetchMembers = async () => {
@@ -425,7 +444,8 @@ export default function AdminCommunityPage() {
             </div>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="px-6 h-14 bg-white text-slate-700 rounded-2xl border border-slate-200/60 font-bold text-xs uppercase cursor-pointer min-w-[160px]">
               <option value="all">Display All</option>
-              <option value="active">Verified</option>
+              <option value="pending">Pending Approval</option>
+              <option value="active">Verified members</option>
               <option value="inactive">Waitlist</option>
               <option value="banned">Excluded</option>
             </select>
@@ -470,7 +490,12 @@ export default function AdminCommunityPage() {
                            </td>
                            <td className="px-6 py-6 font-semibold text-sm text-slate-600">{member.mobile}</td>
                            <td className="px-6 py-6">
-                              <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}>{member.status}</span>
+                              <div className="flex flex-col gap-1">
+                                 <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest inline-block w-fit ${member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}>{member.status}</span>
+                                 {!member.approved && (
+                                    <span className="px-2 py-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 rounded border border-amber-100 uppercase w-fit">Pending Approval</span>
+                                 )}
+                              </div>
                            </td>
                            <td className="px-6 py-6">
                               <div className="flex gap-4">
@@ -482,6 +507,16 @@ export default function AdminCommunityPage() {
                            </td>
                            <td className="pr-10 px-6 py-6 text-right opacity-0 group-hover:opacity-100 transition-all">
                               <div className="flex justify-end gap-2">
+                                 {!member.approved && (
+                                    <button 
+                                       onClick={() => approveMember(member._id)} 
+                                       disabled={approving === member._id}
+                                       title="Approve Member"
+                                       className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-600 border border-emerald-100 bg-emerald-50 disabled:opacity-50"
+                                    >
+                                       {approving === member._id ? <Loader size={16} className="animate-spin" /> : <CheckCircle size={16}/>}
+                                    </button>
+                                 )}
                                  <button onClick={() => openChatPermissions(member)} className="p-2 hover:bg-slate-900 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100"><Shield size={16}/></button>
                                  <button onClick={() => { setSelectedMember(member); setShowMessageModal(true); }} className="p-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100"><Send size={16}/></button>
                                  <button className="p-2 hover:bg-red-500 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100"><Trash2 size={16}/></button>

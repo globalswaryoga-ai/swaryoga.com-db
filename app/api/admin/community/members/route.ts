@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
 
     const query: any = { communityId };
-    if (status !== 'all') {
+    if (status === 'pending') {
+      query.approved = false;
+    } else if (status !== 'all') {
       query.status = status;
     }
 
