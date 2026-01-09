@@ -63,9 +63,15 @@ export async function uploadToS3(
     const s3Url = `https://${bucket}.s3.amazonaws.com/${fileName}`;
     console.log(`✅ Uploaded to S3: ${s3Url}`);
     return s3Url;
-  } catch (error) {
-    console.error('❌ S3 Upload Error:', error);
-    throw new Error(`Failed to upload file to S3: ${fileName}`);
+  } catch (error: any) {
+    console.error('❌ S3 Upload Error Details:', {
+      message: error.message,
+      code: error.code || error.name,
+      requestId: error.$metadata?.requestId,
+      bucket: bucket,
+      region: process.env.AWS_REGION || 'us-east-1'
+    });
+    throw new Error(`S3 Upload Failed: ${error.message} (${error.code || error.name || 'UnknownError'})`);
   }
 }
 
@@ -288,9 +294,11 @@ export function isValidS3Url(url: string): boolean {
 // File size limits (in bytes)
 const MAX_IMAGE_SIZE = parseInt(process.env.MAX_IMAGE_SIZE || '26214400'); // 25MB
 const MAX_DOCUMENT_SIZE = parseInt(process.env.MAX_DOCUMENT_SIZE || '52428800'); // 50MB
+const MAX_VIDEO_SIZE = parseInt(process.env.MAX_VIDEO_SIZE || '209715200'); // 200MB (limit for template upload)
 
 // Allowed MIME types
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/webm'];
 const ALLOWED_DOCUMENT_TYPES = [
   'application/pdf',
   'application/msword',
@@ -307,7 +315,7 @@ interface TemplateFileUploadOptions {
   file: Buffer;
   fileName: string;
   mimeType: string;
-  fileType: 'image' | 'document';
+  fileType: 'image' | 'document' | 'video';
   templateId: string;
 }
 
@@ -326,10 +334,13 @@ interface TemplateFileUploadResult {
 export function validateTemplateFile(
   file: Buffer,
   mimeType: string,
-  fileType: 'image' | 'document'
+  fileType: 'image' | 'document' | 'video'
 ): { valid: boolean; error?: string } {
   // Check file size
-  const maxSize = fileType === 'image' ? MAX_IMAGE_SIZE : MAX_DOCUMENT_SIZE;
+  let maxSize = MAX_DOCUMENT_SIZE;
+  if (fileType === 'image') maxSize = MAX_IMAGE_SIZE;
+  else if (fileType === 'video') maxSize = MAX_VIDEO_SIZE;
+
   if (file.length > maxSize) {
     const sizeLimitMB = maxSize / (1024 * 1024);
     return {
@@ -339,8 +350,10 @@ export function validateTemplateFile(
   }
 
   // Check MIME type
-  const allowedTypes =
-    fileType === 'image' ? ALLOWED_IMAGE_TYPES : ALLOWED_DOCUMENT_TYPES;
+  let allowedTypes = ALLOWED_DOCUMENT_TYPES;
+  if (fileType === 'image') allowedTypes = ALLOWED_IMAGE_TYPES;
+  else if (fileType === 'video') allowedTypes = ALLOWED_VIDEO_TYPES;
+
   if (!allowedTypes.includes(mimeType)) {
     return {
       valid: false,
@@ -357,7 +370,7 @@ export function validateTemplateFile(
 export function generateTemplateS3Key(
   templateId: string,
   fileName: string,
-  fileType: 'image' | 'document'
+  fileType: 'image' | 'document' | 'video'
 ): string {
   const timestamp = Date.now();
   const randomSuffix = Math.random().toString(36).substring(2, 8);

@@ -3,7 +3,9 @@ import { useRouter } from 'next/navigation';
 
 function getStoredAdminToken() {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+  const token = localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+  if (token === 'null' || token === 'undefined' || !token) return null;
+  return token;
 }
 
 /**

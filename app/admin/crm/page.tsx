@@ -51,6 +51,14 @@ export default function CRMDashboard() {
           console.log('[CRM Dashboard] Analytics API response status:', response.status);
         }
 
+        if (response.status === 401 || response.status === 403) {
+          console.error('[CRM Dashboard] Auth failure:', response.status);
+          localStorage.removeItem('adminToken');
+          localStorage.removeItem('admin_token');
+          router.push('/admin/login');
+          return;
+        }
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
           console.error('[CRM Dashboard] Analytics API error:', { status: response.status, data: errorData });

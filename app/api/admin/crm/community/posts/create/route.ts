@@ -22,6 +22,11 @@ type Body = {
   content: string;
   footerText?: string;
   buttons?: ButtonAction[];
+  type?: 'text' | 'image' | 'video' | 'document' | 'link';
+  videoUrl?: string;
+  docUrl?: string;
+  links?: string[];
+  imageUrls?: string[];
   crossPost?: {
     media?: boolean;
     socialMedia?: boolean;
@@ -33,15 +38,27 @@ function buildMessage(params: {
   content: string;
   footerText?: string;
   buttons?: ButtonAction[];
+  type?: string;
+  videoUrl?: string;
+  docUrl?: string;
+  links?: string[];
 }): string {
   const lines: string[] = [];
   const header = (params.headerText || '').trim();
   const body = (params.content || '').trim();
   const footer = (params.footerText || '').trim();
 
-  if (header) lines.push(header);
+  if (header) lines.push(`*${header}*`);
   if (body) lines.push(body);
-  if (footer) lines.push(footer);
+
+  if (params.videoUrl) lines.push(`\n🎥 Video: ${params.videoUrl}`);
+  if (params.docUrl) lines.push(`\n📂 Document: ${params.docUrl}`);
+  if (Array.isArray(params.links) && params.links.length > 0) {
+    lines.push('\n🔗 Relevant Links:');
+    params.links.forEach(l => lines.push(`- ${l}`));
+  }
+
+  if (footer) lines.push(`\n_${footer}_`);
 
   const btns = Array.isArray(params.buttons) ? params.buttons : [];
   const clean = btns
@@ -88,17 +105,24 @@ export async function POST(request: NextRequest) {
     const headerText = typeof body?.headerText === 'string' ? body.headerText.trim() : '';
     const footerText = typeof body?.footerText === 'string' ? body.footerText.trim() : '';
     const buttons = Array.isArray(body?.buttons) ? (body!.buttons as ButtonAction[]) : [];
+    
+    // Multimedia fields
+    const postType = body?.type || 'text';
+    const imageUrls = Array.isArray(body?.imageUrls) ? body.imageUrls.filter(Boolean) : [];
+    const videoUrl = body?.videoUrl || '';
+    const docUrl = body?.docUrl || '';
+    const extraLinks = Array.isArray(body?.links) ? body.links.filter(Boolean) : [];
 
     if (communityIds.length === 0) {
       return NextResponse.json({ error: 'communityIds is required' }, { status: 400 });
     }
-    if (!content && !headerText && !footerText) {
-      return NextResponse.json({ error: 'content is required' }, { status: 400 });
+    if (!content && !headerText && !footerText && !videoUrl && !docUrl && imageUrls.length === 0) {
+      return NextResponse.json({ error: 'Post content or files/links are required' }, { status: 400 });
     }
 
-    const message = buildMessage({ headerText, content, footerText, buttons });
+    const message = buildMessage({ headerText, content, footerText, buttons, type: postType, videoUrl, docUrl, links: extraLinks });
     if (message.length > 4000) {
-      return NextResponse.json({ error: 'content is too long' }, { status: 400 });
+      return NextResponse.json({ error: 'Message too long (max 4000 chars)' }, { status: 400 });
     }
 
     await connectDB();
@@ -195,46 +219,41 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const created = await CommunityPost.insertMany(
-      communityIds.map((communityId) => ({
+    const postResults: any[] = [];
+    for (const communityId of communityIds) {
+      const dbPost = await CommunityPost.create({
         communityId,
         userId,
         content: message,
-        images: [],
-        likes: [],
-        comments: [],
+        type: postType,
+        images: imageUrls,
+        videos: videoUrl ? [videoUrl] : [],
+        documents: docUrl ? [docUrl] : [],
+        links: extraLinks,
+        metadata: {
+          originalHeader: headerText,
+          originalBody: content,
+          originalFooter: footerText,
+          buttons,
+          mediaPostId,
+          socialPostId,
+          postId: postResults.length + 1,
+        },
         createdAt: now,
         updatedAt: now,
-        // Persist raw composer data for future richer rendering without schema changes.
-        metadata: {
-          source: 'admin-crm',
-          headerText: headerText || undefined,
-          footerText: footerText || undefined,
-          buttons: buttons.length ? buttons : undefined,
-          crossPost: body?.crossPost || undefined,
-          crossPostResult: {
-            mediaPostId,
-            socialPostId,
-          },
-        },
-      }))
-    );
+      });
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          createdCount: created.length,
-          ids: created.map((p) => p._id?.toString()),
-          crossPostResult: {
-            mediaPostId: mediaPostId || null,
-            socialPostId: socialPostId || null,
-          },
-        },
-        message: `Posted to ${created.length} community group(s)`,
+      postResults.push(dbPost);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Successfully posted to ${communityIds.length} communities`,
+      data: {
+        postCount: postResults.length,
+        communityIds,
       },
-      { status: 201 }
-    );
+    });
   } catch (error) {
     console.error('Admin community multi-post error:', error);
     return NextResponse.json({ error: 'Failed to create community post' }, { status: 500 });

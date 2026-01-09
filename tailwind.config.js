@@ -193,6 +193,32 @@ module.exports = {
         'header-md': ['2.5rem', { lineHeight: '1.2', fontWeight: '700' }],
         'header-sm': ['2rem', { lineHeight: '1.3', fontWeight: '600' }],
       },
+      keyframes: {
+        'fade-in-up': {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'soft-pulse': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.02)' },
+        },
+        'float': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-20px)' },
+        },
+        'social-dance': {
+          '0%, 100%': { transform: 'translate(0, 0) rotate(0deg)' },
+          '25%': { transform: 'translate(15px, -15px) rotate(5deg)' },
+          '50%': { transform: 'translate(-10px, -25px) rotate(-5deg)' },
+          '75%': { transform: 'translate(-20px, -10px) rotate(3deg)' },
+        },
+      },
+      animation: {
+        'fade-in-up': 'fade-in-up 0.8s ease-out forwards',
+        'soft-pulse': 'soft-pulse 4s ease-in-out infinite',
+        'float': 'float 6s ease-in-out infinite',
+        'social-dance': 'social-dance 12s ease-in-out infinite',
+      }
     },
   },
   plugins: [],

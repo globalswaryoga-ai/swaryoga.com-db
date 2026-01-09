@@ -168,152 +168,228 @@ export default function BlogPage() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-        {/* Enhanced Hero Section */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-swar-primary via-emerald-600 to-teal-700 text-white pt-24 pb-20 px-4">
-          {/* Decorative background elements */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white opacity-5 rounded-full blur-3xl -mr-48 -mt-48"></div>
-          <div className="absolute bottom-0 left-0 w-80 h-80 bg-white opacity-5 rounded-full blur-3xl -ml-40 -mb-40"></div>
+      <main className="min-h-screen bg-swar-bg">
+        {/* NEW: Premium Split Hero Section */}
+        <section className="relative pt-32 pb-20 bg-white overflow-hidden">
+          {/* Subtle Accent Background */}
+          <div className="absolute top-0 right-0 w-1/3 h-full bg-swar-primary/5 -skew-x-12 translate-x-1/4 z-0 hidden lg:block" />
           
-          <div className="container mx-auto relative z-10">
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-2 mb-4 text-swar-primary-light">
-                <Globe size={20} />
-                <span className="text-sm font-semibold tracking-widest uppercase">{translations.globalReach[language]}</span>
+          <div className="container mx-auto px-4 max-w-7xl relative z-10">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div className="max-w-2xl text-center lg:text-left animate-fade-in-up">
+                <div className="flex items-center justify-center lg:justify-start gap-3 mb-8">
+                  <div className="p-2.5 bg-swar-primary text-white rounded-xl shadow-lg shadow-swar-primary/20">
+                    <Globe size={24} />
+                  </div>
+                  <span className="text-sm font-extrabold tracking-[0.2em] uppercase text-swar-primary">{translations.globalReach[language]}</span>
+                </div>
+                
+                <h1 className="text-6xl md:text-8xl font-black mb-8 text-swar-text tracking-tighter leading-[0.9]">
+                  {translations.pageTitle[language.split('-')[0] as 'en' | 'hi' | 'mr'] || translations.pageTitle['en']}
+                </h1>
+                
+                <p className="text-xl md:text-2xl text-swar-text-secondary leading-relaxed mb-10 font-medium">
+                  {translations.pageSubtitle[language.split('-')[0] as 'en' | 'hi' | 'mr'] || translations.pageSubtitle['en']}
+                </p>
+
+                {/* Reader Stats */}
+                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 mb-12">
+                  <div className="flex -space-x-3">
+                    {[1,2,3,4].map(i => (
+                      <div key={i} className="w-12 h-12 rounded-full border-4 border-white bg-gray-100 flex items-center justify-center overflow-hidden shadow-md">
+                         <img src={`https://i.pravatar.cc/100?img=${i+20}`} alt="Reader" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="h-10 w-px bg-gray-200 hidden sm:block" />
+                  <div>
+                    <div className="text-swar-text font-black text-xl">5,240+</div>
+                    <div className="text-swar-text-tertiary text-xs uppercase tracking-widest font-bold">Monthly Readers</div>
+                  </div>
+                </div>
+
+                {/* Language Selector */}
+                <div className="flex flex-wrap gap-4 items-center justify-center lg:justify-start">
+                  <div className="flex items-center gap-2 p-1.5 bg-swar-bg border border-swar-primary/10 rounded-[2rem] shadow-inner">
+                    {(['en', 'hi', 'mr'] as const).map(lang => (
+                      <button
+                        key={lang}
+                        onClick={() => setLanguage(lang)}
+                        className={`px-8 py-2.5 rounded-[1.5rem] font-bold transition-all duration-300 text-sm ${
+                          language === lang
+                            ? 'bg-white text-swar-primary shadow-md scale-105'
+                            : 'bg-transparent text-swar-text-secondary hover:text-swar-primary'
+                        }`}
+                      >
+                        {lang === 'en' ? 'English' : lang === 'hi' ? 'हिंदी' : 'मराठी'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              
-              <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-                {translations.pageTitle[language]}
-              </h1>
-              
-              <p className="text-xl text-swar-primary-light mb-8 leading-relaxed max-w-2xl">
-                {translations.pageSubtitle[language]}
-              </p>
 
-              <p className="text-base text-swar-primary-light opacity-95 max-w-2xl leading-relaxed mb-8">
-                {translations.pageDesc[language]}
-              </p>
-
-              {/* Language Selector */}
-              <div className="flex flex-wrap gap-3 items-center">
-                <span className="text-sm font-semibold text-swar-primary-light">Read in:</span>
-                {(['en', 'hi', 'mr'] as const).map(lang => (
-                  <button
-                    key={lang}
-                    onClick={() => setLanguage(lang)}
-                    className={`px-5 py-2 rounded-full font-semibold transition-all duration-300 ${
-                      language === lang
-                        ? 'bg-white text-swar-primary shadow-lg scale-105'
-                        : 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white border border-white border-opacity-30'
-                    }`}
-                  >
-                    {lang === 'en' ? '🇬🇧 English' : lang === 'hi' ? '🇮🇳 हिंदी' : '🇮🇳 मराठी'}
-                  </button>
-                ))}
+              {/* Visual Side */}
+              <div className="relative hidden lg:block animate-fade-in-right">
+                <div className="relative z-10 aspect-[4/5] rounded-[3rem] overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] rotate-2 hover:rotate-0 transition-transform duration-700 border-8 border-white">
+                  <img
+                    src="https://images.pexels.com/photos/2908984/pexels-photo-2908984.jpeg"
+                    alt="Ancient Wisdom"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                </div>
+                {/* Decorative floating card */}
+                <div className="absolute -bottom-10 -left-10 z-20 bg-white p-6 rounded-3xl shadow-2xl border border-swar-primary/10 animate-soft-pulse">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-swar-accent/20 p-3 rounded-2xl text-swar-accent">
+                      <Tag size={28} />
+                    </div>
+                    <div>
+                      <div className="text-swar-text font-black text-lg">New Wisdom</div>
+                      <div className="text-swar-text-tertiary text-xs font-bold uppercase tracking-widest">Added Weekly</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Search & Filter Section */}
-        <section className="relative z-20 px-4 -mt-8 pb-8">
-          <div className="container mx-auto">
-            <div className="grid md:grid-cols-3 gap-4">
-              {/* Search Bar */}
-              <div className="md:col-span-2">
-                <div className="relative">
-                  <Search className="absolute left-4 top-4 text-slate-400" size={20} />
+        {/* NEW: Dynamic Command Center (Search & Category) */}
+        <section className="relative z-20 px-4 -mt-10 pb-8">
+          <div className="container mx-auto max-w-7xl">
+            <div className="bg-white/80 backdrop-blur-2xl rounded-[3rem] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.1)] border border-white/50 p-4 md:p-6 animate-fade-in-up">
+              <div className="flex flex-col lg:flex-row items-center gap-6">
+                {/* Search - Integrated Style */}
+                <div className="w-full lg:w-1/3 relative group">
+                  <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
+                    <Search className="text-swar-primary transition-transform group-focus-within:scale-110" size={20} />
+                  </div>
                   <input
                     type="text"
                     placeholder={translations.search[language]}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-swar-primary focus:border-transparent bg-white shadow-lg transition"
+                    className="w-full pl-16 pr-8 py-5 bg-swar-bg/50 border-2 border-transparent focus:border-swar-primary/20 rounded-[2rem] focus:bg-white transition-all text-swar-text font-bold placeholder:text-swar-text-tertiary shadow-inner"
                   />
                 </div>
-              </div>
 
-              {/* Category Filter */}
-              <div className="md:col-span-1">
-                <select
-                  value={selectedCategory || ''}
-                  onChange={(e) => setSelectedCategory(e.target.value || null)}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-swar-primary focus:border-transparent bg-white shadow-lg transition font-medium"
-                >
-                  <option value="">{translations.allCategories[language]}</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                {/* Vertical Divider */}
+                <div className="hidden lg:block h-10 w-px bg-gray-200" />
+
+                {/* Pill Filters */}
+                <div className="flex-1 w-full overflow-x-auto no-scrollbar scroll-smooth">
+                  <div className="flex flex-nowrap items-center gap-3 py-1">
+                    <button
+                      onClick={() => setSelectedCategory(null)}
+                      className={`px-8 py-3.5 rounded-[1.5rem] font-black text-sm transition-all whitespace-nowrap ${
+                        !selectedCategory
+                          ? 'bg-swar-primary text-white shadow-lg shadow-swar-primary/20 scale-105'
+                          : 'bg-white text-swar-text-tertiary hover:bg-swar-primary/5 hover:text-swar-primary border border-swar-primary/10'
+                      }`}
+                    >
+                      {translations.allCategories[language]}
+                    </button>
+                    {categories.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`px-8 py-3.5 rounded-[1.5rem] font-black text-sm transition-all whitespace-nowrap ${
+                          selectedCategory === cat
+                            ? 'bg-swar-primary text-white shadow-lg shadow-swar-primary/20 scale-105'
+                            : 'bg-white text-swar-text-tertiary hover:bg-swar-primary/5 hover:text-swar-primary border border-swar-primary/10'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Featured Article - Enhanced */}
+        {/* Featured Article - High Impact */}
         {featuredPost && (
-          <section className="py-16 px-4">
+          <section className="py-20 px-4 relative">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-swar-accent/5 rounded-full blur-[100px] -z-10" />
             <div className="container mx-auto">
-              <div className="mb-6">
-                <span className="inline-flex items-center gap-2 text-swar-primary font-bold text-sm tracking-widest uppercase">
-                  <Tag size={16} />
-                  {translations.featured[language]}
-                </span>
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                <div>
+                  <div className="inline-flex items-center gap-3 py-1.5 px-6 rounded-full bg-swar-primary/10 text-swar-primary font-black text-xs mb-4 tracking-[0.25em] uppercase border border-swar-primary/20">
+                    <span className="animate-pulse w-2 h-2 rounded-full bg-swar-primary" />
+                    {translations.featured[language]}
+                  </div>
+                  <h2 className="text-4xl md:text-5xl font-black text-swar-text tracking-tight">Today's Highlight</h2>
+                </div>
+                <div className="hidden md:block">
+                  <Link href="#all-articles" className="text-swar-text-tertiary font-bold hover:text-swar-primary transition-colors flex items-center gap-2 uppercase tracking-widest text-xs">
+                    View All Insight <ArrowRight size={14} />
+                  </Link>
+                </div>
               </div>
 
-              <div className="bg-white rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 border border-slate-100">
+              <div className="group relative bg-white rounded-[4rem] overflow-hidden shadow-[0_40px_80px_-24px_rgba(0,0,0,0.12)] border border-swar-primary/5 hover:shadow-[0_48px_96px_-24px_rgba(0,0,0,0.18)] transition-all duration-700">
                 <div className="grid lg:grid-cols-2 gap-0">
-                  {/* Image */}
-                  <div className="relative h-96 lg:h-full overflow-hidden bg-gradient-to-br from-swar-primary-light to-slate-200">
+                  {/* Visual Side */}
+                  <div className="relative h-[30rem] lg:h-auto overflow-hidden">
                     <img
                       src={featuredPost.image}
                       alt={featuredPost.title[language]}
-                      className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ease-out"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-20"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-swar-text/60 via-transparent to-transparent opacity-60" />
+                    
+                    {/* Floating Info */}
+                    <div className="absolute bottom-10 left-10 right-10 flex items-center justify-between">
+                       <div className="flex items-center gap-4 bg-white/20 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/30">
+                          <Clock size={20} className="text-white" />
+                          <span className="text-white font-black text-sm uppercase tracking-widest">{featuredPost.readTime[language]}</span>
+                       </div>
+                    </div>
                   </div>
 
-                  {/* Content */}
-                  <div className="p-8 lg:p-12 flex flex-col justify-between bg-gradient-to-br from-white to-slate-50">
-                    <div>
-                      <div className="mb-6 inline-block">
-                        <span className="bg-gradient-to-r from-swar-primary to-emerald-600 text-white px-4 py-2 rounded-full text-sm font-semibold">
-                          {featuredPost.category}
-                        </span>
-                      </div>
-
-                      <h2 className="text-4xl font-bold text-slate-900 mb-6 leading-tight">
-                        {featuredPost.title[language]}
-                      </h2>
-
-                      <p className="text-slate-600 text-lg leading-relaxed mb-8">
-                        {featuredPost.excerpt[language]}
-                      </p>
+                  {/* Text Side */}
+                  <div className="p-10 lg:p-20 flex flex-col justify-center bg-white relative">
+                    <div className="absolute top-0 right-0 p-10 hidden lg:block">
+                      <div className="w-20 h-20 border-r-4 border-t-4 border-swar-primary/10 rounded-tr-[2rem]" />
                     </div>
 
-                    <div>
-                      <div className="flex flex-wrap gap-6 text-sm text-slate-600 mb-8 pb-8 border-b border-slate-200">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-swar-primary to-emerald-600"></div>
-                          <span className="font-semibold text-slate-900">{featuredPost.author}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar size={18} className="text-swar-primary" />
-                          <span>{new Date(featuredPost.date).toLocaleDateString(language === 'en' ? 'en-US' : language === 'hi' ? 'hi-IN' : 'mr-IN')}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock size={18} className="text-swar-primary" />
-                          <span>{featuredPost.readTime[language]}</span>
-                        </div>
-                      </div>
+                    <div className="mb-8">
+                      <span className="bg-swar-primary text-white px-8 py-3 rounded-2xl text-xs font-black tracking-[0.1em] uppercase shadow-lg shadow-swar-primary/20">
+                        {featuredPost.category}
+                      </span>
+                    </div>
 
+                    <h2 className="text-4xl md:text-6xl font-black text-swar-text mb-8 leading-[0.9] tracking-tighter">
+                      {featuredPost.title[language]}
+                    </h2>
+
+                    <p className="text-xl md:text-2xl text-swar-text-secondary leading-relaxed mb-12 font-medium">
+                      {featuredPost.excerpt[language]}
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-10">
                       <Link
                         href={`/blog/${featuredPost.slug}`}
-                        className="inline-flex items-center gap-3 bg-gradient-to-r from-swar-primary to-emerald-600 hover:from-swar-primary hover:to-teal-700 text-white px-8 py-4 rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                        className="bg-swar-text hover:bg-swar-primary text-white px-12 py-5 rounded-3xl transition-all duration-500 font-black shadow-2xl hover:shadow-swar-primary/30 transform hover:-translate-y-1 active:scale-95 group/btn flex items-center gap-4"
                       >
                         {translations.readMore[language]}
-                        <ArrowRight size={20} />
+                        <ArrowRight size={22} className="group-hover/btn:translate-x-2 transition-transform" />
                       </Link>
+
+                      <div className="flex items-center gap-4">
+                        <img 
+                          src="https://i.pravatar.cc/100?img=12" 
+                          className="w-14 h-14 rounded-2xl object-cover border-2 border-swar-bg shadow-md" 
+                          alt={featuredPost.author} 
+                        />
+                        <div>
+                          <p className="text-swar-text font-black text-sm uppercase mb-0.5">{featuredPost.author}</p>
+                          <p className="text-swar-text-tertiary text-xs font-bold">{new Date(featuredPost.date).toLocaleDateString(language === 'en' ? 'en-US' : language === 'hi' ? 'hi-IN' : 'mr-IN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -324,83 +400,91 @@ export default function BlogPage() {
 
         {/* Articles Grid - Enhanced */}
         {otherPosts.length > 0 && (
-          <section className="py-20 px-4">
-            <div className="container mx-auto">
-              <div className="mb-12">
-                <h3 className="text-4xl font-bold text-slate-900 mb-3">{translations.latestArticles[language]}</h3>
-                <div className="w-16 h-1 bg-gradient-to-r from-swar-primary to-emerald-600 rounded-full"></div>
+          <section id="all-articles" className="py-24 px-4 bg-swar-bg/30">
+            <div className="container mx-auto max-w-7xl">
+              <div className="mb-20 flex flex-col md:flex-row md:items-end md:justify-between gap-8 border-b border-swar-primary/10 pb-12">
+                <div className="max-w-2xl">
+                  <span className="text-swar-primary font-black text-xs tracking-[0.3em] uppercase mb-4 block">EXPLORE THE ARCHIVE</span>
+                  <h3 className="text-5xl md:text-7xl font-black text-swar-text leading-[0.9] tracking-tighter">
+                    {translations.latestArticles[language]}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full border border-swar-primary/20 flex items-center justify-center text-swar-primary">
+                    <Search size={20} />
+                  </div>
+                  <span className="text-swar-text-tertiary font-bold uppercase tracking-widest text-[10px]">Filtering {filteredPosts.length} Insights</span>
+                </div>
               </div>
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
                 {otherPosts.map(post => (
                   <article
                     key={post.id}
-                    className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-500 flex flex-col border border-slate-100 hover:border-swar-primary hover:-translate-y-2"
+                    className="group flex flex-col bg-white rounded-[3.5rem] overflow-hidden shadow-sm hover:shadow-[0_64px_96px_-32px_rgba(30,127,67,0.15)] transition-all duration-700 border border-swar-primary/5 hover:-translate-y-4"
                   >
-                    {/* Image Container */}
-                    <div className="relative h-56 overflow-hidden bg-gradient-to-br from-swar-primary-light to-slate-200">
+                    {/* Visual Container */}
+                    <div className="relative h-72 overflow-hidden">
                       <img
                         src={post.image}
                         alt={post.title[language]}
-                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ease-out"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 hover:opacity-30 transition-opacity duration-500"></div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-swar-text/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                       
-                      {/* Category Badge */}
-                      <div className="absolute top-4 right-4">
-                        <span className="bg-white text-swar-primary px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg">
+                      {/* Floating Meta */}
+                      <div className="absolute top-8 left-8">
+                        <span className="bg-white/95 backdrop-blur-xl text-swar-primary px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] shadow-2xl">
                           {post.category}
                         </span>
                       </div>
+                      
+                      {/* Quick Read Button Overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-4 group-hover:translate-y-0">
+                        <div className="bg-white text-swar-text p-5 rounded-full shadow-2xl">
+                          <ArrowRight size={24} className="text-swar-primary" />
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Content */}
-                    <div className="p-6 flex-1 flex flex-col bg-gradient-to-b from-white to-slate-50">
-                      <h2 className="text-xl font-bold text-slate-900 mb-3 line-clamp-2 leading-tight">
+                    {/* Content Architecture */}
+                    <div className="p-10 flex-1 flex flex-col relative">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="flex items-center gap-2 text-[10px] font-black text-swar-text-tertiary uppercase tracking-widest">
+                          <Calendar size={14} className="text-swar-primary" />
+                          {new Date(post.date).toLocaleDateString(language === 'en' ? 'en-US' : language === 'hi' ? 'hi-IN' : 'mr-IN', { month: 'short', day: 'numeric' })}
+                        </div>
+                        <div className="w-1 h-1 rounded-full bg-swar-primary/30" />
+                        <div className="flex items-center gap-2 text-[10px] font-black text-swar-text-tertiary uppercase tracking-widest">
+                          <Clock size={14} className="text-swar-primary" />
+                          {post.readTime[language]}
+                        </div>
+                      </div>
+
+                      <h2 className="text-3xl font-black text-swar-text mb-6 line-clamp-2 leading-tight tracking-tight group-hover:text-swar-primary transition-colors duration-500">
                         {post.title[language]}
                       </h2>
 
-                      <p className="text-slate-600 text-sm leading-relaxed mb-4 flex-1 line-clamp-3">
+                      <p className="text-swar-text-secondary text-lg leading-relaxed mb-10 flex-1 line-clamp-3 font-medium opacity-80 group-hover:opacity-100 transition-opacity">
                         {post.excerpt[language]}
                       </p>
 
-                      {/* Meta Info */}
-                      <div className="mt-auto">
-                        <div className="flex items-center flex-wrap gap-3 text-xs text-slate-500 mb-4 pb-4 border-b border-slate-200">
-                          <div className="flex items-center gap-1">
-                            <User size={14} className="text-swar-primary" />
-                            <span className="font-medium">{post.author.split(' ')[0]}</span>
-                          </div>
-                          <span>•</span>
-                          <div className="flex items-center gap-1">
-                            <Calendar size={14} className="text-swar-primary" />
-                            <span>{new Date(post.date).toLocaleDateString(language === 'en' ? 'en-US' : language === 'hi' ? 'hi-IN' : 'mr-IN', { year: 'numeric', month: 'short' })}</span>
-                          </div>
-                          <span>•</span>
-                          <div className="flex items-center gap-1">
-                            <Clock size={14} className="text-swar-primary" />
-                            <span>{post.readTime[language]}</span>
-                          </div>
-                        </div>
-
-                        <Link
-                          href={`/blog/${post.slug}`}
-                          className="inline-flex items-center text-swar-primary hover:text-emerald-700 font-bold transition-colors duration-300 group"
-                        >
-                          {translations.readMore[language]}
-                          <ArrowRight size={16} className="ml-2 group-hover:translate-x-1 transition-transform" />
-                        </Link>
-                      </div>
+                      <Link
+                        href={`/blog/${post.slug}`}
+                        className="inline-flex items-center justify-center gap-3 w-full py-5 rounded-[2rem] border-2 border-swar-primary/10 text-swar-primary font-black uppercase tracking-widest text-xs group-hover:bg-swar-primary group-hover:text-white group-hover:border-swar-primary transition-all duration-500"
+                      >
+                        {translations.readMore[language]}
+                      </Link>
                     </div>
                   </article>
                 ))}
               </div>
 
               {otherPosts.length === 0 && (
-                <div className="text-center py-16">
-                  <MessageSquare size={48} className="mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-500 text-lg">
-                    {language === 'en' ? 'No articles found. Try adjusting your search.' : language === 'hi' ? 'कोई लेख नहीं मिला।' : 'कोणत्याही लेख सापडले नाही.'}
+                <div className="text-center py-24 bg-white rounded-[3rem] border border-swar-primary/5 shadow-sm">
+                  <MessageSquare size={56} className="mx-auto text-swar-primary/20 mb-6" />
+                  <p className="text-swar-text-tertiary text-xl font-medium">
+                    {language === 'en' ? 'No articles found.' : language === 'hi' ? 'कोई लेख नहीं मिला।' : 'कोणत्याही लेख सापडले नाही.'}
                   </p>
                 </div>
               )}
@@ -408,45 +492,49 @@ export default function BlogPage() {
           </section>
         )}
 
-        {/* Newsletter Section - Enhanced */}
-        <section className="py-20 px-4 bg-gradient-to-br from-slate-900 via-swar-primary to-emerald-700 text-white relative overflow-hidden">
-          {/* Decorative elements */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white opacity-5 rounded-full blur-3xl -mr-48 -mt-48"></div>
-          <div className="absolute bottom-0 left-0 w-80 h-80 bg-white opacity-5 rounded-full blur-3xl -ml-40 -mb-40"></div>
+        {/* Newsletter Section - Standardized with About Join section */}
+        <section className="py-24 px-4">
+          <div className="container mx-auto max-w-6xl">
+            <div className="relative rounded-[3rem] overflow-hidden bg-gradient-to-br from-swar-primary to-swar-primary-hover p-12 md:p-20 text-center text-white shadow-2xl">
+              {/* Shapes for background aesthetic */}
+              <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/5 rounded-full translate-y-1/3 -translate-x-1/4"></div>
 
-          <div className="container mx-auto max-w-2xl relative z-10">
-            <div className="text-center mb-8">
-              <h3 className="text-4xl md:text-5xl font-bold mb-4">{translations.newsletter[language]}</h3>
-              <p className="text-lg text-slate-100 leading-relaxed">{translations.newsDescription[language]}</p>
-            </div>
+              <div className="relative z-10 max-w-3xl mx-auto">
+                <h2 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">{translations.newsletter[language]}</h2>
+                <p className="text-xl md:text-2xl mb-12 text-swar-primary-light font-light leading-relaxed">
+                  {translations.newsDescription[language]}
+                </p>
 
-            <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={translations.emailPlaceholder[language]}
-                className="flex-1 px-6 py-4 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-white shadow-lg transition font-medium"
-                required
-              />
-              <button
-                type="submit"
-                disabled={subscribeLoading}
-                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-slate-400 disabled:to-slate-400 text-white px-8 py-4 rounded-xl transition-all duration-300 font-bold shadow-lg hover:shadow-xl whitespace-nowrap transform hover:scale-105 disabled:scale-100"
-              >
-                {subscribeLoading ? '...' : translations.subscribe[language]}
-              </button>
-            </form>
+                <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={translations.emailPlaceholder[language]}
+                    className="flex-1 px-8 py-5 rounded-2xl text-swar-text bg-white border-none focus:ring-4 focus:ring-white/20 shadow-xl font-bold text-lg"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={subscribeLoading}
+                    className="bg-swar-accent hover:bg-swar-accent-hover disabled:bg-gray-400 text-white px-10 py-5 rounded-2xl transition-all duration-300 font-extrabold shadow-xl hover:shadow-2xl whitespace-nowrap transform hover:-translate-y-1 active:scale-95 disabled:scale-100 uppercase tracking-widest text-sm"
+                  >
+                    {subscribeLoading ? '...' : translations.subscribe[language]}
+                  </button>
+                </form>
 
-            {subscribeMessage && (
-              <div className={`mt-4 text-center text-sm font-semibold ${subscribeMessage.includes('✓') ? 'text-green-300' : 'text-red-300'}`}>
-                {subscribeMessage}
+                {subscribeMessage && (
+                  <div className={`mt-6 text-center text-lg font-bold ${subscribeMessage.includes('✓') ? 'text-green-300' : 'text-red-300'}`}>
+                    {subscribeMessage}
+                  </div>
+                )}
+
+                <p className="text-center text-sm text-swar-primary-light mt-8 opacity-80">
+                  {language === 'en' ? 'Join over 10,000+ wellness enthusiasts worldwide' : language === 'hi' ? '10,000+ कल्याण उत्साही लोगों के साथ जुड़ें' : '10,000+ कल्याण उत्साही लोगांसह जोडा'}
+                </p>
               </div>
-            )}
-
-            <p className="text-center text-sm text-slate-100 mt-6 opacity-80">
-              {language === 'en' ? 'Join over 10,000+ wellness enthusiasts worldwide' : language === 'hi' ? '10,000+ कल्याण उत्साही लोगों के साथ जुड़ें' : '10,000+ कल्याण उत्साही लोगांसह जोडा'}
-            </p>
+            </div>
           </div>
         </section>
       </main>

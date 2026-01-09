@@ -296,6 +296,7 @@ const communitySchema = new mongoose.Schema({
   id: { type: String, index: true },
   name: { type: String, required: true, index: true },
   description: { type: String, default: '' },
+  joinLink: { type: String, default: '' },
   // Store user ids as strings (JWT userId is typically a stringified ObjectId)
   members: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
@@ -322,6 +323,10 @@ const communityPostSchema = new mongoose.Schema({
   userId: { type: String, required: true, index: true },
   content: { type: String, required: true },
   images: { type: [String], default: [] },
+  videos: { type: [String], default: [] },
+  documents: { type: [String], default: [] },
+  links: { type: [String], default: [] },
+  type: { type: String, enum: ['text', 'image', 'video', 'document', 'link'], default: 'text' },
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   likes: { type: [String], default: [] },
   comments: { type: [communityCommentSchema], default: [] },

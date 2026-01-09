@@ -1,7 +1,6 @@
 /**
  * POST /api/admin/crm/templates/upload
- * File upload endpoint for template media (images, documents)
- * Videos are URL-only, not uploaded as files
+ * File upload endpoint for template media (images, documents, videos)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -38,9 +37,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!fileType || !['image', 'document'].includes(fileType)) {
+    if (!fileType || !['image', 'document', 'video'].includes(fileType)) {
       return NextResponse.json(
-        { error: 'Invalid fileType: must be "image" or "document"' },
+        { error: 'Invalid fileType: must be "image", "video" or "document"' },
         { status: 400 }
       );
     }
@@ -60,7 +59,7 @@ export async function POST(request: NextRequest) {
     const validation = validateTemplateFile(
       fileBuffer,
       mimeType,
-      fileType as 'image' | 'document'
+      fileType as 'image' | 'document' | 'video'
     );
 
     if (!validation.valid) {
@@ -75,7 +74,7 @@ export async function POST(request: NextRequest) {
       file: fileBuffer,
       fileName: file.name,
       mimeType: mimeType,
-      fileType: fileType as 'image' | 'document',
+      fileType: fileType as 'image' | 'document' | 'video',
       templateId: templateId,
     });
 

@@ -27,7 +27,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'yogasana-sadhana': {
     name: 'Yogasana & Sadhana',
     slug: 'yogasana-sadhana',
-    image: 'https://images.unsplash.com/photo-1588286840104-8957b019727f?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=800',
     description: 'A complete yogasana and sadhana practice program for disciplined daily growth.',
     detailedDescription: 'Master the fundamental yogasanas and integrate them into a daily sadhana (spiritual practice) that transforms your body, mind, and spirit. This comprehensive program covers classical yoga postures combined with breathing techniques and meditation. You will develop strength, flexibility, and inner awareness through consistent daily practice. Perfect for beginners and experienced practitioners seeking to deepen their practice. This program has helped thousands achieve better health, mental clarity, and spiritual growth.',
     videoUrl: 'https://www.youtube.com/embed/mzYKqFxYzQU',
@@ -41,7 +41,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'swar-yoga-level-1': {
     name: 'Swar Yoga Level-1 Workshop',
     slug: 'swar-yoga-level-1',
-    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     description: 'First level comprehensive Swar Yoga training',
     detailedDescription: 'Unlock the ancient science of Swar Yoga and learn how to balance your body, mind, and energy through nasal breathing techniques. Level-1 introduces the fundamentals of alternating nostrils and their effects on consciousness. This workshop teaches you to harness the natural rhythm of your breath to improve health, energy levels, and decision-making abilities. Participants learn practical techniques that can be applied immediately in daily life for enhanced vitality and mental clarity.',
     videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
@@ -55,7 +55,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'swar-yoga-level-2': {
     name: 'Swar Yoga Level-2 Workshop',
     slug: 'swar-yoga-level-2',
-    image: 'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=800',
     description: 'Advanced Swar Yoga for wealth creation and prosperity',
     detailedDescription: 'Build on Level-1 foundations with advanced Swar Yoga techniques specifically designed for wealth creation, prosperity, and success. Learn the deeper principles of lunar and solar energy cycles and how to align them with your intentions. This advanced workshop reveals ancient secrets used by successful entrepreneurs and leaders. Master timing for important decisions, business launches, and personal goals aligned with natural cycles.',
     videoUrl: 'https://www.youtube.com/embed/5nqVXQG9Mvk',
@@ -69,7 +69,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'swar-yoga-youth': {
     name: 'Swar Yoga Youth Program',
     slug: 'swar-yoga-youth',
-    image: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=800',
     description: 'Specially designed for young practitioners',
     detailedDescription: 'A modern, engaging approach to Swar Yoga specifically tailored for young adults and teenagers. This program addresses common challenges like stress, focus issues, and confidence using ancient yoga science combined with contemporary understanding. Youth learn practical tools to excel in academics, sports, and relationships. Interactive, fun, and results-driven approach makes ancient wisdom accessible to today\'s generation.',
     videoUrl: 'https://www.youtube.com/embed/xm1h7KLhBNM',
@@ -83,7 +83,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'weight-loss': {
     name: 'Weight Loss Program',
     slug: 'weight-loss',
-    image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=800',
     description: 'Transform your body through Swar Yoga',
     detailedDescription: 'Achieve sustainable weight loss without restrictive diets using the holistic Swar Yoga approach. This program combines specialized breathing techniques, movement practices, and metabolic optimization. Learn how to activate your natural fat-burning mechanisms and maintain ideal weight long-term. Includes nutrition guidance aligned with your individual constitution and energy patterns.',
     videoUrl: 'https://www.youtube.com/embed/cklZSXAWA5U',
@@ -97,9 +97,9 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   meditation: {
     name: 'Meditation Program',
     slug: 'meditation',
-    image: 'https://images.unsplash.com/photo-1496886445473-541e9f60cf53?w=500&h=600&fit=crop',
-    description: 'Deep meditation and mindfulness training',
-    detailedDescription: 'Journey into profound states of meditation and inner peace through scientifically-backed techniques. This program progressively develops your meditation capacity, from basic mindfulness to advanced states of consciousness. Experience reduced stress, enhanced focus, and spiritual connection. Daily guided practices combined with theory helps you understand the mechanics of mind and meditation.',
+    image: 'https://images.unsplash.com/photo-1545641203-7d072a14e3b2?auto=format&fit=crop&q=80&w=800',
+    description: 'Deep meditation and mindfulness training inspired by the Buddha.',
+    detailedDescription: 'Journey into profound states of meditation and inner peace through techniques inspired by the serene stillness of the Buddha. This program progressively develops your meditation capacity, from basic mindfulness to advanced states of consciousness. Experience reduced stress, enhanced focus, and spiritual connection. Daily guided practices combined with theory helps you understand the mechanics of mind and meditation.',
     videoUrl: 'https://www.youtube.com/embed/T3qQdIj7f0Y',
     duration: '15 days',
     level: 'All Levels',
@@ -111,7 +111,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'amrut-aahar': {
     name: 'Amrut Aahar Program',
     slug: 'amrut-aahar',
-    image: 'https://images.unsplash.com/photo-1505576399279-565b52ce32f0?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=800',
     description: 'Complete natural diet and nutrition guidance',
     detailedDescription: 'Discover the science of optimal nutrition and how to nourish your body for maximum vitality and longevity. Amrut Aahar means "nectar food" - learn which foods truly nourish and heal your unique constitution. This program covers seasonal eating, food combinations, digestion optimization, and natural remedies. Transform your eating habits into a path of health and enlightenment.',
     videoUrl: 'https://www.youtube.com/embed/9uWo6Av2Qcg',
@@ -125,8 +125,8 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   astavakra: {
     name: 'Astavakra Dhyan Level-3',
     slug: 'astavakra',
-    image: 'https://images.unsplash.com/photo-1506131082519-3f2b69ce5a8a?w=500&h=600&fit=crop',
-    description: 'Level-3 advanced meditation and wisdom',
+    image: 'https://images.unsplash.com/photo-1502101872923-d48509bff386?auto=format&fit=crop&q=80&w=800',
+    description: 'Level-3 advanced meditation and wisdom drawing from the Astavakra Gita.',
     detailedDescription: 'The highest level of advanced meditation practice drawing from the Astavakra Gita teachings. This intensive residential program guides seekers into transcendent states of consciousness and self-realization. Only for those who have completed prerequisite levels. Experience non-dual awareness and the ultimate truths of existence through direct practice and transmission from the master.',
     videoUrl: 'https://www.youtube.com/embed/L3GGhK65iEw',
     duration: '10 days',
@@ -139,7 +139,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'pre-pregnancy': {
     name: 'Pre Pregnancy Program',
     slug: 'pre-pregnancy',
-    image: 'https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=800',
     description: 'Safe yoga practice for expecting mothers',
     detailedDescription: 'A specially designed program for expectant mothers that ensures safe, effective yoga practice throughout pregnancy. Learn techniques to reduce pregnancy discomfort, prepare for childbirth naturally, and maintain emotional wellbeing. Includes gentle movements, breathing practices, and meditation designed specifically for pregnant women. Reduces anxiety, improves sleep, and promotes healthy development of the baby.',
     videoUrl: 'https://www.youtube.com/embed/y90cV_3OMrQ',
@@ -153,7 +153,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'swy-children': {
     name: 'Swar Yoga Children Program',
     slug: 'swy-children',
-    image: 'https://images.unsplash.com/photo-1503454537688-e0dac4d27609?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1476703993599-0035a260f381?auto=format&fit=crop&q=80&w=800',
     description: 'Yoga training for children and teenagers',
     detailedDescription: 'Introduce children to yoga with fun, engaging, and age-appropriate practices. This program helps kids develop focus, confidence, physical strength, and emotional intelligence. Through games, stories, and interactive practices, children learn ancient wisdom in a modern, relatable way. Reduces hyperactivity, improves concentration for studies, and builds character.',
     videoUrl: 'https://www.youtube.com/embed/8HWaFGJz6Yw',
@@ -167,9 +167,9 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'complete-health': {
     name: 'Complete Health Program',
     slug: 'complete-health',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1519824141121-99767218abb2?auto=format&fit=crop&q=80&w=800',
     description: 'Holistic cure for BP, diabetes, heart, liver, kidney, migraine & hormonal balance',
-    detailedDescription: 'A comprehensive holistic healing program addressing all major health conditions including hypertension, diabetes, heart disease, liver and kidney issues, migraines, and hormonal imbalances. Using ancient yoga science combined with modern health understanding, this program facilitates natural healing and reversal of chronic diseases. Participants report significant improvement in symptoms, reduced medication dependency, and restored vitality.',
+    detailedDescription: 'A comprehensive holistic healing program addressing all major health conditions including hypertension, diabetes, heart disease, liver and kidney issues, migraines, and hormonal imbalances. This program integrates therapeutic massage, dietary changes, and specialized breathing to facilitate natural healing. Participants report significant improvement in symptoms and restored vitality.',
     videoUrl: 'https://www.youtube.com/embed/5jvJY-I7Vug',
     duration: '45 days',
     level: 'All Levels',
@@ -181,7 +181,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'corporate-swy': {
     name: 'Corporate Swar Yoga Management',
     slug: 'corporate-swy',
-    image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&q=80&w=800',
     description: 'Stress management and productivity for corporate professionals',
     detailedDescription: 'Tailored for corporate leaders and professionals, this program teaches practical techniques to manage stress, make better decisions, and boost productivity. Learn how to use Swar Yoga for strategic timing, negotiation success, and team management. Applicable immediately in business contexts with measurable results in performance and wellbeing.',
     videoUrl: 'https://www.youtube.com/embed/9_OLxmZzcNQ',
@@ -195,9 +195,9 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'self-awareness': {
     name: 'Self Awareness Level-4',
     slug: 'self-awareness',
-    image: 'https://images.unsplash.com/photo-1516762898482-f30e71e31c43?w=500&h=600&fit=crop',
-    description: 'Ultimate self-discovery and spiritual transformation',
-    detailedDescription: 'The pinnacle of self-discovery and spiritual transformation through intensive residential practice. This advanced Level-4 program facilitates profound shifts in consciousness and understanding of one\'s true nature. Experience direct realization of your authentic self beyond ego and conditioning. Suitable only for advanced practitioners committed to radical transformation.',
+    image: 'https://images.unsplash.com/photo-1599447421416-3414500d18a5?auto=format&fit=crop&q=80&w=800',
+    description: 'Ultimate self-discovery following the path of Adi Shankaracharya.',
+    detailedDescription: 'The pinnacle of self-discovery and spiritual transformation through intensive residential practice. This advanced Level-4 program follows the non-dualistic (Advaita) path of Adi Shankaracharya, facilitating profound shifts in consciousness and understanding of one\'s true nature. Experience direct realization of your authentic self beyond ego and conditioning. Suitable only for advanced practitioners committed to radical transformation.',
     videoUrl: 'https://www.youtube.com/embed/GNNmCPBSyv8',
     duration: '30 days',
     level: 'Advanced',
@@ -209,7 +209,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'happy-marriage': {
     name: 'Happy Married Life',
     slug: 'happy-marriage',
-    image: 'https://images.unsplash.com/photo-1552674605-5defe6aa44bb?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?auto=format&fit=crop&q=80&w=800',
     description: 'Transform your married life with Swar Yoga techniques',
     detailedDescription: 'Revitalize your married life using proven Swar Yoga techniques that enhance compatibility, communication, and intimacy. Learn how to align with your partner\'s natural rhythms and create harmonious relationships. This program addresses common marriage challenges and provides practical tools for couples. Transform conflict into connection and deepen the bonds of love.',
     videoUrl: 'https://www.youtube.com/embed/gNbVlsGXe3M',
@@ -223,7 +223,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'gurukul-training': {
     name: 'Gurukul Teachers Training',
     slug: 'gurukul-training',
-    image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&q=80&w=800',
     description: 'Comprehensive teacher training program in traditional Gurukul style',
     detailedDescription: 'Become a master teacher in the traditional Gurukul education system. This 90-day intensive residential program transmits the complete knowledge and skills needed to teach Swar Yoga and yoga science at the highest level. Includes extensive mentorship, practice, and teaching methodology. Produces qualified teachers capable of spreading these transformative teachings worldwide.',
     videoUrl: 'https://www.youtube.com/embed/XQ6MYL_rKgE',
@@ -237,7 +237,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'swy-teacher': {
     name: 'Swar Yoga Teachers Training',
     slug: 'swy-teacher',
-    image: 'https://images.unsplash.com/photo-1434737512033-ed2a68ad34f5?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?auto=format&fit=crop&q=80&w=800',
     description: 'Become a certified Swar Yoga teacher and trainer',
     detailedDescription: 'Get certified to teach Swar Yoga to others and build a meaningful career. This comprehensive program covers theory, practice, teaching methodology, and business aspects. Learn how to effectively communicate these ancient techniques to modern practitioners. This certification is globally recognized and opens doors to teaching opportunities worldwide.',
     videoUrl: 'https://www.youtube.com/embed/7qTSVzR6gIc',
@@ -251,7 +251,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   'gurukul-organiser-training': {
     name: 'Gurukul Organiser Training',
     slug: 'gurukul-organiser-training',
-    image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=500&h=600&fit=crop',
+    image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800',
     description: 'Training program to build organisers who can manage and grow Gurukul systems.',
     detailedDescription: 'Learn to organize and manage Gurukul education centers and yoga programs. This training develops leadership skills, business acumen, and deep knowledge needed to establish sustainable yoga and wellness centers. Includes curriculum design, student management, staff training, and financial planning for yoga enterprises.',
     videoUrl: 'https://www.youtube.com/embed/mTVVNGMBx0Q',
@@ -265,9 +265,9 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
   naturopathy: {
     name: 'Naturopathy Treatment Program',
     slug: 'naturopathy',
-    image: 'https://images.unsplash.com/photo-1506784365847-bbad151ef362?w=500&h=600&fit=crop',
-    description: 'Complete natural healing and naturopathy treatment protocols',
-    detailedDescription: 'Master the ancient art and science of natural healing through this comprehensive naturopathy program. Learn to diagnose imbalances and apply natural treatments including herbs, diet, water therapy, and lifestyle modifications. This residential program teaches you to facilitate deep healing without pharmaceuticals. Ideal for practitioners seeking alternative medicine credentials.',
+    image: 'https://images.unsplash.com/photo-1620733321588-2f0851f50a49?auto=format&fit=crop&q=80&w=800',
+    description: 'Complete natural healing with Shirodhara and traditional treatments.',
+    detailedDescription: 'Master the ancient art and science of natural healing. This program includes intensive Shirodhara sessions, therapeutic massages, and holistic detoxification in a traditional residential setting.',
     videoUrl: 'https://www.youtube.com/embed/nGNnVhEhjPg',
     duration: '7 days',
     level: 'All Levels',
@@ -310,7 +310,7 @@ export const workshopDetails: Record<string, WorkshopDetail> = {
   'basic-workshop-50': {
     id: 999,
     name: 'Basic Workshop (₹50 Test)',
-    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=800',
     duration: '1 day',
     level: 'All Levels',
     price: '₹50',
@@ -330,63 +330,31 @@ export const workshopDetails: Record<string, WorkshopDetail> = {
   'swar-yoga-basic': {
     id: 1,
     name: 'Swar Yoga Basic Workshop',
-    image: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     duration: '3 days',
     level: 'Beginner',
     price: '₹2,999',
     schedules: [
-      { id: 'o1', mode: 'online', startDate: '2025-01-15', endDate: '2025-01-17', time: '6:00 AM - 8:00 AM', seats: 50, price: 2999, currency: 'INR' },
-      { id: 'o2', mode: 'online', startDate: '2025-02-10', endDate: '2025-02-12', time: '6:00 AM - 8:00 AM', seats: 50, price: 2999, currency: 'INR' },
-      { id: 'o3', mode: 'online', startDate: '2025-03-05', endDate: '2025-03-07', time: '5:00 PM - 7:00 PM', seats: 45, price: 2999, currency: 'INR' },
-      { id: 'o4', mode: 'online', startDate: '2025-04-12', endDate: '2025-04-14', time: '6:00 AM - 8:00 AM', seats: 50, price: 2999, currency: 'INR' },
-      { id: 'o5', mode: 'online', startDate: '2025-05-20', endDate: '2025-05-22', time: '5:00 PM - 7:00 PM', seats: 40, price: 2999, currency: 'INR' },
-      { id: 'o6', mode: 'online', startDate: '2025-06-15', endDate: '2025-06-17', time: '6:00 AM - 8:00 AM', seats: 50, price: 2999, currency: 'INR' },
-      { id: 'of1', mode: 'offline', startDate: '2025-01-20', endDate: '2025-01-22', time: '7:00 AM - 9:00 AM', seats: 30, price: 3999, currency: 'INR', location: 'Mumbai Center' },
-      { id: 'of2', mode: 'offline', startDate: '2025-02-15', endDate: '2025-02-17', time: '7:00 AM - 9:00 AM', seats: 28, price: 3999, currency: 'INR', location: 'Delhi Center' },
-      { id: 'of3', mode: 'offline', startDate: '2025-03-10', endDate: '2025-03-12', time: '6:00 AM - 8:00 AM', seats: 25, price: 3999, currency: 'INR', location: 'Bangalore Center' },
-      { id: 'of4', mode: 'offline', startDate: '2025-04-18', endDate: '2025-04-20', time: '7:00 AM - 9:00 AM', seats: 30, price: 3999, currency: 'INR', location: 'Mumbai Center' },
-      { id: 'of5', mode: 'offline', startDate: '2025-05-25', endDate: '2025-05-27', time: '6:00 AM - 8:00 AM', seats: 22, price: 3999, currency: 'INR', location: 'Delhi Center' },
-      { id: 'of6', mode: 'offline', startDate: '2025-06-20', endDate: '2025-06-22', time: '7:00 AM - 9:00 AM', seats: 30, price: 3999, currency: 'INR', location: 'Bangalore Center' },
-      { id: 'r1', mode: 'residential', startDate: '2025-01-25', endDate: '2025-01-27', time: 'Full Day', seats: 20, price: 5999, currency: 'INR', location: 'Rishikesh Ashram' },
-      { id: 'r2', mode: 'residential', startDate: '2025-02-22', endDate: '2025-02-24', time: 'Full Day', seats: 18, price: 5999, currency: 'INR', location: 'Goa Retreat Center' },
-      { id: 'r3', mode: 'residential', startDate: '2025-03-18', endDate: '2025-03-20', time: 'Full Day', seats: 20, price: 5999, currency: 'INR', location: 'Rishikesh Ashram' },
-      { id: 'r4', mode: 'residential', startDate: '2025-04-25', endDate: '2025-04-27', time: 'Full Day', seats: 15, price: 5999, currency: 'INR', location: 'Goa Retreat Center' },
-      { id: 'r5', mode: 'residential', startDate: '2025-05-30', endDate: '2025-06-01', time: 'Full Day', seats: 20, price: 5999, currency: 'INR', location: 'Rishikesh Ashram' },
+      // ...existing code...
       { id: 'r6', mode: 'residential', startDate: '2025-06-28', endDate: '2025-06-30', time: 'Full Day', seats: 18, price: 5999, currency: 'INR', location: 'Goa Retreat Center' }
     ]
   },
   'swar-yoga-level-1': {
     id: 2,
     name: 'Swar Yoga Level-1 Workshop',
-    image: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
+    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     duration: '15 days',
     level: 'Beginner',
     price: '₹9,999',
     schedules: [
-      { id: 'o1', mode: 'online', startDate: '2026-01-06', endDate: '2026-01-21', time: '7:00 PM - 8:30 PM', seats: 60, price: 9999, currency: 'INR' },
-      { id: 'o2', mode: 'online', startDate: '2025-02-05', endDate: '2025-02-19', time: '5:00 PM - 7:00 PM', seats: 40, price: 9999, currency: 'INR' },
-      { id: 'o3', mode: 'online', startDate: '2025-03-01', endDate: '2025-03-15', time: '6:00 AM - 8:00 AM', seats: 35, price: 9999, currency: 'INR' },
-      { id: 'o4', mode: 'online', startDate: '2025-04-08', endDate: '2025-04-22', time: '5:00 PM - 7:00 PM', seats: 40, price: 9999, currency: 'INR' },
-      { id: 'o5', mode: 'online', startDate: '2025-05-15', endDate: '2025-05-29', time: '5:00 PM - 7:00 PM', seats: 38, price: 9999, currency: 'INR' },
-      { id: 'o6', mode: 'online', startDate: '2025-06-10', endDate: '2025-06-24', time: '6:00 AM - 8:00 AM', seats: 40, price: 9999, currency: 'INR' },
-      { id: 'of1', mode: 'offline', startDate: '2025-01-15', endDate: '2025-01-29', time: '7:00 AM - 9:00 AM', seats: 25, price: 12999, currency: 'INR', location: 'Mumbai Center' },
-      { id: 'of2', mode: 'offline', startDate: '2025-02-10', endDate: '2025-02-24', time: '7:00 AM - 9:00 AM', seats: 20, price: 12999, currency: 'INR', location: 'Delhi Center' },
-      { id: 'of3', mode: 'offline', startDate: '2025-03-05', endDate: '2025-03-19', time: '6:00 AM - 8:00 AM', seats: 22, price: 12999, currency: 'INR', location: 'Bangalore Center' },
-      { id: 'of4', mode: 'offline', startDate: '2025-04-12', endDate: '2025-04-26', time: '7:00 AM - 9:00 AM', seats: 25, price: 12999, currency: 'INR', location: 'Mumbai Center' },
-      { id: 'of5', mode: 'offline', startDate: '2025-05-18', endDate: '2025-06-01', time: '6:00 AM - 8:00 AM', seats: 18, price: 12999, currency: 'INR', location: 'Delhi Center' },
-      { id: 'of6', mode: 'offline', startDate: '2025-06-15', endDate: '2025-06-29', time: '7:00 AM - 9:00 AM', seats: 25, price: 12999, currency: 'INR', location: 'Bangalore Center' },
-      { id: 'r1', mode: 'residential', startDate: '2025-01-20', endDate: '2025-02-03', time: 'Full Day', seats: 15, price: 16999, currency: 'INR', location: 'Rishikesh Ashram' },
-      { id: 'r2', mode: 'residential', startDate: '2025-02-18', endDate: '2025-03-04', time: 'Full Day', seats: 12, price: 16999, currency: 'INR', location: 'Goa Retreat Center' },
-      { id: 'r3', mode: 'residential', startDate: '2025-03-22', endDate: '2025-04-05', time: 'Full Day', seats: 15, price: 16999, currency: 'INR', location: 'Rishikesh Ashram' },
-      { id: 'r4', mode: 'residential', startDate: '2025-04-28', endDate: '2025-05-12', time: 'Full Day', seats: 10, price: 16999, currency: 'INR', location: 'Goa Retreat Center' },
-      { id: 'r5', mode: 'residential', startDate: '2025-05-25', endDate: '2025-06-08', time: 'Full Day', seats: 15, price: 16999, currency: 'INR', location: 'Rishikesh Ashram' },
+      // ...existing code...
       { id: 'r6', mode: 'residential', startDate: '2025-06-22', endDate: '2025-07-06', time: 'Full Day', seats: 12, price: 16999, currency: 'INR', location: 'Goa Retreat Center' }
     ]
   },
   'swar-yoga-youth': {
     id: 3,
     name: 'Swar Yoga Youth Program',
-    image: 'https://images.pexels.com/photos/3807517/pexels-photo-3807517.jpeg',
+    image: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=800',
     duration: '10 days',
     level: 'All Levels',
     price: '₹4,999',
@@ -410,6 +378,61 @@ export const workshopDetails: Record<string, WorkshopDetail> = {
       { id: 'r5', mode: 'residential', startDate: '2025-06-02', endDate: '2025-06-11', time: 'Full Day', seats: 25, price: 8999, currency: 'INR', location: 'Rishikesh Ashram' },
       { id: 'r6', mode: 'residential', startDate: '2025-07-01', endDate: '2025-07-10', time: 'Full Day', seats: 22, price: 8999, currency: 'INR', location: 'Goa Retreat Center' }
     ]
+  },
+  'astavakra': {
+    id: 10,
+    name: 'Astavakra Dhyan Level-3',
+    image: 'https://images.unsplash.com/photo-1518191766444-14a89f16daac?auto=format&fit=crop&q=80&w=800',
+    duration: '10 days',
+    level: 'Advanced',
+    price: '₹21,000',
+    schedules: [
+      { id: 'r1', mode: 'residential', startDate: '2026-03-15', endDate: '2026-03-25', time: 'Full Day', seats: 30, price: 21000, currency: 'INR', location: 'Rishikesh Ashram' }
+    ]
+  },
+  'self-awareness': {
+    id: 11,
+    name: 'Self Awareness Level-4',
+    image: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=800',
+    duration: '30 days',
+    level: 'Advanced',
+    price: '₹35,000',
+    schedules: [
+      { id: 'r1', mode: 'residential', startDate: '2026-05-01', endDate: '2026-05-31', time: 'Full Day', seats: 20, price: 35000, currency: 'INR', location: 'Himalayan Retreat' }
+    ]
+  },
+  'meditation': {
+    id: 12,
+    name: 'Meditation Program',
+    image: 'https://images.unsplash.com/photo-1545641203-7d072a14e3b2?auto=format&fit=crop&q=80&w=800',
+    duration: '15 days',
+    level: 'All Levels',
+    price: '₹3,300',
+    schedules: [
+      { id: 'o1', mode: 'online', startDate: '2026-02-10', endDate: '2026-02-25', time: '7:00 PM - 8:30 PM', seats: 100, price: 3300, currency: 'INR' }
+    ]
+  },
+  'complete-health': {
+    id: 14,
+    name: 'Complete Health Program',
+    image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&q=80&w=800',
+    duration: '45 days',
+    level: 'All Levels',
+    price: '₹21,000',
+    schedules: [
+      { id: 'o1', mode: 'online', startDate: '2026-03-01', endDate: '2026-04-15', time: '6:30 AM - 8:00 AM', seats: 50, price: 21000, currency: 'INR' }
+    ]
+  },
+  'naturopathy': {
+    id: 13,
+    name: 'Naturopathy Treatment Program',
+    image: 'https://images.unsplash.com/photo-1620733321588-2f0851f50a49?auto=format&fit=crop&q=80&w=800',
+    duration: '7 days',
+    level: 'All Levels',
+    price: '₹11,000',
+    schedules: [
+      { id: 'r1', mode: 'residential', startDate: '2026-04-05', endDate: '2026-04-12', time: 'Full Day', seats: 20, price: 11000, currency: 'INR', location: 'Natural Healing Center' }
+    ]
   }
 };
 
@@ -427,7 +450,7 @@ export interface WorkshopLandingData {
 
 export const workshopLandingPages: Record<string, WorkshopLandingData> = {
   'yogasana-sadhana': {
-    heroImage: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/mzYKqFxYzQU',
     whatYouWillLearn: [
       'Master fundamental yogasanas with proper alignment and breathing',
@@ -457,7 +480,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Join this 21-day transformative yogasana and sadhana program. Master the ancient practices that have guided thousands to health and spiritual growth.'
   },
   'swar-yoga-level-1': {
-    heroImage: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
     whatYouWillLearn: [
       'Understand the science of alternating nostril breathing',
@@ -487,7 +510,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Begin your 15-day Swar Yoga Level-1 journey. Unlock ancient secrets for health, wealth, and success through the power of breath.'
   },
   'swar-yoga-level-2': {
-    heroImage: 'https://images.pexels.com/photos/3873033/pexels-photo-3873033.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/5nqVXQG9Mvk',
     whatYouWillLearn: [
       'Build on Level-1 foundations with advanced Swar Yoga techniques',
@@ -517,7 +540,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Advance your Swar Yoga practice with Level-2. Master wealth creation and success principles used by top performers worldwide.'
   },
   'swar-yoga-youth': {
-    heroImage: 'https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
     whatYouWillLearn: [
       'Manage stress and anxiety using proven techniques',
@@ -547,7 +570,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Transform your teenage and young adult years. Learn practical tools for stress, focus, confidence, and success in today\'s world.'
   },
   'weight-loss': {
-    heroImage: 'https://images.pexels.com/photos/1624365/pexels-photo-1624365.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/cklZSXAWA5U',
     whatYouWillLearn: [
       'Activate your natural fat-burning mechanisms',
@@ -577,13 +600,13 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Start your 90-day weight loss transformation. Achieve sustainable results using holistic Swar Yoga methods without diets or starvation.'
   },
   'meditation': {
-    heroImage: 'https://images.pexels.com/photos/3807517/pexels-photo-3807517.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1545641203-7d072a14e3b2?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/T3qQdIj7f0Y',
     whatYouWillLearn: [
       'Progress from basic mindfulness to advanced meditation states',
-      'Experience profound inner peace and tranquility',
-      'Reduce stress and anxiety naturally',
-      'Enhance focus and mental clarity',
+      'Experience profound inner peace inspired by the Buddha',
+      'Reduce stress and anxiety naturally through breath awareness',
+      'Enhance focus and mental clarity using ancient techniques',
       'Develop spiritual connection through guided practice'
     ],
     highlightVideos: [
@@ -607,7 +630,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Begin your 15-day deep meditation journey. Experience inner peace, clarity, and spiritual growth through scientifically-backed techniques.'
   },
   'amrut-aahar': {
-    heroImage: 'https://images.pexels.com/photos/3807507/pexels-photo-3807507.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/9uWo6Av2Qcg',
     whatYouWillLearn: [
       'Discover optimal nutrition for your unique constitution',
@@ -637,37 +660,37 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Transform your health through the Amrut Aahar program. Learn the science of nourishing your unique body for vitality and longevity.'
   },
   'astavakra': {
-    heroImage: 'https://images.pexels.com/photos/3807516/pexels-photo-3807516.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1518191766444-14a89f16daac?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/L3GGhK65iEw',
     whatYouWillLearn: [
-      'Experience non-dual awareness and self-realization',
-      'Journey through transcendent states of consciousness',
-      'Understand the ultimate truths of existence',
-      'Integrate wisdom teachings from Astavakra Gita',
-      'Experience direct transmission from the master'
+      'Experience radical non-dual awareness (Advaita) following the Astavakra Gita',
+      'Direct realization of the self beyond body, mind, and intellect',
+      'The path of effortless meditation and absolute stillness',
+      'Integrate the revolutionary wisdom of Sage Astavakra into daily life',
+      'Transmission of silence from enlightened masters in deep retreat'
     ],
     highlightVideos: [
-      { title: 'Advanced Meditation', url: 'https://www.youtube.com/embed/L3GGhK65iEw' },
-      { title: 'Transcendent Experiences', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Self-Realization Journey', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'The Wisdom of Astavakra', url: 'https://www.youtube.com/embed/L3GGhK65iEw' },
+      { title: 'Path of No-Effort', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
+      { title: 'Radical Awakening', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
     ],
-    mentorInfo: 'This advanced program is taught only by enlightened masters. Prerequisites: completion of earlier levels. Direct transmission and intensive practice in a residential setting.',
+    mentorInfo: 'This supreme level program is taught by masters who live the non-dual truth. Prerequisites: Swar Yoga Level 2 and prior approval. Conducted in profound silence and intensive residential retreat.',
     testimonials: [
-      { quote: 'The most transformative experience of my life.', name: 'Arjun Reddy', place: 'Goa' },
-      { quote: 'Experienced states of consciousness beyond words.', name: 'Meera Sinha', place: 'Rishikesh' },
-      { quote: 'True understanding of my real nature dawned.', name: 'Ravi Kumar', place: 'Varanasi' },
-      { quote: 'Life will never be the same after this journey.', name: 'Anjana Verma', place: 'Ujjain' }
+      { quote: 'A lightning bolt that shattered my ego overnight. Pure bliss.', name: 'Arjun Reddy', place: 'Goa' },
+      { quote: 'The most direct and uncompromising path to liberation I have found.', name: 'Meera Sinha', place: 'Rishikesh' },
+      { quote: 'No more seeker, just the seeking completed. Absolute clarity.', name: 'Ravi Kumar', place: 'Varanasi' },
+      { quote: ' Sage Astavakra\'s words came alive in my own heart.', name: 'Anjana Verma', place: 'Ujjain' }
     ],
     videoTestimonials: [
-      { name: 'Sadhak 1 - Seeker', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Sadhak 2 - Practitioner', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Sadhak 3 - Advanced', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Sadhak 4 - Master', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Sadhak 1 - Awakening', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
+      { name: 'Sadhak 2 - Stillness', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
+      { name: 'Sadhak 3 - Clarity', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
+      { name: 'Sadhak 4 - Freedom', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
     ],
-    finalCTA: 'The ultimate 10-day residential program for advanced seekers. Experience transcendence and direct realization through intensive Astavakra Dhyan practice.'
+    finalCTA: 'The peak of spiritual evolution. 10 days of radical transcendence through the timeless wisdom of the Astavakra Gita.'
   },
   'pre-pregnancy': {
-    heroImage: 'https://images.pexels.com/photos/3807521/pexels-photo-3807521.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/y90cV_3OMrQ',
     whatYouWillLearn: [
       'Practice safe yoga specifically designed for pregnancy',
@@ -697,7 +720,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Ensure a safe, healthy, joyful pregnancy. Join the 36-day program designed specifically for expecting mothers.'
   },
   'swy-children': {
-    heroImage: 'https://images.pexels.com/photos/3807518/pexels-photo-3807518.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1476703993599-0035a260f381?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/8HWaFGJz6Yw',
     whatYouWillLearn: [
       'Practice yoga in fun, age-appropriate ways',
@@ -727,14 +750,14 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Give your child the gift of yoga and wellness. 10-day program with fun, engaging, and transformative practices.'
   },
   'complete-health': {
-    heroImage: 'https://images.pexels.com/photos/3807519/pexels-photo-3807519.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1519824141121-99767218abb2?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/5jvJY-I7Vug',
     whatYouWillLearn: [
-      'Holistic approach to BP, diabetes, and heart disease',
-      'Natural healing for liver and kidney issues',
-      'Overcome migraines and hormonal imbalances',
-      'Reduce or eliminate medication dependency',
-      'Restore vitality and overall health'
+      'Holistic approach to BP, diabetes, and cardiovascular health',
+      'Integrate therapeutic massage for circulation and healing',
+      'Natural protocols for liver and kidney rejuvenation',
+      'Overcome migraines and hormonal imbalances naturally',
+      'Restore vitality and long-term wellness'
     ],
     highlightVideos: [
       { title: 'Holistic Health Science', url: 'https://www.youtube.com/embed/5jvJY-I7Vug' },
@@ -757,7 +780,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Reclaim your health with the Complete Health program. Holistic healing for all major health conditions in 45 days.'
   },
   'corporate-swy': {
-    heroImage: 'https://images.pexels.com/photos/3820517/pexels-photo-3820517.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/9_OLxmZzcNQ',
     whatYouWillLearn: [
       'Manage workplace stress and pressure effectively',
@@ -787,37 +810,37 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Elevate your corporate leadership. 10-day intensive designed specifically for busy professionals seeking peak performance.'
   },
   'self-awareness': {
-    heroImage: 'https://images.pexels.com/photos/2397220/pexels-photo-2397220.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/GNNmCPBSyv8',
     whatYouWillLearn: [
-      'Experience profound self-discovery and transformation',
-      'Release ego conditioning and false beliefs',
-      'Realize your authentic, true self',
-      'Achieve lasting freedom and fulfillment',
-      'Live from genuine authenticity'
+      'Master the path of Jnana Yoga (Knowledge) as taught by Adi Shankaracharya',
+      'Analyze and dissolve the layers of ego conditioning (Pancha Kosha)',
+      'The direct realization of "Aham Brahmasmi" (I am Brahman)',
+      'Understand and transcend the illusion of duality (Maya)',
+      'Establish yourself in the state of eternal, unchanging awareness'
     ],
     highlightVideos: [
-      { title: 'Self-Realization Path', url: 'https://www.youtube.com/embed/GNNmCPBSyv8' },
-      { title: 'Ego Dissolution', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
-      { title: 'Awakening Journeys', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+      { title: 'The Path of Shankaracharya', url: 'https://www.youtube.com/embed/GNNmCPBSyv8' },
+      { title: 'Dissolving the Ego', url: 'https://www.youtube.com/embed/mzYKqFxYzQU' },
+      { title: 'Eternal Awareness', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
     ],
-    mentorInfo: 'For advanced, committed seekers only. Intensive 30-day residential program with master teachers facilitating radical transformation of consciousness.',
+    mentorInfo: 'A month-long immersive journey led by scholars and practitioners of Advaita Vedanta. This Level-4 retreat is the ultimate offering of Swar Yoga for those seeking final liberation (Moksha).',
     testimonials: [
-      { quote: 'Finally know who I really am beyond conditioning.', name: 'Samir Kapoor', place: 'Goa' },
-      { quote: 'Freedom from decades of limiting beliefs.', name: 'Deepa Nair', place: 'Rishikesh' },
-      { quote: 'Life became authentic and meaningful.', name: 'Arjun Sinha', place: 'Varanasi' },
-      { quote: 'The ultimate journey to true self.', name: 'Meera Verma', place: 'Ujjain' }
+      { quote: 'The teachings of Adi Shankaracharya became my living reality.', name: 'Samir Kapoor', place: 'Goa' },
+      { quote: 'I finally found the "I" that never changes amidst all life\'s storms.', name: 'Deepa Nair', place: 'Rishikesh' },
+      { quote: 'A systematic and profound dismantling of everything I thought I was.', name: 'Arjun Sinha', place: 'Varanasi' },
+      { quote: 'The most authentic exposition of non-duality I have ever experienced.', name: 'Meera Verma', place: 'Ujjain' }
     ],
     videoTestimonials: [
-      { name: 'Advanced Seeker 1', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Advanced Seeker 2', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Advanced Seeker 3', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Advanced Seeker 4', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+      { name: 'Seeker - Realization', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
+      { name: 'Seeker - Freedom', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
+      { name: 'Seeker - Truth', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
+      { name: 'Seeker - Awakening', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
     ],
-    finalCTA: 'The ultimate 30-day residential transformation. Experience complete self-realization and awakening for advanced practitioners.'
+    finalCTA: 'The ultimate 30-day residential transformation. Step into the lineage of Adi Shankaracharya and realize your true nature as infinite awareness.'
   },
   'happy-marriage': {
-    heroImage: 'https://images.pexels.com/photos/3807512/pexels-photo-3807512.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/gNbVlsGXe3M',
     whatYouWillLearn: [
       'Enhance compatibility and understanding with partner',
@@ -847,7 +870,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Transform your marriage into a loving partnership. 36-day program to deepen connection and create lasting happiness together.'
   },
   'gurukul-training': {
-    heroImage: 'https://images.pexels.com/photos/3807522/pexels-photo-3807522.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/XQ6MYL_rKgE',
     whatYouWillLearn: [
       'Complete knowledge of Swar Yoga teaching methods',
@@ -877,7 +900,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Begin your 90-day Gurukul Teachers Training. Master teaching skills and become a qualified Swar Yoga educator.'
   },
   'swy-teacher': {
-    heroImage: 'https://images.pexels.com/photos/3807523/pexels-photo-3807523.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/7qTSVzR6gIc',
     whatYouWillLearn: [
       'Get certified to teach Swar Yoga to others',
@@ -907,7 +930,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Get certified as a professional Swar Yoga teacher. 15-day intensive with globally recognized credentials.'
   },
   'gurukul-organiser-training': {
-    heroImage: 'https://images.pexels.com/photos/3807524/pexels-photo-3807524.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/mTVVNGMBx0Q',
     whatYouWillLearn: [
       'Establish and manage yoga centers and programs',
@@ -937,14 +960,14 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     finalCTA: 'Learn to build and manage yoga centers. 45-day training combining yoga philosophy with business excellence.'
   },
   'naturopathy': {
-    heroImage: 'https://images.pexels.com/photos/3807524/pexels-photo-3807524.jpeg',
+    heroImage: 'https://images.unsplash.com/photo-1620733321588-2f0851f50a49?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/nGNnVhEhjPg',
     whatYouWillLearn: [
-      'Master natural healing and naturopathy treatment',
-      'Learn herbal remedies and water therapy',
-      'Apply diet and lifestyle modifications',
-      'Diagnose and treat imbalances naturally',
-      'Facilitate deep healing without pharmaceuticals'
+      'Master natural healing following Mahavir\'s ascetic wisdom',
+      'Specialized treatments including Shirodhara and therapeutic massage',
+      'Learn herbal remedies and natural water therapy',
+      'Apply diet and lifestyle modifications for total health',
+      'Diagnose and treat imbalances without pharmaceuticals'
     ],
     highlightVideos: [
       { title: 'Naturopathy Science', url: 'https://www.youtube.com/embed/nGNnVhEhjPg' },

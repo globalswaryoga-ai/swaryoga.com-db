@@ -14,13 +14,13 @@ export const dynamic = 'force-dynamic';
 // Fee mapping for all workshops
 const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; currency: string }> = {
   'swar-yoga-basic': { minPrice: 96, maxPrice: 96, currency: 'INR' },
-  'yogasana-sadhana': { minPrice: 330, maxPrice: 330, currency: 'INR' },
+  'yogasana-sadhana': { minPrice: 5400, maxPrice: 5400, currency: 'INR' },
   'swar-yoga-level-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-level-3': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-level-4': { minPrice: 6000, maxPrice: 6000, currency: 'INR' },
   '96-days-weight-loss': { minPrice: 6600, maxPrice: 6600, currency: 'INR' },
   '42-days-meditation': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
-  'amrut-aahar': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
+  'amrut-aahar': { minPrice: 7200, maxPrice: 7200, currency: 'INR' },
   'bandhan-mukti': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
   'swar-yoga-level-2': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-businessman': { minPrice: 4200, maxPrice: 4200, currency: 'INR' },
@@ -32,6 +32,19 @@ const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; curren
   'family-wellness': { minPrice: 2000, maxPrice: 4000, currency: 'INR' },
   'advanced-breathing': { minPrice: 2400, maxPrice: 2400, currency: 'INR' },
   'life-transformation': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'astavakra': { minPrice: 21000, maxPrice: 21000, currency: 'INR' },
+  'self-awareness': { minPrice: 35000, maxPrice: 35000, currency: 'INR' },
+  'swy-children': { minPrice: 4200, maxPrice: 4200, currency: 'INR' },
+  'corporate-swy': { minPrice: 15000, maxPrice: 15000, currency: 'INR' },
+  'happy-marriage': { minPrice: 8400, maxPrice: 8400, currency: 'INR' },
+  'gurukul-training': { minPrice: 51000, maxPrice: 51000, currency: 'INR' },
+  'swy-teacher': { minPrice: 12500, maxPrice: 12500, currency: 'INR' },
+  'gurukul-organiser-training': { minPrice: 25000, maxPrice: 25000, currency: 'INR' },
+  'naturopathy': { minPrice: 11000, maxPrice: 11000, currency: 'INR' },
+  'meditation': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
+  'weight-loss': { minPrice: 12500, maxPrice: 12500, currency: 'INR' },
+  'pre-pregnancy': { minPrice: 15000, maxPrice: 15000, currency: 'INR' },
+  'complete-health': { minPrice: 21000, maxPrice: 21000, currency: 'INR' },
 };
 
 const workshopFilterOptions = workshopCatalog.map((workshop) => ({
@@ -248,42 +261,54 @@ function WorkshopsPageInner() {
       <Navigation />
       <main>
         {/* Hero Section */}
-        <section className="relative min-h-[50vh] sm:min-h-[60vh] flex items-center overflow-hidden mt-16 sm:mt-20">
+        <section className="relative min-h-[60vh] sm:min-h-[70vh] flex items-center overflow-hidden pt-32">
           <div className="absolute inset-0 z-0">
             <Image
-              src="https://images.pexels.com/photos/3807512/pexels-photo-3807512.jpeg"
-              alt="Workshops hero"
+              src="https://images.pexels.com/photos/3822864/pexels-photo-3822864.jpeg"
+              alt="Meditation Swar Yoga"
               fill
               priority
-              className="object-cover"
+              className="object-cover scale-105"
               sizes="100vw"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/40" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
           </div>
 
           <div className="container mx-auto px-4 sm:px-6 relative z-10 max-w-6xl">
-            <div className="max-w-3xl">
-              <div className="mb-4 sm:mb-6 md:mb-8">
-                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-4">
-                  <BookOpen className="w-6 sm:w-8 h-6 sm:h-8 text-primary-400 flex-shrink-0" />
-                  <span className="text-primary-400 font-semibold text-sm sm:text-lg">Our Programs</span>
+            <div className="max-w-3xl animate-fade-in-up">
+              <div className="mb-4 sm:mb-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-primary-500/20 backdrop-blur-md rounded-lg">
+                    <BookOpen className="w-6 h-6 text-primary-400" />
+                  </div>
+                  <span className="text-primary-400 font-bold tracking-widest text-sm uppercase">Global Learning</span>
                 </div>
-                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-2 sm:mb-4 leading-tight">
-                  Transformative Workshops
+                <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
+                  Master the Art of <span className="text-primary-400">Swar Yoga</span>
                 </h1>
               </div>
 
-              <p className="text-base sm:text-lg md:text-xl text-gray-200 leading-relaxed max-w-2xl mb-6 sm:mb-8">
-                Choose from {totalWorkshops} comprehensive workshops designed to elevate your yoga practice and transform your life through the science of breath.
+              <p className="text-lg md:text-xl text-gray-200 leading-relaxed max-w-2xl mb-10">
+                Join thousands of practitioners in our transformative programs. Experience the ancient science of breath through deep meditation and personalized guidance.
               </p>
 
-              <Link
-                href="/calendar"
-                className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-lg transition-all duration-300 group hover:shadow-lg font-semibold text-sm sm:text-base touch-target"
-              >
-                Explore Schedules
-                <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 group-hover:translate-x-1 transition-transform flex-shrink-0" />
-              </Link>
+              <div className="flex flex-wrap gap-4">
+                <Link
+                  href="/calendar"
+                  className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-8 py-4 rounded-2xl transition-all duration-300 group shadow-xl shadow-primary-900/20 font-bold"
+                >
+                  View Schedule
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
+                <div className="flex -space-x-4 items-center ml-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-gray-200">
+                      <img src={`https://i.pravatar.cc/100?img=${i+10}`} alt="User" className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                  <span className="ml-4 text-white/80 text-sm font-medium">+2,000 students joined</span>
+                </div>
+              </div>
             </div>
           </div>
         </section>

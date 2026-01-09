@@ -1,12 +1,8 @@
 import type { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { verifyToken, TokenPayload } from './auth';
 
-export type AdminJwtPayload = {
-  username?: string;
-  isAdmin?: boolean;
-  iat?: number;
-  exp?: number;
-};
+export type AdminJwtPayload = TokenPayload;
 
 export function getBearerToken(request: NextRequest): string {
   const authHeader = request.headers.get('authorization') || '';
@@ -14,15 +10,11 @@ export function getBearerToken(request: NextRequest): string {
 }
 
 export function verifyAdminJwt(token: string): { valid: boolean; decoded?: AdminJwtPayload } {
-  if (!token) return { valid: false };
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as AdminJwtPayload;
-    if (!decoded?.isAdmin) return { valid: false };
-    return { valid: true, decoded };
-  } catch {
-    return { valid: false };
-  }
+  const decoded = verifyToken(token);
+  return {
+    valid: !!decoded?.isAdmin,
+    decoded: decoded || undefined
+  };
 }
 
 export function isAdminAuthorized(request: NextRequest): boolean {
