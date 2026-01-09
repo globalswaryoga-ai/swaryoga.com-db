@@ -42,7 +42,7 @@ function createFriendlyPublishErrorMessage(error: string, platform: string): str
 }
 
 async function graphPost(path: string, params: Record<string, string>): Promise<any> {
-  const url = `https://graph.facebook.com/v20.0/${path}`;
+  const url = `https://graph.facebook.com/v24.0/${path}`;
   const body = new URLSearchParams(params);
 
   const res = await fetch(url, {

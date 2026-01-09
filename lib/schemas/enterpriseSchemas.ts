@@ -231,7 +231,7 @@ const WhatsAppMessageSchema = new mongoose.Schema(
   // - senderNumber: our own phone number that sent/received this message
   // - provider: 'meta' or 'whatsapp_web_bridge'
   senderNumber: { type: String, index: true },
-  provider: { type: String, enum: ['meta', 'whatsapp_web_bridge'], index: true },
+  provider: { type: String, index: true },
 
     sentAt: { type: Date, default: Date.now },
     deliveredAt: Date,

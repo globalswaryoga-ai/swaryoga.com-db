@@ -25,7 +25,7 @@ function escapeRegexLiteral(input: string): string {
 export async function GET(request: NextRequest) {
   try {
     const viewerUserId = verifyAdminAccess(request);
-    const superAdmin = viewerUserId === 'admincrm';
+    const superAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
 
@@ -37,13 +37,47 @@ export async function GET(request: NextRequest) {
 
     const pipeline: any[] = [];
 
-    // Pre-sort to allow $first in group
-    pipeline.push({ $sort: { sentAt: -1 } });
+    // Include messages from known providers, or if they have no provider (to avoid missing data)
+    pipeline.push({
+      $match: {
+        $or: [
+          { provider: { $in: ['meta', 'whatsapp_web_bridge'] } },
+          { provider: { $exists: false } },
+          { provider: null },
+          { provider: 'pending' },
+        ],
+      },
+    });
 
+    // Normalize the timestamp used for ordering.
+    // Some older records may not have sentAt.
+    pipeline.push({
+      $addFields: {
+        _messageTime: {
+          $ifNull: [
+            '$sentAt',
+            {
+              $ifNull: [
+                '$createdAt',
+                {
+                  $ifNull: ['$updatedAt', new Date(0)],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    // Pre-sort to allow $first in group
+    pipeline.push({ $sort: { _messageTime: -1 } });
+
+    // Group by phoneNumber first to avoid duplicate conversations when leadId is missing on older data.
     pipeline.push({
       $group: {
-        _id: '$leadId',
-        lastMessageAt: { $first: '$sentAt' },
+        _id: '$phoneNumber',
+        leadId: { $first: '$leadId' },
+        lastMessageAt: { $first: '$_messageTime' },
         lastMessageContent: { $first: '$messageContent' },
         lastDirection: { $first: '$direction' },
         lastStatus: { $first: '$status' },
@@ -70,8 +104,8 @@ export async function GET(request: NextRequest) {
     pipeline.push({
       $lookup: {
         from: 'leads',
-        localField: '_id',
-        foreignField: '_id',
+        localField: 'phoneNumber',
+        foreignField: 'phoneNumber',
         as: 'lead',
       },
     });
@@ -82,7 +116,17 @@ export async function GET(request: NextRequest) {
     // - Other admins can only see leads assigned to them.
     // - Unassigned leads are hidden from non-super-admin.
     if (!superAdmin) {
-      pipeline.push({ $match: { 'lead.assignedToUserId': viewerUserId } });
+      // Show conversations that are either assigned to the viewer OR currently unassigned
+      // (new inbound leads arrive unassigned by default).
+      pipeline.push({
+        $match: {
+          $or: [
+            { 'lead.assignedToUserId': viewerUserId },
+            { 'lead.assignedToUserId': { $exists: false } },
+            { 'lead.assignedToUserId': { $in: [null, ''] } },
+          ],
+        },
+      });
     }
 
     const postMatch: any = {};
@@ -101,7 +145,7 @@ export async function GET(request: NextRequest) {
     pipeline.push({
       $project: {
         _id: 0,
-        leadId: '$_id',
+  leadId: '$lead._id',
         leadNumber: '$lead.leadNumber',
         name: {
           $ifNull: [
@@ -113,12 +157,14 @@ export async function GET(request: NextRequest) {
                   $cond: [
                     { $and: [{ $ne: ['$lead.title', null] }, { $ne: ['$lead.title', ''] }, { $ne: ['$lead.name', null] }, { $ne: ['$lead.name', ''] }] },
                     { $concat: ['$lead.title', '. ', '$lead.name'] },
-                    '$lead.name'
+                    {
+                      $ifNull: ['$lead.name', '$phoneNumber']
+                    }
                   ]
                 }
               ]
             },
-            ''
+            '$phoneNumber'
           ]
         },
         status: '$lead.status',
@@ -163,6 +209,9 @@ export async function GET(request: NextRequest) {
         unreadCount: 1,
       },
     });
+
+    // Sort by most recent activity
+    pipeline.push({ $sort: { lastMessageAt: -1 } });
 
     // Count and pagination
     const countPipeline = [...pipeline, { $count: 'total' }];

@@ -139,6 +139,22 @@ const nextConfig = {
         destination: '/workshop/:id/registernow/cart/checkout/payu',
         permanent: true,
       },
+      // Redirect old Meta-specific paths to unified WhatsApp paths
+      {
+        source: '/admin/crm/whatsapp/meta',
+        destination: '/admin/crm/whatsapp',
+        permanent: true,
+      },
+      {
+        source: '/admin/crm/whatsapp/meta/:path*',
+        destination: '/admin/crm/whatsapp/:path*',
+        permanent: true,
+      },
+      {
+        source: '/api/admin/crm/whatsapp/meta/:path*',
+        destination: '/api/admin/crm/whatsapp/:path*',
+        permanent: true,
+      },
     ];
   },
   eslint: {

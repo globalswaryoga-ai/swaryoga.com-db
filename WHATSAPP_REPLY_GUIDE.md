@@ -14,7 +14,7 @@ Your system has full reply functionality:
 | **Frontend (CRM)** | ✅ Ready | `/app/admin/crm/whatsapp-meta/page.tsx` - Message input UI |
 | **API Endpoint** | ✅ Ready | `/api/admin/crm/whatsapp/meta/send` - Send messages via Meta |
 | **Database** | ✅ Ready | Stores inbound AND outbound messages |
-| **Meta Integration** | ✅ Ready | Uses WhatsApp Cloud API v19.0 |
+| **Meta Integration** | ✅ Ready | Uses WhatsApp Cloud API v24.0 |
 | **Authentication** | ✅ Ready | Admin-only, JWT token verified |
 
 ---
@@ -190,7 +190,7 @@ Message visible in chat thread
 
 ### ✅ **Meta Integration**
 - Uses graph.facebook.com (official endpoint)
-- WhatsApp Cloud API v19.0
+- WhatsApp Cloud API v24.0
 - Proper text message format
 
 ---

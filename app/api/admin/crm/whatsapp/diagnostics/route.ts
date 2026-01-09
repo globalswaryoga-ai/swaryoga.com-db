@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { connectDB } from '@/lib/db';
+import { getWhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
 
 function mask(v: string | undefined | null): string {
   const s = String(v || '');
@@ -18,9 +20,7 @@ async function safeJson(res: Response): Promise<any> {
 
 /**
  * GET /api/admin/crm/whatsapp/diagnostics
- * Lightweight health report for both sending paths:
- * - Meta Cloud API credentials + basic reachability
- * - WhatsApp Web bridge reachability + authentication
+ * Lightweight health report for WhatsApp connectivity
  */
 export async function GET(request: NextRequest) {
   try {
@@ -30,11 +30,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    await connectDB();
+    const WhatsAppWebhookEvent = getWhatsAppWebhookEvent();
+
     const metaAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     const metaPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const graphVersion = process.env.META_GRAPH_API_VERSION || 'v19.0';
-
-    const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim() || 'https://wa-bridge.swaryoga.com';
+    const graphVersion = process.env.META_GRAPH_API_VERSION || 'v24.0';
 
     const out: any = {
       meta: {
@@ -44,13 +45,28 @@ export async function GET(request: NextRequest) {
         connected: false,
         message: '',
       },
-      bridge: {
-        url: bridgeUrl,
-        reachable: false,
-        authenticated: false,
-        message: '',
-      },
     };
+
+    // Webhook stats
+    try {
+      const lastEvent = await WhatsAppWebhookEvent.findOne({ kind: 'unknown', ok: true })
+        .sort({ receivedAt: -1 })
+        .lean();
+      const lastInbound = await WhatsAppWebhookEvent.findOne({ kind: 'inbound_message', ok: true })
+        .sort({ receivedAt: -1 })
+        .lean();
+      const lastStatus = await WhatsAppWebhookEvent.findOne({ kind: 'status_update', ok: true })
+        .sort({ receivedAt: -1 })
+        .lean();
+
+      out.webhooks = {
+        lastHit: lastEvent?.receivedAt || null,
+        lastInbound: lastInbound?.receivedAt || null,
+        lastStatus: lastStatus?.receivedAt || null,
+      };
+    } catch (e) {
+      out.webhooks = { error: String(e) };
+    }
 
     // Meta quick check (non-fatal)
     if (!metaAccessToken || !metaPhoneNumberId) {
@@ -71,24 +87,6 @@ export async function GET(request: NextRequest) {
       } catch (e) {
         out.meta.message = `Meta network error: ${String(e)}`;
       }
-    }
-
-    // Bridge quick check (non-fatal)
-    try {
-      const res = await fetch(`${bridgeUrl.replace(/\/$/, '')}/api/status`, { method: 'GET', cache: 'no-store' });
-      const json = await safeJson(res);
-      if (res.ok) {
-        out.bridge.reachable = true;
-        // Support multiple bridge implementations
-        out.bridge.authenticated = Boolean(json?.authenticated || json?.isAuthenticated);
-        out.bridge.message = out.bridge.authenticated
-          ? `OK: authenticated${json?.account?.phone ? ` (${json.account.phone})` : ''}`
-          : 'Bridge reachable but NOT authenticated (scan QR)';
-      } else {
-        out.bridge.message = `Bridge error (HTTP ${res.status})`;
-      }
-    } catch (e) {
-      out.bridge.message = `Bridge unreachable: ${String(e)}`;
     }
 
     return NextResponse.json({ success: true, data: out }, { status: 200 });

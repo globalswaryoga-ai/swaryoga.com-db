@@ -15,7 +15,7 @@ type ChatbotFlow = {
   startNodeId?: string;
   nodes?: Array<{
     nodeId: string;
-    type: 'message' | 'question' | 'buttons' | 'template' | 'condition' | 'delay' | 'end';
+    type: 'message' | 'question' | 'buttons' | 'template' | 'condition' | 'delay' | 'end' | 'label';
     messageText?: string;
     questionText?: string;
     questionType?: string;
@@ -25,6 +25,10 @@ type ChatbotFlow = {
     assignLabels?: string[];
     timerMinutes?: number;
     timerAction?: string;
+    templateName?: string;
+    conditionField?: string;
+    conditionOp?: string;
+    conditionValue?: string;
   }>;
 };
 
@@ -45,13 +49,19 @@ export default function ChatbotBuilderPage() {
   const [flowName, setFlowName] = useState('');
   const [flowDesc, setFlowDesc] = useState('');
 
-  const [nodeType, setNodeType] = useState<'message' | 'question' | 'buttons'>('message');
+  const [nodeType, setNodeType] = useState<
+    'message' | 'question' | 'buttons' | 'template' | 'condition' | 'label' | 'delay' | 'end'
+  >('message');
   const [nodeText, setNodeText] = useState('');
   const [nodeDelay, setNodeDelay] = useState('0');
   const [nodeTimer, setNodeTimer] = useState('');
   const [nodeLabels, setNodeLabels] = useState('');
   const [nodeOptions, setNodeOptions] = useState<Array<{ label: string; value: string }>>([]);
   const [newOptionLabel, setNewOptionLabel] = useState('');
+  const [nodeTemplateName, setNodeTemplateName] = useState('');
+  const [nodeConditionField, setNodeConditionField] = useState('text');
+  const [nodeConditionOp, setNodeConditionOp] = useState('contains');
+  const [nodeConditionValue, setNodeConditionValue] = useState('');
 
   const fetchFlows = useCallback(async () => {
     setLoading(true);
@@ -99,8 +109,20 @@ export default function ChatbotBuilderPage() {
   const addNode = async () => {
     if (!selectedFlow) return;
     const text = nodeText.trim();
-    if (!text) {
+
+    const needsText = nodeType === 'message' || nodeType === 'question' || nodeType === 'buttons';
+    if (needsText && !text) {
       setError('Node text is required');
+      return;
+    }
+
+    if (nodeType === 'template' && !nodeTemplateName.trim()) {
+      setError('Template name is required');
+      return;
+    }
+
+    if (nodeType === 'condition' && !nodeConditionValue.trim()) {
+      setError('Condition value is required');
       return;
     }
 
@@ -121,6 +143,24 @@ export default function ChatbotBuilderPage() {
       } else if (nodeType === 'buttons') {
         newNode.messageText = text;
         newNode.options = nodeOptions;
+      } else if (nodeType === 'template') {
+        newNode.templateName = nodeTemplateName.trim();
+        newNode.messageText = text || undefined;
+      } else if (nodeType === 'delay') {
+        // purely time-based node (delaySeconds)
+        newNode.messageText = text || undefined;
+      } else if (nodeType === 'condition') {
+        newNode.conditionField = nodeConditionField;
+        newNode.conditionOp = nodeConditionOp;
+        newNode.conditionValue = nodeConditionValue.trim();
+      } else if (nodeType === 'label') {
+        if (!nodeLabels.trim()) {
+          setError('Labels are required for label node');
+          return;
+        }
+        newNode.assignLabels = nodeLabels.split(',').map((l) => l.trim()).filter(Boolean);
+      } else if (nodeType === 'end') {
+        newNode.messageText = text || undefined;
       }
 
       if (nodeTimer) newNode.timerMinutes = Number(nodeTimer);
@@ -140,6 +180,10 @@ export default function ChatbotBuilderPage() {
       setNodeTimer('');
       setNodeLabels('');
       setNodeOptions([]);
+      setNodeTemplateName('');
+      setNodeConditionField('text');
+      setNodeConditionOp('contains');
+      setNodeConditionValue('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add node');
     }
@@ -235,27 +279,33 @@ export default function ChatbotBuilderPage() {
             ) : (
               <div className="space-y-2">
                 {flows.map((f) => (
-                  <button
+                  <div
                     key={f._id}
-                    onClick={() => setSelectedFlow(f)}
-                    className={`w-full text-left px-3 py-2 rounded-lg ${
+                    className={`w-full text-left px-3 py-2 rounded-lg border ${
                       selectedFlow?._id === f._id
-                        ? 'bg-emerald-600/40 border border-emerald-400'
-                        : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                        ? 'bg-emerald-600/40 border-emerald-400'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10'
                     }`}
                   >
-                    <div className="font-bold text-white">{f.name}</div>
-                    <div className="text-sm text-emerald-50/80">{(f.nodes || []).length} nodes</div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteFlow(f._id);
-                      }}
-                      className="mt-2 text-xs px-2 py-1 rounded bg-red-500/20 text-red-100 hover:bg-red-500/30"
-                    >
-                      Delete
-                    </button>
-                  </button>
+                    <div className="flex items-start justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFlow(f)}
+                        className="flex-1 text-left"
+                      >
+                        <div className="font-bold text-white">{f.name}</div>
+                        <div className="text-sm text-emerald-50/80">{(f.nodes || []).length} nodes</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteFlow(f._id)}
+                        className="text-xs px-2 py-1 rounded bg-red-500/20 text-red-100 hover:bg-red-500/30"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -284,21 +334,86 @@ export default function ChatbotBuilderPage() {
                         <option value="message">Message</option>
                         <option value="question">Question</option>
                         <option value="buttons">Buttons</option>
+                        <option value="template">Send Template</option>
+                        <option value="condition">Condition</option>
+                        <option value="label">Assign Labels</option>
+                        <option value="delay">Delay Only</option>
+                        <option value="end">End</option>
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-bold text-emerald-50 mb-2">
-                        {nodeType === 'question' ? 'Question Text' : 'Message Text'}
-                      </label>
-                      <textarea
-                        value={nodeText}
-                        onChange={(e) => setNodeText(e.target.value)}
-                        rows={3}
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
-                        placeholder="Enter message or question..."
-                      />
-                    </div>
+                    {(nodeType === 'message' || nodeType === 'question' || nodeType === 'buttons' || nodeType === 'template' || nodeType === 'end' || nodeType === 'delay') && (
+                      <div>
+                        <label className="block text-sm font-bold text-emerald-50 mb-2">
+                          {nodeType === 'question' ? 'Question Text' : 'Message Text'}
+                        </label>
+                        <textarea
+                          value={nodeText}
+                          onChange={(e) => setNodeText(e.target.value)}
+                          rows={3}
+                          className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
+                          placeholder={
+                            nodeType === 'template'
+                              ? 'Optional message before/after template'
+                              : nodeType === 'delay'
+                                ? 'Optional message (sent before delay)'
+                                : nodeType === 'end'
+                                  ? 'Optional goodbye message'
+                                  : 'Enter message or question...'
+                          }
+                        />
+                      </div>
+                    )}
+
+                    {nodeType === 'template' && (
+                      <div>
+                        <label className="block text-sm font-bold text-emerald-50 mb-2">Template Name</label>
+                        <input
+                          value={nodeTemplateName}
+                          onChange={(e) => setNodeTemplateName(e.target.value)}
+                          placeholder="e.g. welcome_new_lead"
+                          className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
+                        />
+                        <div className="text-xs text-emerald-50/70 mt-1">
+                          Tip: use the exact WhatsApp template name (not the DB id).
+                        </div>
+                      </div>
+                    )}
+
+                    {nodeType === 'condition' && (
+                      <div className="space-y-2">
+                        <label className="block text-sm font-bold text-emerald-50">Condition</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <select
+                            value={nodeConditionField}
+                            onChange={(e) => setNodeConditionField(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-bold"
+                          >
+                            <option value="text">Incoming text</option>
+                            <option value="label">Lead label</option>
+                            <option value="phone">Phone</option>
+                          </select>
+                          <select
+                            value={nodeConditionOp}
+                            onChange={(e) => setNodeConditionOp(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-bold"
+                          >
+                            <option value="contains">contains</option>
+                            <option value="equals">equals</option>
+                            <option value="startsWith">startsWith</option>
+                          </select>
+                          <input
+                            value={nodeConditionValue}
+                            onChange={(e) => setNodeConditionValue(e.target.value)}
+                            placeholder="value"
+                            className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
+                          />
+                        </div>
+                        <div className="text-xs text-emerald-50/70">
+                          This node stores the condition now; we’ll wire execution rules next.
+                        </div>
+                      </div>
+                    )}
 
                     {(nodeType === 'question' || nodeType === 'buttons') && (
                       <div>
@@ -375,6 +490,11 @@ export default function ChatbotBuilderPage() {
                         placeholder="e.g. inquiry, urgent"
                         className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
                       />
+                      {nodeType === 'label' ? (
+                        <div className="text-xs text-emerald-50/70 mt-1">
+                          This node will assign labels to the lead.
+                        </div>
+                      ) : null}
                     </div>
 
                     <button

@@ -115,7 +115,7 @@ export default function LeadsPage() {
     try {
       const u = JSON.parse(userStr);
       const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
-      setIsSuperAdmin((u?.userId === 'admin') || perms.includes('all'));
+      setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
     } catch {
       setIsSuperAdmin(false);
     }
@@ -503,19 +503,6 @@ export default function LeadsPage() {
             <span aria-hidden>🟢</span>
             WhatsApp
           </button>
-
-          {enableMetaWhatsApp ? (
-            <button
-              onClick={() =>
-                router.push(`/admin/crm/whatsapp-meta?phone=${(lead.phoneNumber || '').replace(/\D/g, '')}`)
-              }
-              className="px-3 py-1.5 bg-cyan-100 hover:bg-cyan-200 text-cyan-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-              title="Open WhatsApp Meta"
-            >
-              <span aria-hidden>💬</span>
-              Meta
-            </button>
-          ) : null}
 
           <button
             onClick={() => router.push(`/admin/crm/leads-followup?leadId=${encodeURIComponent(lead._id)}`)}

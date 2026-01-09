@@ -108,6 +108,7 @@ export const getViewerUserId = (decoded: any): string => {
  */
 export const isSuperAdmin = (decoded: any): boolean => {
   return (
+    decoded?.userId === 'admincrm' ||
     decoded?.userId === 'admin' ||
     (Array.isArray(decoded?.permissions) && 
       (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))

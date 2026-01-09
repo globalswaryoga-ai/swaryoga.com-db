@@ -2,7 +2,11 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const mongoUri = 'mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority';
+require('dotenv').config({ path: '.env.local' });
+const mongoUri = process.env.MONGODB_URI_MAIN;
+if (!mongoUri) {
+  throw new Error('MONGODB_URI_MAIN is missing. Ensure .env.local is present and configured.');
+}
 const JWT_SECRET = 'replace_me_with_a_long_random_string';
 
 async function loginAdmin(userId, password) {

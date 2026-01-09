@@ -86,7 +86,7 @@ node check-incoming-meta-messages.js
 ```bash
 node -e "
 const mongoose = require('mongoose');
-const uri = 'mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryoga_admin_crm?retryWrites=true&w=majority';
+const uri = process.env.MONGODB_URI_MAIN;
 mongoose.connect(uri).then(async () => {
   const metaMessageSchema = new mongoose.Schema({}, { strict: false });
   const MetaMessage = mongoose.model('meta_messages', metaMessageSchema);

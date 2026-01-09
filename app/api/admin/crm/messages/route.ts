@@ -27,7 +27,7 @@ import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
 export async function GET(request: NextRequest) {
   try {
     const viewerUserId = verifyAdminAccess(request);
-    const superAdmin = viewerUserId === 'admincrm';
+    const superAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
     const orderParam = url.searchParams.get('order');
@@ -44,6 +44,9 @@ export async function GET(request: NextRequest) {
     };
     const filter: any = buildFilter(filterParams);
 
+    // Include both Meta and legacy bridge messages
+    filter.provider = { $in: ['meta', 'whatsapp_web_bridge'] };
+
     // Add date range filter
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
@@ -55,21 +58,27 @@ export async function GET(request: NextRequest) {
 
     // Access control:
     // - Super admin (admincrm) can see all messages.
-    // - Other admins can only see messages for leads assigned to them.
+    // - Other admins can see messages for leads assigned to them OR unassigned leads.
     if (!superAdmin) {
-      // Find leads assigned to this user
-      const assignedLeads = await Lead.find({ assignedToUserId: viewerUserId }).select('_id').lean();
-      const assignedIds = assignedLeads.map(l => l._id);
+      // Find leads assigned to this user OR currently unassigned
+      const accessibleLeads = await Lead.find({ 
+        $or: [
+          { assignedToUserId: viewerUserId },
+          { assignedToUserId: { $in: [null, '', undefined] } }
+        ]
+      }).select('_id').lean();
+      
+      const accessibleIds = accessibleLeads.map(l => String(l._id));
       
       if (filter.leadId) {
-        // If they requested a specific lead, check if it's in their assigned list
-        if (!assignedIds.some(id => String(id) === String(filter.leadId))) {
+        // If they requested a specific lead, check if it's in their accessible list
+        if (!accessibleIds.includes(String(filter.leadId))) {
           // Forbidden lead requested
           return formatCrmSuccess({ messages: [], total: 0 }, buildMetadata(0, limit, skip));
         }
       } else {
-        // No specific lead requested, filter by all assigned leads
-        filter.leadId = { $in: assignedIds };
+        // No specific lead requested, filter by all accessible leads
+        filter.leadId = { $in: accessibleIds };
       }
     }
 
@@ -169,6 +178,7 @@ export async function POST(request: NextRequest) {
       sentAt: now,
       templateId: templateId || undefined,
       retryCount: 0,
+      provider: 'meta',
     });
 
     // Update lead's lastMessageAt
@@ -199,9 +209,8 @@ export async function POST(request: NextRequest) {
             $set: {
               status: 'sent',
               waMessageId: apiResult.waMessageId,
-              provider: apiResult.raw.provider,
-              // Meta number from known ID; Bridge number from known env/constant
-              senderNumber: apiResult.raw.provider === 'meta' ? '9779006820' : '9075358557',
+              provider: 'meta',
+              senderNumber: '9779006820',
               updatedAt: new Date(),
             },
             $unset: {

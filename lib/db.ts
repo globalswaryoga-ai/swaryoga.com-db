@@ -21,12 +21,14 @@ let lastConnectionStatus = 'Not Connected';
 export const connectDB = async () => {
   const connectOnce = async () => {
     // Safe because we always guard for missing MONGODB_URI before calling connectOnce().
+    console.log(`📡 Connecting to MongoDB: ${MONGODB_URI?.split('@')[1] || 'URI hidden'}...`);
     const conn = await mongoose.connect(MONGODB_URI as string, {
       dbName: MAIN_DB_NAME,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      tls: true,
+      // tls: true is redundant for mongodb+srv and can cause 'alert internal error' in some environments
       retryWrites: true,
+      maxPoolSize: 10, // Limit connections to prevent exhaustion
     });
     return conn;
   };

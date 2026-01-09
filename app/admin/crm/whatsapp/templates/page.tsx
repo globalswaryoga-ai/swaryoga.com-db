@@ -290,17 +290,37 @@ function TemplatesContent() {
 
     try {
       setLoading(true);
+
+      const resolvedHeaderFormat: 'IMAGE' | 'VIDEO' | 'TEXT' | undefined = editHeaderMedia
+        ? editHeaderMedia.kind === 'image'
+          ? 'IMAGE'
+          : 'VIDEO'
+        : editHeaderText.trim()
+          ? 'TEXT'
+          : undefined;
+
+      const resolvedHeaderContent =
+        resolvedHeaderFormat === 'IMAGE'
+          ? String((templates.find((t) => t._id === editingId) as any)?.imageFile?.url || '').trim() || undefined
+          : resolvedHeaderFormat === 'VIDEO'
+            ? editVideoUrl.trim() || undefined
+            : editHeaderText.trim() || undefined;
+
+      const resolvedHeaderMedia =
+        resolvedHeaderFormat === 'IMAGE' || resolvedHeaderFormat === 'VIDEO'
+          ? {
+              kind: resolvedHeaderFormat === 'VIDEO' ? 'video' : 'image',
+              url: resolvedHeaderContent || '',
+            }
+          : null;
+
       const body: any = {
         ...editForm,
         templateContent: resolvedContent,
-        headerFormat: editHeaderMedia
-          ? editHeaderMedia.kind === 'image'
-            ? 'IMAGE'
-            : 'VIDEO'
-          : editHeaderText.trim()
-            ? 'TEXT'
-            : undefined,
-        headerContent: editHeaderText.trim() || undefined,
+        headerFormat: resolvedHeaderFormat,
+        // IMPORTANT: IMAGE/VIDEO headers expect the MEDIA URL here.
+        headerContent: resolvedHeaderContent,
+        headerMedia: resolvedHeaderMedia || undefined,
         footerText: editFooterText.trim() || undefined,
         content: {
           headerText: editHeaderText,
@@ -327,7 +347,13 @@ function TemplatesContent() {
 
         if (!uploadRes.ok) throw new Error('Image upload failed');
         const uploadData = await uploadRes.json();
-        body.imageFile = uploadData;
+        body.imageFile = uploadData?.data ?? uploadData;
+
+        // If this template uses an image header, keep headerContent in sync.
+        if (body.headerFormat === 'IMAGE' && body.imageFile?.url) {
+          body.headerContent = String(body.imageFile.url);
+          body.headerMedia = { kind: 'image', url: String(body.imageFile.url) };
+        }
       }
 
       if (editDocuments.length > 0) {
@@ -347,7 +373,7 @@ function TemplatesContent() {
 
           if (!uploadRes.ok) throw new Error('Document upload failed');
           const uploadData = await uploadRes.json();
-          docUrls.push(uploadData);
+          docUrls.push(uploadData?.data ?? uploadData);
         }
         body.documents = docUrls;
       }
@@ -393,13 +419,20 @@ function TemplatesContent() {
     setEditHeaderText(headerText);
     setEditFooterText(footerText);
     setEditBodyText(body);
-    setEditButtons([{ title: '' }]);
-    setEditHeaderMedia(null);
-    
+    setEditButtons([{ title: "" }]);
+
     // Set media fields from existing template
+    if (template.headerFormat === "IMAGE" && template.imageFile?.url) {
+      setEditHeaderMedia({ kind: "image", file: null as any, objectUrl: template.imageFile.url });
+    } else if (template.headerFormat === "VIDEO" && template.videoUrl) {
+      setEditHeaderMedia({ kind: "video", file: null as any, objectUrl: template.videoUrl });
+    } else {
+      setEditHeaderMedia(null);
+    }
+    
     setEditImageFile(null);
     setEditDocuments([]);
-    setEditVideoUrl(template.videoUrl || '');
+    setEditVideoUrl(template.videoUrl || "");
   };
 
   const statusButtons = [

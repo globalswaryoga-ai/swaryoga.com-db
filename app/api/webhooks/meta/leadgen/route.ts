@@ -7,7 +7,7 @@ import { normalizePhone } from '@/lib/whatsapp';
 
 const APP_SECRET = process.env.META_APP_SECRET || '';
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || '';
-const GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v19.0';
+const GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v24.0';
 const PAGE_ACCESS_TOKEN = process.env.META_PAGE_ACCESS_TOKEN || '';
 
 /**

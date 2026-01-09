@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -15,7 +15,7 @@ interface Message {
   status: string;
   sentAt: string;
   createdAt: string;
-  provider?: 'meta' | 'whatsapp_web_bridge';
+  provider?: 'meta';
   senderNumber?: string;
 }
 
@@ -89,12 +89,12 @@ export default function MessagesPage() {
   };
 
   // Fetch function
-  const doFetch = async () => {
+  const doFetch = useCallback(async () => {
     if (!isMountedRef.current || !token) return;
     try {
       setError(null);
       // Fetch all messages (not just inbound) to show full conversation
-      const result = await crmRef.current.fetch('/api/admin/crm/messages', {
+      const result = await (crmRef.current || crm).fetch('/api/admin/crm/messages', {
         params: { limit: 1000 },
       });
       if (isMountedRef.current) {
@@ -115,7 +115,7 @@ export default function MessagesPage() {
         setError(e instanceof Error ? e.message : 'Error');
       }
     }
-  };
+  }, [token, selected, crm]); // Redraw selected if it changes elsewhere
 
   // Initial fetch + auto-refresh
   useEffect(() => {
@@ -134,7 +134,7 @@ export default function MessagesPage() {
       isMountedRef.current = false;
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [token]);
+  }, [token, crm, doFetch, router]);
 
   useEffect(() => {
     setHasMounted(true);
@@ -247,8 +247,7 @@ export default function MessagesPage() {
                     <div className={`text-[10px] mt-2 flex items-center gap-1 ${m.direction === 'outbound' ? 'text-green-100 justify-end' : 'text-gray-400'}`}>
                       {m.provider && (
                         <span className={`px-1 rounded ${m.direction === 'outbound' ? 'bg-green-700' : 'bg-gray-100'}`}>
-                          {m.provider === 'meta' ? 'Meta' : 'QR (Deprecated)'}
-                          {m.senderNumber && <span className="ml-1">({m.senderNumber.slice(-4)})</span>}
+                          Meta API
                         </span>
                       )}
                       {new Date(m.sentAt || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

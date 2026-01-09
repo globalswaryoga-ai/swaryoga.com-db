@@ -1,6 +1,10 @@
 const { MongoClient } = require('mongodb');
 
-const uri = 'mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority';
+require('dotenv').config({ path: '.env.local' });
+const uri = process.env.MONGODB_URI_MAIN;
+if (!uri) {
+  throw new Error('MONGODB_URI_MAIN is missing. Ensure .env.local is present and configured.');
+}
 const client = new MongoClient(uri);
 
 async function check() {

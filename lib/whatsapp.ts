@@ -3,6 +3,8 @@
  * Centralized here so routes don't drift.
  */
 
+import crypto from 'crypto';
+
 export function normalizePhone(raw: string): string {
   // IMPORTANT: We standardize phone numbers across the app as **digits-only**.
   // This avoids mismatches between:
@@ -55,111 +57,137 @@ export type WhatsAppSendTemplateResult = {
   raw: any;
 };
 
-function getWhatsAppEnv() {
+export function getWhatsAppEnv() {
   // Primary (preferred) env keys
-  const accessToken = (process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN || '').trim();
-  const phoneNumberId = (process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER || '').trim();
+  const accessToken = (process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN || "").trim();
+  const phoneNumberId = (process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER || "").trim();
+  const appSecret = (process.env.META_APP_SECRET || "").trim();
+  const phoneNumber = (process.env.WHATSAPP_PHONE_NUMBER || "9779006820").trim();
 
-  const enableCloud = String(process.env.WHATSAPP_ENABLE_CLOUD_SEND || '')
+  // Cloud is ALWAYS enabled now as we are removing the Bridge
+  const cloudExplicitlyDisabled = String(process.env.WHATSAPP_DISABLE_CLOUD_SEND || '')
     .trim()
-    .toLowerCase();
-  const cloudExplicitlyEnabled = ['1', 'true', 'yes', 'on'].includes(enableCloud);
+    .toLowerCase() === 'true';
   
-  if (!cloudExplicitlyEnabled) {
-    if (enableCloud) console.log(`[WHATSAPP] Cloud explicitly DISABLED (enableCloud=${enableCloud})`);
+  if (cloudExplicitlyDisabled) {
+    console.log(`[WHATSAPP] Cloud explicitly DISABLED via env`);
     return null;
   }
 
   if (!accessToken || !phoneNumberId) {
-    console.log(`[WHATSAPP] Cloud partially configured: token=${accessToken?.[0] ? 'SET' : 'MISSING'}, id=${phoneNumberId ? 'SET' : 'MISSING'}`);
-    return null; // Cloud API not configured; fallback to Web bridge
+    console.warn(`[WHATSAPP] Cloud API MISSING CONFIG: token=${accessToken?.[0] ? 'SET' : 'MISSING'}, id=${phoneNumberId ? 'SET' : 'MISSING'}`);
+    return null; 
   }
 
-  return { accessToken: accessToken.replace(/['"\n\r]/g, ''), phoneNumberId: phoneNumberId.replace(/['"\n\r]/g, '') };
+  return { 
+    accessToken: accessToken.replace(/['"\n\r]/g, ''), 
+    phoneNumberId: phoneNumberId.replace(/['"\n\r]/g, ''),
+    appSecret: appSecret.replace(/['"\n\r]/g, '') || undefined,
+    phoneNumber: phoneNumber.replace(/['"\n\r]/g, '')
+  };
+}
+
+function isWebBridgeDisabled(): boolean {
+  return String(process.env.WHATSAPP_DISABLE_WEB_BRIDGE || '')
+    .trim()
+    .toLowerCase() === 'true';
+}
+
+function generateAppSecretProof(accessToken: string, appSecret?: string): string | undefined {
+  if (!appSecret) return undefined;
+  return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
 }
 
 export async function sendWhatsAppText(toRaw: string, body: string): Promise<WhatsAppSendTextResult> {
   const env = getWhatsAppEnv();
+  const to = normalizePhone(toRaw);
 
-  // If Cloud API is configured, use it
+  // Try Meta Cloud API first
   if (env) {
-    const { accessToken, phoneNumberId } = env;
-    const to = normalizePhone(toRaw);
-
-    const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
+    try {
+      const { accessToken, phoneNumberId, appSecret } = env;
+      const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
+      
+      const payload: any = {
         messaging_product: 'whatsapp',
         to,
         type: 'text',
         text: { body },
-      }),
-      cache: 'no-store',
-    });
+      };
 
-    const data = await res.json().catch(() => ({}));
+      // Add appsecret_proof if app secret is available
+      const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+      if (appSecretProof) {
+        payload.appsecret_proof = appSecretProof;
+      }
 
-    if (!res.ok) {
-      const message =
-        data?.error?.message || data?.error?.error_user_msg || data?.error || 'WhatsApp API error';
-      const err = new Error(String(message));
-      (err as any).status = res.status;
-      (err as any).data = data;
-      throw err;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        const waMessageId =
+          Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+        return { waMessageId, raw: { ...data, provider: 'meta' } };
+      }
+      
+      console.warn('[WHATSAPP] Meta Cloud API failed:', data?.error?.message);
+      // Fall through to try bridge
+    } catch (err) {
+      console.warn('[WHATSAPP] Meta Cloud API error:', err instanceof Error ? err.message : String(err));
+      // Fall through to try bridge
     }
-
-    const waMessageId =
-      Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
-
-    return { waMessageId, raw: { ...data, provider: 'meta' } };
   }
 
-  // Fallback: Cloud API not configured → use WhatsApp Web bridge
-  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-  if (!bridgeUrl) {
+  // Fallback to WhatsApp Web Bridge
+  // (Deprecated) — can be disabled globally via WHATSAPP_DISABLE_WEB_BRIDGE=true
+  if (isWebBridgeDisabled()) {
     throw new Error(
-      'WhatsApp sending unavailable: ' +
-        'Cloud API not configured (missing WHATSAPP_ACCESS_TOKEN) ' +
-        'and no Web bridge URL set (WHATSAPP_BRIDGE_HTTP_URL). ' +
-        'Either configure Cloud API or set bridge URLs to use WhatsApp Web QR.'
+      'WhatsApp sending failed: Web Bridge is disabled (WHATSAPP_DISABLE_WEB_BRIDGE=true) and Meta Cloud API did not send'
     );
   }
 
-  const to = normalizePhone(toRaw);
-  const sendUrl = `${bridgeUrl.replace(/\/+$/, '')}/api/send`;
+  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
   const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (bridgeSecret) {
-    headers['X-WhatsApp-Bridge-Secret'] = bridgeSecret;
+  if (bridgeUrl && bridgeSecret) {
+    try {
+      const res = await fetch(`${bridgeUrl}/api/messages/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bridge-secret': bridgeSecret,
+        },
+        body: JSON.stringify({
+          phone: to,
+          message: body,
+        }),
+        cache: 'no-store',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        return { waMessageId: data?.messageId || 'bridge-queued', raw: { ...data, provider: 'whatsapp_web_bridge' } };
+      }
+
+      throw new Error(data?.error || 'Bridge send failed');
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      throw new Error(`WhatsApp sending failed: Meta Cloud API not configured and Web Bridge unavailable (${errMsg})`);
+    }
   }
 
-  const res = await fetch(sendUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ phone: to, message: body }),
-    cache: 'no-store',
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const message =
-      data?.error || data?.message || `WhatsApp Web bridge error (HTTP ${res.status})`;
-    const err = new Error(String(message));
-    (err as any).status = res.status;
-    (err as any).data = data;
-    throw err;
-  }
-  // Bridge typically returns { success: true, messageId?: "..." }
-  const waMessageId = data?.messageId || data?.waMessageId;
-  return { waMessageId, raw: { ...data, provider: 'whatsapp_web_bridge' } };
+  throw new Error('WhatsApp sending failed: Meta Cloud API is not configured (missing WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID) and no Web Bridge URL set (WHATSAPP_BRIDGE_HTTP_URL)');
 }
 
 /**
@@ -173,104 +201,103 @@ export async function sendWhatsAppMedia(
   caption?: string
 ): Promise<WhatsAppSendMediaResult> {
   const env = getWhatsAppEnv();
+  const to = normalizePhone(toRaw);
 
-  // If Cloud API is configured, use it
+  // If Cloud API is configured, try it first
   if (env) {
-    const { accessToken, phoneNumberId } = env;
-    const to = normalizePhone(toRaw);
+    try {
+      const { accessToken, phoneNumberId, appSecret } = env;
+      const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
+      
+      const mediaTypeSlug = mediaType;
+      const payload: any = {
+        messaging_product: 'whatsapp',
+        to,
+        type: mediaTypeSlug,
+        [mediaTypeSlug]: {
+          link: mediaUrl,
+        },
+      };
 
-    const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
-    
-    // Build payload based on media type
-    const mediaTypeSlug = mediaType;
-    const payload: any = {
-      messaging_product: 'whatsapp',
-      to,
-      type: mediaTypeSlug,
-      [mediaTypeSlug]: {
-        link: mediaUrl,
-      },
-    };
+      if (caption && caption.trim()) {
+        payload[mediaTypeSlug].caption = String(caption).trim();
+      }
 
-    // Add caption if provided
-    if (caption && caption.trim()) {
-      payload[mediaTypeSlug].caption = String(caption).trim();
+      // Add appsecret_proof if app secret is available
+      const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+      if (appSecretProof) {
+        payload.appsecret_proof = appSecretProof;
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        const waMessageId =
+          Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+        return { waMessageId, raw: { ...data, provider: 'meta' } };
+      }
+      console.warn('[WHATSAPP] Meta Cloud API failed (Media):', data?.error?.message || JSON.stringify(data));
+    } catch (err) {
+      console.warn('[WHATSAPP] Meta Cloud API error (Media):', err instanceof Error ? err.message : String(err));
     }
-
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(payload),
-      cache: 'no-store',
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      const message =
-        data?.error?.message || data?.error?.error_user_msg || data?.error || 'WhatsApp API error';
-      const err = new Error(String(message));
-      (err as any).status = res.status;
-      (err as any).data = data;
-      throw err;
-    }
-
-    const waMessageId =
-      Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
-
-    return { waMessageId, raw: { ...data, provider: 'meta' } };
   }
 
-  // Fallback: Cloud API not configured → use WhatsApp Web bridge
-  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-  if (!bridgeUrl) {
+  // Fallback to WhatsApp Web Bridge
+  // (Deprecated) — can be disabled globally via WHATSAPP_DISABLE_WEB_BRIDGE=true
+  if (isWebBridgeDisabled()) {
     throw new Error(
-      'WhatsApp media sending unavailable: ' +
-        'Cloud API not configured (missing WHATSAPP_ACCESS_TOKEN) ' +
-        'and no Web bridge URL set (WHATSAPP_BRIDGE_HTTP_URL). ' +
-        'Media sending requires Cloud API.'
+      'WhatsApp media sending failed: Web Bridge is disabled (WHATSAPP_DISABLE_WEB_BRIDGE=true) and Meta Cloud API did not send'
     );
   }
 
-  const to = normalizePhone(toRaw);
-  const sendUrl = `${bridgeUrl.replace(/\/+$/, '')}/api/send`;
+  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
   const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (bridgeSecret) {
-    headers['X-WhatsApp-Bridge-Secret'] = bridgeSecret;
+  if (bridgeUrl && bridgeSecret) {
+    try {
+      // Note: Legacy bridge might use a different body or endpoint for media.
+      // We send it to the same endpoint with extended fields.
+      const res = await fetch(`${bridgeUrl}/api/messages/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bridge-secret': bridgeSecret,
+        },
+        body: JSON.stringify({
+          phone: to,
+          message: caption || `Sent ${mediaType}`,
+          mediaUrl,
+          mediaType,
+          isMedia: true
+        }),
+        cache: 'no-store',
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        return { waMessageId: data?.messageId || 'bridge-queued', raw: { ...data, provider: 'whatsapp_web_bridge' } };
+      }
+
+      throw new Error(data?.error || 'Bridge send failed');
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      throw new Error(`WhatsApp media sending failed: Meta Cloud API error and Web Bridge unavailable (${errMsg})`);
+    }
   }
 
-  // Web bridge format for media
-  const res = await fetch(sendUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      phone: to,
-      mediaUrl: mediaUrl,
-      mediaType: mediaType,
-      caption: caption || undefined,
-    }),
-    cache: 'no-store',
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const message =
-      data?.error || data?.message || `WhatsApp Web bridge error (HTTP ${res.status})`;
-    const err = new Error(String(message));
-    (err as any).status = res.status;
-    (err as any).data = data;
-    throw err;
-  }
-
-  const waMessageId = data?.messageId || data?.waMessageId;
-  return { waMessageId, raw: { ...data, provider: 'whatsapp_web_bridge' } };
+  throw new Error('WhatsApp media sending failed: Meta Cloud API is not configured and no Web Bridge URL set (WHATSAPP_BRIDGE_HTTP_URL)');
 }
 
 function extractTemplateVariablesFromText(text: string): string[] {
@@ -364,13 +391,13 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
     throw new Error('WhatsApp Cloud API is not enabled/configured (WHATSAPP_ENABLE_CLOUD_SEND + credentials).');
   }
 
-  const { accessToken, phoneNumberId } = env;
+  const { accessToken, phoneNumberId, appSecret } = env;
   const to = normalizePhone(input.to);
   const templateName = String(input.templateName || '').trim();
   if (!templateName) throw new Error('templateName is required');
 
   const language = String(input.language || 'en').trim() || 'en';
-  const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
+  const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
 
   const components = buildTemplateComponents(input);
 
@@ -384,6 +411,12 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
       ...(components.length ? { components } : {}),
     },
   };
+
+  // Add appsecret_proof if app secret is available
+  const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+  if (appSecretProof) {
+    payload.appsecret_proof = appSecretProof;
+  }
 
   const res = await fetch(url, {
     method: 'POST',

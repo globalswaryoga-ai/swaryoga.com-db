@@ -20,7 +20,11 @@ export async function GET(request: NextRequest) {
   const enabled = String(url.searchParams.get('enabled') || '').trim().toLowerCase();
   const triggerType = String(url.searchParams.get('triggerType') || '').trim();
 
-  const filter: any = { createdByUserId: String(userId) };
+  // Only restrict to creator for non-super-admins
+  const superAdmin = String(userId) === 'admincrm' || String(userId) === 'admin';
+  const filter: any = {};
+  if (!superAdmin) filter.createdByUserId = String(userId);
+
   // enabled can be true|false|all
   if (enabled === 'true' || enabled === '1') filter.enabled = true;
   if (enabled === 'false' || enabled === '0') filter.enabled = false;

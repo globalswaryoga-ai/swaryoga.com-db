@@ -126,11 +126,10 @@ export default function CRMDashboard() {
             {[
               { href: '/admin/crm', label: 'Overview', icon: '📊' },
               { href: '/admin/crm/leads', label: 'Leads', icon: '👥' },
-              { href: '/admin/crm/whatsapp-meta', label: 'WhatsApp Meta', icon: '🟢' },
+              { href: '/admin/crm/whatsapp', label: 'WhatsApp Inbox', icon: '🟢' },
               { href: '/admin/crm/leads-followup', label: 'Leads Followup', icon: '📋' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
               { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
-              { href: '/admin/crm/whatsapp', label: 'WhatsApp Chat', icon: '🟢' },
               { href: '/admin/crm/messages', label: 'Messages', icon: '💬' },
               { href: '/admin/crm/labels', label: 'Labels', icon: '🏷️' },
               { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
@@ -238,7 +237,7 @@ export default function CRMDashboard() {
                   href="/admin/crm/whatsapp"
                   className="block bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
-                  Open WhatsApp Chat
+                  WhatsApp Inbox
                 </Link>
                 <Link
                   href="/admin/crm/sales"

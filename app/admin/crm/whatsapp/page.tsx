@@ -8,9 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, BulkActionsModal, LoadingSpinner } from '@/components/admin/crm';
-import { QRConnectionModal } from '@/components/admin/crm/QRConnectionModal';
 import CreateLeadModal from '@/components/admin/crm/CreateLeadModal';
-import { whatsappSetupLinks } from './page-links';
 
 function decodeJwtPayloadSafe(token: string): Record<string, any> | null {
   // Client-only helper: decode payload WITHOUT verifying signature.
@@ -83,9 +81,6 @@ function resolveLeadLabel(row?: ConversationRow | null): string {
   if (!row) return 'Conversation';
   const name = String(row.name || '').trim();
   if (name) return name;
-
-  const leadNumber = String(row.leadNumber || '').trim();
-  if (leadNumber) return leadNumber;
 
   // Fall back to a nicely formatted phone number
   return formatPhoneForDisplay(row.phoneNumber) || row.phoneNumber || 'Conversation';
@@ -172,7 +167,7 @@ type LeadFollowUp = {
   title?: string;
   description?: string;
   dueAt: string;
-  status?: 'open' | 'done' | string;
+  status?: 'open' | 'done' | 'string';
   timezone?: string;
   createdAt: string;
 };
@@ -272,22 +267,6 @@ const SYMBOLS_DATA = {
   brackets: ['(', ')', '[', ']', '{', '}', '⟨', '⟩', '«', '»', '‹', '›', '"', '"', "'", "'"],
   special: ['©', '®', '™', '℠', '€', '¢', '£', '¥', '§', '¶', '†', '‡', '•', '‰', '′', '″', '‴', '※', '‼', '⁈', '⁉', '⁏'],
 };
-
-function getBridgeHttpBase(): string {
-  if (typeof window === 'undefined') return '';
-
-  const host = window.location.hostname;
-  const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0';
-  const envUrl = (process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-
-  // Local dev can default to localhost.
-  // Don't assume a local bridge is running. If the env var isn't set,
-  // we return empty so the UI doesn't spam ERR_CONNECTION_REFUSED.
-  if (isLocal) return envUrl || '';
-
-  // Production must be explicit.
-  return envUrl || '';
-}
 
 export default function WhatsAppChatDashboardPage() {
   const router = useRouter();
@@ -473,13 +452,6 @@ export default function WhatsAppChatDashboardPage() {
     };
   }, [showComposerTools, updateComposerToolsAnchor]);
 
-  // NEW: WhatsApp Web QR Connection
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [isWhatsAppConnected, setIsWhatsAppConnected] = useState(false);
-  const [senderLabel, setSenderLabel] = useState<string>('');
-
-  const bridgeHttpBase = useMemo(() => getBridgeHttpBase(), []);
-
   const createLeadInitialPhone = selected?.phoneNumber || '';
 
   const [actionModal, setActionModal] = useState<null | 'assign' | 'broadcast' | 'status' | 'export' | 'schedule' | 'delay'>(null);
@@ -506,42 +478,6 @@ export default function WhatsAppChatDashboardPage() {
   const [scheduleBusy, setScheduleBusy] = useState(false);
 
   const listRef = useRef<HTMLDivElement | null>(null);
-
-  // Show the *actual* WhatsApp Web account that's connected (from the local bridge status).
-  // This avoids confusing hardcoded defaults like +919309986820.
-  useEffect(() => {
-    let cancelled = false;
-    const fetchStatus = async () => {
-      try {
-        // IMPORTANT: Never call the bridge directly from the browser (CORS + mixed env issues).
-        // Use the same-origin Next.js API proxy instead.
-        const res = await crmFetch('/api/admin/crm/whatsapp/bridge/status');
-        if (res.ok) {
-          const data = await res.json().catch(() => null);
-          if (cancelled || !data) return;
-
-          const acct = data.account;
-          const phone = acct?.phone || acct?.wid || acct?.pushname;
-          setSenderLabel(phone ? String(phone) : '');
-          setIsWhatsAppConnected(Boolean(data.authenticated ?? data.connected ?? data.isAuthenticated));
-          return;
-        }
-      } catch {
-        if (!cancelled) {
-          setSenderLabel('');
-          // Keep existing state; bridge may not be running.
-        }
-      }
-    };
-
-    // Fetch once on load and then poll lightly.
-    fetchStatus();
-    const id = window.setInterval(fetchStatus, 5000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [bridgeHttpBase]);
 
   // Load persisted chat-sidebar width
   useEffect(() => {
@@ -877,7 +813,7 @@ export default function WhatsAppChatDashboardPage() {
     fetchConversations();
     fetchQuickReplies();
     fetchAdminUsers();
-  }, [token, router, fetchConversations, fetchQuickReplies]);
+  }, [token, router, fetchConversations, fetchQuickReplies, fetchAdminUsers]);
 
   // Lazy-load saved items depending on dropdown selection
   useEffect(() => {
@@ -892,7 +828,7 @@ export default function WhatsAppChatDashboardPage() {
     const now = Date.now();
     const cutoffNewMs = 48 * 60 * 60 * 1000; // 48h
     const viewerUserId = String(viewer.userId || '').trim();
-    const isSuperAdmin = viewerUserId === 'admincrm';
+    const isSuperAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
     const base = !isSuperAdmin && viewerUserId
       ? conversations.filter((c) => String(c.assignedToUserId || '').trim() === viewerUserId)
       : conversations;
@@ -1618,7 +1554,7 @@ export default function WhatsAppChatDashboardPage() {
   );
 
   // NEW: Handle composer text change with spell checking
-  const handleComposerChange = (text: string) => {
+  const handleComposerChange = useCallback((text: string) => {
     setComposer(text);
     if (selectedTemplate) setSelectedTemplate(null);
     if (!spellCheckEnabled) {
@@ -1627,7 +1563,7 @@ export default function WhatsAppChatDashboardPage() {
     }
     const errors = checkSpelling(text);
     setSpellingErrors(errors);
-  };
+  }, [selectedTemplate, spellCheckEnabled]);
 
   const applyAutocorrect = useCallback(async () => {
     const text = composer.trim();
@@ -1778,6 +1714,14 @@ export default function WhatsAppChatDashboardPage() {
     }
   }, [token]);
 
+  // Poll for diagnostics every 60s to keep status indicator fresh
+  useEffect(() => {
+    if (!token) return;
+    fetchWhatsAppDiagnostics();
+    const interval = setInterval(fetchWhatsAppDiagnostics, 60000);
+    return () => clearInterval(interval);
+  }, [token, fetchWhatsAppDiagnostics]);
+
   if (!hasMounted) return null;
 
   return (
@@ -1785,15 +1729,6 @@ export default function WhatsAppChatDashboardPage() {
       {/* LEFT SIDEBAR (CRM + WhatsApp) */}
       <aside className="crm-sidebar">
         <div className="logo">Swar Yoga CRM</div>
-
-        <div style={{ margin: '8px 0 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontSize: 12, color: '#6B7280' }}>WhatsApp setup</div>
-          {whatsappSetupLinks.map((l) => (
-            <Link key={l.href} href={l.href} style={{ fontSize: 13, opacity: 0.95 }}>
-              {l.label}
-            </Link>
-          ))}
-        </div>
 
         <div className="wa-card" style={{ margin: '8px 0 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -1815,19 +1750,28 @@ export default function WhatsAppChatDashboardPage() {
 
           {waDiagnostics ? (
             <div style={{ marginTop: 8, fontSize: 12, color: '#374151', display: 'grid', gap: 6 }}>
-              <div>
-                <strong>Meta:</strong>{' '}
-                {String(waDiagnostics?.meta?.connected ?? waDiagnostics?.metaConnected ?? 'unknown')}
-                {waDiagnostics?.meta?.message ? ` — ${waDiagnostics.meta.message}` : ''}
+              <div style={{ padding: '6px 0', borderBottom: '1px solid #eee' }}>
+                <div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.025em', fontWeight: 600 }}>Backend</div>
+                <div>
+                  <strong>Meta API:</strong>{' '}
+                  {String(waDiagnostics?.meta?.reachable ?? waDiagnostics?.meta?.connected ?? 'unknown')}
+                </div>
+                {waDiagnostics?.meta?.message && (
+                  <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>{waDiagnostics.meta.message}</div>
+                )}
               </div>
-              <div>
-                <strong>Bridge (Deprecated):</strong>{' '}
-                {String(waDiagnostics?.bridge?.reachable ?? waDiagnostics?.bridgeReachable ?? 'unknown')}
-                {waDiagnostics?.bridge?.authenticated != null
-                  ? ` (authenticated: ${String(waDiagnostics.bridge.authenticated)})`
-                  : ''}
-                {waDiagnostics?.bridge?.message ? ` — ${waDiagnostics.bridge.message}` : ''}
-              </div>
+
+              {waDiagnostics?.webhooks && (
+                <div style={{ padding: '6px 0' }}>
+                  <div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.025em', fontWeight: 600 }}>Incoming (Live)</div>
+                  <div style={{ marginTop: 4 }}>
+                    <strong>Last Hit:</strong> {waDiagnostics.webhooks.lastHit ? new Date(waDiagnostics.webhooks.lastHit).toLocaleTimeString() : 'Never'}
+                  </div>
+                  <div>
+                    <strong>Last Msg:</strong> {waDiagnostics.webhooks.lastInbound ? new Date(waDiagnostics.webhooks.lastInbound).toLocaleTimeString() : 'None'}
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
@@ -1850,7 +1794,7 @@ export default function WhatsAppChatDashboardPage() {
       </aside>
 
       {/* SECOND LEFT PANEL (Chats: New / Old / Labels) */}
-  <aside
+      <aside
           className="chat-sidebar"
           style={{ width: chatSidebarWidth, display: 'flex', flexDirection: 'column', minHeight: 0 }}
         >
@@ -2240,50 +2184,6 @@ export default function WhatsAppChatDashboardPage() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <div style={{ fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>WhatsApp Inbox</div>
-
-            {/* Always show connected sender if connected */}
-            {isWhatsAppConnected ? (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 12,
-                  color: '#065F46',
-                  background: '#ECFDF5',
-                  border: '1px solid #A7F3D0',
-                  padding: '4px 8px',
-                  borderRadius: 999,
-                  maxWidth: 520,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-                title={senderLabel ? `Connected: ${senderLabel}` : 'WhatsApp connected'}
-              >
-                <span aria-hidden="true">🟢</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  Connected{senderLabel ? `: ${senderLabel}` : ''}
-                </span>
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 12,
-                  color: '#6B7280',
-                  background: '#F3F4F6',
-                  border: '1px solid #E5E7EB',
-                  padding: '4px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                <span aria-hidden="true">⚪</span>
-                <span>Not connected</span>
-              </div>
-            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -2335,22 +2235,6 @@ export default function WhatsAppChatDashboardPage() {
             >
               🧾 Template
             </Link>
-
-            <button
-              type="button"
-              onClick={() => setShowQRModal(true)}
-              style={{
-                fontSize: 13,
-                padding: '8px 10px',
-                borderRadius: 8,
-                border: '1px solid #E5E7EB',
-                background: '#111827',
-                color: '#fff',
-              }}
-              title="Connect WhatsApp Web"
-            >
-              🔗 Connect
-            </button>
           </div>
         </div>
 
@@ -2359,16 +2243,11 @@ export default function WhatsAppChatDashboardPage() {
             <div>{selectedLeadName}</div>
             <div className="sub">{selected?.phoneNumber || 'Select a chat to start'}</div>
             {/* Keep the header minimal (chips moved to right sidebar tools panel) */}
-            {/* Sender WhatsApp Account Display (keep it visible for selected chat too) */}
-            {selected && isWhatsAppConnected ? (
+            {selected && (
               <div style={{ marginTop: 8, fontSize: '12px', color: '#065F46', fontStyle: 'italic' }}>
-                📱 Sender connected{senderLabel ? `: ${senderLabel}` : ''}
+                📱 Meta Cloud API: Enabled
               </div>
-            ) : selected ? (
-              <div style={{ marginTop: 8, fontSize: '12px', color: '#6B7280', fontStyle: 'italic' }}>
-                📱 Sender: Not connected
-              </div>
-            ) : null}
+            )}
             {error ? (
               <div style={{ marginTop: 10 }}>
                 <AlertBox type="error" message={error} />
@@ -2377,26 +2256,6 @@ export default function WhatsAppChatDashboardPage() {
           </div>
 
           <div className="chat-header-actions">
-            {/* Connect/Refresh WhatsApp Button */}
-            <button
-              type="button"
-              title="Connect/Refresh WhatsApp"
-              onClick={() => setShowQRModal(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '20px',
-                padding: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: '8px',
-              }}
-            >
-              🔄
-            </button>
-
             {/* Broadcast button (near chatbot section) */}
             <Link
               href="/admin/crm/broadcast"
@@ -2442,36 +2301,6 @@ export default function WhatsAppChatDashboardPage() {
         </div>
 
         <div className="chat-actionbar">
-          {/* NEW: WhatsApp Web QR Button */}
-          <button
-            type="button"
-            className="action-icon"
-            onClick={() => setShowQRModal(true)}
-            style={{ position: 'relative' }}
-            aria-label="Connect WhatsApp Web"
-            title="Connect personal WhatsApp (WhatsApp Web)"
-          >
-            {isWhatsAppConnected && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
-                  width: '10px',
-                  height: '10px',
-                  background: '#10b981',
-                  borderRadius: '50%',
-                }}
-              ></span>
-            )}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path
-                d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 3 .97 4.29L2 22l6.29-.98C9.23 22.5 10.6 23 12 23c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.41 0-2.73-.36-3.88-.98l-.28-.15-2.89.45.45-2.89-.15-.28C4.36 14.73 4 13.41 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-
           <button
             type="button"
             className="action-icon"
@@ -2674,7 +2503,7 @@ export default function WhatsAppChatDashboardPage() {
           </div>
         </div>
 
-  <div ref={listRef} className="chat-messages" style={{ background: '#fff', paddingTop: 6 }}>
+        <div ref={listRef} className="chat-messages" style={{ background: '#fff', paddingTop: 6 }}>
           {!selected ? (
             <div style={{ color: '#6B7280', fontSize: 13 }}>Select a conversation from the left.</div>
           ) : loadingMessages ? (
@@ -2840,7 +2669,10 @@ export default function WhatsAppChatDashboardPage() {
               }
               onClick={() => {
                 if (savedKind === 'quick_replies') {
-                  setQrModalOpen(true);
+                  // Previously this opened a modal named "qr" (historical naming).
+                  // To avoid confusion with the deprecated WhatsApp Web QR login flow,
+                  // route users to the Quick Replies management view instead.
+                  router.push('/admin/crm/whatsapp/settings');
                   return;
                 }
                 if (savedKind === 'templates') {
@@ -3686,7 +3518,7 @@ export default function WhatsAppChatDashboardPage() {
                 <button type="button" className="secondary" onClick={() => setShowPreview(false)}>
                   Close
                 </button>
-              </div>
+                           </div>
             </div>
           </div>
         )}
@@ -4133,7 +3965,7 @@ export default function WhatsAppChatDashboardPage() {
 
                     {/* Quick add existing label */}
                     {allKnownLabels.length ? (
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <select
                           value={labelPicker}
                           onChange={(e) => setLabelPicker(e.target.value)}
@@ -4268,13 +4100,6 @@ export default function WhatsAppChatDashboardPage() {
           )}
         </div>
       </aside>
-
-      {/* NEW: WhatsApp Web QR Modal */}
-      <QRConnectionModal
-        isOpen={showQRModal}
-        onClose={() => setShowQRModal(false)}
-        onConnected={() => setIsWhatsAppConnected(true)}
-      />
 
       <CreateLeadModal
         isOpen={createLeadOpen}

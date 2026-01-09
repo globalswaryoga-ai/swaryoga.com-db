@@ -235,6 +235,28 @@ export default function CreateTemplatePage() {
 
     setSaving(true);
     try {
+      const resolvedHeaderFormat = imageFile
+        ? 'IMAGE'
+        : videoUrl.trim()
+          ? 'VIDEO'
+          : headerText.trim()
+            ? 'TEXT'
+            : undefined;
+
+      const resolvedHeaderContent = imageFile
+        ? imageFile.url
+        : videoUrl.trim()
+          ? videoUrl.trim()
+          : headerText.trim() || undefined;
+
+      const resolvedHeaderMedia =
+        resolvedHeaderFormat === 'IMAGE' || resolvedHeaderFormat === 'VIDEO'
+          ? {
+              kind: resolvedHeaderFormat === 'VIDEO' ? 'video' : 'image',
+              url: resolvedHeaderContent || '',
+            }
+          : null;
+
       await crmFetch('/api/admin/crm/templates', {
         method: 'POST',
         body: {
@@ -242,12 +264,14 @@ export default function CreateTemplatePage() {
           category,
           language,
           templateContent,
-          headerFormat: imageFile ? 'IMAGE' : headerText.trim() ? 'TEXT' : undefined,
-          headerContent: headerText.trim() || undefined,
+          headerFormat: resolvedHeaderFormat,
+          // IMPORTANT: for image/video headers, headerContent should be the MEDIA URL.
+          headerContent: resolvedHeaderContent,
+          headerMedia: resolvedHeaderMedia || undefined,
           footerText: footerText.trim() || undefined,
           buttons: buttons.map((b) => ({ title: String(b?.title || '') })),
           imageFile: imageFile || undefined,
-          documentFiles: documentFiles.length > 0 ? documentFiles : undefined,
+          documents: documentFiles.length > 0 ? documentFiles : undefined,
           videoUrl: videoUrl.trim() || undefined,
           variables: [],
         },

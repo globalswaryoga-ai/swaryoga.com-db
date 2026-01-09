@@ -157,7 +157,7 @@ async function publishToFacebook(post: any, account: any): Promise<string> {
   const accessToken = account.access_token;
   const pageId = account.platform_account_id || 'me';
   
-  const response = await fetch(`https://graph.facebook.com/v18.0/${pageId}/feed`, {
+  const response = await fetch(`https://graph.facebook.com/v24.0/${pageId}/feed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -190,7 +190,7 @@ async function publishToInstagram(post: any, account: any): Promise<string> {
   try {
     // First, create a media object
     const mediaResponse = await fetch(
-      `https://graph.instagram.com/v18.0/${igBusinessAccountId}/media`,
+      `https://graph.instagram.com/v24.0/${igBusinessAccountId}/media`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,7 +211,7 @@ async function publishToInstagram(post: any, account: any): Promise<string> {
 
     // Then publish the media
     const publishResponse = await fetch(
-      `https://graph.instagram.com/v18.0/${igBusinessAccountId}/media_publish`,
+      `https://graph.instagram.com/v24.0/${igBusinessAccountId}/media_publish`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -350,7 +350,7 @@ async function publishToWhatsApp(post: any, account: any): Promise<string> {
   const businessToken = account.access_token;
 
   const response = await fetch(
-    `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+    `https://graph.facebook.com/v24.0/${phoneNumberId}/messages`,
     {
       method: 'POST',
       headers: {

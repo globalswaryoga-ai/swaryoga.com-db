@@ -91,11 +91,8 @@ export default function AutomationPage() {
     throttleMinutesPerLead: 5,
   });
 
-  // Guard against hydration mismatch + early auth redirects. AFTER all hooks.
-  if (typeof window === 'undefined') return <LoadingSpinner />;
-  
-  // Early auth check - redirect if no token (AFTER hooks)
-  if (!token) return <LoadingSpinner />;
+  // NOTE: Do not early-return before hook declarations (lint: rules-of-hooks).
+  // We keep rendering guarded below, after ALL hooks are declared.
 
   const fetchRules = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -161,7 +158,12 @@ export default function AutomationPage() {
     lastFetchKeyRef.current = key;
     setLoadingScope('page');
     void fetchRules();
-  }, [mounted, token, fetchRules]);
+  }, [mounted, token, router, fetchRules]);
+
+  // Render guard (after hooks): avoid SSR/hydration issues and show spinner until auth known.
+  if (!mounted || !token) {
+    return <LoadingSpinner />;
+  }
 
   const handleTabChange = (tab: typeof activeTab) => {
     setActiveTab(tab);

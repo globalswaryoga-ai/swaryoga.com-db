@@ -148,6 +148,10 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
 
   // Persist outbound message
   const now = new Date();
+  const { getWhatsAppEnv } = await import('@/lib/whatsapp');
+  const env = getWhatsAppEnv();
+  const senderNumber = env?.phoneNumber || '9779006820';
+
   const message = await WhatsAppMessage.create({
     leadId: lead._id,
     phoneNumber: to,
@@ -157,9 +161,12 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
     status: 'queued',
     sentAt: now,
     metadata,
+    provider: env ? 'meta' : 'whatsapp_web_bridge',
+    senderNumber,
   });
 
   try {
+    const { sendWhatsAppText } = await import('@/lib/whatsapp');
     const apiResult = await sendWhatsAppText(to, text);
     await WhatsAppMessage.updateOne(
       { _id: message._id },
@@ -167,8 +174,8 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
         $set: { 
           status: 'sent', 
           waMessageId: apiResult.waMessageId, 
-          provider: apiResult.raw.provider,
-          senderNumber: apiResult.raw.provider === 'meta' ? '9779006820' : '9075358557',
+          provider: apiResult.raw?.provider || 'meta',
+          senderNumber,
           updatedAt: new Date() 
         }, 
         $unset: { failureReason: 1 } 
@@ -176,6 +183,65 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'WhatsApp send failed';
+    await WhatsAppMessage.updateOne(
+      { _id: message._id },
+      { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
+    );
+  }
+}
+
+async function sendOutboundTemplate(lead: any, to: string, templateId: string, templateVariables?: any, metadata?: any) {
+  const { getWhatsAppTemplate } = await import('@/lib/schemas/enterpriseSchemas');
+  const TemplateModel = getWhatsAppTemplate();
+  const template = await TemplateModel.findById(templateId).lean();
+  if (!template) return;
+
+  const compliance = await ConsentManager.validateCompliance(to);
+  if (!compliance.compliant) return;
+
+  const now = new Date();
+  const { getWhatsAppEnv } = await import('@/lib/whatsapp');
+  const env = getWhatsAppEnv();
+  const senderNumber = env?.phoneNumber || '9779006820';
+
+  const message = await WhatsAppMessage.create({
+    leadId: lead._id,
+    phoneNumber: to,
+    direction: 'outbound',
+    messageType: 'template',
+    templateId,
+    templateVariables,
+    status: 'queued',
+    sentAt: now,
+    metadata,
+    provider: env ? 'meta' : 'whatsapp_web_bridge',
+    senderNumber,
+  });
+
+  try {
+    const { sendWhatsAppTemplate } = await import('@/lib/whatsapp');
+    const apiResult = await sendWhatsAppTemplate({
+      to,
+      templateName: (template as any).templateName,
+      language: (template as any).language || 'en',
+      bodyParams: Array.isArray(templateVariables) ? templateVariables : [],
+    });
+
+    await WhatsAppMessage.updateOne(
+      { _id: message._id },
+      { 
+        $set: { 
+          status: 'sent', 
+          waMessageId: apiResult.waMessageId, 
+          provider: apiResult.raw?.provider || 'meta',
+          senderNumber,
+          updatedAt: new Date() 
+        }, 
+        $unset: { failureReason: 1 } 
+      }
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'WhatsApp template send failed';
     await WhatsAppMessage.updateOne(
       { _id: message._id },
       { $set: { status: 'failed', failureReason: String(msg), updatedAt: new Date() } }
@@ -218,6 +284,80 @@ async function runSimpleChatbot(lead: any, ctx: InboundContext): Promise<string 
   return null;
 }
 
+async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Promise<string | null> {
+  const md = lead?.metadata || {};
+  const state = md.chatbotFlowState || { flowId: String(flow._id), nodeId: flow.startNodeId };
+  
+  // If user changed flows or something went wrong, restart or stay
+  if (state.flowId !== String(flow._id)) {
+    state.flowId = String(flow._id);
+    state.nodeId = flow.startNodeId;
+  }
+
+  const currentNode = flow.nodes?.find((n: any) => n.nodeId === state.nodeId);
+  if (!currentNode) return null;
+
+  console.log(`[Chatbot] Lead ${ctx.fromPhone} at node ${state.nodeId} (${currentNode.type})`);
+
+  let nextNodeId = currentNode.nextNodeId;
+  let reply: string | null = null;
+
+  // 1) Logic to determine next node based on input
+  if (currentNode.type === 'question' || currentNode.type === 'buttons') {
+    const userInput = ctx.body.trim().toLowerCase();
+    const matchedOption = currentNode.options?.find((opt: any) => 
+      String(opt.label || '').toLowerCase() === userInput || 
+      String(opt.value || '').toLowerCase() === userInput
+    );
+
+    if (matchedOption) {
+      nextNodeId = matchedOption.nextNodeId;
+    } else if (currentNode.questionType === 'text') {
+      // For free text questions, we just move to nextNodeId if it exists
+      nextNodeId = currentNode.nextNodeId;
+    } else {
+      // Didn't match any option and not a free-text question? 
+      // Ask again or stay here. For now, stay here but return null to not spam.
+      // Alternatively, we could re-send the question.
+      return `I'm sorry, I didn't understand that. Please choose one of: ${currentNode.options.map((o: any) => o.label).join(', ')}`;
+    }
+  }
+
+  // 2) Get the next node's content
+  const nextNode = flow.nodes?.find((n: any) => n.nodeId === nextNodeId);
+  if (nextNode) {
+    console.log(`[Chatbot] Advancing to next node: ${nextNodeId}`);
+    
+    // Assign labels if defined
+    if (Array.isArray(nextNode.assignLabels) && nextNode.assignLabels.length > 0) {
+      await Lead.updateOne({ _id: lead._id }, { $addToSet: { labels: { $each: nextNode.assignLabels } } });
+    }
+
+    if (nextNode.type === 'message' || nextNode.type === 'question' || nextNode.type === 'buttons') {
+      reply = nextNode.messageText || nextNode.questionText || null;
+    } else if (nextNode.type === 'template') {
+      // Handle template node? 
+      // For now we just return a placeholder or handle it via sendOutboundTemplate
+      // But this function returns a string reply usually.
+    } else if (nextNode.type === 'end') {
+      reply = nextNode.messageText || 'Thank you!';
+      await Lead.updateOne({ _id: lead._id }, { $unset: { 'metadata.chatbotFlowState': 1 } });
+      return reply;
+    }
+
+    // Update state to the new node
+    await Lead.updateOne(
+      { _id: lead._id },
+      { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNodeId, updatedAt: ctx.now } } }
+    );
+  } else {
+    // No next node? End flow.
+    await Lead.updateOne({ _id: lead._id }, { $unset: { 'metadata.chatbotFlowState': 1 } });
+  }
+
+  return reply;
+}
+
 export async function handleInboundWhatsAppAutomations(input: {
   leadId: any;
   phoneNumber: string;
@@ -250,10 +390,16 @@ export async function handleInboundWhatsAppAutomations(input: {
     .sort({ createdAt: 1 })
     .lean();
 
+  console.log(`[Automation] Processing ${rules.length} rules for ${fromPhone}`);
+
   for (const rule of rules) {
-    if (!matchesConditions(lead, (rule as any).conditions)) continue;
+    if (!matchesConditions(lead, (rule as any).conditions)) {
+      console.log(`[Automation] Rule ${(rule as any).name} conditions NOT matched`);
+      continue;
+    }
 
     const triggerType = String((rule as any).triggerType || 'welcome');
+    console.log(`[Automation] Rule ${(rule as any).name} trigger: ${triggerType}`);
 
     if (triggerType === 'welcome' && !ctx.wasFirstInbound) continue;
 
@@ -262,10 +408,36 @@ export async function handleInboundWhatsAppAutomations(input: {
       if (kws.length === 0) continue;
       const lower = ctx.body.toLowerCase();
       const matched = kws.some((k: string) => k && lower.includes(k));
-      if (!matched) continue;
+      if (!matched) {
+        console.log(`[Automation] Keywords [${kws.join(',')}] not matched in "${lower}"`);
+        continue;
+      }
     }
 
-    if (await shouldThrottle(lead._id, rule, now)) continue;
+    if (triggerType === 'chatbot') {
+      console.log(`[Automation] Chatbot trigger active`);
+      const { getChatbotFlow } = await import('@/lib/schemas/enterpriseSchemas');
+      const ChatbotFlow = getChatbotFlow();
+      const activeFlow = await ChatbotFlow.findOne({ enabled: true }).lean();
+      
+      if (activeFlow) {
+        try {
+          const reply = await advanceChatbotFlow(lead, ctx, activeFlow);
+          if (reply) {
+            await sendOutboundText(lead, fromPhone, reply, { automation: { ruleId: String((rule as any)._id), flowId: String(activeFlow._id) } });
+            await markThrottle(lead._id, rule, now);
+          }
+        } catch (err) {
+          console.error('[Automation] Chatbot flow error:', err);
+        }
+      }
+      continue;
+    }
+
+    if (await shouldThrottle(lead._id, rule, now)) {
+      console.log(`[Automation] Rule ${(rule as any).name} throttled`);
+      continue;
+    }
 
     const actionType = String((rule as any).actionType || 'send_text');
 
@@ -273,6 +445,14 @@ export async function handleInboundWhatsAppAutomations(input: {
       const text = String((rule as any).actionText || '').trim();
       if (!text) continue;
       await sendOutboundText(lead, fromPhone, text, { automation: { ruleId: String((rule as any)._id) } });
+      await markThrottle(lead._id, rule, now);
+      continue;
+    }
+
+    if (actionType === 'send_template') {
+      const templateId = (rule as any).actionTemplateId;
+      if (!templateId) continue;
+      await sendOutboundTemplate(lead, fromPhone, templateId, (rule as any).actionTemplateVariables, { automation: { ruleId: String((rule as any)._id) } });
       await markThrottle(lead._id, rule, now);
       continue;
     }
@@ -286,7 +466,7 @@ export async function handleInboundWhatsAppAutomations(input: {
       continue;
     }
 
-    if (actionType === 'ai_reply' && triggerType === 'ai_agent') {
+    if (actionType === 'ai_reply' || triggerType === 'ai_agent') {
       try {
         const reply = await maybeAIReply(lead, ctx);
         if (reply) {
@@ -295,15 +475,6 @@ export async function handleInboundWhatsAppAutomations(input: {
         }
       } catch {
         // Ignore AI failures to keep webhook resilient.
-      }
-      continue;
-    }
-
-    if (triggerType === 'chatbot') {
-      const reply = await runSimpleChatbot(lead, ctx);
-      if (reply) {
-        await sendOutboundText(lead, fromPhone, reply, { automation: { ruleId: String((rule as any)._id), chatbot: true } });
-        await markThrottle(lead._id, rule, now);
       }
       continue;
     }

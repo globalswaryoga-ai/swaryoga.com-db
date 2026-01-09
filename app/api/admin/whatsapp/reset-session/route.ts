@@ -9,6 +9,13 @@ const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
+    if (String(process.env.WHATSAPP_DISABLE_WEB_BRIDGE || '').trim().toLowerCase() === 'true') {
+      return NextResponse.json(
+        { error: 'WhatsApp Web bridge is disabled' },
+        { status: 410 }
+      );
+    }
+
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
 

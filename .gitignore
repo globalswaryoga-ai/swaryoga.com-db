@@ -5,6 +5,8 @@ out/
 .swc/
 .env
 .env.local
+.env.local.bak
+.env.local.clean
 .env.*.local
 .env.vercel
 .env.payment

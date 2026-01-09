@@ -1,214 +1,102 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
-import { connectDB } from '@/lib/db';
-import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhoneForMeta } from '@/lib/utils/phone';
+import { POST as originalPOST } from '../../send/route';
+import crypto from 'crypto';
 
-const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const META_GRAPH_API_VERSION = process.env.META_GRAPH_API_VERSION || 'v19.0';
-
-function isMetaDisabled(): boolean {
-  return [
-    process.env.WHATSAPP_DISABLE_META_UI,
-    process.env.WHATSAPP_DISABLE_META_SEND,
-    process.env.WHATSAPP_DISABLE_CLOUD_SEND,
-    process.env.WHATSAPP_FORCE_WEB_BRIDGE,
-    process.env.WHATSAPP_DISABLE_CLOUD,
-  ].some((v) => String(v || '').toLowerCase() === 'true');
-}
-
-async function safeReadJson(res: Response): Promise<any> {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
+/**
+ * Generate SHA256 HMAC for Meta App Secret Proof
+ * Required for Apps in "Live" mode
+ */
+function getAppSecretProof(accessToken: string, appSecret: string): string {
+  return crypto
+    .createHmac('sha256', appSecret)
+    .update(accessToken)
+    .digest('hex');
 }
 
 /**
- * POST /api/admin/crm/whatsapp/meta/send
- * Send message via Meta WhatsApp Cloud API
- * 
- * Body: { leadId, phoneNumber, messageContent }
- * Response: { success, data: { messageId, status }, error? }
+ * Compatibility route for old /meta/send
+ * Forwards to the new /api/admin/crm/whatsapp/send
  */
 export async function POST(request: NextRequest) {
   try {
-    if (isMetaDisabled()) {
-      return NextResponse.json(
-        { error: 'Not found' },
-        { status: 404 }
-      );
-    }
-
-    // 1. Verify admin auth
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
-
-    if (!decoded?.isAdmin) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Admin access required' },
-        { status: 401 }
-      );
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Check credentials
-    if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
-      return NextResponse.json(
-        {
-          error: 'Meta WhatsApp not configured',
-          details: 'WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID missing',
-        },
-        { status: 503 }
-      );
+    // Compatibility wrapper: accept legacy payload shapes.
+    // We must read the body once and then forward to the canonical handler.
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    // 3. Parse request
-    const body = await request.json();
-    const { leadId, phoneNumber, messageContent } = body;
-
-    if (!phoneNumber || !messageContent) {
-      return NextResponse.json(
-        { error: 'phoneNumber and messageContent required' },
-        { status: 400 }
-      );
+    // Patch body to support old field names if necessary
+    if (!('messageContent' in body) && (body as any).message) {
+      (body as any).messageContent = (body as any).message;
+    }
+    // Some callers use `message` but also send `messageContent` as empty string.
+    if (!(body as any).messageContent && (body as any).message) {
+      (body as any).messageContent = (body as any).message;
     }
 
-    // Normalize phone: digits-only; if 10 digits assume India and prefix 91.
-    const normalizedPhone = normalizePhoneForMeta(phoneNumber);
-
-    if (!normalizedPhone) {
-      return NextResponse.json(
-        { error: 'Invalid phoneNumber' },
-        { status: 400 }
-      );
+    // Phone mapping
+    if (!('phoneNumber' in body) && (body as any).phone) {
+      (body as any).phoneNumber = (body as any).phone;
+    }
+    if (!(body as any).phoneNumber && (body as any).phone) {
+      (body as any).phoneNumber = (body as any).phone;
     }
 
-    console.log(`[META] Sending to ${normalizedPhone}: "${messageContent}"`);
-
-    // 4. Connect to DB
-    await connectDB();
-    console.log('[META] DB connected');
-
-    // 5. Create message record
-    const now = new Date();
-    // WhatsAppMessage schema requires leadId currently.
-    // For ad-hoc sends (no leadId provided), allow storing without leadId.
-    console.log('[META] About to call WhatsAppMessage.create()...');
-    let messageRecord;
-    try {
-      messageRecord = await WhatsAppMessage.create({
-        ...(leadId ? { leadId } : {}),
-        phoneNumber: normalizedPhone,
-        messageContent: String(messageContent),
-        direction: 'outbound',
-        status: 'queued',
-        sentAt: now,
-        method: 'meta', // Track that it came via Meta API
-      });
-      console.log('[META] Message record created:', messageRecord._id);
-    } catch (createErr) {
-      const errMsg = createErr instanceof Error ? createErr.message : String(createErr);
-      console.error('[META] ERROR creating message record:', errMsg);
-      throw createErr;
+    // Legacy key used by some older CRM clients
+    if (!(body as any).phoneNumber && (body as any).to) {
+      (body as any).phoneNumber = (body as any).to;
     }
 
-    // 6. Send via Meta API
-  // WhatsApp Cloud API is served from graph.facebook.com (Meta Graph API).
-  // Using graph.instagram.com can cause 400/500 depending on infra.
-  const metaUrl = `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+    // Final validation to prevent 400 from the canonical send route.
+    if (!(body as any).phoneNumber || !String((body as any).phoneNumber).trim()) {
+      return NextResponse.json({ error: 'Missing fields: phoneNumber' }, { status: 400 });
+    }
+    const hasText = Boolean(String((body as any).messageContent || '').trim());
+    const hasMedia = Boolean((body as any)?.media?.base64);
+    if (!hasText && !hasMedia) {
+      return NextResponse.json({ error: 'Missing fields: messageContent (or media)' }, { status: 400 });
+    }
 
-    const metaPayload = {
-      messaging_product: 'whatsapp',
-      to: normalizedPhone,
-      type: 'text',
-      text: {
-        preview_url: false,
-        body: messageContent,
-      },
-    };
-
-    console.log(`[META] POST ${metaUrl}`, { ...metaPayload, text: { ...metaPayload.text } });
-
-    const metaRes = await fetch(metaUrl, {
+    // Forward directly to the canonical handler.
+    // NOTE: Using `new NextRequest()` with a JSON body can be brittle in Node runtimes.
+    // Instead, we call the canonical handler with the original request but with a safe clone.
+    const url = request.url.replace('/meta/send', '/send');
+    const newReq = new Request(url, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(metaPayload),
+      headers: request.headers,
+      body: JSON.stringify(body),
     });
 
-    const metaData = await safeReadJson(metaRes);
+    // originalPOST expects NextRequest; Next.js handlers also accept Request.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response = await (originalPOST as any)(newReq);
 
-  console.log(`[META] Response: ${metaRes.status}`, metaData || '(non-json response)');
-
-    if (!metaRes.ok) {
-      console.error(`[META] ❌ API Error:`, metaData || '(non-json response)');
-
-      // Update message status to failed
-      const errMessage =
-        metaData?.error?.message ||
-        metaData?.message ||
-        (metaRes.status ? `HTTP ${metaRes.status}` : 'Unknown error');
-
-      console.log('[META] Updating message status to failed...');
-      try {
-        await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-          status: 'failed',
-          errorMessage: errMessage,
-        });
-        console.log('[META] Message status updated to failed');
-      } catch (updateErr) {
-        const errMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
-        console.error('[META] ERROR updating message status:', errMsg);
-      }
-
-      return NextResponse.json(
-        {
-          error: 'Failed to send via Meta API',
-          details: errMessage,
-        },
-        { status: metaRes.status || 500 }
-      );
+    // If the response is a NextResponse, return as-is.
+    if (response instanceof NextResponse) {
+      return response;
     }
 
-    // 7. Success - update message status
-    const metaMessageId = metaData.messages?.[0]?.id;
-
-    console.log('[META] Updating message status to sent...');
-    try {
-      await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'sent',
-        sentAt: now,
-        externalMessageId: metaMessageId, // Store Meta's message ID for webhook tracking
-      });
-      console.log('[META] Message status updated to sent');
-    } catch (updateErr) {
-      const errMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
-      console.error('[META] ERROR updating message status:', errMsg);
+    // Otherwise, convert the response to NextResponse.
+    const { status, statusText, headers } = response;
+    const clonedHeaders = new Headers(headers);
+    // Fix for Edge Runtime: https://github.com/vercel/next.js/issues/49132
+    if (clonedHeaders.has('Content-Encoding')) {
+      clonedHeaders.delete('Content-Encoding');
     }
+    const newResponse = new NextResponse(response.body, {
+      status,
+      statusText,
+      headers: clonedHeaders,
+    });
 
-    console.log(`[META] ✅ Message sent! ID: ${metaMessageId}`);
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          messageId: messageRecord._id,
-          externalId: metaMessageId,
-          status: 'sent',
-          to: normalizedPhone,
-        },
-      },
-      { status: 200 }
-    );
-  } catch (error: any) {
-    console.error('[META] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return newResponse;
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -12,7 +12,7 @@ VERIFY_TOKEN="ce353ae0e9367a387963a60657848f20a665584e719d0d5c34d8f08e12a7e73d"
 ACCESS_TOKEN="EAAZA17SDRZATgBQVYvi8NeGSvKZAfh2ao2621D9hDRVyJTBa2aAGfTnMuzm4EKshA3mgfVKdiFi4v7MFt3AKgQFay4LbJkQenFK32a3gN70cZCbSrUkCkAKr4vqZCZCGQwWHXpqMfZCc0SyB0t8ES4GZBLp65y5JPr1V3yLGLIGzcnlNezyZBFwZCwiahRB77QbZAV1vgZDZD"
 
 # Send via Meta API - this will test the full webhook flow
-curl -X POST "https://graph.facebook.com/v19.0/${PHONE_ID}/messages" \
+curl -X POST "https://graph.facebook.com/v24.0/${PHONE_ID}/messages" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{

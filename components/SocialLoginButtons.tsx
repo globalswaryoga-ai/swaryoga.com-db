@@ -31,7 +31,7 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginPr
       if (document.getElementById('facebook-sdk')) return;
       const script = document.createElement('script');
       script.id = 'facebook-sdk';
-      script.src = 'https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0';
+      script.src = 'https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v24.0';
       script.async = true;
       script.defer = true;
       script.crossOrigin = 'anonymous';
@@ -41,7 +41,7 @@ export default function SocialLoginButtons({ onSuccess, onError }: SocialLoginPr
           window.FB.init({
             appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '',
             xfbml: true,
-            version: 'v18.0',
+            version: 'v24.0',
           });
         }
       };

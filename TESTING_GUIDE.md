@@ -120,7 +120,7 @@ Their message:   [Green background, left side]  ← Incoming
 ```bash
 cd /Users/mohankalburgi/swaryoga.com-db && node -e "
 const mongoose = require('mongoose');
-mongoose.connect('mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryoga_admin_crm?retryWrites=true&w=majority').then(async () => {
+mongoose.connect(process.env.MONGODB_URI_MAIN).then(async () => {
   const schema = new mongoose.Schema({}, { strict: false });
   const WaMsg = mongoose.model('whatsappmessages', schema);
   const msg = await WaMsg.findOne({ direction: 'outbound' }).sort({ _id: -1 }).lean();
@@ -219,7 +219,7 @@ Your message:          Incoming message:
 ```bash
 cd /Users/mohankalburgi/swaryoga.com-db && node -e "
 const mongoose = require('mongoose');
-const uri = 'mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryoga_admin_crm?retryWrites=true&w=majority';
+const uri = process.env.MONGODB_URI_MAIN;
 
 mongoose.connect(uri).then(async () => {
   const schema = new mongoose.Schema({}, { strict: false });

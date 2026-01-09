@@ -12,6 +12,22 @@ function looksLikeObjectId(value: unknown): value is string {
 
 export async function POST(request: NextRequest) {
   try {
+    const webBridgeDisabled =
+      String(process.env.WHATSAPP_DISABLE_WEB_BRIDGE || '').trim().toLowerCase() === 'true';
+    const cloudConfigured = Boolean(
+      String(process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_BUSINESS_TOKEN || '').trim() &&
+        String(process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_BUSINESS_PHONE_NUMBER || '').trim()
+    );
+
+    // This endpoint historically powered the WhatsApp Web (QR) inbox.
+    // If bridge is disabled and Cloud isn't configured, fail fast with a clear status.
+    if (webBridgeDisabled && !cloudConfigured) {
+      return NextResponse.json(
+        { error: 'WhatsApp Web bridge is disabled and WhatsApp Cloud API is not configured' },
+        { status: 410 }
+      );
+    }
+
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) {
@@ -79,7 +95,8 @@ export async function POST(request: NextRequest) {
       direction: 'outbound',
       messageType: 'text',
       messageContent: message,
-      status: dryRun ? 'queued' : 'queued',
+      status: 'queued',
+      provider: 'meta', // Set this early so it shows in CRM lists
       sentBy: decoded?.userId || undefined,
       sentByLabel: decoded?.username || 'admin',
       sentAt: now,
@@ -111,6 +128,7 @@ export async function POST(request: NextRequest) {
         $set: {
           status: 'sent',
           waMessageId,
+          provider: 'meta',
           updatedAt: new Date(),
         },
       }

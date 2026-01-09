@@ -52,7 +52,7 @@ After subscribing to "messages" field:
 cd /Users/mohankalburgi/swaryoga.com-db
 node -e "
 const mongoose = require('mongoose');
-mongoose.connect('mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryoga_admin_crm?retryWrites=true&w=majority').then(async () => {
+mongoose.connect(process.env.MONGODB_URI_MAIN).then(async () => {
   const schema = new mongoose.Schema({}, { strict: false });
   const MetaMessage = mongoose.model('meta_messages', schema);
   const count = await MetaMessage.countDocuments();

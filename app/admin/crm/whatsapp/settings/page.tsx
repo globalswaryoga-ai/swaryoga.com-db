@@ -230,16 +230,10 @@ function SettingsContent() {
             <p className="text-gray-600 mt-1">Connect your WhatsApp numbers for sending messages</p>
           </div>
           <div className="flex gap-3">
-            <Link
-              href="/admin/crm/whatsapp/qr-login"
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
-            >
-              🔲 QR Code Login
-            </Link>
             <button
               onClick={() => {
                 resetForm();
-                setShowForm(!showForm);
+                setShowForm(true);
               }}
               className="px-6 py-3 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold transition-colors"
             >

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const superAdmin = decoded?.userId === 'admincrm';
+    const superAdmin = decoded?.userId === 'admincrm' || decoded?.userId === 'admin';
     const lead = await Lead.findById(String(leadId));
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       direction: 'outbound',
       status: 'queued',
       sentAt: new Date(),
-      provider: 'pending',
+      provider: 'meta',
       metadata: {
         template: {
           templateName: t.templateName,
@@ -106,14 +106,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Unified template sending:
-    // - If Cloud API is enabled/configured (WHATSAPP_ENABLE_CLOUD_SEND=true + credentials),
-    //   send a real Meta template payload (so recipient sees header media + buttons).
-    // - Else fallback to WhatsApp Web bridge: send template body as plain text.
+    // - Sends via Meta Cloud API (so recipient sees header media + buttons).
+    // - If template is text-only, it uses Meta Cloud API to send the template.
     try {
       let apiResult: any;
 
       // IMPORTANT: Do not silently degrade media templates to text.
-      // If a template requires media (IMAGE/VIDEO header), fail with a clear error.
+      // If a template requires media (IMAGE/VIDEO header), sender must provide media URL.
       if (needsHeaderMedia) {
         const cloudInput = buildCloudTemplateSendInput(t, to);
         apiResult = await sendWhatsAppTemplate({
@@ -125,23 +124,12 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
-        let warning: string | undefined;
-
-        try {
-          const cloudInput = buildCloudTemplateSendInput(t, to);
-          apiResult = await sendWhatsAppTemplate(cloudInput);
-        } catch (cloudErr) {
-          // Cloud not enabled/configured or template payload rejected.
-          // For community/bridge mode, just send template body as text.
-          // We keep a warning for CRM transparency.
-          const msg = cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
-          warning = `Template sent as plain text fallback. Reason: ${msg.substring(0, 140)}`;
-          apiResult = await sendWhatsAppText(to, String(t.templateContent || '').trim());
-        }
+        const cloudInput = buildCloudTemplateSendInput(t, to);
+        apiResult = await sendWhatsAppTemplate(cloudInput);
 
         await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
           status: 'sent',
-          provider: apiResult?.raw?.provider || 'sent',
+          provider: 'meta',
           waMessageId: apiResult.waMessageId,
         });
 
@@ -152,14 +140,7 @@ export async function POST(request: NextRequest) {
               messageId: messageRecord._id,
               status: 'sent',
               waMessageId: apiResult.waMessageId,
-              ...(warning
-                ? { warning }
-                : apiResult?.raw?.provider === 'meta'
-                  ? { via: 'meta_template' }
-                  : {
-                      warning:
-                        'Template was sent as plain text (WhatsApp Web / community number mode does not support image/buttons sending).',
-                    }),
+              via: 'meta_template',
             },
           },
           { status: 200 }
@@ -168,7 +149,7 @@ export async function POST(request: NextRequest) {
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
-        provider: apiResult?.raw?.provider || 'meta',
+        provider: 'meta',
         waMessageId: apiResult.waMessageId,
       });
 
@@ -187,29 +168,14 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'queued',
-        provider: 'none',
+        status: 'failed',
+        provider: 'meta',
         errorMessage: message,
       });
 
-      // For media templates, treat errors as hard failures to surface immediately.
-      if (needsHeaderMedia) {
-        return NextResponse.json(
-          { error: `Failed to send media template. ${message.substring(0, 200)}` },
-          { status: 400 }
-        );
-      }
-
       return NextResponse.json(
-        {
-          success: true,
-          data: {
-            messageId: messageRecord._id,
-            status: 'queued',
-            warning: message.substring(0, 160),
-          },
-        },
-        { status: 202 }
+        { error: `Failed to send template. ${message.substring(0, 200)}` },
+        { status: 400 }
       );
     }
   } catch (error: any) {

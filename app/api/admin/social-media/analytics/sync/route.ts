@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
             throw new Error('Invalid Facebook Page ID. Must be numeric. Find it at facebook.com/YOUR_PAGE/settings/page-info/');
           }
 
-          const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}?fields=fan_count,followers_count,name&access_token=${encodeURIComponent(decryptedAccessToken)}`;
+          const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(accountId)}?fields=fan_count,followers_count,name&access_token=${encodeURIComponent(decryptedAccessToken)}`;
           const data = await fetchGraphJson(url);
           const followers = asNumber(data?.fan_count) ?? asNumber(data?.followers_count);
 
@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
             throw new Error('Invalid Instagram Business Account ID. Must be numeric. Find it via Facebook Graph API Explorer.');
           }
 
-          const url = `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}?fields=followers_count,username&access_token=${encodeURIComponent(decryptedAccessToken)}`;
+          const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(accountId)}?fields=followers_count,username&access_token=${encodeURIComponent(decryptedAccessToken)}`;
           const data = await fetchGraphJson(url);
           const followers = asNumber(data?.followers_count);
 

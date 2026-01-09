@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const superAdmin = decoded?.userId === 'admincrm';
+    const superAdmin = decoded?.userId === 'admincrm' || decoded?.userId === 'admin';
 
     // Find lead by id or by phone.
     let lead = leadId ? await Lead.findById(leadId) : null;
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Access control:
-    // - Super admin (admincrm) can send to any lead + create placeholder leads.
+    // - Super admins (admincrm, admin) can send to any lead + create placeholder leads.
     // - Other admins can only send to leads assigned to them.
     // - Non-super-admin cannot create a new lead by sending a message.
     if (!superAdmin) {
@@ -93,18 +93,18 @@ export async function POST(request: NextRequest) {
       direction: 'outbound',
       status: 'queued',
       sentAt: new Date(),
-      provider: 'pending', // Will be updated based on which provider succeeds
+      provider: 'meta', // We are now Meta-only, so assume meta unless it explicitly fails to bridge
     });
 
     try {
-  // Current shared helper sends text. For media-only sends we still enqueue + store,
-  // and attempt to send a blank/placeholder text to avoid hard failure.
-  const apiResult = await sendWhatsAppText(to, hasText ? String(messageContent) : '');
+      // Current shared helper sends text. For media-only sends we still enqueue + store,
+      // and attempt to send a blank/placeholder text to avoid hard failure.
+      const apiResult = await sendWhatsAppText(to, hasText ? String(messageContent) : '');
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
-        provider: apiResult?.raw?.provider || 'sent',
-        senderNumber: apiResult?.raw?.provider === 'meta' ? '9779006820' : '9075358557',
+        provider: 'meta',
+        senderNumber: '9779006820',
         waMessageId: apiResult.waMessageId,
       });
 

@@ -17,7 +17,13 @@ function normalizePhone(raw: string): string {
 function extractTextMessageBody(msg: any): string {
   const type = String(msg?.type || '');
   if (type === 'text') return String(msg?.text?.body || '').trim();
-  // For now, store a compact representation for non-text.
+  if (type === 'button') return String(msg?.button?.text || '').trim();
+  if (type === 'interactive') {
+    const iType = msg?.interactive?.type;
+    if (iType === 'button_reply') return String(msg?.interactive?.button_reply?.title || '').trim();
+    if (iType === 'list_reply') return String(msg?.interactive?.list_reply?.title || '').trim();
+  }
+  // Fallback for media or other types
   return type ? `[${type} message]` : '';
 }
 
@@ -36,7 +42,9 @@ export async function GET(request: NextRequest) {
   const token = url.searchParams.get('hub.verify_token');
   const challenge = url.searchParams.get('hub.challenge');
 
-  const expectedToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
+  const expectedToken = String(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || '')
+    .trim()
+    .replace(/['"]/g, ''); // Robust check against quotes in Vercel
   
   await logWebhookEvent({
     kind: 'verify',
@@ -92,6 +100,19 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const timestamp = new Date().toISOString();
+    // Quick health ping: prove Meta (or any caller) is reaching our POST handler.
+    // This is intentionally lightweight and should never break the webhook path.
+    await logWebhookEvent({
+      kind: 'unknown',
+      ok: true,
+      message: 'POST_HEALTH_PING',
+      sample: {
+        at: timestamp,
+        method: request.method,
+        url: request.url,
+        userAgent: request.headers.get('user-agent'),
+      },
+    }).catch(() => {});
     
     // CRITICAL: Read the raw body FIRST because it can only be read once!
     const rawBody = await request.text();
@@ -394,6 +415,9 @@ async function handleWebhookPayload(payload: any) {
         const value = change?.value;
         if (!value) continue;
 
+        // NEW: Log the Phone Number Id from metadata to verify we are receiving for the correct business phone
+        const businessPhoneNumberId = value?.metadata?.phone_number_id;
+
         // 1) Status updates for messages we previously sent
         const statuses = Array.isArray(value?.statuses) ? value.statuses : [];
         for (const st of statuses) {
@@ -426,18 +450,27 @@ async function handleWebhookPayload(payload: any) {
 
         // 2) Inbound messages (from user to us)
         const messages = Array.isArray(value?.messages) ? value.messages : [];
+        if (messages.length > 0) {
+          console.log(`📥 Processing ${messages.length} inbound messages`);
+        }
         for (const msg of messages) {
           try {
             const from = normalizePhone(String(msg?.from || ''));
-            if (!from) continue;
-
             const body = extractTextMessageBody(msg);
-            if (!body) continue;
-
             const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
+            const msgTimestampSec = msg?.timestamp ? Number(msg.timestamp) : NaN;
+            const msgSentAt = Number.isFinite(msgTimestampSec) ? new Date(msgTimestampSec * 1000) : now;
+
+            console.log(`📩 Inbound From: ${from} | Body: ${body?.substring(0, 30)} | ID: ${inboundWaMessageId}`);
+
+            if (!from || !body) {
+              console.log('⚠️ Skipping message due to missing phone or body');
+              continue;
+            }
 
             // Ensure Lead exists
             let lead = await Lead.findOne({ phoneNumber: from });
+            let wasFirstInbound = false;
             if (!lead) {
               lead = await Lead.create({
                 phoneNumber: from,
@@ -445,15 +478,29 @@ async function handleWebhookPayload(payload: any) {
                 status: 'lead',
                 lastMessageAt: now,
               });
+              wasFirstInbound = true;
             } else {
               await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now } });
             }
 
             // Store message
-            const ourPhoneNumber = value?.metadata?.display_phone_number;
+            // For CRM: we want *our* business number in digits, not the user's number.
+            // Meta provides display phone number like "+91 97790 06820".
+            // Normalize it to digits so it's consistent.
+            const ourDisplayPhone = value?.metadata?.display_phone_number
+              ? String(value.metadata.display_phone_number)
+              : '';
+            const ourBusinessNumber = ourDisplayPhone ? normalizePhone(ourDisplayPhone) : undefined;
             
             await WhatsAppMessage.updateOne(
-              { waMessageId: inboundWaMessageId, direction: 'inbound' },
+              {
+                direction: 'inbound',
+                // Prefer WA message id when present; otherwise fall back to (leadId + sentAt)
+                // to prevent duplicate inserts if Meta retries with missing id.
+                $or: inboundWaMessageId
+                  ? [{ waMessageId: inboundWaMessageId }]
+                  : [{ leadId: lead._id, sentAt: msgSentAt, messageContent: body }],
+              },
               {
                 $set: { updatedAt: now },
                 $setOnInsert: {
@@ -464,10 +511,11 @@ async function handleWebhookPayload(payload: any) {
                   messageContent: body,
                   status: 'delivered',
                   deliveredAt: now,
-                  sentAt: now,
+                  sentAt: msgSentAt,
                   waMessageId: inboundWaMessageId,
-                  senderNumber: ourPhoneNumber,
+                  senderNumber: ourBusinessNumber,
                   provider: 'meta',
+                  isRead: false, // Mark new inbound as unread for CRM badge
                   createdAt: now,
                 },
               },
@@ -479,16 +527,18 @@ async function handleWebhookPayload(payload: any) {
               ok: true,
               phoneNumber: from,
               waMessageId: inboundWaMessageId,
-              sample: { preview: body.slice(0, 80) },
+              message: `Inbound received for business phone ID: ${businessPhoneNumberId}`,
             });
 
-            // Automations
+            // Trigger automation logic
             handleInboundWhatsAppAutomations({
               leadId: lead._id,
               phoneNumber: from,
               messageBody: body,
-              wasFirstInbound: false, // Could be determined if needed
-            }).catch(() => {});
+              wasFirstInbound,
+            }).catch((err) => {
+              console.error('[Automation Error]', err);
+            });
 
           } catch (err) {
             console.error('[WEBHOOK ERROR] Loop failure:', err);
