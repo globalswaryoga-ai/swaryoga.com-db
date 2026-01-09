@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,6 +58,9 @@ export async function POST(request: NextRequest) {
         submittedAt: new Date(),
       },
     });
+
+    // Auto-add to main broadcast list
+    await addLeadToMainBroadcastList(newLead);
 
     console.log(`✓ Youth workshop lead created: ${newLead._id}`);
 

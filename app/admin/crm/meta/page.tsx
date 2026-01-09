@@ -280,7 +280,7 @@ export default function MetaInboxPage() {
                      Profile
                    </Link>
                    <Link 
-                     href="/admin/crm/whatsapp/templates"
+                     href="/admin/crm/templates"
                      className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg"
                    >
                      Templates

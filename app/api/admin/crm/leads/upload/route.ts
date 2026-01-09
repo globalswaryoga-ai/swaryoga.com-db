@@ -14,6 +14,7 @@ import {
   normalizePhone
 } from '@/lib/crm-handlers';
 import { verifyToken } from '@/lib/auth';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 /**
  * POST: Upload bulk leads from Excel file
@@ -142,7 +143,9 @@ export async function POST(request: NextRequest) {
         if (source) leadData.source = source;
         if (workshopName) leadData.workshopName = workshopName;
 
-        await Lead.create(leadData);
+        const createdLead = await Lead.create(leadData);
+        // Auto-add to main broadcast list
+        await addLeadToMainBroadcastList(createdLead);
         results.imported++;
       } catch (err) {
         results.failed++;

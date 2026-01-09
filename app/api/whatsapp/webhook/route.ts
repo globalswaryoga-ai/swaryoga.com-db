@@ -6,6 +6,7 @@ import { ConsentManager } from '@/lib/consentManager';
 // NOTE: Models are imported DYNAMICALLY after connectDB() is called in the handler
 // to avoid calling mongoose.model() before the connection is established
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
 
@@ -479,6 +480,8 @@ async function handleWebhookPayload(payload: any) {
                 lastMessageAt: now,
               });
               wasFirstInbound = true;
+              // Auto-add to main broadcast list
+              await addLeadToMainBroadcastList(lead);
             } else {
               await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now } });
             }

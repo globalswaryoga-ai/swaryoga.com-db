@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 import { sendWhatsAppText } from '@/lib/whatsapp';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 // NOTE: This route previously had its own Meta + bridge implementations.
 // That caused drift vs `lib/whatsapp.ts` (different endpoint + secret headers),
@@ -63,6 +64,10 @@ export async function POST(request: NextRequest) {
         source: 'crm',
         status: 'lead',
         labels: [],
+      });
+    } else {
+      lead = await Lead.findByIdAndUpdate(lead._id, {
+        phoneNumber: normalizePhone(String(phoneNumber)),
       });
     }
 

@@ -126,13 +126,13 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     },
     {
       icon: MessageCircle,
-      label: 'WhatsApp Inbox',
-      href: '/admin/crm/whatsapp',
+      label: 'Meta Inbox',
+      href: '/admin/crm/meta',
       color: 'text-cyan-600'
     },
     {
       icon: LayoutDashboard,
-      label: 'WhatsApp Setup',
+      label: 'Meta Setup',
       href: '/admin/crm/whatsapp-meta',
       color: 'text-indigo-600'
     },
@@ -214,7 +214,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
         <nav className="flex-1 p-4 sm:p-6 space-y-1 sm:space-y-2 overflow-y-auto">
           {visibleMenuItems.map((item) => {
             const Icon = item.icon;
-            const showBadge = item.label === 'WhatsApp Inbox' && unreadCount > 0;
+            const showBadge = (item.label === 'WhatsApp Inbox' || item.label === 'Meta Inbox') && unreadCount > 0;
             return (
               <Link
                 key={item.href}

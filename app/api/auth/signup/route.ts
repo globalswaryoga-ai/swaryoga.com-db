@@ -14,6 +14,7 @@ import { generateToken } from '@/lib/auth';
 import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 // Rate limiting: 5 signup attempts per 10 minutes per IP
 const SIGNUP_RATE_LIMIT = {
@@ -153,9 +154,11 @@ export async function POST(request: NextRequest) {
               },
               { upsert: false }
             );
+            // Ensure even existing leads are added to broadcast list on signup
+            await addLeadToMainBroadcastList(existingLead);
           } else {
             const { leadNumber } = await allocateNextLeadNumber();
-            await Lead.create({
+            const newLead = await Lead.create({
               leadNumber,
               name: cleanedName,
               email: cleanedEmail,
@@ -168,6 +171,8 @@ export async function POST(request: NextRequest) {
               assignedToUserId: 'system',
               metadata: meta,
             });
+            // Auto-add to main broadcast list
+            await addLeadToMainBroadcastList(newLead);
           }
         }
       } catch (crmLeadError) {

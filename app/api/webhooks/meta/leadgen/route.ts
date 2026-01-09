@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/db';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 const APP_SECRET = process.env.META_APP_SECRET || '';
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN || '';
@@ -124,6 +125,9 @@ async function upsertLeadFromMeta(leadgenData: any) {
         rawFieldData: fieldData,
       },
     });
+
+    // Auto-add to main broadcast list
+    await addLeadToMainBroadcastList(newLead);
 
     console.log(`Created new lead: ${newLead._id}`);
     return { success: true, leadId: newLead._id, action: 'created' };

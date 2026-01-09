@@ -9,6 +9,7 @@ import {
   isSuperAdmin, 
   normalizePhone 
 } from '@/lib/crm-handlers';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -177,6 +178,13 @@ export async function POST(request: NextRequest) {
       ...(workshopId ? { workshopId } : {}),
       ...(workshopName ? { workshopName } : {}),
     });
+
+    // Auto-add to main broadcast list
+    try {
+      await addLeadToMainBroadcastList(lead);
+    } catch (e) {
+      console.warn('Failed to auto-add lead to broadcast list:', e);
+    }
 
     return NextResponse.json({ success: true, data: lead }, { status: 201 });
   } catch (error) {

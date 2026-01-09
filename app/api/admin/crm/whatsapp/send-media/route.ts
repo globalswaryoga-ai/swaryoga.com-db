@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppMedia } from '@/lib/whatsapp';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 /**
  * POST /api/admin/crm/whatsapp/send-media
@@ -69,11 +70,14 @@ export async function POST(request: NextRequest) {
         );
       }
       lead = await Lead.create({
-        phoneNumber: to,
-        source: 'crm',
+        phoneNumber,
         status: 'lead',
-        labels: [],
+        source: 'whatsapp',
+        createdByUserId: decoded.userId,
+        assignedToUserId: decoded.userId,
       });
+      // Auto-add to main broadcast list
+      await addLeadToMainBroadcastList(lead);
     }
 
     // Permission check for non-superadmin

@@ -5,6 +5,7 @@ import { DeletedLead, Lead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhoneStrict } from '@/lib/crm/phone';
+import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
 
           const { leadNumber } = await allocateNextLeadNumber();
 
-          await Lead.create({
+          const lead = await Lead.create({
             leadNumber,
             phoneNumber,
             assignedToUserId,
@@ -106,6 +107,8 @@ export async function POST(request: NextRequest) {
             labels: Array.isArray(leadData.labels) ? leadData.labels : [],
             source: leadData.source || 'import',
           });
+          // Auto-add to main broadcast list
+          await addLeadToMainBroadcastList(lead);
 
           results.imported++;
         } catch (err) {
