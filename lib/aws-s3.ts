@@ -375,6 +375,12 @@ export function generateTemplateS3Key(
   const timestamp = Date.now();
   const randomSuffix = Math.random().toString(36).substring(2, 8);
   const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+  
+  // Use community folder for community campaigns
+  if (templateId.startsWith('community_')) {
+    return `community/templates/${templateId}/${fileType}/${timestamp}_${randomSuffix}_${cleanFileName}`;
+  }
+  
   return `templates/${templateId}/${fileType}/${timestamp}_${randomSuffix}_${cleanFileName}`;
 }
 

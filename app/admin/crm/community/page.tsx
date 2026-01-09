@@ -6,7 +6,8 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   Users, MessageSquare, Send, Mail, Phone, MoreVertical, Trash2, Edit, Shield,
   Search, ChevronDown, Plus, Filter, Download, ArrowRight, CheckCircle, AlertCircle,
-  Clock, User, Settings, Loader, Globe, Upload
+  Clock, User, Settings, Loader, Globe, Upload, Bold, Italic, Strikethrough, Code, Smile, Wand2,
+  Calendar, MapPin, Link as LinkIcon, Image as ImageIcon, Video as VideoIcon, FileText
 } from 'lucide-react';
 
 type CommunityButton = {
@@ -117,6 +118,38 @@ export default function AdminCommunityPage() {
   const [uploading, setUploading] = useState(false);
   const [addMode, setAddMode] = useState<'search' | 'manual'>('search');
   const [manualMember, setManualMember] = useState({ name: '', mobile: '', email: '' });
+  
+  // Rich Text & Tools States
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showToolsDropdown, setShowToolsDropdown] = useState(false);
+  const textAreaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const insertTextAtCursor = (textBefore: string, textAfter: string = '') => {
+    if (!textAreaRef.current) return;
+    const start = textAreaRef.current.selectionStart;
+    const end = textAreaRef.current.selectionEnd;
+    const selected = postContent.substring(start, end);
+    const newText = postContent.substring(0, start) + textBefore + selected + textAfter + postContent.substring(end);
+    setPostContent(newText);
+    
+    // Reset focus and selection
+    setTimeout(() => {
+        if (textAreaRef.current) {
+            textAreaRef.current.focus();
+            const newCursorPos = start + textBefore.length + selected.length + textAfter.length;
+            textAreaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+    }, 10);
+  };
+
+  const EMOJIS = ['✨', '🙏', '🧘‍♂️', '🌞', '🕉️', '🕉', '🪷', '🌙', '📅', '🔔', '📍', '📱', '🔗', '🔥', '💎', '🚀'];
+
+  const WHATSAPP_FORMATS = [
+    { label: 'Bold', icon: <Bold size={16}/>, prefix: '*', suffix: '*', desc: '*bold text*' },
+    { label: 'Italic', icon: <Italic size={16}/>, prefix: '_', suffix: '_', desc: '_italicized_' },
+    { label: 'Strike', icon: <Strikethrough size={16}/>, prefix: '~', suffix: '~', desc: '~strikethrough~' },
+    { label: 'Code', icon: <Code size={16}/>, prefix: '```', suffix: '```', desc: '```monospace```' },
+  ];
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'document') => {
     const file = e.target.files?.[0];
@@ -517,7 +550,94 @@ export default function AdminCommunityPage() {
                              <label className="h-14 px-6 bg-white border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-bold text-xs"><Upload size={16}/> Upload<input type="file" className="hidden" accept="video/*" onChange={e => handleFileUpload(e, 'video')} /></label>
                           </div>
                        )}
-                       <textarea value={postContent} onChange={e => setPostContent(e.target.value)} rows={6} placeholder="Message body..." className="w-full p-8 bg-slate-50 border rounded-[2rem] focus:bg-white transition-all outline-none font-medium resize-none shadow-inner" />
+
+                       <div className="relative group">
+                          {/* Rich Text Toolbar */}
+                          <div className="flex items-center gap-1 p-2 bg-white border-x border-t rounded-t-[2rem] border-slate-200">
+                             {WHATSAPP_FORMATS.map(f => (
+                                <button key={f.label} title={f.desc} onClick={() => insertTextAtCursor(f.prefix, f.suffix)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors">
+                                   {f.icon}
+                                </button>
+                             ))}
+                             <div className="w-px h-4 bg-slate-200 mx-1" />
+                             <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`p-2 hover:bg-slate-100 rounded-lg transition-colors ${showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500'}`}>
+                                <Smile size={18} />
+                             </button>
+                             
+                             <div className="flex-1" />
+                             
+                             <div className="relative">
+                                <button onClick={() => setShowToolsDropdown(!showToolsDropdown)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase transition-all ${showToolsDropdown ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                                   <Wand2 size={14} /> Tools <ChevronDown size={14} className={`transition-transform ${showToolsDropdown ? 'rotate-180' : ''}`} />
+                                </button>
+                                
+                                {showToolsDropdown && (
+                                   <>
+                                      <div className="fixed inset-0 z-40" onClick={() => setShowToolsDropdown(false)} />
+                                      <div className="absolute right-0 top-full mt-2 w-64 bg-white border rounded-2xl shadow-xl z-50 overflow-hidden py-2 animate-in fade-in slide-in-from-top-2">
+                                         <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Global Tools</div>
+                                         <button onClick={() => { insertTextAtCursor('{{name}}'); setShowToolsDropdown(false); }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors">
+                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600"><User size={14}/></div>
+                                            <div>
+                                               <div className="text-sm font-bold">Personalized Name</div>
+                                               <div className="text-[10px] text-slate-400">Inserts dynamic member name</div>
+                                            </div>
+                                         </button>
+                                         <button onClick={() => { setShowPostModal(true); setShowToolsDropdown(false); }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors">
+                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><Calendar size={14}/></div>
+                                            <div>
+                                               <div className="text-sm font-bold">Schedule Campaign</div>
+                                               <div className="text-[10px] text-slate-400">Pick date & time for broadcast</div>
+                                            </div>
+                                         </button>
+                                         <button onClick={() => { setPostType('link'); setShowToolsDropdown(false); }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors">
+                                            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600"><LinkIcon size={14}/></div>
+                                            <div>
+                                               <div className="text-sm font-bold">Trackable Link</div>
+                                               <div className="text-[10px] text-slate-400">Add click-counting URL</div>
+                                            </div>
+                                         </button>
+                                         <div className="h-px bg-slate-100 my-1" />
+                                         <div className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Media Quick-Add</div>
+                                         <div className="grid grid-cols-3 gap-1 px-3 pb-2">
+                                            <button onClick={() => setPostType('image')} className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 group">
+                                               <ImageIcon size={16} className="text-slate-400 group-hover:text-indigo-600"/>
+                                               <span className="text-[9px] font-bold">Photo</span>
+                                            </button>
+                                            <button onClick={() => setPostType('video')} className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 group">
+                                               <VideoIcon size={16} className="text-slate-400 group-hover:text-indigo-600"/>
+                                               <span className="text-[9px] font-bold">Video</span>
+                                            </button>
+                                            <button onClick={() => setPostType('document')} className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 group">
+                                               <FileText size={16} className="text-slate-400 group-hover:text-indigo-600"/>
+                                               <span className="text-[9px] font-bold">PDF</span>
+                                            </button>
+                                         </div>
+                                      </div>
+                                   </>
+                                )}
+                             </div>
+                          </div>
+
+                          {showEmojiPicker && (
+                             <div className="absolute left-10 top-12 w-64 bg-white border shadow-xl rounded-2xl z-50 p-3 grid grid-cols-6 gap-2 animate-in zoom-in-95">
+                                {EMOJIS.map(e => (
+                                   <button key={e} onClick={() => { insertTextAtCursor(e); setShowEmojiPicker(false); }} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-xl">
+                                      {e}
+                                   </button>
+                                ))}
+                             </div>
+                          )}
+
+                          <textarea 
+                             ref={textAreaRef}
+                             value={postContent} 
+                             onChange={e => setPostContent(e.target.value)} 
+                             rows={6} 
+                             placeholder="Message body..." 
+                             className="w-full p-8 bg-slate-50 border border-t-0 rounded-b-[2rem] focus:bg-white transition-all outline-none font-medium resize-none shadow-inner" 
+                          />
+                       </div>
                     </section>
                     <section className="bg-white p-10 rounded-[2rem] border shadow-sm space-y-8">
                        <div className="flex items-center justify-between">
