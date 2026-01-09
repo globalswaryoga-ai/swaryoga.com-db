@@ -7,7 +7,7 @@ import {
   Users, MessageSquare, Send, Mail, Phone, MoreVertical, Trash2, Edit, Shield,
   Search, ChevronDown, Plus, Filter, Download, ArrowRight, CheckCircle, AlertCircle,
   Clock, User, Settings, Loader, Globe, Upload, Bold, Italic, Strikethrough, Code, Smile, Wand2,
-  Calendar, MapPin, Link as LinkIcon, Image as ImageIcon, Video as VideoIcon, FileText
+  Calendar, MapPin, Link as LinkIcon, Image as ImageIcon, Video as VideoIcon, FileText, Copy
 } from 'lucide-react';
 
 type CommunityButton = {
@@ -20,6 +20,7 @@ type CommunityButton = {
 
 interface CommunityMember {
   _id: string;
+   userId?: string;
   name: string;
   email?: string;
   mobile: string;
@@ -31,6 +32,11 @@ interface CommunityMember {
   messageCount: number;
   reactions: number;
   chatEnabled?: boolean;
+  metadata?: {
+    requestMessage?: string;
+    workshopsCompleted?: boolean;
+    requestId?: string;
+  };
   chatPermissions?: {
     canSend?: boolean;
     allowText?: boolean;
@@ -50,7 +56,7 @@ interface Community {
 }
 
 const COMMUNITIES: Community[] = [
-  { id: 'general', name: 'Global Community for General', icon: '🌍', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=general' },
+  { id: 'global', name: 'Global Community', icon: '🌍', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=global' },
   { id: 'swar-yoga', name: 'Swar Yoga', icon: '🎵', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=swar-yoga' },
   { id: 'aham-bramhasmi', name: 'Aham Bramhasmi', icon: '✨', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=aham-bramhasmi' },
   { id: 'astavakra', name: 'Astavakra', icon: '🧘', memberCount: 0, joinLink: 'https://swaryoga.com/community?join=astavakra' },
@@ -72,7 +78,7 @@ const COMMUNITIES: Community[] = [
 export default function AdminCommunityPage() {
   const router = useRouter();
   const token = useAuth();
-  const [selectedCommunity, setSelectedCommunity] = useState('general');
+  const [selectedCommunity, setSelectedCommunity] = useState('global');
   const [members, setMembers] = useState<CommunityMember[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'banned' | 'pending'>('all');
@@ -103,7 +109,7 @@ export default function AdminCommunityPage() {
   const [postFooter, setPostFooter] = useState('');
   const [postButtons, setPostButtons] = useState<CommunityButton[]>([]);
   const [postTargetMode, setPostTargetMode] = useState<'selected' | 'all'>('selected');
-  const [postSelectedCommunityIds, setPostSelectedCommunityIds] = useState<Set<string>>(new Set(['general']));
+  const [postSelectedCommunityIds, setPostSelectedCommunityIds] = useState<Set<string>>(new Set(['global']));
   const [crossPostMedia, setCrossPostMedia] = useState(false);
   const [crossPostSocial, setCrossPostSocial] = useState(false);
   const [postVideoUrl, setPostVideoUrl] = useState('');
@@ -116,6 +122,9 @@ export default function AdminCommunityPage() {
   const [editingCommunityName, setEditingCommunityName] = useState(false);
   const [newCommunityName, setNewCommunityName] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
+  
+  const [previewWidth, setPreviewWidth] = useState<'mobile' | 'tablet'>('mobile');
+  const [previewZoom, setPreviewZoom] = useState(1);
 
   const renderFormattedText = (text: string) => {
     if (!text) return 'Content Preview...';
@@ -393,7 +402,7 @@ export default function AdminCommunityPage() {
     const fetchMembers = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/admin/community/members?communityId=${selectedCommunity}&status=${statusFilter}&limit=200`, {
+        const res = await fetch(`/api/admin/community/members?communityId=${selectedCommunity}&status=${statusFilter}&limit=50`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
@@ -442,7 +451,7 @@ export default function AdminCommunityPage() {
           {COMMUNITIES.map((community) => {
             const isActive = selectedCommunity === community.id;
             return (
-              <button key={community.id} onClick={() => setSelectedCommunity(community.id)} className={`w-full text-left px-5 py-4 rounded-xl transition-all flex items-center gap-4 ${isActive ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-lg' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}>
+              <button key={community.id} onClick={() => setSelectedCommunity(community.id)} className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${isActive ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-lg' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'}`}>
                 <span className="text-xl">{community.icon}</span>
                 <span className="font-semibold text-[13px] truncate">{community.name}</span>
               </button>
@@ -453,18 +462,40 @@ export default function AdminCommunityPage() {
 
       {/* Main Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="bg-white border-b border-slate-200/60 p-10 z-10">
-          <div className="flex items-center justify-between mb-10">
-            <div className="flex items-center gap-8">
-              <div className="w-20 h-20 bg-slate-50 rounded-[1.75rem] flex items-center justify-center text-4xl shadow-inner border border-slate-100/80">
+        <div className="bg-white border-b border-slate-200/60 p-6 z-10">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl shadow-inner border border-slate-100/80">
                 {currentCommunity?.icon}
               </div>
               <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{editedCommunities[selectedCommunity] || currentCommunity?.name}</h1>
-                  <button onClick={() => { setEditingCommunityName(true); setNewCommunityName(currentCommunity?.name || ''); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit size={16} /></button>
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{editedCommunities[selectedCommunity] || currentCommunity?.name}</h1>
+                  <button onClick={() => { setEditingCommunityName(true); setNewCommunityName(currentCommunity?.name || ''); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"><Edit size={14} /></button>
                 </div>
-                <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest">{members.length} Active Members</p>
+                <div className="flex items-center gap-4">
+                  <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">{members.length} Active Members</p>
+                  {currentCommunity?.joinLink && (
+                    <div className="flex items-center gap-2 bg-indigo-50/50 px-3 py-1 rounded-lg border border-indigo-100 group">
+                      <LinkIcon size={12} className="text-indigo-400" />
+                      <span className="text-[9px] font-bold text-indigo-600 truncate max-w-[200px]">{currentCommunity.joinLink}</span>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(currentCommunity.joinLink!);
+                          // Create a transient toast or alert
+                          const btn = document.getElementById('copy-link-btn');
+                          if (btn) btn.innerHTML = 'COPIED!';
+                          setTimeout(() => { if (btn) btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>'; }, 2000);
+                        }}
+                        id="copy-link-btn"
+                        className="p-1.5 hover:bg-white rounded-md transition-all text-indigo-400 hover:text-indigo-600 shadow-sm border border-transparent hover:border-indigo-100"
+                        title="Copy Invite Link"
+                      >
+                        <Copy size={12} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex gap-4">
@@ -487,7 +518,7 @@ export default function AdminCommunityPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto bg-slate-50/80 p-10">
+        <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
            {loading ? (
              <div className="flex flex-col items-center justify-center h-80 space-y-4">
                 <div className="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
@@ -504,44 +535,54 @@ export default function AdminCommunityPage() {
                 <table className="w-full">
                    <thead className="bg-[#fcfdfe] border-b border-slate-100 text-left">
                       <tr className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                         <th className="pl-10 px-6 py-5">Profile</th>
-                         <th className="px-6 py-5">Connectivity</th>
-                         <th className="px-6 py-5">Status</th>
-                         <th className="px-6 py-5">Interaction</th>
-                         <th className="pr-10 px-6 py-5 text-right">Ops</th>
+                         <th className="pl-10 px-4 py-3">Profile</th>
+                         <th className="px-4 py-3">Connectivity</th>
+                         <th className="px-4 py-3">Status</th>
+                         <th className="px-4 py-3">Interaction</th>
+                         <th className="pr-10 px-4 py-3 text-right">Ops</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-50">
                       {filteredMembers.map(member => (
                         <tr key={member._id} className="hover:bg-indigo-50/[0.15] group transition-all">
-                           <td className="pl-10 px-6 py-6">
-                              <div className="flex items-center gap-5">
-                                 <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-lg">{member.name.charAt(0)}</div>
+                           <td className="pl-10 px-4 py-3">
+                              <div className="flex items-center gap-4">
+                                 <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm">{member.name.charAt(0)}</div>
                                  <div>
-                                    <p className="font-bold text-slate-900 text-sm uppercase tracking-tight">{member.name}</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">ID: {member._id.slice(-4)}</p>
+                                    <p className="font-bold text-slate-900 text-sm uppercase tracking-tight leading-none">{member.name}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">ID: {member.userId}</p>
                                  </div>
                               </div>
                            </td>
-                           <td className="px-6 py-6 font-semibold text-sm text-slate-600">{member.mobile}</td>
-                           <td className="px-6 py-6">
-                              <div className="flex flex-col gap-1">
-                                 <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest inline-block w-fit ${member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}>{member.status}</span>
+                           <td className="px-4 py-3 font-semibold text-sm text-slate-600">{member.mobile}</td>
+                           <td className="px-4 py-3">
+                              <div className="flex flex-col gap-0.5">
+                                 <span className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest inline-block w-fit ${member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}>{member.status}</span>
                                  {!member.approved && (
-                                    <span className="px-2 py-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 rounded border border-amber-100 uppercase w-fit">Pending Approval</span>
+                                    <>
+                                       <span className="px-2 py-0.5 text-[8px] font-bold text-amber-600 bg-amber-50 rounded border border-amber-100 uppercase w-fit">Pending Approval</span>
+                                       {member.metadata?.requestMessage && (
+                                          <p className="text-[9px] text-slate-500 italic max-w-[150px] truncate" title={member.metadata.requestMessage}>
+                                             "{member.metadata.requestMessage}"
+                                          </p>
+                                       )}
+                                       {member.metadata?.workshopsCompleted && (
+                                          <span className="text-[8px] font-bold text-emerald-600 uppercase">✓ Workshops Done</span>
+                                       )}
+                                    </>
                                  )}
                               </div>
                            </td>
-                           <td className="px-6 py-6">
+                           <td className="px-4 py-3">
                               <div className="flex gap-4">
-                                 <div className="bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 text-center min-w-[50px]">
+                                 <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 text-center min-w-[40px]">
                                     <p className="text-xs font-bold text-slate-800">{member.messageCount}</p>
                                     <p className="text-[8px] font-bold text-slate-400 uppercase">Posts</p>
                                  </div>
                               </div>
                            </td>
-                           <td className="pr-10 px-6 py-6 text-right opacity-0 group-hover:opacity-100 transition-all">
-                              <div className="flex justify-end gap-2">
+                           <td className="pr-10 px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition-all">
+                              <div className="flex justify-end gap-1.5">
                                  {!member.approved && (
                                     <button 
                                        onClick={() => approveMember(member._id)} 
@@ -580,38 +621,44 @@ export default function AdminCommunityPage() {
                  </button>
               </div>
               <div className="flex-1 flex overflow-hidden bg-slate-50/50">
-                 <div className="flex-1 overflow-y-auto p-16 space-y-16">
-                    <section className="bg-white p-10 rounded-[2rem] border shadow-sm space-y-8">
+                 <div className="flex-1 overflow-y-auto p-8 lg:p-12 space-y-12">
+                    <section className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6">
                        <h3 className="text-sm font-bold uppercase tracking-widest">1. Audience</h3>
                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                           {COMMUNITIES.map(c => (
-                             <label key={c.id} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${postSelectedCommunityIds.has(c.id) ? 'bg-indigo-50 border-indigo-200' : 'bg-white'}`}>
+                             <label key={c.id} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${postSelectedCommunityIds.has(c.id) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white hover:border-slate-300'}`}>
                                 <input type="checkbox" className="hidden" checked={postSelectedCommunityIds.has(c.id)} onChange={e => {
                                    const next = new Set(postSelectedCommunityIds);
                                    if(e.target.checked) next.add(c.id); else next.delete(c.id);
                                    setPostSelectedCommunityIds(next);
                                 }} />
-                                <span>{c.icon}</span>
+                                <span className="text-xl">{c.icon}</span>
                                 <span className="text-xs font-bold truncate">{c.name}</span>
                              </label>
                           ))}
                        </div>
                     </section>
-                    <section className="bg-white p-10 rounded-[2rem] border shadow-sm space-y-8">
+                    <section className="bg-white p-8 rounded-[2rem] border shadow-sm space-y-6">
                        <h3 className="text-sm font-bold uppercase tracking-widest">2. Content</h3>
-                       <div className="grid grid-cols-2 gap-8">
-                          <input type="text" value={postHeader} onChange={e => setPostHeader(e.target.value)} placeholder="Headline" className="h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white" />
-                          <input type="text" value={postFooter} onChange={e => setPostFooter(e.target.value)} placeholder="Footer" className="h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white" />
+                       <div className="grid grid-cols-2 gap-6">
+                          <div className="relative">
+                             <input type="text" value={postHeader} onChange={e => setPostHeader(e.target.value)} placeholder="Headline (Optional)" className="w-full h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all" />
+                             <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Header</div>
+                          </div>
+                          <div className="relative">
+                             <input type="text" value={postFooter} onChange={e => setPostFooter(e.target.value)} placeholder="Footer (Optional)" className="w-full h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all" />
+                             <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Footer</div>
+                          </div>
                        </div>
-                       <div className="grid grid-cols-5 gap-2 p-1.5 bg-slate-50 rounded-2xl">
+                       <div className="grid grid-cols-5 gap-2 p-1.5 bg-slate-100 rounded-2xl">
                           {['text', 'image', 'video', 'document', 'link'].map((t: any) => (
-                             <button key={t} onClick={() => setPostType(t)} className={`h-11 rounded-xl text-[10px] font-bold uppercase border ${postType === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>{t}</button>
+                             <button key={t} onClick={() => setPostType(t)} className={`h-11 rounded-xl text-[10px] font-bold uppercase border transition-all ${postType === t ? 'bg-white text-indigo-600 shadow-sm border-white' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>{t}</button>
                           ))}
                        </div>
                        {postType === 'image' && (
                           <div className="flex gap-3">
-                             <input type="text" value={postImageUrls.join(', ')} onChange={e => setPostImageUrls(e.target.value.split(','))} placeholder="Image URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold" />
-                             <label className="h-14 px-6 bg-white border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-bold text-xs"><Upload size={16}/> {uploading ? '...' : 'Upload'}<input type="file" className="hidden" onChange={e => handleFileUpload(e, 'image')} /></label>
+                             <input type="text" value={postImageUrls.join(', ')} onChange={e => setPostImageUrls(e.target.value.split(',').map(u => u.trim()).filter(Boolean))} placeholder="Image URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white transition-all" />
+                             <label className="h-14 px-6 bg-white border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-bold text-xs hover:bg-slate-50 transition-all"><Upload size={16}/> {uploading ? '...' : 'Upload'}<input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'image')} /></label>
                           </div>
                        )}
                        {postType === 'video' && (
@@ -764,25 +811,76 @@ export default function AdminCommunityPage() {
                        </div>
                     </section>
                  </div>
-                 <div className="w-[450px] bg-slate-100 p-16 flex flex-col items-center justify-center">
-                    <div className="bg-white rounded-[3rem] shadow-2xl border-[10px] border-slate-900 w-full aspect-[9/19] overflow-hidden relative">
-                       <div className="h-10 flex items-center justify-between px-8 text-xs font-black">9:41</div>
-                       <div className="p-6 space-y-5">
-                          <div className="flex items-center gap-3 border-b pb-4">
-                             <div className="w-10 h-10 bg-indigo-600 rounded-full" />
-                             <p className="text-[10px] font-bold uppercase tracking-tighter">System Admin</p>
-                          </div>
-                          {postHeader && <h4 className="text-xl font-bold font-serif leading-tight">{postHeader}</h4>}
-                          {postType === 'image' && postImageUrls[0] && <div className="aspect-square rounded-2xl bg-slate-100 overflow-hidden"><img src={postImageUrls[0]} className="w-full h-full object-cover" /></div>}
-                          {postType === 'video' && postVideoUrl && <div className="aspect-video rounded-2xl bg-slate-100 overflow-hidden"><video src={postVideoUrl} className="w-full h-full object-cover" controls /></div>}
-                          <div className="text-sm text-slate-600 leading-relaxed font-normal">
-                             {renderFormattedText(postContent)}
-                          </div>
-                          <div className="space-y-2">
-                             {postButtons.map(b => <div key={b.id} className="w-full py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase text-center">{b.label}</div>)}
-                          </div>
+                 <div className="w-[500px] bg-slate-100 border-l flex flex-col items-center p-12 gap-8 overflow-y-auto">
+                    {/* Preview Controls */}
+                    <div className="w-full flex items-center justify-between bg-white px-6 py-4 rounded-[2rem] shadow-sm border">
+                       <div className="flex p-1 bg-slate-100 rounded-xl">
+                          <button onClick={() => setPreviewWidth('mobile')} className={`px-6 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${previewWidth === 'mobile' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}>Mobile</button>
+                          <button onClick={() => setPreviewWidth('tablet')} className={`px-6 py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${previewWidth === 'tablet' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}>Wide</button>
+                       </div>
+                       <div className="flex items-center gap-4">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Scale</span>
+                          <input type="range" min="0.5" max="1.2" step="0.1" value={previewZoom} onChange={e => setPreviewZoom(parseFloat(e.target.value))} className="w-20 accent-indigo-600" />
                        </div>
                     </div>
+
+                    <div 
+                       className="bg-white rounded-[3rem] shadow-2xl border-[10px] border-slate-900 overflow-hidden relative transition-all duration-500 origin-top"
+                       style={{ 
+                          width: previewWidth === 'mobile' ? '360px' : '480px', 
+                          maxWidth: '100%',
+                          aspectRatio: previewWidth === 'mobile' ? '9/19' : '16/10',
+                          transform: `scale(${previewZoom})`
+                       }}
+                    >
+                       <div className="h-10 flex items-center justify-between px-8 text-xs font-black">9:41</div>
+                       <div className="p-6 space-y-5 overflow-y-auto max-h-[calc(100%-40px)]">
+                          <div className="flex items-center gap-3 border-b pb-4">
+                             <div className="w-10 h-10 bg-indigo-600 rounded-full" />
+                             <div>
+                                <p className="text-[10px] font-bold uppercase tracking-tighter">System Admin</p>
+                                <p className="text-[8px] text-slate-400">Community Channel</p>
+                             </div>
+                          </div>
+                          {postHeader && <h4 className="text-xl font-bold font-serif leading-tight text-slate-900">{postHeader}</h4>}
+                          
+                          {/* Improved Image Preview */}
+                          {postType === 'image' && postImageUrls[0] && (
+                             <div className="rounded-2xl bg-slate-50 overflow-hidden border shadow-sm">
+                                <img 
+                                   src={postImageUrls[0].trim()} 
+                                   alt="Campaign Preview"
+                                   className="w-full h-auto block"
+                                   onError={(e) => {
+                                      (e.target as HTMLImageElement).src = 'https://placehold.co/600x400?text=Invalid+Image+URL';
+                                   }}
+                                />
+                             </div>
+                          )}
+                          
+                          {postType === 'video' && postVideoUrl && (
+                             <div className="rounded-2xl bg-slate-50 overflow-hidden border shadow-sm">
+                                <video src={postVideoUrl} className="w-full h-auto block" controls />
+                             </div>
+                          )}
+
+                          <div className="text-sm text-slate-600 leading-relaxed font-normal whitespace-pre-wrap">
+                             {renderFormattedText(postContent)}
+                          </div>
+
+                          <div className="space-y-2 pt-2">
+                             {postButtons.map(b => (
+                                <div key={b.id} className="w-full py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase text-center shadow-md shadow-indigo-600/10">
+                                   {b.label}
+                                </div>
+                             ))}
+                          </div>
+                          {postFooter && <p className="text-[9px] text-slate-400 border-t pt-4 italic">{postFooter}</p>}
+                       </div>
+                    </div>
+                    {previewZoom !== 1 && (
+                       <button onClick={() => setPreviewZoom(1)} className="text-[10px] font-bold text-indigo-600 hover:underline">Reset Scale</button>
+                    )}
                  </div>
               </div>
            </div>

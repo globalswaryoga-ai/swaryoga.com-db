@@ -2183,7 +2183,7 @@ export default function WhatsAppChatDashboardPage() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>WhatsApp Inbox</div>
+            <div style={{ fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>Meta Inbox</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -2274,6 +2274,26 @@ export default function WhatsAppChatDashboardPage() {
               title="Open broadcast"
             >
               📣 Broadcast
+            </Link>
+
+            {/* WhatsApp setup/diagnostics shortcut */}
+            <Link
+              href="/admin/crm/whatsapp-meta"
+              className="wa-btn"
+              style={{
+                fontSize: 13,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #E5E7EB',
+                background: '#fff',
+                color: '#111827',
+                fontWeight: 800,
+                textDecoration: 'none',
+                marginRight: 8,
+              }}
+              title="WhatsApp setup & diagnostics"
+            >
+              WhatsApp
             </Link>
 
             {/* Create lead button (placed next to refresh, near customer number) */}

@@ -242,6 +242,12 @@ export default function CRMDashboard() {
                   + Add New Lead
                 </Link>
                 <Link
+                  href="/admin/crm/meta"
+                  className="block bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
+                >
+                  🟢 Meta Inbox
+                </Link>
+                <Link
                   href="/admin/crm/whatsapp"
                   className="block bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >

@@ -18,17 +18,30 @@ if (!MONGODB_URI) {
 let isConnecting = false;
 let lastConnectionStatus = 'Not Connected';
 
+// In serverless/dev environments, hot-reloads can re-evaluate modules.
+// Cache the in-flight connection promise globally to avoid spawning multiple
+// pools in parallel (a common cause of 300-500+ Atlas connections).
+declare global {
+  // eslint-disable-next-line no-var
+  var __mongooseConnectionPromise: Promise<typeof mongoose> | undefined;
+}
+
 export const connectDB = async () => {
   const connectOnce = async () => {
     // Safe because we always guard for missing MONGODB_URI before calling connectOnce().
     console.log(`📡 Connecting to MongoDB: ${MONGODB_URI?.split('@')[1] || 'URI hidden'}...`);
     const conn = await mongoose.connect(MONGODB_URI as string, {
       dbName: MAIN_DB_NAME,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000, // Increased timeout
       socketTimeoutMS: 45000,
-      // tls: true is redundant for mongodb+srv and can cause 'alert internal error' in some environments
+      // tls: true is redundant for mongodb+srv and can cause 'alert internal error' in some environments.
+      // We'll keep it disabled but ensure it's not being overridden by the URI.
       retryWrites: true,
-      maxPoolSize: 10, // Limit connections to prevent exhaustion
+      maxPoolSize: 10, 
+      minPoolSize: 1, // Keep at least one connection open
+      connectTimeoutMS: 10000,
+      // Force IPv4 if needed (some environments have broken IPv6 local/remote resolution affecting TLS)
+      family: 4,
     });
     return conn;
   };
@@ -42,50 +55,74 @@ export const connectDB = async () => {
     }
 
     if (mongoose.connection.readyState === 1) {
-      console.log('✅ Already connected to MongoDB');
-      lastConnectionStatus = 'Connected';
+      // Periodic health check: if established, verify it's still usable
+      try {
+        await mongoose.connection.db?.admin().ping();
+        console.log('✅ MongoDB connection is healthy (ping ok)');
+        lastConnectionStatus = 'Connected';
+        return mongoose.connection;
+      } catch (pingErr) {
+        console.warn('⚠️  MongoDB existing connection health check failed, reconnecting...');
+        try {
+          await mongoose.disconnect();
+        } catch (_) {}
+      }
+    }
+
+    // Prefer a global singleton promise so concurrent requests don't create
+    // multiple pools/connections.
+    if (globalThis.__mongooseConnectionPromise) {
+      console.log('⏳ MongoDB connection already in progress (global)...');
+      await globalThis.__mongooseConnectionPromise;
       return mongoose.connection;
     }
 
     if (isConnecting) {
-      console.log('⏳ MongoDB connection already in progress...');
+      console.log('⏳ MongoDB connection already in progress (local)...');
       return mongoose.connection;
     }
 
     isConnecting = true;
     lastConnectionStatus = 'Connecting...';
     console.log('🔄 Attempting to connect to MongoDB...');
-    let conn;
-    try {
-      conn = await connectOnce();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // We've observed intermittent TLS/pool-reset errors on some networks.
-      // A single retry (after resetting the pool) often succeeds, and avoids
-      // locking the whole admin UI behind a transient handshake failure.
-      const isTlsLike = /tlsv1 alert internal error|ERR_SSL|SSL routines/i.test(msg);
-      console.warn('⚠️  MongoDB first connect attempt failed:', msg);
-      if (!isTlsLike) throw err;
 
+    globalThis.__mongooseConnectionPromise = (async () => {
+      let conn;
       try {
-        await mongoose.disconnect();
-      } catch (_e) {
-        // ignore
+        conn = await connectOnce();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // We've observed intermittent TLS/pool-reset errors on some networks.
+        // A single retry (after resetting the pool) often succeeds.
+        const isTlsLike = /tlsv1 alert internal error|ERR_SSL|SSL routines/i.test(msg);
+        console.warn('⚠️  MongoDB first connect attempt failed:', msg);
+        if (!isTlsLike) throw err;
+
+        try {
+          await mongoose.disconnect();
+        } catch (_e) {
+          // ignore
+        }
+        console.log('🔁 Retrying MongoDB connection once...');
+        conn = await connectOnce();
       }
-      console.log('🔁 Retrying MongoDB connection once...');
-      conn = await connectOnce();
-    }
-    isConnecting = false;
+      return conn;
+    })();
+
+    const conn = await globalThis.__mongooseConnectionPromise;
     const actualDbName = conn.connection?.db?.databaseName;
     console.log(`✅ Successfully connected to MongoDB (db: ${actualDbName || 'unknown'})`);
     lastConnectionStatus = 'Connected';
     return conn.connection;
   } catch (error) {
     isConnecting = false;
+    globalThis.__mongooseConnectionPromise = undefined;
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error('❌ MongoDB connection error:', errorMsg);
     lastConnectionStatus = `Error: ${errorMsg}`;
     throw error;
+  } finally {
+    isConnecting = false;
   }
 };
 
@@ -839,7 +876,7 @@ export const Note = mongoose.models.Note || mongoose.model('Note', noteSchema);
 const communityMemberSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   email: { type: String, required: true, trim: true, lowercase: true, sparse: true },
-  mobile: { type: String, required: true, trim: true, unique: true },
+  mobile: { type: String, required: true, trim: true },
   countryCode: { type: String, default: '+91' },
   userId: { type: String, required: true, index: true }, // 6-digit user ID
   communityId: { type: String, required: true }, // 'general', 'swar-yoga', etc.

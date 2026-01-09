@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, CommunityMember } from '@/lib/db';
+import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
 
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
-    const { name, email, mobile, countryCode, userId, communityId, communityName } = await request.json();
+    const { name, email, mobile, countryCode, communityId, communityName } = await request.json();
 
     // Validate inputs
-    if (!name || !mobile || !userId || !communityId || !communityName) {
+    if (!name || !mobile || !communityId || !communityName) {
       return NextResponse.json(
-        { error: 'Name, mobile, userId, communityId, and communityName are required' },
+        { error: 'Name, mobile, communityId, and communityName are required' },
         { status: 400 }
       );
     }
@@ -32,17 +33,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate User ID format
-    if (!/^\d{6}$/.test(userId)) {
-      return NextResponse.json(
-        { error: 'User ID must be exactly 6 digits' },
-        { status: 400 }
-      );
+    // NEW: Get or Create Lead ID from CRM system
+    let leadUserId: string;
+    try {
+      leadUserId = await getOrCreateLeadIdForPhone(cleanMobile, name, email);
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message || 'Lead allocation failed' }, { status: 500 });
     }
 
     // Check if already a member by userId
     const existingByUserId = await CommunityMember.findOne({
-      userId: userId,
+      userId: leadUserId,
+      communityId
     });
 
     if (existingByUserId) {
@@ -78,30 +80,70 @@ export async function POST(request: NextRequest) {
         {
           success: true,
           message: message,
-          data: existingMember,
+          data: {
+            memberId: existingMember._id,
+            userId: existingMember.userId,
+            name: existingMember.name,
+            communityId: existingMember.communityId,
+            communityName: existingMember.communityName,
+            joinedAt: existingMember.joinedAt,
+            approved: existingMember.approved,
+            status: existingMember.status,
+          },
           isUpdate: true,
         },
         { status: 200 }
       );
     }
 
-    // All members joining via public links now require admin approval
+    // All members joining via public links now require admin approval (except global)
     const newMember = new CommunityMember({
       name: name.trim(),
       email: email ? email.trim().toLowerCase() : null,
       mobile: cleanMobile,
       countryCode: countryCode || '+91',
-      userId: userId.toString().padStart(6, '0'),
+      userId: leadUserId,
       communityId,
       communityName,
       status: 'active',
-      approved: false, // Set to false for all groups as requested
+      approved: communityId === 'global', // Global is auto-approved
       joinedAt: new Date(),
     });
 
     await newMember.save();
 
-    const message = '👋 Welcome! You can view posts. Messaging will be enabled after admin approval.';
+    // AUTO-JOIN GLOBAL COMMUNITY
+    // If they joined a specific group, also add them to 'global' if not already there
+    if (communityId !== 'global') {
+      try {
+        const globalExists = await CommunityMember.findOne({
+          mobile: cleanMobile,
+          communityId: 'global',
+        });
+
+        if (!globalExists) {
+          await CommunityMember.create({
+            name: name.trim(),
+            email: email ? email.trim().toLowerCase() : null,
+            mobile: cleanMobile,
+            countryCode: countryCode || '+91',
+            userId: leadUserId,
+            communityId: 'global',
+            communityName: 'Global Community',
+            status: 'active',
+            approved: true,
+            joinedAt: new Date(),
+          });
+          console.log(`✅ Auto-joined ${name} to Global Community`);
+        }
+      } catch (e) {
+        console.error('❌ Auto-join Global failed:', e);
+      }
+    }
+
+    const message = communityId === 'global'
+      ? '✅ Welcome! You have successfully joined the Global Community.'
+      : '👋 Registration successful! Messaging will be enabled after admin approval.';
 
     return NextResponse.json(
       {
@@ -109,6 +151,7 @@ export async function POST(request: NextRequest) {
         message,
         data: {
           memberId: newMember._id,
+          userId: newMember.userId,
           name: newMember.name,
           communityName: newMember.communityName,
           joinedAt: newMember.joinedAt,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
+import { connectDB } from '@/lib/db';
 
 // This debug route attempts a live DB connection; ensure it is always runtime-only.
 export const dynamic = 'force-dynamic';
@@ -27,30 +28,17 @@ export async function GET() {
       }, { status: 400 });
     }
 
-    // Check if already connected
-    if (mongoose.connection.readyState === 1) {
-      return NextResponse.json({
-        status: 'success',
-        message: 'Already connected to MongoDB',
-        connectionState: mongoose.connection.readyState
-      });
-    }
-
-    // Try to connect
-    console.log('Attempting MongoDB connection...');
-    const connection = await mongoose.connect(mongoUri, {
-      dbName: mainDbName,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 5000,
-    });
+    // Use the shared connection helper so this debug route doesn't create
+    // an extra pool (which inflates Atlas connection counts).
+    const connection = await connectDB();
 
     return NextResponse.json({
       status: 'success',
       message: 'Connected to MongoDB',
-      host: connection.connection.host,
-      name: connection.connection.name,
-      dbName: connection.connection?.db?.databaseName,
-      state: connection.connection.readyState
+      host: mongoose.connection.host,
+      name: mongoose.connection.name,
+      dbName: mongoose.connection?.db?.databaseName,
+      state: mongoose.connection.readyState
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

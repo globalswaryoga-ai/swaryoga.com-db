@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
 interface Post {
   _id: string;
@@ -44,7 +45,10 @@ const COMMUNITIES: Community[] = [
   { id: 'i-am-fit', name: 'I am Fit', icon: '💪', description: 'Fitness and wellness', members: 0, isPublic: false, gradient: 'from-lime-500 to-green-500' },
 ];
 
-export default function CommunityPage() {
+function CommunityPageContent() {
+  const searchParams = useSearchParams();
+  const joinParam = searchParams.get('join');
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,6 +81,22 @@ export default function CommunityPage() {
     checkUserAuth();
     fetchCommunityStats();
   }, []);
+
+  useEffect(() => {
+    if (joinParam) {
+      const community = communities.find(c => c.id === joinParam);
+      if (community) {
+        setSelectedCommunity(community.id);
+        if (community.isPublic) {
+          setJoiningCommunity(community);
+          setShowJoinModal(true);
+        } else {
+          setRequestingCommunity(community);
+          setShowRequestModal(true);
+        }
+      }
+    }
+  }, [joinParam, communities]);
 
   const fetchCommunityStats = async () => {
     try {
@@ -180,7 +200,6 @@ export default function CommunityPage() {
 
     try {
       setJoiningLoading(true);
-      const userId = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
       
       const response = await fetch('/api/community/join', {
         method: 'POST',
@@ -190,7 +209,6 @@ export default function CommunityPage() {
           email: joinFormData.email,
           mobile: joinFormData.mobile,
           countryCode: '+91',
-          userId,
           communityId: joiningCommunity.id,
           communityName: joiningCommunity.name,
         }),
@@ -205,10 +223,11 @@ export default function CommunityPage() {
 
       // Success: Handle both new join and rejoin cases
       alert('✅ ' + (result.message || 'Successfully joined!'));
+      const serverUserId = result?.data?.userId || result?.data?.member?.userId || result?.data?.leadNumber;
       localStorage.setItem('community_user', JSON.stringify({
         name: joinFormData.name,
         email: joinFormData.email,
-        userId,
+        userId: serverUserId || JSON.parse(localStorage.getItem('community_user') || 'null')?.userId,
       }));
       setUser({ name: joinFormData.name, email: joinFormData.email });
       setShowJoinModal(false);
@@ -242,7 +261,6 @@ export default function CommunityPage() {
 
     try {
       setRequestLoading(true);
-      const userId = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
       
       const response = await fetch('/api/community/request-access', {
         method: 'POST',
@@ -251,7 +269,6 @@ export default function CommunityPage() {
           name: requestFormData.name,
           email: requestFormData.email,
           mobile: requestFormData.mobile,
-          userId,
           communityId: requestingCommunity.id,
           communityName: requestingCommunity.name,
           workshopsCompleted: requestFormData.workshopsCompleted,
@@ -890,5 +907,13 @@ export default function CommunityPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CommunityPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Loading...</div>}>
+      <CommunityPageContent />
+    </Suspense>
   );
 }

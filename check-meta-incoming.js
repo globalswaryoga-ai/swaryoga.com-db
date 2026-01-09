@@ -1,14 +1,45 @@
 require('dotenv').config({ path: '.env.local' });
 const mongoose = require('mongoose');
 
-const mongoUri = process.env.MONGODB_URI;
-// Use CRM DB if defined, else fallback to standard
-const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryogaDB';
+// This repo standardizes on MONGODB_URI_MAIN (see .github/copilot-instructions.md).
+// Many older one-off scripts used MONGODB_URI; prefer MAIN and fall back for safety.
+const mongoUri = process.env.MONGODB_URI_MAIN || process.env.MONGODB_URI;
+
+// CRM data lives in swaryoga_admin_crm (same cluster). Some scripts used swaryogaDB.
+// Allow override, but default to CRM DB since this script is for WhatsApp/CRM.
+const crmDbName = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
 async function checkMetaMessages() {
   try {
     console.log(`🔍 Connecting to ${crmDbName}...`);
-    await mongoose.connect(mongoUri, { dbName: crmDbName });
+    // Avoid scripts hanging indefinitely on network/TLS issues.
+    // Also: this repo sometimes runs under Node 25+, which can surface
+    // intermittent TLS handshake issues to Atlas depending on local OpenSSL.
+    // We'll (a) fail fast and (b) retry a couple of times.
+    const connectOpts = {
+      dbName: crmDbName,
+      serverSelectionTimeoutMS: 12000,
+      connectTimeoutMS: 12000,
+      socketTimeoutMS: 20000,
+      maxPoolSize: 3,
+    };
+
+    const maxAttempts = 3;
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        if (attempt > 1) console.log(`🔁 Retrying MongoDB connection (attempt ${attempt}/${maxAttempts})...`);
+        await mongoose.connect(mongoUri, connectOpts);
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e;
+        // Backoff a bit between attempts.
+        await new Promise((r) => setTimeout(r, 800 * attempt));
+      }
+    }
+
+    if (lastErr) throw lastErr;
 
     // Define schema to match our implementation
     const schema = new mongoose.Schema({

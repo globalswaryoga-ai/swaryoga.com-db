@@ -408,9 +408,18 @@ export async function POST(request: NextRequest) {
             } catch (sendError) {
               // Update message as failed
               const errorMsg = sendError instanceof Error ? sendError.message : 'Unknown error';
+              const isConfigError =
+                /Cloud API is not configured|WHATSAPP_ACCESS_TOKEN|WHATSAPP_PHONE_NUMBER_ID|WHATSAPP_BRIDGE_HTTP_URL|Web Bridge/i.test(
+                  String(errorMsg)
+                );
+
+              // If sending is unavailable due to missing configuration, don't mark as permanently failed.
+              // Keep it queued so once Meta config is fixed (or a fallback sender is added) we can retry.
               await WhatsAppMessage.findByIdAndUpdate(message._id, {
-                status: 'failed',
+                status: isConfigError ? 'queued' : 'failed',
+                provider: 'meta',
                 failureReason: errorMsg,
+                updatedAt: new Date(),
               });
 
               // Save note with error
@@ -429,9 +438,11 @@ export async function POST(request: NextRequest) {
 
               return NextResponse.json(
                 {
-                  error: `Failed to send WhatsApp message: ${errorMsg}`,
+                  error: isConfigError
+                    ? `WhatsApp currently not sending (configuration missing). Message queued. Details: ${errorMsg}`
+                    : `Failed to send WhatsApp message: ${errorMsg}`,
                 },
-                { status: 400 }
+                { status: isConfigError ? 202 : 400 }
               );
             }
           }

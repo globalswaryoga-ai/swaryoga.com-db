@@ -78,6 +78,9 @@ async function checkHealth() {
       console.log('⚠️ No inbound Meta messages found in whatsapp_messages collection.');
     }
 
+    // Window used for 24h counters
+    const since = new Date(Date.now() - 86400000);
+
     // 5. Check Outbound Messages
     const lastOutbound = await adminDb.collection('whatsapp_messages')
       .find({ direction: 'outbound', provider: 'meta' })
@@ -86,16 +89,38 @@ async function checkHealth() {
       .toArray();
 
     if (lastOutbound.length > 0) {
-      console.log(`📤 Last Outbound (Meta): ${lastOutbound[0].createdAt.toISOString()} to ${lastOutbound[0].phoneNumber} [Status: ${lastOutbound[0].status}]`);
+      console.log(
+        `📤 Last Outbound (Meta): ${lastOutbound[0].createdAt.toISOString()} to ${lastOutbound[0].phoneNumber} ` +
+        `[Status: ${lastOutbound[0].status}]` +
+        (lastOutbound[0].waMessageId ? ` [waMessageId: ${String(lastOutbound[0].waMessageId).slice(0, 24)}...]` : '')
+      );
     } else {
       console.log('⚠️ No outbound Meta messages found.');
     }
 
+    // 5b) Outbound stats (Meta) last 24h
+    const outSent24h = await adminDb.collection('whatsapp_messages')
+      .countDocuments({ direction: 'outbound', provider: 'meta', status: 'sent', createdAt: { $gt: since } });
+    const outFailed24h = await adminDb.collection('whatsapp_messages')
+      .countDocuments({ direction: 'outbound', provider: 'meta', status: 'failed', createdAt: { $gt: since } });
+    const outQueued24h = await adminDb.collection('whatsapp_messages')
+      .countDocuments({ direction: 'outbound', provider: 'meta', status: { $in: ['queued', 'delayed'] }, createdAt: { $gt: since } });
+
+    console.log(`📤 Outbound (Meta) last 24h: sent=${outSent24h}, queued/delayed=${outQueued24h}, failed=${outFailed24h}`);
+
     // 6. Recent Failures
-    const failures = await adminDb.collection('whatsapp_messages')
-      .countDocuments({ status: 'failed', createdAt: { $gt: new Date(Date.now() - 86400000) } });
+    // We only care about Meta stability here. Counting all failures (including legacy/undefined)
+    // causes false alarms.
+    const metaFailures = await adminDb.collection('whatsapp_messages')
+      .countDocuments({ status: 'failed', provider: 'meta', createdAt: { $gt: since } });
+
+    const otherFailures = await adminDb.collection('whatsapp_messages')
+      .countDocuments({ status: 'failed', provider: { $ne: 'meta' }, createdAt: { $gt: since } });
     
-    console.log(`❌ Failures in last 24h: ${failures}`);
+    console.log(`❌ Failures in last 24h (provider=meta): ${metaFailures}`);
+    if (otherFailures > 0) {
+      console.log(`ℹ️  Other failed records (non-meta): ${otherFailures} (often test/legacy/no-provider sends)`);
+    }
 
     console.log('\n🏥 SUMMARY: If Webhook Hit is recent, your system is LIVE.');
 

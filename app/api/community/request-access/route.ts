@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
+import { connectDB, CommunityMember } from '@/lib/db';
+import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
 import mongoose from 'mongoose';
 
 // Join Request Schema (if not exists in db.ts)
@@ -7,7 +8,7 @@ const joinRequestSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, lowercase: true },
   mobile: { type: String, required: true },
-  userId: { type: String, required: true, unique: true },
+  userId: { type: String, required: true },
   communityId: { type: String, required: true },
   communityName: { type: String, required: true },
   workshopsCompleted: { type: Boolean, default: false },
@@ -29,10 +30,10 @@ export async function POST(request: NextRequest) {
       JoinRequest = mongoose.models.JoinRequest || mongoose.model('JoinRequest', joinRequestSchema);
     }
 
-    const { name, email, mobile, userId, communityId, communityName, workshopsCompleted, message } = await request.json();
+    const { name, email, mobile, communityId, communityName, workshopsCompleted, message } = await request.json();
 
     // Validate inputs
-    if (!name || !email || !mobile || !userId || !communityId || !communityName) {
+    if (!name || !email || !mobile || !communityId || !communityName) {
       return NextResponse.json(
         { error: 'All fields are required' },
         { status: 400 }
@@ -54,6 +55,14 @@ export async function POST(request: NextRequest) {
         { error: 'Mobile number must be at least 10 digits' },
         { status: 400 }
       );
+    }
+
+    // NEW: Get or Create Lead ID from CRM system
+    let leadUserId: string;
+    try {
+      leadUserId = await getOrCreateLeadIdForPhone(cleanMobile, name, email);
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message || 'Lead allocation failed' }, { status: 500 });
     }
 
     // Check if request already exists
@@ -103,10 +112,10 @@ export async function POST(request: NextRequest) {
 
     // Create new join request
     const newRequest = new JoinRequest({
-      name,
-      email,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
       mobile: cleanMobile,
-      userId,
+      userId: leadUserId,
       communityId,
       communityName,
       workshopsCompleted: workshopsCompleted || false,
@@ -116,10 +125,65 @@ export async function POST(request: NextRequest) {
 
     await newRequest.save();
 
+    // 1. ADD TO TARGET COMMUNITY AS PENDING
+    try {
+      const targetExists = await CommunityMember.findOne({
+        mobile: cleanMobile,
+        communityId
+      });
+
+      if (!targetExists) {
+        await CommunityMember.create({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          mobile: cleanMobile,
+          userId: leadUserId,
+          communityId,
+          communityName,
+          status: 'active',
+          approved: false, // REQUIRES ADMIN APPROVAL
+          joinedAt: new Date(),
+          metadata: {
+            requestMessage: message || '',
+            workshopsCompleted: workshopsCompleted || false,
+            requestId: newRequest._id
+          }
+        });
+        console.log(`✅ Added ${name} to ${communityName} as PENDING`);
+      }
+    } catch (err) {
+      console.error(`❌ Adding pending member to ${communityName} failed:`, err);
+    }
+
+    // 2. AUTO-JOIN GLOBAL COMMUNITY
+    try {
+      const globalExists = await CommunityMember.findOne({
+        mobile: cleanMobile,
+        communityId: 'global'
+      });
+
+      if (!globalExists) {
+        await CommunityMember.create({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          mobile: cleanMobile,
+          userId: leadUserId,
+          communityId: 'global',
+          communityName: 'Global Community',
+          status: 'active',
+          approved: true, // Global is always open
+          joinedAt: new Date(),
+        });
+        console.log(`✅ Auto-joined ${name} to Global while requesting ${communityName}`);
+      }
+    } catch (err) {
+      console.error('❌ Auto-join Global during request failed:', err);
+    }
+
     return NextResponse.json(
       {
         success: true,
-        message: '✅ Request submitted successfully! Admin will review and get back to you soon.',
+        message: '✅ Your request has been submitted! You have also been added to the Global Community. Admin will review your access to specialized groups soon.',
         data: newRequest,
       },
       { status: 201 }

@@ -5,14 +5,23 @@ async function run() {
   try {
     await client.connect();
     const db = client.db('swaryoga_admin_crm');
-    const startOfDay = new Date('2026-01-08T00:00:00Z');
-    const events = await db.collection('whatsapp_webhook_events').find({
-      createdAt: { $gte: startOfDay }
-    }).sort({ createdAt: -1 }).limit(50).toArray();
+    // Start of *today* in UTC so the script works on any day.
+    const now = new Date();
+    const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const events = await db
+      .collection('whatsapp_webhook_events')
+      .find({
+        $or: [{ createdAt: { $gte: startOfDay } }, { receivedAt: { $gte: startOfDay } }],
+      })
+      .sort({ receivedAt: -1, createdAt: -1 })
+      .limit(50)
+      .toArray();
     
     console.log(`Found ${events.length} events for today.`);
     events.forEach(e => {
-      console.log(`[${e.createdAt.toISOString()}] Kind: ${e.kind}, OK: ${e.ok}, Message: ${e.message}`);
+      const ts = (e.receivedAt || e.createdAt);
+      const tsLabel = ts && typeof ts.toISOString === 'function' ? ts.toISOString() : String(ts || 'N/A');
+      console.log(`[${tsLabel}] Kind: ${e.kind}, OK: ${e.ok}, Message: ${e.message}`);
       if (!e.ok) {
         console.log('   Error Detail:', JSON.stringify(e.sample || e.error || {}));
       }
