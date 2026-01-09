@@ -113,7 +113,7 @@ function formatDate(isoDate: string): string {
 
 function WorkshopsPageInner() {
   const [currentPage, setCurrentPage] = useState(1);
-  const workshopsPerPage = 3; // Show 3 cards per page
+  const workshopsPerPage = 20; // 5 rows of 4 cards
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
@@ -214,11 +214,16 @@ function WorkshopsPageInner() {
     const bNext = getNextUpcomingStartDateIso(schedulesByWorkshopId[b.slug], now);
     const ad = toDateSafe(aNext);
     const bd = toDateSafe(bNext);
-    // Sort by latest date first (descending)
-    if (ad && bd) return bd.getTime() - ad.getTime();
+
+    // If both have upcoming dates, sort by date ascending (closest first)
+    if (ad && bd) return ad.getTime() - bd.getTime();
+    
+    // If only one has an upcoming date, it comes first
     if (ad && !bd) return -1;
     if (!ad && bd) return 1;
-    return 0;
+    
+    // Neither has upcoming dates, sort by name
+    return a.name.localeCompare(b.name);
   });
 
   // Filter workshops based on selected filters
@@ -613,90 +618,50 @@ function WorkshopsPageInner() {
               )}
             </div>
 
-            {/* Workshop Cards Carousel */}
-            <div className="mb-8 sm:mb-12">
-              {/* Carousel Container */}
-              <div className="flex items-center gap-3 sm:gap-4">
-                {/* Left Arrow Button */}
-                <button
-                  onClick={() => {
-                    const carousel = document.getElementById('workshop-carousel');
-                    if (carousel) {
-                      carousel.scrollBy({ left: -320, behavior: 'smooth' });
-                    }
-                  }}
-                  className="flex-shrink-0 p-2 sm:p-3 bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white rounded-lg transition-all duration-300 touch-target active:scale-95"
-                  aria-label="Scroll left"
-                >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-
-                {/* Carousel Content */}
+            {/* Workshop Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 sm:mb-12">
+              {currentWorkshops.slice(0, 4).map((workshop) => (
                 <div
-                  id="workshop-carousel"
-                  className="flex-1 overflow-x-auto scroll-smooth scrollbar-hide"
-                  style={{
-                    scrollBehavior: 'smooth',
-                    WebkitOverflowScrolling: 'touch',
-                  }}
+                  key={workshop.id}
+                  className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group flex flex-col border border-gray-100"
                 >
-                  <div className="flex gap-4 sm:gap-6 pb-2">
-                    {currentWorkshops.map((workshop) => (
-                    <div
-                      key={workshop.id}
-                      className="flex-shrink-0 w-full sm:w-80 md:w-96 bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-105 group flex flex-col"
-                    >
                   {/* Workshop Image */}
-                  <div className="relative h-48 sm:h-56 md:h-64 overflow-hidden bg-gray-200 flex-shrink-0">
+                  <div className="relative h-40 sm:h-48 overflow-hidden bg-gray-200 flex-shrink-0">
                     <Image
                       src={workshop.image}
                       alt={workshop.name}
                       fill
-                      className="object-cover group-hover:scale-110 transition-transform duration-500"
-                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
                     {/* Level Badge */}
-                    <div className="absolute top-2 right-2 sm:top-4 sm:right-4">
-                      <span
-                        className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-white text-xs sm:text-sm font-semibold ${
-                          workshop.level === 'Beginner'
-                            ? 'bg-green-500'
-                            : workshop.level === 'Intermediate'
-                            ? 'bg-blue-500'
-                            : workshop.level === 'Advanced'
-                            ? 'bg-red-500'
-                            : 'bg-purple-500'
-                        }`}
-                      >
+                    <div className="absolute top-3 right-3">
+                      <span className="px-3 py-1.5 rounded-full text-white text-[10px] font-bold bg-purple-500/90 backdrop-blur-sm shadow-sm">
                         {workshop.level}
                       </span>
                     </div>
                   </div>
 
                   {/* Workshop Content */}
-                  <div className="p-4 sm:p-5 md:p-6 flex flex-col flex-grow">
-                    <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 mb-1 sm:mb-2 line-clamp-2">
+                  <div className="p-4 flex flex-col flex-grow">
+                    <h3 className="text-base font-bold text-gray-800 mb-1 line-clamp-1">
                       {workshop.name}
                     </h3>
-                    <p className="text-gray-800 text-xs sm:text-sm font-bold mb-2 sm:mb-3">
+                    <p className="text-gray-500 text-[10px] font-semibold mb-2">
                       Duration - {workshop.duration}
                     </p>
-                    <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2">
+                    <p className="text-gray-600 text-xs mb-4 line-clamp-2 leading-relaxed h-8">
                       {workshop.description}
                     </p>
 
                     {(() => {
                       const schedules = schedulesByWorkshopId[workshop.slug] || [];
-                      const startingPrice = getStartingPrice(schedules);
                       const nextSchedule = schedules.length > 0 ? schedules[0] : null;
                       const nextStartDate = nextSchedule ? formatDate(nextSchedule.startDate) : 'TBA';
                       const totalSlots = schedules.reduce((sum, s) => sum + (s.slots || 0), 0);
                       
-                      // Check if admission is open (registration close date > today)
                       const today = new Date();
                       today.setHours(0, 0, 0, 0);
                       const registrationCloseDate = nextSchedule?.registrationCloseDate 
@@ -705,28 +670,28 @@ function WorkshopsPageInner() {
                       const isAdmissionOpen = registrationCloseDate ? registrationCloseDate.getTime() >= today.getTime() : true;
                       
                       return (
-                        <>
+                        <div className="mt-auto space-y-3">
                           {/* CTA Buttons */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                          <div className="grid grid-cols-2 gap-2">
                             <Link
                               href={`/workshops/${workshop.slug}/landing`}
-                              className="w-full bg-white border-2 border-primary-600 text-primary-700 hover:bg-primary-50 active:scale-95 py-2 sm:py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 group/btn touch-target text-xs sm:text-sm"
+                              className="bg-white border-2 border-green-600 text-green-700 hover:bg-green-50 py-2 rounded-lg transition-all duration-300 font-bold flex items-center justify-center gap-1 group/btn text-[10px]"
                             >
                               Learn More
-                              <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 group-hover/btn:translate-x-1 transition-transform flex-shrink-0" />
+                              <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
                             </Link>
                             <Link
                               href={`/registernow?workshop=${encodeURIComponent(workshop.slug)}`}
-                              className="w-full bg-primary-600 hover:bg-primary-700 active:scale-95 text-white py-2 sm:py-2.5 rounded-lg transition-all duration-300 font-semibold flex items-center justify-center gap-1 sm:gap-2 touch-target text-xs sm:text-sm"
+                              className="bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition-all duration-300 font-bold flex items-center justify-center text-[10px]"
                             >
                               Register Now
                             </Link>
                           </div>
 
                           {/* Fee Box */}
-                          <div className="flex items-center justify-between mb-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs sm:text-sm">
-                            <span className="text-gray-600 font-semibold">Fee</span>
-                            <span className="text-primary-700 font-bold">
+                          <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 border border-gray-100 text-[11px]">
+                            <span className="text-gray-500 font-bold">Fee</span>
+                            <span className="text-green-700 font-black">
                               {WORKSHOP_FEES[workshop.slug]
                                 ? WORKSHOP_FEES[workshop.slug].minPrice === WORKSHOP_FEES[workshop.slug].maxPrice
                                   ? formatPrice(WORKSHOP_FEES[workshop.slug].minPrice, selectedPayment)
@@ -736,102 +701,160 @@ function WorkshopsPageInner() {
                           </div>
 
                           {/* Date & Admission Row */}
-                          <div className="grid grid-cols-2 gap-2 mb-2">
-                            <div className="px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 text-xs">
-                              <span className="text-gray-600 font-semibold">Start</span>
-                              <div className="text-blue-700 font-bold text-xs">{nextStartDate}</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 flex flex-col items-center">
+                              <span className="text-gray-500 font-bold text-[9px]">Start</span>
+                              <div className="text-blue-700 font-black text-[10px]">{nextStartDate}</div>
                             </div>
-                            <div className={`px-3 py-2 rounded-lg border text-xs ${isAdmissionOpen ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                              <span className={`font-semibold ${isAdmissionOpen ? 'text-gray-600' : 'text-red-600'}`}>
-                                Admission
-                              </span>
-                              <div className={`font-bold text-xs ${isAdmissionOpen ? 'text-green-700' : 'text-red-700'}`}>
+                            <div className={`px-3 py-2 rounded-lg border flex flex-col items-center ${isAdmissionOpen ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                              <span className="text-gray-500 font-bold text-[9px]">Admission</span>
+                              <div className={`font-black text-[10px] ${isAdmissionOpen ? 'text-green-700' : 'text-red-700'}`}>
                                 {isAdmissionOpen ? 'Open' : 'Closed'}
                               </div>
                             </div>
                           </div>
 
-                          {/* Slots Info - Black Text Only */}
-                          <div className="px-3 py-2 rounded-lg mb-2 text-center">
-                            <span className="font-semibold text-xs sm:text-sm text-black">
+                          {/* Slots Info */}
+                          <div className="text-center">
+                            <span className="font-bold text-[11px] text-gray-900">
                               Slots: {totalSlots} Available
                             </span>
                           </div>
-
-
-                        </>
+                        </div>
                       );
                     })()}
-
-                    {/* Filter Badges Removed - Only shown in batch details */}
-
-                    {/* Batches Section Removed - Only shown on detail page */}
-                  </div>
-                    </div>
-                    ))}
                   </div>
                 </div>
+              ))}
 
-                {/* Right Arrow Button */}
-                <button
-                  onClick={() => {
-                    const carousel = document.getElementById('workshop-carousel');
-                    if (carousel) {
-                      carousel.scrollBy({ left: 320, behavior: 'smooth' });
-                    }
-                  }}
-                  className="flex-shrink-0 p-2 sm:p-3 bg-white border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white rounded-lg transition-all duration-300 touch-target active:scale-95"
-                  aria-label="Scroll right"
+              {/* Creative Glossy Divider - Row 2 starts after this */}
+              {currentWorkshops.length > 4 && (
+                <div className="col-span-full py-16 relative flex items-center justify-center overflow-hidden">
+                   {/* Background Glossy Shine */}
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+                  <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-24 bg-gradient-to-r from-transparent via-white/80 to-transparent blur-2xl"></div>
+                  
+                  {/* Floating Glass Label */}
+                  <div className="relative z-10 px-8 py-3 bg-white/40 backdrop-blur-md rounded-2xl border border-white/60 shadow-xl shadow-gray-200/50 group hover:scale-105 transition-transform cursor-default text-center">
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] flex items-center justify-center gap-3">
+                      <span className="w-8 h-px bg-gray-300"></span>
+                      All Programs
+                      <span className="w-8 h-px bg-gray-300"></span>
+                    </span>
+                  </div>
+
+                  {/* Shimmer Effect */}
+                  <div className="absolute top-0 left-[-100%] h-full w-[50%] bg-gradient-to-r from-transparent via-white/40 to-transparent skew-x-[-20deg] animate-pulse"></div>
+                </div>
+              )}
+
+              {currentWorkshops.slice(4).map((workshop) => (
+                <div
+                  key={workshop.id}
+                  className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group flex flex-col border border-gray-100"
                 >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Mobile instruction text */}
-            <p className="text-center text-gray-500 text-xs sm:text-sm mb-8">
-              💡 Scroll left and right to browse more workshops
-            </p>
-
-            {/* Pagination removed - using carousel instead */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-3 sm:gap-4 flex-wrap mt-8 sm:mt-12">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="px-4 sm:px-6 py-2.5 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-sm active:scale-95"
-                >
-                  ← Previous
-                </button>
-
-                {/* Dot Indicators */}
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full transition-all duration-300 ${
-                        currentPage === page
-                          ? 'bg-primary-600 scale-125'
-                          : 'bg-gray-300 hover:bg-gray-400'
-                      }`}
-                      title={`Go to page ${page}`}
-                      aria-label={`Page ${page}`}
+                  {/* Workshop Image */}
+                  <div className="relative h-40 sm:h-48 overflow-hidden bg-gray-200 flex-shrink-0">
+                    <Image
+                      src={workshop.image}
+                      alt={workshop.name}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
                     />
-                  ))}
-                </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-4 sm:px-6 py-2.5 bg-white border-2 border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-600 hover:text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-sm active:scale-95"
-                >
-                  Next →
-                </button>
-              </div>
-            )}
+                    {/* Level Badge */}
+                    <div className="absolute top-3 right-3">
+                      <span className="px-3 py-1.5 rounded-full text-white text-[10px] font-bold bg-purple-500/90 backdrop-blur-sm shadow-sm">
+                        {workshop.level}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Workshop Content */}
+                  <div className="p-4 flex flex-col flex-grow">
+                    <h3 className="text-base font-bold text-gray-800 mb-1 line-clamp-1">
+                      {workshop.name}
+                    </h3>
+                    <p className="text-gray-500 text-[10px] font-semibold mb-2">
+                      Duration - {workshop.duration}
+                    </p>
+                    <p className="text-gray-600 text-xs mb-4 line-clamp-2 leading-relaxed h-8">
+                      {workshop.description}
+                    </p>
+
+                    {(() => {
+                      const schedules = schedulesByWorkshopId[workshop.slug] || [];
+                      const nextSchedule = schedules.length > 0 ? schedules[0] : null;
+                      const nextStartDate = nextSchedule ? formatDate(nextSchedule.startDate) : 'TBA';
+                      const totalSlots = schedules.reduce((sum, s) => sum + (s.slots || 0), 0);
+                      
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const registrationCloseDate = nextSchedule?.registrationCloseDate 
+                        ? new Date(nextSchedule.registrationCloseDate + 'T00:00:00Z')
+                        : null;
+                      const isAdmissionOpen = registrationCloseDate ? registrationCloseDate.getTime() >= today.getTime() : true;
+                      
+                      return (
+                        <div className="mt-auto space-y-3">
+                          {/* CTA Buttons */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <Link
+                              href={`/workshops/${workshop.slug}/landing`}
+                              className="bg-white border-2 border-green-600 text-green-700 hover:bg-green-50 py-2 rounded-lg transition-all duration-300 font-bold flex items-center justify-center gap-1 group/btn text-[10px]"
+                            >
+                              Learn More
+                              <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
+                            </Link>
+                            <Link
+                              href={`/registernow?workshop=${encodeURIComponent(workshop.slug)}`}
+                              className="bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition-all duration-300 font-bold flex items-center justify-center text-[10px]"
+                            >
+                              Register Now
+                            </Link>
+                          </div>
+
+                          {/* Fee Box */}
+                          <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 border border-gray-100 text-[11px]">
+                            <span className="text-gray-500 font-bold">Fee</span>
+                            <span className="text-green-700 font-black">
+                              {WORKSHOP_FEES[workshop.slug]
+                                ? WORKSHOP_FEES[workshop.slug].minPrice === WORKSHOP_FEES[workshop.slug].maxPrice
+                                  ? formatPrice(WORKSHOP_FEES[workshop.slug].minPrice, selectedPayment)
+                                  : `₹${WORKSHOP_FEES[workshop.slug].minPrice.toLocaleString('en-IN')} - ${formatPrice(WORKSHOP_FEES[workshop.slug].maxPrice, selectedPayment)}`
+                                : 'Contact us'}
+                            </span>
+                          </div>
+
+                          {/* Date & Admission Row */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 flex flex-col items-center">
+                              <span className="text-gray-500 font-bold text-[9px]">Start</span>
+                              <div className="text-blue-700 font-black text-[10px]">{nextStartDate}</div>
+                            </div>
+                            <div className={`px-3 py-2 rounded-lg border flex flex-col items-center ${isAdmissionOpen ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                              <span className="text-gray-500 font-bold text-[9px]">Admission</span>
+                              <div className={`font-black text-[10px] ${isAdmissionOpen ? 'text-green-700' : 'text-red-700'}`}>
+                                {isAdmissionOpen ? 'Open' : 'Closed'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Slots Info */}
+                          <div className="text-center">
+                            <span className="font-bold text-[11px] text-gray-900">
+                              Slots: {totalSlots} Available
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ))}
+            </div>
 
             {/* Additional Info */}
             <div className="mt-8 sm:mt-12 md:mt-16 pt-8 sm:pt-12 border-t border-gray-200">
