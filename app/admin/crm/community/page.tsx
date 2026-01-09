@@ -111,6 +111,7 @@ export default function AdminCommunityPage() {
   const [postExtraLinks, setPostExtraLinks] = useState('');
   const [postType, setPostType] = useState<'text' | 'image' | 'video' | 'document' | 'link'>('text');
   const [postImageUrls, setPostImageUrls] = useState<string[]>([]);
+  const [postScheduledAt, setPostScheduledAt] = useState('');
   
   const [editingCommunityName, setEditingCommunityName] = useState(false);
   const [newCommunityName, setNewCommunityName] = useState('');
@@ -319,7 +320,19 @@ export default function AdminCommunityPage() {
       const response = await fetch('/api/admin/crm/community/posts/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ communityIds, headerText: postHeader, content: postContent, footerText: postFooter, buttons: postButtons, type: postType, videoUrl: postVideoUrl, docUrl: postDocUrl, imageUrls: postImageUrls, crossPost: { media: crossPostMedia, socialMedia: crossPostSocial } }),
+        body: JSON.stringify({ 
+          communityIds, 
+          headerText: postHeader, 
+          content: postContent, 
+          footerText: postFooter, 
+          buttons: postButtons, 
+          type: postType, 
+          videoUrl: postVideoUrl, 
+          docUrl: postDocUrl, 
+          imageUrls: postImageUrls, 
+          scheduledAt: postScheduledAt,
+          crossPost: { media: crossPostMedia, socialMedia: crossPostSocial } 
+        }),
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -563,7 +576,7 @@ export default function AdminCommunityPage() {
                     <h2 className="text-2xl font-bold tracking-tight">Campaign Studio</h2>
                  </div>
                  <button onClick={createAdminPost} className="h-14 px-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-xl shadow-indigo-600/20 transition-all flex items-center gap-3 text-sm">
-                   <Send size={18} /> Deploy Campaign
+                   <Send size={18} /> {postScheduledAt ? 'Schedule Campaign' : 'Deploy Campaign'}
                  </button>
               </div>
               <div className="flex-1 flex overflow-hidden bg-slate-50/50">
@@ -640,7 +653,10 @@ export default function AdminCommunityPage() {
                                                <div className="text-[10px] text-slate-400">Inserts dynamic member name</div>
                                             </div>
                                          </button>
-                                         <button onClick={() => { setShowPostModal(true); setShowToolsDropdown(false); }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors">
+                                         <button onClick={() => { 
+                                            document.getElementById('scheduling-section')?.scrollIntoView({ behavior: 'smooth' });
+                                            setShowToolsDropdown(false); 
+                                         }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-left transition-colors">
                                             <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><Calendar size={14}/></div>
                                             <div>
                                                <div className="text-sm font-bold">Schedule Campaign</div>
@@ -711,8 +727,31 @@ export default function AdminCommunityPage() {
                           ))}
                        </div>
                     </section>
+                    <section id="scheduling-section" className="bg-white p-10 rounded-[2rem] border shadow-sm space-y-8">
+                       <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-bold uppercase tracking-widest">4. Scheduling</h3>
+                          {postScheduledAt && (
+                             <button onClick={() => setPostScheduledAt('')} className="text-[10px] font-bold text-red-500 hover:text-red-600 uppercase">Clear Schedule</button>
+                          )}
+                       </div>
+                       <div className="flex gap-4 items-center">
+                          <div className="relative flex-1">
+                             <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                             <input 
+                                type="datetime-local" 
+                                value={postScheduledAt} 
+                                onChange={e => setPostScheduledAt(e.target.value)}
+                                className="w-full pl-14 pr-6 h-14 bg-slate-50 border rounded-2xl font-bold text-xs outline-none focus:bg-white transition-all"
+                             />
+                          </div>
+                          <div className="text-xs text-slate-400 font-medium">
+                             {postScheduledAt ? 'Post will be results at selected time' : 'Leave empty to post immediately'}
+                          </div>
+                       </div>
+                    </section>
+
                     <section className="bg-white p-10 rounded-[2rem] border shadow-sm space-y-8">
-                       <h3 className="text-sm font-bold uppercase tracking-widest">4. Distribution Channels</h3>
+                       <h3 className="text-sm font-bold uppercase tracking-widest">5. Distribution Channels</h3>
                        <div className="flex gap-6">
                           <label className="flex items-center gap-3 cursor-pointer">
                              <input type="checkbox" checked={crossPostMedia} onChange={e => setCrossPostMedia(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />

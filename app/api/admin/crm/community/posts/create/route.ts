@@ -27,6 +27,7 @@ type Body = {
   docUrl?: string;
   links?: string[];
   imageUrls?: string[];
+  scheduledAt?: string;
   crossPost?: {
     media?: boolean;
     socialMedia?: boolean;
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
     const videoUrl = body?.videoUrl || '';
     const docUrl = body?.docUrl || '';
     const extraLinks = Array.isArray(body?.links) ? body.links.filter(Boolean) : [];
+    const scheduledFor = body?.scheduledAt ? new Date(body.scheduledAt) : undefined;
 
     if (communityIds.length === 0) {
       return NextResponse.json({ error: 'communityIds is required' }, { status: 400 });
@@ -216,6 +218,7 @@ export async function POST(request: NextRequest) {
         videos: videoUrl ? [videoUrl] : [],
         documents: docUrl ? [docUrl] : [],
         links: extraLinks,
+        scheduledFor,
         metadata: {
           originalHeader: headerText,
           originalBody: content,

@@ -330,6 +330,7 @@ const communityPostSchema = new mongoose.Schema({
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   likes: { type: [String], default: [] },
   comments: { type: [communityCommentSchema], default: [] },
+  scheduledFor: { type: Date }, // For scheduled posts
   createdAt: { type: Date, default: Date.now, index: true },
   updatedAt: { type: Date, default: Date.now },
 });
