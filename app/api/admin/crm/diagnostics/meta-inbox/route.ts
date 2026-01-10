@@ -23,16 +23,38 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const rawPhone = url.searchParams.get('phone') || '';
-    if (!rawPhone.trim()) {
-      return NextResponse.json({ success: false, error: 'Missing phone query param' }, { status: 400 });
-    }
-
-    const phone = normalizePhone(rawPhone);
+    const lastEventsLimit = parseInt(url.searchParams.get('lastEvents') || '0', 10);
 
     await connectDB();
     const Lead = getLead();
     const WhatsAppMessage = getWhatsAppMessage();
     const WhatsAppWebhookEvent = getWhatsAppWebhookEvent();
+
+    // 1. If only lastEvents requested (global events)
+    if (lastEventsLimit > 0 && !rawPhone) {
+      const events = await WhatsAppWebhookEvent.find({})
+        .sort({ receivedAt: -1 })
+        .limit(lastEventsLimit)
+        .lean();
+      return NextResponse.json({
+        success: true,
+        data: {
+          events: events.map((e: any) => ({
+            kind: e.kind,
+            message: e.message,
+            phoneNumber: e.phoneNumber,
+            receivedAt: e.receivedAt,
+            ok: e.ok
+          }))
+        }
+      });
+    }
+
+    if (!rawPhone.trim()) {
+      return NextResponse.json({ success: false, error: 'Missing phone query param' }, { status: 400 });
+    }
+
+    const phone = normalizePhone(rawPhone);
 
     const lead = await Lead.findOne({ phoneNumber: phone }).lean();
 

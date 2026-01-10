@@ -98,9 +98,10 @@ export default function MetaInboxPage() {
 
   // Diagnostics UI state
   const [diagPhone, setDiagPhone] = useState('');
-  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagResult, setDiagResult] = useState<any>(null);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagError, setDiagError] = useState<string | null>(null);
-  const [diagResult, setDiagResult] = useState<MetaInboxDiagnostics | null>(null);
+  const [lastRawEvents, setLastRawEvents] = useState<any[]>([]);
 
   // AI State
   const [isBotMode, setIsBotMode] = useState(false);
@@ -241,41 +242,65 @@ export default function MetaInboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, selected?._id]);
 
-  const runDiagnostics = async (rawPhone: string) => {
-    if (!token) {
-      setDiagError('No admin token found. Please login via /admin/login and try again.');
-      return;
-    }
-    const phone = String(rawPhone || '').trim();
+  // 1. Diagnostics logic
+  const runDiagnostics = async (targetPhone?: string) => {
+    const phone = targetPhone || diagPhone;
     if (!phone) {
-      setDiagError('Enter a phone number to debug.');
+      setDiagError('Enter a phone number');
       return;
     }
-
-    setDiagLoading(true);
+    setIsDiagnosing(true);
     setDiagError(null);
     try {
-      const data = await crmFetch('/api/admin/crm/diagnostics/meta-inbox', {
-        params: { phone },
-      });
-      // Endpoint returns CRM-style `{ success: true, data: payload }`.
-      // `useCRM.fetch` usually unwraps to the `data` object already, but keep a fallback.
-      const payload = (data as any)?.ok ? data : (data as any)?.data;
-      setDiagResult(payload as MetaInboxDiagnostics);
-    } catch (e: any) {
-      setDiagResult(null);
-      const msg = e instanceof Error ? e.message : String(e || 'Diagnostics failed');
-      if (msg.toLowerCase().includes('login')) {
-        setDiagError(`${msg} (Go to /admin/login and sign in again)`);
-      } else if (msg.toLowerCase().includes('unauthorized') || msg.includes('401')) {
-        setDiagError('Unauthorized (401). Your admin session is missing/expired. Please login again.');
+      // Normalizing phone for diagnostics too
+      const normalized = phone.replace(/\D/g, '');
+      const finalPhone = normalized.length === 10 ? '91' + normalized : normalized;
+      
+      const res = await crmFetch(`/api/admin/crm/diagnostics/meta-inbox?phone=${finalPhone}`, { method: 'GET' });
+      if (res.success) {
+        setDiagResult(res.data);
+        // Also fetch last 10 raw events for context
+        const eventsRes = await crmFetch('/api/admin/crm/diagnostics/meta-inbox?lastEvents=20', { method: 'GET' });
+        if (eventsRes.success) {
+           setLastRawEvents(eventsRes.data.events || []);
+        }
       } else {
-        setDiagError(msg || 'Diagnostics failed');
+        setDiagError(res.error || 'Diagnostics failed');
       }
+    } catch (err: any) {
+      console.error('Diagnostics failed', err);
+      setDiagError(err.message || 'Diagnostics failed');
     } finally {
-      setDiagLoading(false);
+      setIsDiagnosing(false);
     }
   };
+
+  const handleManualDiag = () => runDiagnostics(diagPhone);
+
+  // Search-triggered reload (debounced)
+  useEffect(() => {
+    if (!token) return;
+    const t = setTimeout(() => {
+      loadConversations(searchQuery);
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, token]);
+
+  // Handle message polling for selected conversation
+  useEffect(() => {
+    if (!token) return;
+    if (!selectedRef.current) return;
+
+    const timer = setInterval(() => {
+      const c = selectedRef.current;
+      if (!c) return;
+      loadMessages(c.leadId || c._id || c.phoneNumber);
+    }, 10000); // Poll messages every 10s when active
+
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selected?._id]);
 
   // Update now clock (for countdown)
   useEffect(() => {
@@ -828,10 +853,10 @@ export default function MetaInboxPage() {
                 type="button"
                 className="px-3 py-2 rounded-xl text-[12px] font-extrabold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
                 onClick={() => runDiagnostics(diagPhone)}
-                disabled={!token || diagLoading}
+                disabled={!token || isDiagnosing}
                 title="Run diagnostics for this phone"
               >
-                {diagLoading ? '...' : 'Debug'}
+                {isDiagnosing ? '...' : 'Debug'}
               </button>
             </div>
             <div className="mt-2 flex gap-2">
@@ -843,7 +868,7 @@ export default function MetaInboxPage() {
                   setDiagPhone(p);
                   runDiagnostics(p);
                 }}
-                disabled={!token || !selected?.phoneNumber || diagLoading}
+                disabled={!token || !selected?.phoneNumber || isDiagnosing}
                 title="Debug selected conversation"
               >
                 Debug selected
@@ -855,7 +880,7 @@ export default function MetaInboxPage() {
                   setDiagResult(null);
                   setDiagError(null);
                 }}
-                disabled={diagLoading}
+                disabled={isDiagnosing}
               >
                 Clear
               </button>
@@ -1326,7 +1351,7 @@ export default function MetaInboxPage() {
                           <button
                             type="button"
                             onClick={() => openAction('template')}
-                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl flex items-center gap-3 transition-colors"
                           >
                             <i className="ph ph-note text-lg"></i>
                             Template
@@ -1334,7 +1359,7 @@ export default function MetaInboxPage() {
                           <button
                             type="button"
                             onClick={() => openAction('delay')}
-                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-amber-50 hover:text-amber-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-700 rounded-xl flex items-center gap-3 transition-colors"
                           >
                             <i className="ph ph-timer text-lg"></i>
                             Delay message
@@ -1342,7 +1367,7 @@ export default function MetaInboxPage() {
                           <button
                             type="button"
                             onClick={() => openAction('repeat')}
-                            className="w-full px-3 py-2 text-sm text-left text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl flex items-center gap-3 transition-colors"
+                            className="w-full px-3 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 rounded-xl flex items-center gap-3 transition-colors"
                           >
                             <i className="ph ph-repeat text-lg"></i>
                             Repeat mode
