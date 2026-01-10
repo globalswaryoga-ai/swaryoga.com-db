@@ -30,24 +30,29 @@ export async function GET(request: NextRequest) {
     const WhatsAppMessage = getWhatsAppMessage();
     const WhatsAppWebhookEvent = getWhatsAppWebhookEvent();
 
-    // 1. If only lastEvents requested (global events)
-    if (lastEventsLimit > 0 && !rawPhone) {
-      const events = await WhatsAppWebhookEvent.find({})
+    // Fetch global events if requested
+    let globalEvents: any[] = [];
+    if (lastEventsLimit > 0) {
+      const gEvents = await WhatsAppWebhookEvent.find({})
         .sort({ receivedAt: -1 })
         .limit(lastEventsLimit)
         .lean();
-      return NextResponse.json({
-        success: true,
-        data: {
-          events: events.map((e: any) => ({
-            kind: e.kind,
-            message: e.message,
-            phoneNumber: e.phoneNumber,
-            receivedAt: e.receivedAt,
-            ok: e.ok
-          }))
-        }
-      });
+      
+      globalEvents = gEvents.map((e: any) => ({
+        kind: e.kind,
+        message: e.message,
+        phoneNumber: e.phoneNumber,
+        receivedAt: e.receivedAt,
+        ok: e.ok
+      }));
+
+      // If ONLY global events were requested (no phone), return early
+      if (!rawPhone.trim()) {
+        return NextResponse.json({
+          success: true,
+          data: { events: globalEvents }
+        });
+      }
     }
 
     if (!rawPhone.trim()) {
@@ -55,7 +60,6 @@ export async function GET(request: NextRequest) {
     }
 
     const phone = normalizePhone(rawPhone);
-
     const lead = await Lead.findOne({ phoneNumber: phone }).lean();
 
     const messages = await WhatsAppMessage.find({ phoneNumber: phone })
@@ -71,6 +75,7 @@ export async function GET(request: NextRequest) {
     const payload = {
       ok: true,
       phone,
+      events: globalEvents, // Include global events here if requested
       lead: lead
         ? {
             _id: String((lead as any)._id),
@@ -105,8 +110,6 @@ export async function GET(request: NextRequest) {
       })),
     };
 
-    // IMPORTANT: `useCRM` expects either `{ success: true }` or `{ data: ... }`.
-    // Wrap in `{ success: true, data: ... }` so the Meta inbox diagnostics UI works reliably.
     return NextResponse.json({ success: true, data: payload });
   } catch (error) {
     return handleCrmError(error, 'GET diagnostics/meta-inbox');

@@ -256,16 +256,14 @@ export default function MetaInboxPage() {
       const normalized = phone.replace(/\D/g, '');
       const finalPhone = normalized.length === 10 ? '91' + normalized : normalized;
       
-      const res = await crmFetch(`/api/admin/crm/diagnostics/meta-inbox?phone=${finalPhone}`, { method: 'GET' });
-      if (res.success) {
-        setDiagResult(res.data);
-        // Also fetch last 10 raw events for context
-        const eventsRes = await crmFetch('/api/admin/crm/diagnostics/meta-inbox?lastEvents=20', { method: 'GET' });
-        if (eventsRes.success) {
-           setLastRawEvents(eventsRes.data.events || []);
+      const res = await crmFetch(`/api/admin/crm/diagnostics/meta-inbox?phone=${finalPhone}&lastEvents=20`, { method: 'GET' });
+      if (res) {
+        setDiagResult(res);
+        if (res.events) {
+           setLastRawEvents(res.events);
         }
       } else {
-        setDiagError(res.error || 'Diagnostics failed');
+        setDiagError('Diagnostics failed');
       }
     } catch (err: any) {
       console.error('Diagnostics failed', err);
@@ -932,6 +930,41 @@ export default function MetaInboxPage() {
                 </div>
               </div>
             ) : null}
+
+            {lastRawEvents && lastRawEvents.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-slate-200/50">
+                <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2 flex justify-between items-center px-1">
+                  <span>Recent Global Events</span>
+                  <span className="text-[9px] lowercase font-normal opacity-60">(Last 20 hits)</span>
+                </div>
+                <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+                  {lastRawEvents.map((evt, idx) => (
+                    <div key={idx} className="bg-white border border-slate-200/70 rounded-lg p-2 flex flex-col gap-1 shadow-sm hover:border-slate-300 transition-colors">
+                      <div className="flex items-center justify-between gap-2">
+                         <div className="flex items-center gap-1.5">
+                           <span className={`w-1.5 h-1.5 rounded-full ${evt.ok ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                           <span className={`text-[10px] font-black uppercase tracking-tight ${evt.ok ? 'text-emerald-700' : 'text-red-700'}`}>
+                             {evt.kind}
+                           </span>
+                         </div>
+                         <span className="text-[9px] font-bold text-slate-400 shrink-0">
+                           {evt.receivedAt ? new Date(evt.receivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                         </span>
+                      </div>
+                      <div className="text-[10px] text-slate-700 font-semibold leading-tight line-clamp-2">
+                        {evt.message || '-'}
+                      </div>
+                      {evt.phoneNumber && (
+                        <div className="text-[9px] font-bold text-slate-500 flex items-center gap-1">
+                          <i className="ph ph-phone text-[8px]"></i>
+                          {evt.phoneNumber}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Bulk select + actions */}
