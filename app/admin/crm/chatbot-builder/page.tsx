@@ -82,7 +82,8 @@ export default function ChatbotBuilderPage() {
       return;
     }
     fetchFlows();
-  }, [token, router, fetchFlows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, router]);
 
   const createFlow = async () => {
     const name = flowName.trim();

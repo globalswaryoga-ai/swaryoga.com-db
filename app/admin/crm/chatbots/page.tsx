@@ -77,9 +77,17 @@ export default function ChatbotsPage() {
       router.push('/admin/login');
       return;
     }
-    fetchRules();
-    fetchTemplates();
-  }, [token, router, fetchRules, fetchTemplates]);
+    // Fetch sequentially to avoid resource exhaustion
+    const load = async () => {
+      await fetchRules();
+      // Optional: wait a bit or parallelize. 
+      // If we remove the timeout, it might be smoother. 
+      // await new Promise(r => setTimeout(r, 200)); 
+      await fetchTemplates();
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, router]); // Trigger ONLY on mount/token change, not on fetchRules recreations
 
   const templateOptions = useMemo(
     () => templates.filter((t) => String(t.status || '').toLowerCase() !== 'disabled'),

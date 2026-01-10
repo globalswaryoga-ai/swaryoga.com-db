@@ -94,6 +94,17 @@ export default function LeadsPage() {
   const [userFilter, setUserFilter] = useState<string>('');
   const [userOptions, setUserOptions] = useState<AdminUserOption[]>([]);
 
+  // User requested labels
+  const PREDEFINED_LABELS = [
+    'New', 
+    'Chatting Replying', 
+    'No Reply', 
+    'Call Pending', 
+    'Call Done', 
+    'Interested', 
+    'Enrolled'
+  ];
+
   // Track last fetch to prevent rapid retries on errors
   const lastFetchTimeRef = useRef<number>(0);
   const MIN_FETCH_INTERVAL_MS = 2000; // Minimum 2 second interval between fetch attempts
@@ -836,6 +847,17 @@ export default function LeadsPage() {
                   >
                     Clear
                   </button>
+                  
+                  <button
+                    onClick={() => {
+                      const selectedLeads = leads.filter((l) => selectedLeadIds.has(l._id));
+                      setLeadsForBroadcast(selectedLeads);
+                      setBroadcastModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-200 transition-colors flex items-center gap-1"
+                  >
+                    📢 Add to Broadcast
+                  </button>
 
                   <button
                     onClick={() => toggleSelectAllOnPage()}
@@ -886,9 +908,15 @@ export default function LeadsPage() {
                     type="text"
                     value={bulkLabels}
                     onChange={(e) => setBulkLabels(e.target.value)}
-                    placeholder="Add labels (tag1, tag2) (optional)"
+                    placeholder="Add labels (select or type)"
+                    list="bulk-labels-list"
                     className="bg-white border border-teal-200 rounded-lg px-3 py-2 text-teal-900 font-semibold"
                   />
+                  <datalist id="bulk-labels-list">
+                    {PREDEFINED_LABELS.map(label => (
+                        <option key={label} value={label} />
+                    ))}
+                  </datalist>
 
                   <button
                     onClick={runBulkUpdate}
@@ -1289,9 +1317,18 @@ export default function LeadsPage() {
           setError(null);
           // Show success message
           setTimeout(() => {
-            alert(`✓ Successfully added ${result.added} leads to broadcast list "${result.listName}"`);
+            let msg = `✓ Added ${result.added} leads to "${result.listName}".`;
             if (result.skipped > 0) {
-              alert(`ℹ️ ${result.skipped} leads were already in the list`);
+              msg += `\nℹ️ Skipped ${result.skipped} (duplicates or errors).`;
+            }
+            if (result.errors && result.errors.length > 0) {
+              msg += `\n⚠️ First few errors:\n${result.errors.slice(0, 3).join('\n')}`;
+            }
+            alert(msg);
+
+            // Clear selection only if at least one was added or skipped (processed)
+            if (result.added > 0 || result.skipped > 0) {
+              setSelectedLeadIds(new Set());
             }
           }, 100);
         }}

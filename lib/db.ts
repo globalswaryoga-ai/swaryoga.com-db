@@ -194,6 +194,10 @@ userSchema.pre('save', async function(next) {
   next();
 });
 
+export function getUser() {
+  return mongoose.models.User || mongoose.model('User', userSchema);
+}
+
 export const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 // Order Schema

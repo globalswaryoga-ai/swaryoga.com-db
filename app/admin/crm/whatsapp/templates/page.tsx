@@ -463,7 +463,7 @@ function TemplatesContent() {
         {/* Create Button */}
         <div className="p-4 border-b border-gray-200">
           <Link
-            href="/admin/crm/whatsapp/templates/new"
+            href="/admin/crm/templates/builder"
             className="w-full px-4 py-3 rounded-lg bg-[#1E7F43] hover:bg-[#166235] text-white font-semibold text-center transition-all block"
           >
             + Create Template
@@ -1038,7 +1038,7 @@ function TemplatesContent() {
                   : 'Create your first template to get started'}
               </p>
               <Link
-                href="/admin/crm/whatsapp/templates/new"
+                href="/admin/crm/templates/builder"
                 className="inline-block px-6 py-3 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold transition-colors"
               >
                 + Create Template

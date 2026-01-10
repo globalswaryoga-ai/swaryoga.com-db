@@ -42,6 +42,11 @@ export default function MessagesPage() {
   const isMountedRef = useRef(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const crmRef = useRef<any>(null);
+  const selectedRef = useRef<Thread | null>(null);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   // Build threads from messages
   const getThreads = (messages: Message[]): Thread[] => {
@@ -102,9 +107,9 @@ export default function MessagesPage() {
         setMsgs(data);
         
         // Update selected thread with new messages
-        if (selected) {
+        if (selectedRef.current) {
           const threads = getThreads(data);
-          const updated = threads.find(t => t.phoneNumber === selected.phoneNumber);
+          const updated = threads.find(t => t.phoneNumber === selectedRef.current?.phoneNumber);
           if (updated) {
             setSelected(updated);
           }
@@ -115,7 +120,7 @@ export default function MessagesPage() {
         setError(e instanceof Error ? e.message : 'Error');
       }
     }
-  }, [token, selected, crm]); // Redraw selected if it changes elsewhere
+  }, [token, crm]); // Redraw selected if it changes elsewhere
 
   // Initial fetch + auto-refresh
   useEffect(() => {

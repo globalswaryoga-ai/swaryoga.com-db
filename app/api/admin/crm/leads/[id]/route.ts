@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { DeletedLead, Lead } from '@/lib/schemas/enterpriseSchemas';
+import { DeletedLead, Lead, LeadNote } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 
 function getViewerUserId(decoded: any): string {
@@ -108,6 +108,49 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
+
+    // -- LOG CHANGES AS NOTES (SYSTEM HISTORY) --
+    const notesToCreate: any[] = [];
+    
+    // 1. Status Change
+    if (update.status && existing.status !== update.status) {
+      notesToCreate.push({
+        leadId: existing._id,
+        note: `System: Status changed from "${existing.status}" to "${update.status}"`,
+        createdByUserId: 'system',
+        pinned: false,
+      });
+    }
+
+    // 2. Labels Change
+    if (update.labels) {
+       const oldLabels = (existing.labels || []).join(',');
+       const newLabels = update.labels.join(',');
+       if (oldLabels !== newLabels) {
+          notesToCreate.push({
+            leadId: existing._id,
+            note: `System: Labels updated to: ${update.labels.join(', ')}`,
+            createdByUserId: 'system',
+            pinned: false
+          });
+       }
+    }
+
+    // 3. Assignment Change
+    if (update.assignedToUserId !== undefined && existing.assignedToUserId !== update.assignedToUserId) {
+       const newVal = update.assignedToUserId || 'Unassigned';
+       notesToCreate.push({
+          leadId: existing._id,
+          note: `System: Re-assigned to user: ${newVal}`,
+          createdByUserId: 'system',
+          pinned: false
+       });
+    }
+
+    if (notesToCreate.length > 0) {
+       await LeadNote.insertMany(notesToCreate);
+    }
+    
     return NextResponse.json({ success: true, data: lead }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update lead';
@@ -172,6 +215,49 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
+
+    // -- LOG CHANGES AS NOTES (SYSTEM HISTORY) --
+    const notesToCreate: any[] = [];
+    
+    // 1. Status Change
+    if (update.status && existing.status !== update.status) {
+      notesToCreate.push({
+        leadId: existing._id,
+        note: `System: Status changed from "${existing.status}" to "${update.status}"`,
+        createdByUserId: 'system',
+        pinned: false,
+      });
+    }
+
+    // 2. Labels Change
+    if (update.labels) {
+       const oldLabels = (existing.labels || []).join(',');
+       const newLabels = update.labels.join(',');
+       if (oldLabels !== newLabels) {
+          notesToCreate.push({
+            leadId: existing._id,
+            note: `System: Labels updated to: ${update.labels.join(', ')}`,
+            createdByUserId: 'system',
+            pinned: false
+          });
+       }
+    }
+
+    // 3. Assignment Change
+    if (update.assignedToUserId !== undefined && existing.assignedToUserId !== update.assignedToUserId) {
+       const newVal = update.assignedToUserId || 'Unassigned';
+       notesToCreate.push({
+          leadId: existing._id,
+          note: `System: Re-assigned to user: ${newVal}`,
+          createdByUserId: 'system',
+          pinned: false
+       });
+    }
+
+    if (notesToCreate.length > 0) {
+       await LeadNote.insertMany(notesToCreate);
+    }
+
     return NextResponse.json({ success: true, data: lead }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update lead';

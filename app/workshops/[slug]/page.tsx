@@ -6,6 +6,7 @@ import { Calendar, Clock, Users, Star, ArrowRight, CheckCircle, Globe, Languages
 import Link from 'next/link';
 import Image from 'next/image';
 import { findWorkshopBySlug } from '@/lib/workshopsData';
+import WorkshopBatchForm from '@/components/WorkshopBatchForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,40 +64,47 @@ export default function WorkshopDetailPage({ params }: { params: { slug: string 
             <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/40" />
           </div>
 
-          <div className="container mx-auto px-4 sm:px-6 relative z-10 max-w-6xl">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-full mb-6 font-semibold backdrop-blur">
-                <span className="text-green-200">{workshop.category}</span>
-                <span className="opacity-70">•</span>
-                <span>{workshop.level}</span>
+          <div className="container mx-auto px-4 sm:px-6 relative z-10 max-w-7xl">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+              <div className="lg:col-span-7 xl:col-span-8">
+                <div className="inline-flex items-center gap-2 bg-white/10 text-white px-4 py-2 rounded-full mb-6 font-semibold backdrop-blur">
+                  <span className="text-green-200">{workshop.category}</span>
+                  <span className="opacity-70">•</span>
+                  <span>{workshop.level}</span>
+                </div>
+
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
+                  {workshop.name}
+                </h1>
+
+                <p className="text-base sm:text-lg text-gray-100 leading-relaxed mb-8 max-w-2xl">
+                  {workshop.description}
+                </p>
+
+                <div className="flex flex-wrap gap-6 mb-8 text-white/90">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-green-400" />
+                    <span className="font-semibold">{workshop.duration}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Users className="w-5 h-5 text-green-400" />
+                    <span className="font-semibold">{workshop.level}</span>
+                  </div>
+                </div>
+
+                <Link
+                  href={registerLink}
+                  className="btn-blink inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 active:scale-95 text-white px-8 py-4 rounded-lg transition-all duration-300 font-bold text-lg lg:hidden"
+                >
+                  Register Now
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
               </div>
 
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
-                {workshop.name}
-              </h1>
-
-              <p className="text-base sm:text-lg text-gray-100 leading-relaxed mb-8 max-w-2xl">
-                {workshop.description}
-              </p>
-
-              <div className="flex flex-wrap gap-6 mb-8 text-white/90">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-green-400" />
-                  <span className="font-semibold">{workshop.duration}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-green-400" />
-                  <span className="font-semibold">{workshop.level}</span>
-                </div>
+              {/* Right Side Form */}
+              <div className="lg:col-span-5 xl:col-span-4 mt-8 lg:mt-0">
+                <WorkshopBatchForm workshopSlug={workshop.slug} workshopName={workshop.name} />
               </div>
-
-              <Link
-                href={registerLink}
-                className="btn-blink inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 active:scale-95 text-white px-8 py-4 rounded-lg transition-all duration-300 font-bold text-lg"
-              >
-                Register Now
-                <ArrowRight className="w-5 h-5" />
-              </Link>
             </div>
           </div>
         </section>

@@ -10,9 +10,21 @@ import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
 
+// Safe verify of string
+function safeString(s: any): string {
+    return String(s || '').trim();
+}
+
 function normalizePhone(raw: string): string {
-  // Keep local helper for backward-compat, but delegate to shared digits-only normalizer.
-  return normalizePhoneDigits(raw);
+  try {
+     // Inline minimal logic safely if import fails or to be robust
+     const s = safeString(raw).replace(/\D/g, '');
+     if (s.length === 10) return '91' + s;
+     return s;
+  } catch (e) {
+      console.error('normalizePhone error', e);
+      return safeString(raw);
+  }
 }
 
 function extractTextMessageBody(msg: any): string {
@@ -398,10 +410,11 @@ async function handleWebhookPayload(payload: any) {
       return NextResponse.json({ success: true }, { status: 200 });
     }
 
-    await connectDB();
+    console.log('[WEBHOOK DEBUG] Connected to DB');
     const { getWhatsAppMessage, getLead } = await import('@/lib/schemas/enterpriseSchemas');
     const WhatsAppMessage = getWhatsAppMessage();
     const Lead = getLead();
+    console.log('[WEBHOOK DEBUG] Models loaded');
     
     if (!WhatsAppMessage || !Lead) {
       console.error('[WEBHOOK ERROR] Models not initialized');
@@ -411,8 +424,10 @@ async function handleWebhookPayload(payload: any) {
     const now = new Date();
 
     for (const entry of entries) {
+      console.log('[WEBHOOK DEBUG] Processing entry');
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
       for (const change of changes) {
+        console.log('[WEBHOOK DEBUG] Processing change');
         const value = change?.value;
         if (!value) continue;
 
@@ -470,9 +485,11 @@ async function handleWebhookPayload(payload: any) {
             }
 
             // Ensure Lead exists
+            console.log(`[WEBHOOK DEBUG] Finding lead for ${from}`);
             let lead = await Lead.findOne({ phoneNumber: from });
             let wasFirstInbound = false;
             if (!lead) {
+              console.log(`[WEBHOOK DEBUG] Creating new lead for ${from}`);
               lead = await Lead.create({
                 phoneNumber: from,
                 source: 'whatsapp',
@@ -481,8 +498,14 @@ async function handleWebhookPayload(payload: any) {
               });
               wasFirstInbound = true;
               // Auto-add to main broadcast list
-              await addLeadToMainBroadcastList(lead);
+              try {
+                  console.log(`[WEBHOOK DEBUG] Adding to broadcast list`);
+                  await addLeadToMainBroadcastList(lead);
+              } catch (blErr) {
+                  console.error('[WEBHOOK ERROR] Broadcast list add failed', blErr);
+              }
             } else {
+              console.log(`[WEBHOOK DEBUG] Updating existing lead ${lead._id}`);
               await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now } });
             }
 

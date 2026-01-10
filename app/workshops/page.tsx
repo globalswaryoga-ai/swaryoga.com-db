@@ -162,27 +162,37 @@ function WorkshopsPageInner() {
     
     const loadSchedulesWithSeats = async () => {
       try {
-        // Build schedulesByWorkshopId from local workshopDetails
         const nextMap: Record<string, ApiWorkshopSchedule[]> = {};
         
-        Object.entries(workshopDetails).forEach(([slug, details]) => {
-          if (details && details.schedules) {
-            nextMap[slug] = details.schedules.map((s) => ({
-              id: s.id,
-              startDate: s.startDate,
-              endDate: s.endDate,
-              registrationCloseDate: s.endDate, // Use end date as registration close
-              time: s.time,
-              mode: s.mode,
-              language: 'English', // Default, can be extended
-              location: s.location || null,
-              slots: s.seats,
-              price: s.price,
-            }));
+        // 1. Fetch published schedules from API (Source of Truth)
+        try {
+          const res = await fetch('/api/workshops/schedules', { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+              json.data.forEach((s: any) => {
+                const slug = s.workshopSlug;
+                if (!nextMap[slug]) nextMap[slug] = [];
+                nextMap[slug].push({
+                  id: s.id,
+                  startDate: s.startDate,
+                  endDate: s.endDate,
+                  registrationCloseDate: s.registrationCloseDate || s.endDate,
+                  time: s.time || '',
+                  mode: s.mode,
+                  language: s.language || 'Hindi',
+                  location: s.location || null,
+                  slots: typeof s.seatsTotal === 'number' ? s.seatsTotal : 0,
+                  price: s.price,
+                });
+              });
+            }
           }
-        });
+        } catch (err) {
+          console.error('Failed to fetch schedules from API:', err);
+        }
         
-        // Fetch real-time seat availability from database
+        // 2. Fetch real-time seat availability to update slots
         try {
           const res = await fetch('/api/workshops/availability', { cache: 'no-store' });
           if (res.ok) {
@@ -194,7 +204,7 @@ function WorkshopsPageInner() {
                   // Update slots with real-time seat remaining
                   nextMap[slug] = nextMap[slug].map(schedule => 
                     schedule.id === seat.scheduleId 
-                      ? { ...schedule, slots: Math.max(0, seat.seatsRemaining || schedule.slots) }
+                      ? { ...schedule, slots: Math.max(0, seat.seatsRemaining ?? schedule.slots) }
                       : schedule
                   );
                 }
@@ -203,7 +213,6 @@ function WorkshopsPageInner() {
           }
         } catch (e) {
           console.warn('Could not fetch live seat availability:', e);
-          // Continue with default slots if availability fetch fails
         }
         
         if (!cancelled) {

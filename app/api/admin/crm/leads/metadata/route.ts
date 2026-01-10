@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { CANONICAL_LABELS } from '@/lib/crm/labels';
 
 function getViewerUserId(decoded: any): string {
@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB();
+    const Lead = getLead();
 
     // Get status counts (scoped to visible leads)
     const statusCounts = await Promise.all([

@@ -11,7 +11,7 @@ import {
   toObjectId,
   normalizePhone,
 } from '@/lib/crm-handlers';
-import { WhatsAppMessage, Lead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { ConsentManager } from '@/lib/consentManager';
 import { AuditLogger } from '@/lib/auditLogger';
 import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
@@ -26,6 +26,9 @@ import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
 
 export async function GET(request: NextRequest) {
   try {
+    const Lead = getLead();
+    const WhatsAppMessage = getWhatsAppMessage();
+
     const viewerUserId = verifyAdminAccess(request);
     const superAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
     const { limit, skip } = parsePagination(request);
@@ -100,6 +103,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const Lead = getLead();
+    const WhatsAppMessage = getWhatsAppMessage();
+
     const userId = verifyAdminAccess(request);
     const superAdmin = userId === 'admincrm';
     const body = await request.json().catch(() => null);
@@ -266,13 +272,16 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const Lead = getLead();
+    const WhatsAppMessage = getWhatsAppMessage();
+
     const userId = verifyAdminAccess(request);
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { messageId, leadId, action, ...updates } = body;
+    const { messageId, leadId, phoneNumber, action, ...updates } = body;
 
     await connectDB();
 
@@ -285,16 +294,21 @@ export async function PUT(request: NextRequest) {
           : action;
 
     if (normalizedAction === 'markThreadAsRead') {
-      if (!leadId || !isValidObjectId(String(leadId))) {
-        return NextResponse.json({ error: 'Missing/invalid: leadId' }, { status: 400 });
+      const markFilter: any = {
+        direction: 'inbound',
+        isRead: { $ne: true },
+      };
+
+      if (leadId && isValidObjectId(String(leadId))) {
+        markFilter.leadId = toObjectId(String(leadId));
+      } else if (phoneNumber) {
+        markFilter.phoneNumber = phoneNumber;
+      } else {
+        return NextResponse.json({ error: 'Missing: leadId or phoneNumber' }, { status: 400 });
       }
 
       const res = await WhatsAppMessage.updateMany(
-        {
-          leadId: toObjectId(String(leadId)),
-          direction: 'inbound',
-          isRead: { $ne: true },
-        },
+        markFilter,
         { $set: { isRead: true, status: 'read', readAt: new Date(), updatedAt: new Date() } }
       );
 
@@ -450,6 +464,8 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const WhatsAppMessage = getWhatsAppMessage();
+
     verifyAdminAccess(request);
     const url = new URL(request.url);
     const messageId = url.searchParams.get('messageId');

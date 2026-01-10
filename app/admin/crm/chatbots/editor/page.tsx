@@ -74,8 +74,13 @@ export default function ChatbotEditorPage() {
       router.push('/admin/login');
       return;
     }
-    fetchChatbots();
-    fetchTemplates();
+    // Fetch sequentially to avoid resource exhaustion
+    const load = async () => {
+      await fetchChatbots();
+      await new Promise(r => setTimeout(r, 200)); // 200ms delay between requests
+      await fetchTemplates();
+    };
+    load();
   }, [token, router, fetchChatbots, fetchTemplates]);
 
   const saveChatbot = async (e: React.FormEvent) => {

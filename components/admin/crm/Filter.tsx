@@ -123,7 +123,7 @@ export function PageHeader({
   onClearFilters,
   className = '',
 }: {
-  title: string;
+  title: string | React.ReactNode;
   subtitle?: string;
   action?: React.ReactNode;
   filters?: Array<{

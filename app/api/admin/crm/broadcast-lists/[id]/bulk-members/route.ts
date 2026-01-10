@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
       phoneNumber: String(lead?.phoneNumber || '').trim(),
     }));
 
-    const invalidLeads = leads.filter((l) => !l.leadId || !isValidObjectId(l.leadId) || !l.phoneNumber);
+    const invalidLeads = leads.filter((l) => !l.leadId || !l.phoneNumber);
     if (invalidLeads.length > 0) {
       return NextResponse.json(
         { error: `${invalidLeads.length} lead(s) have invalid leadId or phoneNumber` },
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
     let added = 0;
     let skipped = 0;
     const members: any[] = [];
+    const errors: string[] = [];
 
     for (const lead of leads) {
       try {
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
         }
       } catch (err) {
         console.error(`Failed to add lead ${lead.leadId} to broadcast list:`, err);
+        errors.push(`Lead ${lead.leadId}: ${err instanceof Error ? err.message : 'Unknown error'}`);
         skipped++;
       }
     }
@@ -113,6 +115,7 @@ export async function POST(request: NextRequest, context: { params: { id: string
       skipped,
       total: added + skipped,
       members,
+      errors, // Return errors for debugging
     });
   } catch (error) {
     return handleCrmError(error, 'POST broadcast-lists/[id]/bulk-members');

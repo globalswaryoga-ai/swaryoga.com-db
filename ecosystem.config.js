@@ -5,7 +5,7 @@ module.exports = {
       name: 'swar-frontend',
       script: 'npm',
       args: 'start',
-      cwd: '/Users/mohankalburgi/Downloads/swar-yoga-web-mohan',
+      cwd: '/Users/mohankalburgi/swaryoga.com-db',
       
       // Auto-restart configuration
       autorestart: true,

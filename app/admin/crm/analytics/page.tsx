@@ -109,8 +109,21 @@ export default function AnalyticsPage() {
     fetchAnalytics();
   }, [token, router, fetchAnalytics]);
 
+  const tabMeta = useMemo(
+    () =>
+      ({
+        overview: { label: 'Overview', active: 'bg-blue-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
+        leads: { label: 'Leads', active: 'bg-emerald-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
+        sales: { label: 'Sales', active: 'bg-emerald-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
+        messages: { label: 'Messages', active: 'bg-blue-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
+        conversion: { label: 'Conversion', active: 'bg-red-600 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
+        trends: { label: 'Trends', active: 'bg-slate-900 text-white', inactive: 'text-slate-700 hover:bg-slate-50' },
+      }) as const,
+    []
+  );
+
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="min-h-screen bg-white p-8 text-slate-900">
       <div className="max-w-7xl mx-auto space-y-6">
         <PageHeader title="Analytics & Insights" />
 
@@ -123,13 +136,13 @@ export default function AnalyticsPage() {
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              className={`px-4 py-2 rounded-xl font-extrabold text-sm transition-all border ${
                 view === v
-                  ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white'
-                  : 'bg-slate-800/50 text-purple-200 border border-purple-500/20 hover:border-purple-500/50'
+                  ? `${tabMeta[v].active} border-transparent shadow-sm`
+                  : `${tabMeta[v].inactive} bg-white border-slate-200/70`
               }`}
             >
-              {v.charAt(0).toUpperCase() + v.slice(1)}
+              {tabMeta[v].label}
             </button>
           ))}
         </div>
@@ -148,11 +161,11 @@ export default function AnalyticsPage() {
                   <StatCard label="Conversion" value={fmtPct(analytics.overview.conversionRate, 1)} icon="📈" color="orange" />
                 </div>
 
-                <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
+                <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div>
-                      <div className="text-white font-semibold text-sm">Broadcast Delivery Breakdown</div>
-                      <div className="text-purple-200 text-xs mt-1">
+                      <div className="text-slate-900 font-extrabold text-sm">Broadcast Delivery Breakdown</div>
+                      <div className="text-slate-500 text-xs mt-1">
                         Aggregated from broadcast runs (best-effort based on failure reason text).
                       </div>
                     </div>
@@ -161,14 +174,14 @@ export default function AnalyticsPage() {
                       <button
                         type="button"
                         onClick={() => router.push('/admin/crm/broadcast')}
-                        className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-700/60 text-white border border-purple-500/20 hover:border-purple-500/50"
+                        className="px-3 py-2 rounded-xl text-xs font-extrabold bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
                       >
                         Open Broadcasts
                       </button>
                       <button
                         type="button"
                         onClick={() => router.push('/admin/crm/broadcast?tab=runs')}
-                        className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-700/60 text-white border border-purple-500/20 hover:border-purple-500/50"
+                        className="px-3 py-2 rounded-xl text-xs font-extrabold bg-slate-900 text-white hover:bg-slate-950 shadow-sm"
                       >
                         View Runs
                       </button>
@@ -176,40 +189,40 @@ export default function AnalyticsPage() {
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
-                      <div className="text-xs text-purple-200">Sent</div>
-                      <div className="text-2xl font-black text-emerald-300 mt-1">{broadcastSummary.sent}</div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                      <div className="text-xs text-slate-500 font-bold">Sent</div>
+                      <div className="text-2xl font-black text-emerald-700 mt-1">{broadcastSummary.sent}</div>
                     </div>
-                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
-                      <div className="text-xs text-purple-200">Failed</div>
-                      <div className="text-2xl font-black text-rose-300 mt-1">{broadcastSummary.failed}</div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                      <div className="text-xs text-slate-500 font-bold">Failed</div>
+                      <div className="text-2xl font-black text-red-700 mt-1">{broadcastSummary.failed}</div>
                     </div>
-                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
-                      <div className="text-xs text-purple-200">Pending</div>
-                      <div className="text-2xl font-black text-amber-300 mt-1">{broadcastSummary.pending}</div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                      <div className="text-xs text-slate-500 font-bold">Pending</div>
+                      <div className="text-2xl font-black text-blue-700 mt-1">{broadcastSummary.pending}</div>
                     </div>
-                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
-                      <div className="text-xs text-purple-200">Skipped</div>
-                      <div className="text-2xl font-black text-slate-200 mt-1">{broadcastSummary.skipped}</div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                      <div className="text-xs text-slate-500 font-bold">Skipped</div>
+                      <div className="text-2xl font-black text-slate-900 mt-1">{broadcastSummary.skipped}</div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
-                      <div className="text-xs text-purple-200">Blocked / Opt-out</div>
-                      <div className="text-xl font-black text-fuchsia-200 mt-1">{broadcastSummary.blocked}</div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                      <div className="text-xs text-slate-500 font-bold">Blocked / Opt-out</div>
+                      <div className="text-xl font-black text-red-700 mt-1">{broadcastSummary.blocked}</div>
                     </div>
-                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
-                      <div className="text-xs text-purple-200">Number not in use</div>
-                      <div className="text-xl font-black text-cyan-200 mt-1">{broadcastSummary.numberNotInUse}</div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                      <div className="text-xs text-slate-500 font-bold">Number not in use</div>
+                      <div className="text-xl font-black text-blue-700 mt-1">{broadcastSummary.numberNotInUse}</div>
                     </div>
-                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
-                      <div className="text-xs text-purple-200">Not delivered</div>
-                      <div className="text-xl font-black text-orange-200 mt-1">{broadcastSummary.notDelivered}</div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                      <div className="text-xs text-slate-500 font-bold">Not delivered</div>
+                      <div className="text-xl font-black text-red-700 mt-1">{broadcastSummary.notDelivered}</div>
                     </div>
-                    <div className="rounded-xl border border-purple-500/20 bg-slate-900/40 p-4">
-                      <div className="text-xs text-purple-200">Other</div>
-                      <div className="text-xl font-black text-slate-200 mt-1">{broadcastSummary.other}</div>
+                    <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+                      <div className="text-xs text-slate-500 font-bold">Other</div>
+                      <div className="text-xl font-black text-slate-900 mt-1">{broadcastSummary.other}</div>
                     </div>
                   </div>
 
@@ -217,21 +230,21 @@ export default function AnalyticsPage() {
                     <button
                       type="button"
                       onClick={() => router.push('/admin/crm/broadcast?tab=runs&status=failed')}
-                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-rose-600/20 text-rose-100 border border-rose-500/30 hover:border-rose-400/60"
+                      className="px-3 py-2 rounded-xl text-xs font-extrabold bg-red-50 text-red-700 border border-red-100 hover:bg-red-100"
                     >
                       View Failed
                     </button>
                     <button
                       type="button"
                       onClick={() => router.push('/admin/crm/broadcast?tab=runs&status=scheduled')}
-                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-100 border border-amber-500/30 hover:border-amber-400/60"
+                      className="px-3 py-2 rounded-xl text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100"
                     >
                       View Scheduled
                     </button>
                     <button
                       type="button"
                       onClick={() => router.push('/admin/crm/broadcast?tab=runs&status=running')}
-                      className="px-3 py-2 rounded-lg text-xs font-semibold bg-indigo-600/20 text-indigo-100 border border-indigo-500/30 hover:border-indigo-400/60"
+                      className="px-3 py-2 rounded-xl text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
                     >
                       View Running
                     </button>
@@ -246,13 +259,13 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <StatCard label="Total Leads" value={analytics.leads.totalLeads.toString()} icon="📊" color="blue" />
                   <StatCard label="Conversion Rate" value={fmtPct(analytics.leads.conversionRate, 1)} icon="📈" color="green" />
-                  <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
-                    <div className="text-white font-semibold mb-4 text-sm">By Status</div>
+                  <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
+                    <div className="text-slate-900 font-extrabold mb-4 text-sm">By Status</div>
                     <div className="space-y-2">
                       {Object.entries(analytics.leads.byStatus).map(([status, count]) => (
-                        <div key={status} className="flex justify-between text-purple-200 text-sm">
+                        <div key={status} className="flex justify-between text-slate-700 text-sm">
                           <span className="capitalize">{status}</span>
-                          <span>{count}</span>
+                          <span className="font-bold text-slate-900">{count}</span>
                         </div>
                       ))}
                     </div>
@@ -267,11 +280,11 @@ export default function AnalyticsPage() {
                 <StatCard label="Total Sales" value={analytics.sales.totalSales.toString()} icon="💰" color="green" />
                 <StatCard label="Total Revenue" value={`₹${analytics.sales.totalRevenue.toLocaleString()}`} icon="💵" color="green" />
                 <StatCard label="Avg. Sale" value={`₹${Math.round(analytics.sales.averageSaleAmount).toLocaleString()}`} icon="📊" color="blue" />
-                <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
-                  <div className="text-white font-semibold mb-3 text-sm">Payment Methods</div>
+                <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
+                  <div className="text-slate-900 font-extrabold mb-3 text-sm">Payment Methods</div>
                   <div className="space-y-2">
                     {Object.entries(analytics.sales.byPaymentMode).map(([method]) => (
-                      <div key={method} className="text-purple-200 text-xs capitalize">{method}</div>
+                      <div key={method} className="text-slate-700 text-xs capitalize">{method}</div>
                     ))}
                   </div>
                 </div>
@@ -290,16 +303,19 @@ export default function AnalyticsPage() {
             {/* Conversion Funnel */}
             {view === 'conversion' && analytics.conversion && (
               <div className="space-y-4">
-                <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
-                  <h2 className="text-white font-semibold text-lg mb-4">Conversion Funnel</h2>
+                <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm">
+                  <h2 className="text-slate-900 font-extrabold text-lg mb-4">Conversion Funnel</h2>
                   {analytics.conversion.funnel.map((stage, idx) => (
                     <div key={idx} className="mb-4">
                       <div className="flex justify-between mb-1">
-                        <span className="text-white text-sm">{stage.stage}</span>
-                        <span className="text-purple-200 text-sm">{fmtPct(stage.percentage, 1)}</span>
+                        <span className="text-slate-900 text-sm font-bold">{stage.stage}</span>
+                        <span className="text-slate-600 text-sm font-semibold">{fmtPct(stage.percentage, 1)}</span>
                       </div>
-                      <div className="w-full bg-slate-700 rounded-full h-6">
-                        <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-6 rounded-full" style={{width: `${stage.percentage}%`}} />
+                      <div className="w-full bg-slate-100 rounded-full h-6 border border-slate-200">
+                        <div
+                          className="bg-gradient-to-r from-blue-600 via-emerald-600 to-red-600 h-6 rounded-full"
+                          style={{ width: `${stage.percentage}%` }}
+                        />
                       </div>
                     </div>
                   ))}
@@ -311,24 +327,24 @@ export default function AnalyticsPage() {
             {/* Trends */}
             {view === 'trends' && analytics.trends && (
               <div className="space-y-4">
-                <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6 overflow-x-auto">
-                  <h2 className="text-white font-semibold mb-4">Daily Trends</h2>
+                <div className="bg-white border border-slate-200/70 rounded-2xl p-6 shadow-sm overflow-x-auto">
+                  <h2 className="text-slate-900 font-extrabold mb-4">Daily Trends</h2>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-purple-500/20">
-                        <th className="text-left text-purple-200 py-2">Date</th>
-                        <th className="text-center text-purple-200 py-2">Leads</th>
-                        <th className="text-center text-purple-200 py-2">Sales</th>
-                        <th className="text-right text-purple-200 py-2">Revenue</th>
+                      <tr className="border-b border-slate-200">
+                        <th className="text-left text-slate-600 py-2 font-extrabold">Date</th>
+                        <th className="text-center text-slate-600 py-2 font-extrabold">Leads</th>
+                        <th className="text-center text-slate-600 py-2 font-extrabold">Sales</th>
+                        <th className="text-right text-slate-600 py-2 font-extrabold">Revenue</th>
                       </tr>
                     </thead>
                     <tbody>
                       {analytics.trends.daily.map((day, idx) => (
-                        <tr key={idx} className="border-b border-purple-500/10 hover:bg-purple-500/5">
-                          <td className="text-white py-2">{day.date}</td>
-                          <td className="text-center text-purple-200">{day.leads}</td>
-                          <td className="text-center text-green-200">{day.sales}</td>
-                          <td className="text-right text-green-300">₹{day.revenue.toLocaleString()}</td>
+                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="text-slate-900 py-2 font-semibold">{day.date}</td>
+                          <td className="text-center text-blue-700 font-bold">{day.leads}</td>
+                          <td className="text-center text-emerald-700 font-bold">{day.sales}</td>
+                          <td className="text-right text-emerald-700 font-black">₹{day.revenue.toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>

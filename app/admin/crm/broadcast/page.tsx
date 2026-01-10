@@ -244,10 +244,10 @@ export default function BroadcastPage() {
       // Fetch *all* leads for accurate client-side status/label segmentation.
       // NOTE: The leads API is paginated by default, so we must request a high limit
       // otherwise filters will "miss" leads that exist beyond the first page.
-      params.set('limit', '5000');
-      params.set('skip', '0');
-  // Allows super-admin to request a larger dataset from the API.
-  params.set('selectAll', 'true');
+    params.set('limit', '5000');
+    params.set('skip', '0');
+    // Allows super-admin to request a larger dataset from the API.
+    params.set('selectAll', 'true');
       // Status is a client-side segmentation bucket (leads/prospect/customer/inactive).
       // The server stores granular statuses, so we fetch broadly and filter locally.
       if (workshopName) params.set('workshop', workshopName);

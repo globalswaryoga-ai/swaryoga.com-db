@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import { User } from '@/lib/db';
+import { connectDB, getUser } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
@@ -17,6 +16,7 @@ export async function GET(request: NextRequest) {
     // We return a minimal, safe set of fields below.
 
     await connectDB();
+    const User = getUser();
 
     // Fetch all admin users (minimal fields for assignment UI)
     const adminUsers = await User.find({ isAdmin: true })
@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
+    const User = getUser();
 
     // Check if userId already exists
     const existingUserId = await User.findOne({ userId });

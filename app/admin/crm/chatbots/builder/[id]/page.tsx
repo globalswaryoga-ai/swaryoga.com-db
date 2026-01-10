@@ -49,6 +49,7 @@ export default function ChatbotBuilder() {
   const [draggingBlock, setDraggingBlock] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [draggingFrom, setDraggingFrom] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const rafMoveRef = useRef<number | null>(null);
 
   const blockColors: Record<string, string> = {
     message: '#FF6B6B',
@@ -58,41 +59,46 @@ export default function ChatbotBuilder() {
   };
 
   // Add block from sidebar
-  const addBlock = (type: string) => {
-    const newBlock: Block = {
-      id: `block_${Date.now()}`,
-      type: type as any,
-      x: 100,
-      y: 100,
-      label: BLOCK_TYPES.find((b) => b.id === type)?.name || 'Block',
-      data: {
-        message: type === 'message' ? 'Enter message text...' : undefined,
-        question: type === 'question' ? 'Enter question...' : undefined,
-        options: type === 'question' ? ['Option 1', 'Option 2'] : undefined,
-      },
-    };
-    setBlocks([...blocks, newBlock]);
-    setSelectedBlock(newBlock.id);
-  };
+  const addBlock = useCallback(
+    (type: string) => {
+      const newBlock: Block = {
+        id: `block_${Date.now()}`,
+        type: type as any,
+        x: 100,
+        y: 100,
+        label: BLOCK_TYPES.find((b) => b.id === type)?.name || 'Block',
+        data: {
+          message: type === 'message' ? 'Enter message text...' : undefined,
+          question: type === 'question' ? 'Enter question...' : undefined,
+          options: type === 'question' ? ['Option 1', 'Option 2'] : undefined,
+        },
+      };
+      setBlocks((prev) => [...prev, newBlock]);
+      setSelectedBlock(newBlock.id);
+    },
+    [setBlocks]
+  );
 
   // Canvas mouse down for dragging
-  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === canvasRef.current) {
-      setSelectedBlock(null);
-    }
-  };
+  const handleCanvasMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.target === canvasRef.current) {
+        setSelectedBlock(null);
+      }
+    },
+    []
+  );
 
   // Drag block
-  const handleBlockMouseDown = (
-    e: React.MouseEvent<HTMLDivElement>,
-    blockId: string,
-    isOutput?: boolean
-  ) => {
-    e.preventDefault();
-    if (isOutput) {
-      setDraggingFrom(blockId);
-    } else {
-      const rect = (e.target as HTMLElement).getBoundingClientRect();
+  const handleBlockMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>, blockId: string, isOutput?: boolean) => {
+      e.preventDefault();
+      if (isOutput) {
+        setDraggingFrom(blockId);
+        return;
+      }
+
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const canvasRect = canvasRef.current?.getBoundingClientRect();
       if (canvasRect) {
         setDraggingBlock({
@@ -102,47 +108,57 @@ export default function ChatbotBuilder() {
         });
       }
       setSelectedBlock(blockId);
-    }
-  };
+    },
+    []
+  );
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (draggingBlock && canvasRef.current) {
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const x = Math.max(0, e.clientX - canvasRect.left - draggingBlock.offsetX);
-      const y = Math.max(0, e.clientY - canvasRect.top - draggingBlock.offsetY);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!draggingBlock || !canvasRef.current) return;
 
-      setBlocks((prev) =>
-        prev.map((b) => (b.id === draggingBlock.id ? { ...b, x, y } : b))
-      );
-    }
-  };
+      // Throttle updates to animation frames to avoid rerender thrash ("vibrating").
+      if (rafMoveRef.current) return;
+      rafMoveRef.current = window.requestAnimationFrame(() => {
+        rafMoveRef.current = null;
+        if (!canvasRef.current) return;
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        const x = Math.max(0, e.clientX - canvasRect.left - draggingBlock.offsetX);
+        const y = Math.max(0, e.clientY - canvasRect.top - draggingBlock.offsetY);
 
-  const handleMouseUp = () => {
+        setBlocks((prev) => prev.map((b) => (b.id === draggingBlock.id ? { ...b, x, y } : b)));
+      });
+    },
+    [draggingBlock]
+  );
+
+  const handleMouseUp = useCallback(() => {
     setDraggingBlock(null);
-    if (draggingFrom) {
-      setDraggingFrom(null);
+    setDraggingFrom(null);
+    if (rafMoveRef.current) {
+      window.cancelAnimationFrame(rafMoveRef.current);
+      rafMoveRef.current = null;
     }
-  };
+  }, []);
 
   // Delete block
-  const deleteBlock = (blockId: string) => {
+  const deleteBlock = useCallback((blockId: string) => {
     setBlocks((prev) => prev.filter((b) => b.id !== blockId));
     setConnections((prev) =>
       prev.filter((c) => c.fromId !== blockId && c.toId !== blockId)
     );
     if (selectedBlock === blockId) setSelectedBlock(null);
-  };
+  }, [selectedBlock]);
 
-  const updateBlockData = (blockId: string, data: Partial<Block['data']>) => {
+  const updateBlockData = useCallback((blockId: string, data: Partial<Block['data']>) => {
     setBlocks((prev) =>
       prev.map((b) =>
         b.id === blockId ? { ...b, data: { ...b.data, ...data } } : b
       )
     );
-  };
+  }, []);
 
   // Save chatbot
-  const saveChatbot = async () => {
+  const saveChatbot = useCallback(async () => {
     if (!chatbotId) return;
     setSaving(true);
     try {
@@ -156,86 +172,35 @@ export default function ChatbotBuilder() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [chatbotId, crm, blocks, connections]);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#f5f5f5' }}>
+    <div className="flex h-[100svh] bg-gray-50 overflow-hidden">
       {/* LEFT SIDEBAR - Block Types */}
-      <div
-        style={{
-          width: 280,
-          background: '#fff',
-          borderRight: '1px solid #e5e7eb',
-          padding: 16,
-          overflowY: 'auto',
-        }}
-      >
-        <h3 style={{ margin: '0 0 16px 0', fontSize: 14, fontWeight: 700, color: '#1f2937' }}>
-          Block Types
-        </h3>
-        <div style={{ display: 'grid', gap: 12 }}>
+      <div className="w-[280px] bg-white border-r border-gray-200 p-4 overflow-y-auto">
+        <h3 className="m-0 mb-4 text-sm font-bold text-gray-800">Block Types</h3>
+        <div className="grid gap-3">
           {BLOCK_TYPES.map((blockType) => (
             <button
               key={blockType.id}
               onClick={() => addBlock(blockType.id)}
-              style={{
-                padding: '12px 14px',
-                background: blockType.color,
-                color: '#fff',
-                border: 'none',
-                borderRadius: 12,
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                textAlign: 'left',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as any).style.opacity = '0.85';
-                (e.currentTarget as any).style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as any).style.opacity = '1';
-                (e.currentTarget as any).style.transform = 'translateY(0)';
-              }}
+              className="rounded-xl px-3.5 py-3 text-left text-[13px] font-semibold text-white transition-transform hover:-translate-y-0.5 hover:opacity-90 active:translate-y-0"
+              style={{ background: blockType.color }}
+              type="button"
             >
               {blockType.icon} {blockType.name}
             </button>
           ))}
         </div>
 
-        <h3
-          style={{
-            margin: '24px 0 16px 0',
-            fontSize: 14,
-            fontWeight: 700,
-            color: '#1f2937',
-          }}
-        >
-          Operations
-        </h3>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-          }}
-        >
+        <h3 className="mt-6 mb-4 text-sm font-bold text-gray-800">Operations</h3>
+        <div className="grid grid-cols-2 gap-3">
           {['Subscribe', 'Unsubscribe', 'Update Attr', 'Set Tags', 'Assign Team', 'Assign User'].map(
             (op) => (
               <button
                 key={op}
-                style={{
-                  padding: '12px',
-                  background: '#f3f4f6',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: '#6b7280',
-                  textAlign: 'center',
-                }}
+                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-center text-[11px] font-medium text-gray-600 hover:bg-gray-100"
+                type="button"
               >
                 {op}
               </button>
@@ -251,23 +216,10 @@ export default function ChatbotBuilder() {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        style={{
-          flex: 1,
-          background: '#fafafa',
-          position: 'relative',
-          overflow: 'auto',
-          userSelect: 'none',
-        }}
+        className="flex-1 bg-gray-50 relative overflow-auto select-none"
       >
         <svg
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            pointerEvents: 'none',
-          }}
+          className="absolute inset-0 w-full h-full pointer-events-none"
         >
           {connections.map((conn) => {
             const fromBlock = blocks.find((b) => b.id === conn.fromId);
@@ -295,20 +247,16 @@ export default function ChatbotBuilder() {
           <div
             key={block.id}
             onMouseDown={(e) => handleBlockMouseDown(e, block.id)}
+            className="absolute w-[240px] bg-white rounded-xl cursor-grab"
             style={{
-              position: 'absolute',
               left: block.x,
               top: block.y,
-              width: 240,
-              background: '#fff',
               border:
                 selectedBlock === block.id
                   ? `3px solid ${blockColors[block.type]}`
                   : '1px solid #e5e7eb',
-              borderRadius: 12,
               boxShadow: selectedBlock === block.id ? '0 4px 12px rgba(0,0,0,0.1)' : 'none',
-              cursor: 'grab',
-              transition: 'all 0.2s',
+              transition: 'box-shadow 0.15s ease, border-color 0.15s ease',
             }}
           >
             {/* Block Header */}

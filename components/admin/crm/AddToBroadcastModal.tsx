@@ -18,7 +18,7 @@ interface AddToBroadcastModalProps {
   onClose: () => void;
   leads: Lead[];
   token?: string;
-  onSuccess?: (result: { added: number; skipped: number; listName: string }) => void;
+  onSuccess?: (result: { added: number; skipped: number; listName: string; errors?: string[] }) => void;
 }
 
 /**
@@ -151,6 +151,7 @@ export function AddToBroadcastModal({
           added: result.added,
           skipped: result.skipped,
           listName,
+          errors: result.errors,
         });
       }
 

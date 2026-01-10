@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { 
   escapeRegexLiteral, 
@@ -31,15 +31,18 @@ export async function GET(request: NextRequest) {
     const workshop = url.searchParams.get('workshop');
     const q = url.searchParams.get('q');
     const userIdParam = url.searchParams.get('userId');
-  // NOTE: Some admin screens (e.g., Broadcast) need a large dataset so client-side
-  // segmentation/filtering is accurate. We allow a higher cap for super-admin.
-  const requestedLimit = Number(url.searchParams.get('limit') || 50) || 50;
-  const selectAll = url.searchParams.get('selectAll') === 'true';
-  const maxLimit = selectAll ? 5000 : 200;
-  const limit = Math.min(requestedLimit, maxLimit);
+    // NOTE: Some admin screens (e.g., Broadcast) need a large dataset so client-side
+    // segmentation/filtering is accurate.
+    // We allow a higher cap when explicitly requested via selectAll=true.
+    // This still respects multi-user access control below (non-super-admins only see their own leads).
+    const requestedLimit = Number(url.searchParams.get('limit') || 50) || 50;
+    const selectAll = url.searchParams.get('selectAll') === 'true';
+    const maxLimit = selectAll ? 5000 : 200;
+    const limit = Math.min(requestedLimit, maxLimit);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
     await connectDB();
+    const Lead = getLead();
 
     const filter: any = {};
 
@@ -69,9 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Ensure leads and filter are valid before querying
-    if (!Lead) {
-      return NextResponse.json({ error: 'Lead model not initialized' }, { status: 500 });
-    }
+    // Lead model is initialized above via getLead()
 
     const leads = await Lead.find(filter)
       .sort({ lastMessageAt: -1, updatedAt: -1 })
@@ -128,11 +129,10 @@ export async function POST(request: NextRequest) {
     const assignedToUserId = superAdmin && requestedAssignedTo ? requestedAssignedTo : viewerUserId;
 
     await connectDB();
+    const Lead = getLead();
 
     // Validate Lead model
-    if (!Lead) {
-      return NextResponse.json({ error: 'Lead model not initialized' }, { status: 500 });
-    }
+    // Initialized above via getLead()
 
     // Check for duplicates by email or phone number
     const existingLead = await Lead.findOne({

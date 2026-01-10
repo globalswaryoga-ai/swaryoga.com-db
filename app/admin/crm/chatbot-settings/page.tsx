@@ -56,7 +56,8 @@ export default function ChatbotSettingsPage() {
       return;
     }
     fetchSettings();
-  }, [token, router, fetchSettings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, router]);
 
   const saveSettings = async () => {
     try {

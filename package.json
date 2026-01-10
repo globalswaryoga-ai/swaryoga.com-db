@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Swar Yoga e-commerce website",
   "scripts": {
-    "dev": "next dev & node scripts/health-check.js",
-    "dev:no-check": "next dev",
+    "dev": "PORT=3000 next dev --port 3000",
+    "dev:no-check": "PORT=3000 next dev --port 3000",
     "health-check": "node scripts/health-check.js",
     "build": "next build",
     "vercel-build": "next build",
@@ -37,6 +37,7 @@
     "date-fns": "^4.1.0",
     "dompurify": "^3.3.1",
     "dotenv": "^16.4.0",
+    "emoji-picker-react": "^4.16.1",
     "express": "^5.2.1",
     "framer-motion": "^12.23.26",
     "google-auth-library": "^10.5.0",

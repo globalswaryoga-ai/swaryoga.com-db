@@ -7,7 +7,7 @@ import {
   formatCrmSuccess,
   buildMetadata,
 } from '@/lib/crm-handlers';
-import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -24,6 +24,8 @@ function escapeRegexLiteral(input: string): string {
  */
 export async function GET(request: NextRequest) {
   try {
+    const WhatsAppMessage = getWhatsAppMessage();
+
     const viewerUserId = verifyAdminAccess(request);
     const superAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
     const { limit, skip } = parsePagination(request);
@@ -144,8 +146,8 @@ export async function GET(request: NextRequest) {
     // Projection
     pipeline.push({
       $project: {
-        _id: 0,
-  leadId: '$lead._id',
+        _id: '$phoneNumber',
+        leadId: '$lead._id',
         leadNumber: '$lead.leadNumber',
         name: {
           $ifNull: [
