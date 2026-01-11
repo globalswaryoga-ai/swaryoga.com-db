@@ -34,6 +34,34 @@ const authenticate = (req, res, next) => {
 };
 
 const bytesToMB = (bytes) => Math.round((bytes / 1024 / 1024) * 100) / 100;
+const bytesToGB = (bytes) => Math.round((bytes / 1024 / 1024 / 1024) * 100) / 100;
+
+const getDiskFreeBytes = () => {
+  // Linux: fs.statfsSync is available in Node 18+
+  try {
+    const stat = fs.statfsSync('/');
+    return stat.bavail * stat.bsize;
+  } catch {
+    return null;
+  }
+};
+
+const MIN_DISK_FREE_BYTES = 700 * 1024 * 1024; // ~700MB (Chromium profiles/tmp need breathing room)
+
+const tryResolveSnapChromium = () => {
+  // /snap/bin/chromium-browser is a wrapper; Puppeteer wants the underlying binary path.
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync('/snap/bin/chromium-browser --print-path', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+    }).trim();
+    if (out && fs.existsSync(out)) return out;
+  } catch {
+    // ignore
+  }
+  return null;
+};
 
 // Returns a usable executable path or undefined.
 // Preference order:
@@ -76,7 +104,15 @@ const getBrowserExecutablePath = () => {
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
     '/snap/bin/chromium',
+    '/snap/bin/chromium-browser',
   ];
+
+  // Snap wrapper needs special handling on Ubuntu.
+  if (fs.existsSync('/snap/bin/chromium-browser')) {
+    const resolved = tryResolveSnapChromium();
+    if (resolved) return resolved;
+  }
+
   for (const p of systemCandidates) {
     if (fs.existsSync(p)) return p;
   }
@@ -119,6 +155,18 @@ console.log('- PUPPETEER_EXECUTABLE_PATH env:', process.env.PUPPETEER_EXECUTABLE
 console.log('- Resolved browser path:', client.options?.puppeteer?.executablePath || '(default puppeteer)');
 console.log('- Free RAM (MB):', bytesToMB(require('os').freemem()));
 
+const diskFreeBytes = getDiskFreeBytes();
+if (diskFreeBytes != null) {
+  console.log('- Free disk on / (GB):', bytesToGB(diskFreeBytes));
+  if (diskFreeBytes < MIN_DISK_FREE_BYTES) {
+    console.error('\nFATAL: Not enough free disk to reliably launch Chromium.');
+    console.error(`- Free: ${bytesToMB(diskFreeBytes)} MB`);
+    console.error(`- Needed: ~${bytesToMB(MIN_DISK_FREE_BYTES)} MB`);
+    console.error('Fix: increase EBS volume (recommended 16GB+) or remove large folders like .next and node_modules.\n');
+    process.exit(1);
+  }
+}
+
 // Fail fast with a very clear message if the browser path is configured but missing.
 // This avoids the confusing "Browser was not found at the configured executablePath" loop.
 const resolvedBrowserPath = client.options?.puppeteer?.executablePath;
@@ -129,6 +177,17 @@ if (resolvedBrowserPath && !fs.existsSync(resolvedBrowserPath)) {
   console.error('Fix: free disk space and reinstall, or install system chromium and unset PUPPETEER_EXECUTABLE_PATH.\n');
   process.exit(1);
 }
+
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    status: clientStatus,
+    browserPath: resolvedBrowserPath || null,
+    browserExists: resolvedBrowserPath ? fs.existsSync(resolvedBrowserPath) : null,
+    freeRamMB: bytesToMB(require('os').freemem()),
+    freeDiskBytes: diskFreeBytes,
+  });
+});
 
 client.on('qr', (qr) => {
   console.log('QR RECEIVED', qr);
