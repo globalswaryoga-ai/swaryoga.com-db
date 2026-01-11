@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,7 +30,15 @@ type TemplateRow = {
 export default function ChatbotsPage() {
   const router = useRouter();
   const token = useAuth();
-  const crm = useCRM({ token });
+
+  // Ensure we don't recreate the `useCRM` options object every render.
+  const crmOptions = useMemo(() => ({ token }), [token]);
+  const crm = useCRM(crmOptions);
+
+  // Prevent overlapping requests (can cause loading flicker + request storms).
+  const inFlightRef = useRef<boolean>(false);
+  const lastFetchKeyRef = useRef<string>('');
+
   const crmFetch = crm.fetch;
 
   const [rules, setRules] = useState<ChatbotRule[]>([]);
@@ -49,6 +57,8 @@ export default function ChatbotsPage() {
   });
 
   const fetchRules = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -60,6 +70,7 @@ export default function ChatbotsPage() {
       setError(err instanceof Error ? err.message : 'Failed to load chatbots');
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }, [crmFetch]);
 
@@ -77,17 +88,19 @@ export default function ChatbotsPage() {
       router.push('/admin/login');
       return;
     }
+
+    const key = `${token}:chatbots`;
+    if (lastFetchKeyRef.current === key) return;
+    lastFetchKeyRef.current = key;
+
     // Fetch sequentially to avoid resource exhaustion
     const load = async () => {
       await fetchRules();
-      // Optional: wait a bit or parallelize. 
-      // If we remove the timeout, it might be smoother. 
-      // await new Promise(r => setTimeout(r, 200)); 
       await fetchTemplates();
     };
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, router]); // Trigger ONLY on mount/token change, not on fetchRules recreations
+  }, [token, router, fetchRules, fetchTemplates]);
 
   const templateOptions = useMemo(
     () => templates.filter((t) => String(t.status || '').toLowerCase() !== 'disabled'),

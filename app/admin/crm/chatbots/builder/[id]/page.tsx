@@ -8,7 +8,7 @@ import { LoadingSpinner } from '@/components/admin/crm';
 
 type Block = {
   id: string;
-  type: 'message' | 'question' | 'condition' | 'action';
+  type: 'message' | 'question' | 'poll' | 'condition' | 'action';
   x: number;
   y: number;
   label: string;
@@ -30,6 +30,7 @@ type Connection = {
 const BLOCK_TYPES = [
   { id: 'message', name: 'Send a message', color: '#FF6B6B', icon: '💬' },
   { id: 'question', name: 'Ask a question', color: '#FFA500', icon: '❓' },
+  { id: 'poll', name: 'Create a Poll', color: '#9333ea', icon: '📊' },
   { id: 'condition', name: 'Set a condition', color: '#6366F1', icon: '⚙️' },
   { id: 'action', name: 'Action', color: '#10B981', icon: '✓' },
 ];
@@ -44,16 +45,56 @@ export default function ChatbotBuilder() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draggingBlock, setDraggingBlock] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [draggingFrom, setDraggingFrom] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const rafMoveRef = useRef<number | null>(null);
 
+  // Fetch data on mount
+  useEffect(() => {
+    if (!token) {
+      router.push('/admin/login');
+      return;
+    }
+
+    const fetchDetail = async () => {
+      if (chatbotId === 'new') {
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        const res = await crm.fetch(`/api/admin/crm/chatbot-flows/${chatbotId}`);
+        if (res?.metadata?.canvas) {
+          setBlocks(res.metadata.canvas.blocks || []);
+          setConnections(res.metadata.canvas.connections || []);
+        } else if (res?.nodes) {
+          // Fallback or conversion logic here if needed
+          setBlocks(res.nodes.map((n: any) => ({
+            id: n.nodeId,
+            type: n.type,
+            x: 100,
+            y: 100,
+            label: n.name || n.type,
+            data: { message: n.messageText, question: n.questionText }
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to load flow', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDetail();
+  }, [chatbotId, token]);
+
   const blockColors: Record<string, string> = {
     message: '#FF6B6B',
     question: '#FFA500',
+    poll: '#9333ea',
     condition: '#6366F1',
     action: '#10B981',
   };
@@ -69,8 +110,8 @@ export default function ChatbotBuilder() {
         label: BLOCK_TYPES.find((b) => b.id === type)?.name || 'Block',
         data: {
           message: type === 'message' ? 'Enter message text...' : undefined,
-          question: type === 'question' ? 'Enter question...' : undefined,
-          options: type === 'question' ? ['Option 1', 'Option 2'] : undefined,
+          question: type === 'question' || type === 'poll' ? 'Enter question...' : undefined,
+          options: type === 'question' || type === 'poll' ? ['Option 1', 'Option 2'] : undefined,
         },
       };
       setBlocks((prev) => [...prev, newBlock]);
@@ -162,17 +203,54 @@ export default function ChatbotBuilder() {
     if (!chatbotId) return;
     setSaving(true);
     try {
-      await crm.fetch(`/api/admin/crm/chatbots/${chatbotId}`, {
-        method: 'PUT',
-        body: { blocks, connections },
+      // Map canvas to nodes for the engine
+      const nodes = blocks.map(b => {
+        const nextConn = connections.find(c => c.fromId === b.id);
+        const node: any = {
+          nodeId: b.id,
+          type: b.type === 'action' ? 'message' : b.type,
+          messageText: b.data?.message,
+          questionText: b.data?.question,
+          options: b.data?.options?.map((o, i) => ({
+            label: o,
+            value: o,
+            nextNodeId: connections.find(c => c.fromId === b.id && c.label === String(i))?.toId || connections.find(c => c.fromId === b.id)?.toId
+          })),
+          nextNodeId: nextConn?.toId,
+          presenceType: (b.data as any)?.presenceType || 'none',
+          presenceDelay: (b.data as any)?.presenceDelay || 0,
+          spintaxEnabled: (b.data as any)?.spintaxEnabled || false,
+        };
+        return node;
       });
+
+      const endpoint = chatbotId === 'new' ? '/api/admin/crm/chatbot-flows' : `/api/admin/crm/chatbot-flows/${chatbotId}`;
+      const method = chatbotId === 'new' ? 'POST' : 'PUT';
+
+      const res = await crm.fetch(endpoint, {
+        method,
+        body: {
+          name: blocks[0]?.label || 'Untitled Flow',
+          nodes,
+          startNodeId: blocks[0]?.id,
+          metadata: {
+            canvas: { blocks, connections }
+          }
+        },
+      });
+
+      if (chatbotId === 'new') {
+        router.push(`/admin/crm/chatbots/builder/${res._id}`);
+      }
       alert('Chatbot saved!');
     } catch (err) {
       alert('Failed to save chatbot');
     } finally {
       setSaving(false);
     }
-  }, [chatbotId, crm, blocks, connections]);
+  }, [chatbotId, crm, blocks, connections, router]);
+
+  if (loading) return <div className="flex items-center justify-center h-full bg-gray-50"><LoadingSpinner /></div>;
 
   return (
     <div className="flex h-[100svh] bg-gray-50 overflow-hidden">
@@ -296,7 +374,7 @@ export default function ChatbotBuilder() {
                   {block.data?.message || 'Message'}
                 </div>
               )}
-              {block.type === 'question' && (
+              {(block.type === 'question' || block.type === 'poll') && (
                 <div>
                   <div style={{ color: '#1f2937', fontSize: 12, marginBottom: 8 }}>
                     {block.data?.question || 'Question'}
@@ -373,55 +451,11 @@ export default function ChatbotBuilder() {
                   {block.label}
                 </h3>
 
-                {block.type === 'message' && (
+                {(block.type === 'question' || block.type === 'poll') && (
                   <div style={{ display: 'grid', gap: 12 }}>
                     <label style={{ display: 'grid', gap: 4 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                        Message
-                      </span>
-                      <textarea
-                        value={block.data?.message || ''}
-                        onChange={(e) =>
-                          updateBlockData(block.id, { message: e.target.value })
-                        }
-                        style={{
-                          padding: 10,
-                          borderRadius: 8,
-                          border: '1px solid #e5e7eb',
-                          fontSize: 12,
-                          minHeight: 80,
-                          fontFamily: 'inherit',
-                        }}
-                      />
-                    </label>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      {['Message', 'Image', 'Video', 'Audio', 'Document'].map((type) => (
-                        <button
-                          key={type}
-                          style={{
-                            padding: '8px',
-                            background: '#f0fdf4',
-                            border: '1px solid #86efac',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            fontSize: 11,
-                            fontWeight: 500,
-                            color: '#10b981',
-                          }}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {block.type === 'question' && (
-                  <div style={{ display: 'grid', gap: 12 }}>
-                    <label style={{ display: 'grid', gap: 4 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                        Question
+                        {block.type === 'poll' ? 'Poll Question' : 'Question'}
                       </span>
                       <textarea
                         value={block.data?.question || ''}

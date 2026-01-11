@@ -131,6 +131,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       color: 'text-cyan-600'
     },
     {
+      icon: MessageCircle,
+      label: 'QR WhatsApp',
+      href: '/admin/crm/qr',
+      color: 'text-emerald-400'
+    },
+    {
       icon: LayoutDashboard,
       label: 'Meta Setup',
       href: '/admin/crm/whatsapp-meta',

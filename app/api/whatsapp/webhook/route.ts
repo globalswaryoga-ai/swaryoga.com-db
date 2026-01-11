@@ -201,6 +201,29 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
+    // Lightweight enrichment: capture key Meta metadata fields early so diagnostics can
+    // distinguish real business-number traffic from local/simulated payloads.
+    try {
+      const v = payload?.entry?.[0]?.changes?.[0]?.value;
+      const metaPhoneNumberId = v?.metadata?.phone_number_id;
+      const metaDisplayPhoneNumber = v?.metadata?.display_phone_number;
+      if (metaPhoneNumberId || metaDisplayPhoneNumber) {
+        await logWebhookEvent({
+          kind: 'unknown',
+          ok: true,
+          message: 'RAW_POST_META_METADATA',
+          sample: {
+            url: request.url,
+            userAgent: request.headers.get('user-agent'),
+            phone_number_id: metaPhoneNumberId,
+            display_phone_number: metaDisplayPhoneNumber,
+          },
+        }).catch(() => {});
+      }
+    } catch {
+      // never let diagnostics logging break webhook
+    }
+
     // Recommended: verify Meta webhook signature if APP_SECRET is available.
     // This protects against random internet POSTs that would otherwise be accepted.
     // TEMPORARY: Skip signature verification for debugging (will re-enable after confirming messages arrive)
@@ -375,9 +398,14 @@ async function logWebhookEvent(event: {
     // Import model getter function after connectDB() to ensure connection is established
     const { getWhatsAppWebhookEvent } = await import('@/lib/schemas/enterpriseSchemas');
     const WhatsAppWebhookEvent = getWhatsAppWebhookEvent();
+
+    // Attribute whether this came from Meta or from a local/simulator hit.
+    // In production diagnostics, we only want to treat Meta-sourced hits as authoritative.
+    const urlSample = String(event?.sample?.url || '');
+    const inferredSource = urlSample.includes('localhost') || urlSample.includes('127.0.0.1') ? 'local' : 'meta';
     
     await WhatsAppWebhookEvent.create({
-      source: 'meta',
+      source: inferredSource,
       kind: event.kind,
       ok: event.ok ?? true,
       message: event.message,

@@ -93,9 +93,19 @@ function isWebBridgeDisabled(): boolean {
     .toLowerCase() === 'true';
 }
 
-function generateAppSecretProof(accessToken: string, appSecret?: string): string | undefined {
+export function generateAppSecretProof(accessToken: string, appSecret?: string): string | undefined {
   if (!appSecret) return undefined;
   return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
+}
+
+export function buildGraphMessagesUrl(phoneNumberId: string, appSecretProof?: string): string {
+  const base = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
+  if (!appSecretProof) {
+    return base;
+  }
+  const url = new URL(base);
+  url.searchParams.set('appsecret_proof', appSecretProof);
+  return url.toString();
 }
 
 export async function sendWhatsAppText(toRaw: string, body: string): Promise<WhatsAppSendTextResult> {
@@ -106,7 +116,8 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
   if (env) {
     try {
       const { accessToken, phoneNumberId, appSecret } = env;
-      const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
+      const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+      const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
       
       const payload: any = {
         messaging_product: 'whatsapp',
@@ -114,12 +125,6 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
         type: 'text',
         text: { body },
       };
-
-      // Add appsecret_proof if app secret is available
-      const appSecretProof = generateAppSecretProof(accessToken, appSecret);
-      if (appSecretProof) {
-        payload.appsecret_proof = appSecretProof;
-      }
 
       const res = await fetch(url, {
         method: 'POST',
@@ -191,6 +196,32 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
 }
 
 /**
+ * Update presence status (typing, recording)
+ */
+export async function sendWhatsAppPresence(toRaw: string, type: 'composing' | 'recording' | 'paused' | 'none'): Promise<void> {
+  if (type === 'none') return;
+  
+  const to = normalizePhone(toRaw);
+  const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
+  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
+
+  if (bridgeUrl && bridgeSecret) {
+    try {
+      await fetch(`${bridgeUrl}/api/messages/presence`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bridge-secret': bridgeSecret,
+        },
+        body: JSON.stringify({ phone: to, type }),
+      });
+    } catch (err) {
+      console.warn('[WHATSAPP] Presence update failed:', err);
+    }
+  }
+}
+
+/**
  * Send image or video media directly (non-template)
  * Used for: sending new images/videos via Meta Cloud API
  */
@@ -206,8 +237,9 @@ export async function sendWhatsAppMedia(
   // If Cloud API is configured, try it first
   if (env) {
     try {
-      const { accessToken, phoneNumberId, appSecret } = env;
-      const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
+  const { accessToken, phoneNumberId, appSecret } = env;
+  const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+  const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
       
       const mediaTypeSlug = mediaType;
       const payload: any = {
@@ -221,12 +253,6 @@ export async function sendWhatsAppMedia(
 
       if (caption && caption.trim()) {
         payload[mediaTypeSlug].caption = String(caption).trim();
-      }
-
-      // Add appsecret_proof if app secret is available
-      const appSecretProof = generateAppSecretProof(accessToken, appSecret);
-      if (appSecretProof) {
-        payload.appsecret_proof = appSecretProof;
       }
 
       const res = await fetch(url, {
@@ -397,7 +423,8 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
   if (!templateName) throw new Error('templateName is required');
 
   const language = String(input.language || 'en').trim() || 'en';
-  const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
+  const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+  const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
 
   const components = buildTemplateComponents(input);
 
@@ -411,12 +438,6 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
       ...(components.length ? { components } : {}),
     },
   };
-
-  // Add appsecret_proof if app secret is available
-  const appSecretProof = generateAppSecretProof(accessToken, appSecret);
-  if (appSecretProof) {
-    payload.appsecret_proof = appSecretProof;
-  }
 
   const res = await fetch(url, {
     method: 'POST',

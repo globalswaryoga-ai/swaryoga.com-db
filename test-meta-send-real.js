@@ -5,6 +5,7 @@
  */
 
 require('dotenv').config();
+const crypto = require('crypto');
 const fetch = (...args) => import('node-fetch').then(({default: f}) => f(...args));
 
 async function testSend() {
@@ -19,7 +20,13 @@ async function testSend() {
     process.exit(1);
   }
   
-  const url = `https://graph.facebook.com/v24.0/${phoneNumberId}/messages`;
+  const appSecret = (process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '').trim();
+  const appSecretProof = appSecret
+    ? crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex')
+    : null;
+
+  const baseUrl = `https://graph.facebook.com/v24.0/${phoneNumberId}/messages`;
+  const url = appSecretProof ? `${baseUrl}?appsecret_proof=${appSecretProof}` : baseUrl;
   console.log(`📤 Sending to: ${phone}`);
   console.log(`📝 Message: ${message}`);
   console.log(`🔗 URL: ${url}`);

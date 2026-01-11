@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 
 interface FilterOption {
   label: string;
@@ -140,9 +141,18 @@ export function PageHeader({
     <div className={`mb-8 space-y-6 ${className}`}>
       {/* Title Section */}
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">{title}</h1>
-          {subtitle && <p className="text-slate-400 mt-2">{subtitle}</p>}
+        <div className="flex items-start gap-4">
+          <Link 
+            href="/admin/crm"
+            className="mt-1 p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 rounded-xl transition-all shadow-lg group active:scale-95"
+            title="Back to CRM Dashboard"
+          >
+            <i className="ph ph-house text-xl group-hover:scale-110 transition-transform"></i>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold text-white">{title}</h1>
+            {subtitle && <p className="text-slate-400 mt-2">{subtitle}</p>}
+          </div>
         </div>
         {action && <div>{action}</div>}
       </div>

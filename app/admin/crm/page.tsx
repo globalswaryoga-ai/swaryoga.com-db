@@ -135,6 +135,7 @@ export default function CRMDashboard() {
               { href: '/admin/crm', label: 'Overview', icon: '📊' },
               { href: '/admin/crm/leads', label: 'Leads', icon: '👥' },
               { href: '/admin/crm/meta', label: 'Meta Inbox', icon: '🟢' },
+              { href: '/admin/crm/qr', label: 'QR WhatsApp', icon: '💚' },
               { href: '/admin/crm/leads-followup', label: 'Leads Followup', icon: '📋' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
               { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
@@ -246,6 +247,12 @@ export default function CRMDashboard() {
                   className="block bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
                   🟢 Meta Inbox
+                </Link>
+                <Link
+                  href="/admin/crm/qr"
+                  className="block bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
+                >
+                  🟢 QR WhatsApp
                 </Link>
                 <Link
                   href="/admin/crm/whatsapp"

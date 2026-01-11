@@ -657,14 +657,40 @@ export default function AdminCommunityPage() {
                        </div>
                        {postType === 'image' && (
                           <div className="flex gap-3">
-                             <input type="text" value={postImageUrls.join(', ')} onChange={e => setPostImageUrls(e.target.value.split(',').map(u => u.trim()).filter(Boolean))} placeholder="Image URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white transition-all" />
-                             <label className="h-14 px-6 bg-white border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-bold text-xs hover:bg-slate-50 transition-all"><Upload size={16}/> {uploading ? '...' : 'Upload'}<input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'image')} /></label>
+                             <input type="text" value={postImageUrls.join(', ')} onChange={e => setPostImageUrls(e.target.value.split(',').map(u => u.trim()).filter(Boolean))} placeholder="Image URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white transition-all text-xs" />
+                             <label className={`h-14 px-6 border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${uploading ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
+                                {uploading ? (
+                                   <>
+                                      <Loader className="animate-spin" size={16}/>
+                                      <span>Uploading...</span>
+                                   </>
+                                ) : (
+                                   <>
+                                      <ImageIcon size={16}/>
+                                      <span>Upload</span>
+                                   </>
+                                )}
+                                <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'image')} disabled={uploading} />
+                             </label>
                           </div>
                        )}
                        {postType === 'video' && (
                           <div className="flex gap-3">
-                             <input type="text" value={postVideoUrl} onChange={e => setPostVideoUrl(e.target.value)} placeholder="Video URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold" />
-                             <label className="h-14 px-6 bg-white border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-bold text-xs"><Upload size={16}/> Upload<input type="file" className="hidden" accept="video/*" onChange={e => handleFileUpload(e, 'video')} /></label>
+                             <input type="text" value={postVideoUrl} onChange={e => setPostVideoUrl(e.target.value)} placeholder="Video URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none text-xs" />
+                             <label className={`h-14 px-6 border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${uploading ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
+                                {uploading ? (
+                                   <>
+                                      <Loader className="animate-spin" size={16}/>
+                                      <span>Uploading...</span>
+                                   </>
+                                ) : (
+                                   <>
+                                      <VideoIcon size={16}/>
+                                      <span>Upload</span>
+                                   </>
+                                )}
+                                <input type="file" className="hidden" accept="video/*" onChange={e => handleFileUpload(e, 'video')} disabled={uploading} />
+                             </label>
                           </div>
                        )}
 

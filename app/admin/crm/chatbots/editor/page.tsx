@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
@@ -26,7 +26,20 @@ type Template = {
 export default function ChatbotEditorPage() {
   const router = useRouter();
   const token = useAuth();
-  const crm = useCRM({ token });
+
+  // Robustness guards: avoid loops caused by unstable object references.
+  const crmOptions = useMemo(() => ({ token }), [token]);
+  const crm = useCRM(crmOptions);
+
+  const inFlightRef = useRef(false);
+  const lastFetchKeyRef = useRef('');
+  const mountCountRef = useRef(0);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    mountCountRef.current += 1;
+  }, []);
 
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -46,42 +59,61 @@ export default function ChatbotEditorPage() {
   });
 
   const fetchChatbots = useCallback(async () => {
+    if (!token || inFlightRef.current) return;
+    inFlightRef.current = true;
+    
     setLoading(true);
     setError(null);
+    
     try {
       const res = await crm.fetch('/api/admin/crm/automations', {
         params: { limit: 200, skip: 0, triggerType: 'chatbot', enabled: 'all' },
       });
       setChatbots(Array.isArray(res?.rules) ? res.rules : []);
     } catch (err) {
+      console.error('Fetch chatbots error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load chatbots');
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
-  }, [crm]);
+  }, [crm.fetch, token]);
 
   const fetchTemplates = useCallback(async () => {
+    if (!token) return;
     try {
       const res = await crm.fetch('/api/admin/crm/templates', { params: { limit: 200, skip: 0 } });
       setTemplates(Array.isArray(res?.templates) ? res.templates : []);
-    } catch {
+    } catch (err) {
+      console.error('Fetch templates error:', err);
       setTemplates([]);
     }
-  }, [crm]);
+  }, [crm.fetch, token]);
 
   useEffect(() => {
+    if (!mounted) return;
     if (!token) {
       router.push('/admin/login');
       return;
     }
-    // Fetch sequentially to avoid resource exhaustion
+
+    const key = `${token}:chatbot-editor-v2`;
+    if (lastFetchKeyRef.current === key) return;
+    lastFetchKeyRef.current = key;
+
     const load = async () => {
-      await fetchChatbots();
-      await new Promise(r => setTimeout(r, 200)); // 200ms delay between requests
-      await fetchTemplates();
+      try {
+        await fetchChatbots();
+        // small delay to prevent overlapping
+        await new Promise(r => setTimeout(r, 500));
+        await fetchTemplates();
+      } catch (e) {
+        console.error('Initial data load failed', e);
+      }
     };
     load();
-  }, [token, router, fetchChatbots, fetchTemplates]);
+  }, [mounted, token, router, fetchChatbots, fetchTemplates]);
+
 
   const saveChatbot = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,9 +330,10 @@ export default function ChatbotEditorPage() {
                       <span className="block text-sm font-semibold text-gray-700 mb-2">Reply Text</span>
                       <textarea
                         rows={5}
+                        required
                         value={form.actionText}
                         onChange={(e) => setForm({ ...form, actionText: e.target.value })}
-                        placeholder="Enter the message text..."
+                        placeholder="Message to send"
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent text-sm"
                       />
                     </label>
@@ -308,98 +341,88 @@ export default function ChatbotEditorPage() {
                     <label>
                       <span className="block text-sm font-semibold text-gray-700 mb-2">Select Template</span>
                       <select
+                        required
                         value={form.actionTemplateId}
                         onChange={(e) => setForm({ ...form, actionTemplateId: e.target.value })}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent text-sm"
                       >
                         <option value="">Choose a template...</option>
-                        {templates
-                          .filter((t) => String(t.status || '').toLowerCase() !== 'disabled')
-                          .map((t) => (
-                            <option key={t._id} value={t._id}>
-                              {t.templateName}
-                            </option>
-                          ))}
+                        {templates.map((t) => (
+                          <option key={t._id} value={t._id}>
+                            {t.templateName}
+                          </option>
+                        ))}
                       </select>
                     </label>
                   )}
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-4 justify-end">
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}
-                    className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold"
+                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-3 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold"
+                    className="px-6 py-2 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold shadow-md"
                   >
-                    {selectedChatbot ? 'Update' : 'Create'} Chatbot
+                    {selectedChatbot ? 'Update Chatbot' : 'Create Chatbot'}
                   </button>
                 </div>
               </form>
             </div>
           ) : (
             // LIST VIEW
-            <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredChatbots.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-600 text-lg mb-4">No chatbots yet</p>
-                  <button
-                    onClick={openCreate}
-                    className="px-6 py-3 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold"
-                  >
-                    Create First Chatbot
-                  </button>
+                <div className="col-span-full bg-white rounded-xl p-12 text-center border border-dashed border-gray-300">
+                  <p className="text-gray-500">No chatbots found matching your search.</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {filteredChatbots.map((chatbot) => (
-                    <div
-                      key={chatbot._id}
-                      className="bg-white rounded-xl shadow-md border border-gray-200 hover:shadow-lg p-6"
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <h3 className="font-bold text-lg text-gray-900">{chatbot.name}</h3>
-                          <p className="text-gray-600 text-sm mt-1">
-                            {chatbot.actionType === 'send_template'
-                              ? `Template: ${chatbot.actionTemplateId || '—'}`
-                              : `Text: ${(chatbot.actionText || '').slice(0, 80)}${(chatbot.actionText || '').length > 80 ? '…' : ''}`}
-                          </p>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => toggleChatbot(chatbot)}
-                            className={`px-4 py-2 rounded-lg font-semibold ${
-                              chatbot.enabled
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            {chatbot.enabled ? '✓ Active' : 'Inactive'}
-                          </button>
-                          <button
-                            onClick={() => openEdit(chatbot)}
-                            className="px-4 py-2 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => deleteChatbot(chatbot._id)}
-                            className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-semibold"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
+                filteredChatbots.map((c) => (
+                  <div key={c._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="font-bold text-lg text-gray-900 truncate pr-2">{c.name}</h3>
+                      <button
+                        onClick={() => toggleChatbot(c)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          c.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {c.enabled ? 'Enabled' : 'Disabled'}
+                      </button>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="flex-1 space-y-2 mb-6">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="font-semibold px-2 py-0.5 bg-gray-100 rounded text-[10px] uppercase">
+                          {c.actionType}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 line-clamp-3 italic">
+                        {c.actionType === 'send_text' ? c.actionText : `Template: ${c.actionTemplateId}`}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 pt-4 border-t border-gray-100 mt-auto">
+                      <button
+                        onClick={() => openEdit(c)}
+                        className="flex-1 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-sm font-semibold transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteChatbot(c._id)}
+                        className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-semibold transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           )}

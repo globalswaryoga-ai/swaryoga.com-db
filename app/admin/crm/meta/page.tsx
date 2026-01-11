@@ -41,6 +41,8 @@ type MetaInboxDiagnostics = {
     message?: string;
     status?: string;
     receivedAt?: string;
+    source?: string;
+    sample?: any;
   }>;
 };
 
@@ -84,17 +86,34 @@ export default function MetaInboxPage() {
   const token = useAuth();
   const { fetch: crmFetch, loading: crmLoading, error: crmError } = useCRM({ token });
 
+  // If this page is rendered from the QR route, we must use a separate pipeline.
+  // We detect that either by pathname (/admin/crm/qr) or a query string provider=qr.
+  const providerScope = useMemo(() => {
+    try {
+      if (typeof window === 'undefined') return 'meta';
+      const url = new URL(window.location.href);
+      const p = (url.searchParams.get('provider') || '').trim();
+      if (p === 'qr') return 'qr';
+      if (pathname?.includes('/admin/crm/qr')) return 'qr';
+      return 'meta';
+    } catch {
+      return pathname?.includes('/admin/crm/qr') ? 'qr' : 'meta';
+    }
+  }, [pathname]);
+
   // State
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [selected, setSelected] = useState<ConversationRow | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messageLimit, setMessageLimit] = useState(5);
   const [searchQuery, setSearchQuery] = useState('');
   const [composerText, setComposerText] = useState('');
   const [sending, setSending] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true); // Added for sidebar toggle
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false); // Added for attachment popup
   const [showEmojiPicker, setShowEmojiPicker] = useState(false); // State for emoji picker
+  const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false); // Dropdown for header
 
   // Diagnostics UI state
   const [diagPhone, setDiagPhone] = useState('');
@@ -342,7 +361,7 @@ export default function MetaInboxPage() {
   const loadConversations = async (q = '') => {
     try {
       const data = await crmFetch('/api/admin/crm/conversations', {
-        params: { q, limit: 50 },
+        params: { q, limit: 50, provider: providerScope },
       });
       if (data?.conversations) {
         setConversations(data.conversations);
@@ -359,6 +378,7 @@ export default function MetaInboxPage() {
       // Determine if id is an ObjectId or phoneNumber
       const isObjectId = id.length === 24 && /^[0-9a-fA-F]+$/.test(id);
       const params: any = isObjectId ? { leadId: id } : { phoneNumber: id };
+      params.provider = providerScope;
       
       const data = await crmFetch(`/api/admin/crm/messages`, { params });
       if (data?.messages) {
@@ -375,7 +395,12 @@ export default function MetaInboxPage() {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      const container = messagesEndRef.current.parentElement;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
   };
 
   const appendToComposer = (text: string) => {
@@ -481,6 +506,7 @@ export default function MetaInboxPage() {
 
   const handleSelectConversation = (conv: ConversationRow) => {
     setSelected(conv);
+    setMessageLimit(5);
     loadMessages(conv.leadId || conv._id || conv.phoneNumber);
     
     // Reset sidebar data based on selected conversation
@@ -554,6 +580,8 @@ export default function MetaInboxPage() {
           leadId,
           phoneNumber,
           messageContent: composerText,
+          // When rendered from /admin/crm/qr we want QR provider pipeline.
+          provider: providerScope,
         },
       });
       setComposerText('');
@@ -761,6 +789,47 @@ export default function MetaInboxPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* CRM Tools Dropdown */}
+          <div className="relative">
+             <button
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all active:scale-95 ${
+                  toolsDropdownOpen 
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg ring-2 ring-blue-500/20' 
+                    : 'bg-white text-slate-500 border-slate-200/60 hover:border-blue-200 hover:text-blue-600'
+                }`}
+                onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
+             >
+                <i className="ph-bold ph-wrench text-lg"></i>
+                <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Tools</span>
+                <i className={`ph ph-caret-down text-[10px] transition-transform ${toolsDropdownOpen ? 'rotate-180' : ''}`}></i>
+             </button>
+
+             {toolsDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 p-2">
+                   {[
+                      { label: 'Chatbots', icon: 'ph-robot', href: '/admin/crm/chatbots', color: 'text-blue-600', bg: 'bg-blue-50' },
+                      { label: 'Templates', icon: 'ph-file-text', href: '/admin/crm/templates', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                      { label: 'Broadcasts', icon: 'ph-broadcast', href: '/admin/crm/broadcasts', color: 'text-pink-600', bg: 'bg-pink-50' },
+                      { label: 'Automation', icon: 'ph-magic-wand', href: '/admin/crm/automation', color: 'text-purple-600', bg: 'bg-purple-50' },
+                   ].map((tool) => (
+                      <button 
+                        key={tool.label}
+                        onClick={() => {
+                          setToolsDropdownOpen(false);
+                          router.push(tool.href);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 rounded-2xl transition-all group text-left"
+                      >
+                        <div className={`h-9 w-9 rounded-xl ${tool.bg} flex items-center justify-center`}>
+                           <i className={`ph-bold ${tool.icon} text-lg ${tool.color}`}></i>
+                        </div>
+                        <span className="text-sm font-[800] text-slate-700 group-hover:text-blue-700">{tool.label}</span>
+                      </button>
+                   ))}
+                </div>
+             )}
+          </div>
+
           <button
             className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border transition-all active:scale-95 ${
               isBotMode 
@@ -946,6 +1015,19 @@ export default function MetaInboxPage() {
                            <span className={`text-[10px] font-black uppercase tracking-tight ${evt.ok ? 'text-emerald-700' : 'text-red-700'}`}>
                              {evt.kind}
                            </span>
+                           {evt.source ? (
+                             <span
+                               className={`text-[9px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded-md border ${
+                                 evt.source === 'meta'
+                                   ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                   : evt.source === 'local'
+                                     ? 'bg-amber-50 text-amber-800 border-amber-100'
+                                     : 'bg-slate-50 text-slate-700 border-slate-200'
+                               }`}
+                             >
+                               {evt.source}
+                             </span>
+                           ) : null}
                          </div>
                          <span className="text-[9px] font-bold text-slate-400 shrink-0">
                            {evt.receivedAt ? new Date(evt.receivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
@@ -960,6 +1042,20 @@ export default function MetaInboxPage() {
                           {evt.phoneNumber}
                         </div>
                       )}
+
+                      {(evt?.sample?.phone_number_id || evt?.sample?.display_phone_number || evt?.sample?.url) ? (
+                        <div className="text-[9px] font-semibold text-slate-500 leading-tight">
+                          {evt?.sample?.phone_number_id ? (
+                            <div className="truncate">phone_number_id: {String(evt.sample.phone_number_id)}</div>
+                          ) : null}
+                          {evt?.sample?.display_phone_number ? (
+                            <div className="truncate">display_phone_number: {String(evt.sample.display_phone_number)}</div>
+                          ) : null}
+                          {evt?.sample?.url ? (
+                            <div className="truncate">url: {String(evt.sample.url)}</div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -1305,7 +1401,17 @@ export default function MetaInboxPage() {
                   </div>
                 ) : (
                   <>
-                    {messages.map((msg) => (
+                    {messages.length > messageLimit && (
+                      <div className="flex justify-center pb-4">
+                        <button 
+                           onClick={() => setMessageLimit(prev => prev + 20)}
+                           className="px-5 py-2.5 bg-slate-50 border border-slate-200 rounded-full text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-white shadow-sm transition-all duration-200"
+                        >
+                           View Earlier Conversations
+                        </button>
+                      </div>
+                    )}
+                    {messages.slice(-messageLimit).map((msg) => (
                       <div 
                         key={msg._id} 
                         className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}

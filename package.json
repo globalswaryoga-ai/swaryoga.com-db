@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "PORT=3000 next dev --port 3000",
     "dev:no-check": "PORT=3000 next dev --port 3000",
+    "dev:reset": "node scripts/dev-reset-3000.mjs",
     "health-check": "node scripts/health-check.js",
     "build": "next build",
     "vercel-build": "next build",
@@ -21,7 +22,8 @@
     "pm2:delete": "pm2 delete swar-yoga-web",
     "pm2:logs": "pm2 logs swar-yoga-web",
     "pm2:status": "pm2 status",
-    "pm2:monit": "pm2 monit"
+    "pm2:monit": "pm2 monit",
+    "bridge": "cd services/whatsapp-web && node index.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",

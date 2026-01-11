@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     const total = await WhatsAppTemplate.countDocuments(filter);
 
     return NextResponse.json(
-      { success: true, data: { templates, total, limit, skip } },
+      { success: true, templates, total, data: { templates, total, limit, skip } },
       { status: 200 }
     );
   } catch (error) {

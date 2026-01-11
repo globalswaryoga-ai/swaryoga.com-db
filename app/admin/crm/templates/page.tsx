@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -59,6 +59,8 @@ export default function TemplatesPage() {
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
 
+  const inFlightRef = useRef(false);
+
   // Bulk selection + header actions
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
   const [bulkActionsOpen, setBulkActionsOpen] = useState(false);
@@ -106,6 +108,8 @@ export default function TemplatesPage() {
   }, []);
 
   const fetchTemplates = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
       setError(null);
       const result = await crmFetch('/api/admin/crm/templates', {
@@ -120,14 +124,23 @@ export default function TemplatesPage() {
       setTotalTemplates(result?.total || 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      inFlightRef.current = false;
     }
   }, [crmFetch, page, pageSize, statusFilter]);
+
+  const initialFetchDoneRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
       router.push('/admin/login');
       return;
     }
+    
+    // Only auto-fetch on mount. Subsequent fetches happen via pagination or filter changes.
+    if (initialFetchDoneRef.current) return;
+    initialFetchDoneRef.current = true;
+    
     fetchTemplates();
   }, [token, router, fetchTemplates]);
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 class CRMUnauthorizedError extends Error {
   readonly name = 'CRMUnauthorizedError';
@@ -130,7 +130,7 @@ export function useCRM(options: UseCRMOptions = {}) {
     [options.token]
   );
 
-  return {
+  return useMemo(() => ({
     data,
     loading,
     error,
@@ -140,7 +140,9 @@ export function useCRM(options: UseCRMOptions = {}) {
       setError(null);
       setLoading(false);
     },
-  };
+    setError,
+    setLoading
+  }), [data, loading, error, fetch]);
 }
 
 /**

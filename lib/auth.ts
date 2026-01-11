@@ -18,7 +18,13 @@ export const generateToken = (payload: TokenPayload): string => {
 };
 
 export const verifyToken = (token?: string): TokenPayload | null => {
-  const actualToken = token?.trim();
+  let actualToken = token?.trim();
+  
+  // Handle "Bearer <token>" format automatically
+  if (actualToken?.startsWith('Bearer ')) {
+    actualToken = actualToken.substring(7).trim();
+  }
+
   if (!actualToken || actualToken === 'null' || actualToken === 'undefined' || actualToken === '') {
     if (process.env.NODE_ENV !== 'production') {
       console.warn('[Auth] No token provided or token is empty/null/undefined');

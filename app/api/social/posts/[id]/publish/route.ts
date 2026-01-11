@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Post, SocialAccount, PostAnalytics } from '@/lib/schemas/socialMediaSchemas';
 import { verifyToken } from '@/lib/auth';
+import { buildGraphMessagesUrl, generateAppSecretProof } from '@/lib/whatsapp';
 import mongoose from 'mongoose';
 
 /**
@@ -346,31 +347,55 @@ async function publishToYouTube(post: any, account: any): Promise<string> {
 async function publishToWhatsApp(post: any, account: any): Promise<string> {
   // Call WhatsApp Business API to send message
   // Requires: Phone number ID, Business Account Token
-  const phoneNumberId = process.env.WHATSAPP_BUSINESS_PHONE_NUMBER;
-  const businessToken = account.access_token;
+  const phoneNumberId = String(
+    process.env.WHATSAPP_BUSINESS_PHONE_NUMBER || process.env.WHATSAPP_PHONE_NUMBER_ID || ''
+  )
+    .trim()
+    .replace(/['"\n\r]/g, '');
+  if (!phoneNumberId) {
+    throw new Error('WhatsApp phone number ID is not configured');
+  }
 
-  const response = await fetch(
-    `https://graph.facebook.com/v24.0/${phoneNumberId}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${businessToken}`,
-        'Content-Type': 'application/json',
+  const businessToken = String(account?.access_token || '').trim();
+  if (!businessToken) {
+    throw new Error('Missing WhatsApp business access token for account');
+  }
+
+  const appSecret = String(process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET || '')
+    .trim()
+    .replace(/['"\n\r]/g, '');
+  const appSecretProof = generateAppSecretProof(businessToken, appSecret || undefined);
+  const endpoint = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${businessToken}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: account.platform_account_id,
+      type: 'text',
+      text: {
+        body: post.content,
       },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: account.platform_account_id,
-        type: 'text',
-        text: {
-          body: post.content,
-        },
-      }),
-    }
-  );
+    }),
+  });
 
   if (!response.ok) {
-    throw new Error(`WhatsApp API error: ${response.statusText}`);
+    let errorMessage = `WhatsApp API error: ${response.statusText}`;
+    try {
+      const errorBody = await response.json();
+      if (errorBody?.error?.message) {
+        errorMessage = `WhatsApp API error: ${errorBody.error.message}`;
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw new Error(errorMessage);
   }
 
   const data = await response.json();

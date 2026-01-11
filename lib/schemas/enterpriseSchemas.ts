@@ -411,6 +411,29 @@ AuditLogSchema.index({ userId: 1, actionType: 1, createdAt: -1 });
 AuditLogSchema.index({ resourceType: 1, resourceId: 1 });
 
 // ============================================================================
+// 4a-2. MEDIA FILE SCHEMA - Track S3 Uploads
+// ============================================================================
+const MediaFileSchema = new mongoose.Schema(
+  {
+    originalName: { type: String, required: true },
+    fileName: { type: String, required: true },
+    s3Key: { type: String, required: true, unique: true },
+    s3Bucket: { type: String, required: true },
+    contentType: String,
+    size: Number,
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    category: { type: String, default: 'social_media' },
+    isPublic: { type: Boolean, default: false },
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'media_files' }
+);
+
+MediaFileSchema.index({ s3Key: 1 });
+MediaFileSchema.index({ uploadedBy: 1 });
+MediaFileSchema.index({ category: 1 });
+
+// ============================================================================
 // 4b. WHATSAPP ACCOUNT SCHEMA - Manage WhatsApp numbers (Common + Meta)
 // ============================================================================
 const WhatsAppAccountSchema = new mongoose.Schema(
@@ -1093,6 +1116,11 @@ const ChatbotFlowSchema = new mongoose.Schema(
         questionText: String,
         questionType: { type: String, enum: ['text', 'multiple_choice', 'number'] },
         
+        // Presence / Delay features
+        presenceType: { type: String, enum: ['composing', 'recording', 'paused', 'none'], default: 'none' },
+        presenceDelay: { type: Number, default: 0 },
+        spintaxEnabled: { type: Boolean, default: false },
+        
         // Buttons/options (for questions or button-choice nodes)
         options: [
           {
@@ -1287,6 +1315,7 @@ export function getBroadcastRunMessage() { return getModel('BroadcastRunMessage'
 export function getChatbotFlow() { return getModel('ChatbotFlow', ChatbotFlowSchema); }
 export function getChatbotSettings() { return getModel('ChatbotSettings', ChatbotSettingsSchema); }
 export function getCrmReceipt() { return getModel('CrmReceipt', CrmReceiptSchema); }
+export function getMediaFile() { return getModel('MediaFile', MediaFileSchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
@@ -1317,3 +1346,4 @@ export const BroadcastRunMessage = createModelProxy('BroadcastRunMessage', Broad
 export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
 export const CrmReceipt = createModelProxy('CrmReceipt', CrmReceiptSchema);
+export const MediaFile = createModelProxy('MediaFile', MediaFileSchema);

@@ -1,7 +1,7 @@
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
-import { Lead, WhatsAppAutomationRule, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone, sendWhatsAppText } from '@/lib/whatsapp';
+import { Lead, WhatsAppAutomationRule, WhatsAppMessage, ChatbotFlow } from '@/lib/schemas/enterpriseSchemas';
+import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence } from '@/lib/whatsapp';
 
 type InboundContext = {
   leadId: string;
@@ -142,6 +142,30 @@ async function markThrottle(leadId: any, rule: any, now: Date) {
   await Lead.updateOne({ _id: leadId }, { $set: { [`metadata.${key}`]: now } });
 }
 
+/**
+ * Spintax help: {Hello|Hi|Hey} becomes one of the options randomly
+ */
+function applySpintax(text: string): string {
+  if (!text) return text;
+  const matches = text.match(/\{[^{}]+\}/g);
+  if (!matches) return text;
+
+  let result = text;
+  for (const match of matches) {
+    const options = match.slice(1, -1).split('|');
+    const chosen = options[Math.floor(Math.random() * options.length)];
+    result = result.replace(match, chosen);
+  }
+  
+  // Recursive for nested spintax
+  if (result.match(/\{[^{}]+\}/g)) {
+    return applySpintax(result);
+  }
+  return result;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function sendOutboundText(lead: any, to: string, text: string, metadata?: any) {
   const compliance = await ConsentManager.validateCompliance(to);
   if (!compliance.compliant) return;
@@ -152,12 +176,34 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
   const env = getWhatsAppEnv();
   const senderNumber = env?.phoneNumber || '9779006820';
 
+  let finalContent = text;
+  // Apply spintax if enabled in metadata or flow node
+  if (metadata?.automation?.spintaxEnabled || metadata?.chatbot?.spintaxEnabled) {
+    finalContent = applySpintax(text);
+  }
+
+  // Handle Presence Delay
+  const presenceType = metadata?.chatbot?.presenceType || metadata?.automation?.presenceType;
+  const presenceDelay = Number(metadata?.chatbot?.presenceDelay || metadata?.automation?.presenceDelay || 0);
+
+  if (presenceType && presenceType !== 'none') {
+    try {
+      await sendWhatsAppPresence(to, presenceType as any);
+      if (presenceDelay > 0) {
+        // Cap delay at 10s to keep lambda/webhook responsive
+        await sleep(Math.min(presenceDelay, 10) * 1000);
+      }
+    } catch (err) {
+      console.warn('[Automation] Presence update failed:', err);
+    }
+  }
+
   const message = await WhatsAppMessage.create({
     leadId: lead._id,
     phoneNumber: to,
     direction: 'outbound',
     messageType: 'text',
-    messageContent: text,
+    messageContent: finalContent,
     status: 'queued',
     sentAt: now,
     metadata,
@@ -166,8 +212,7 @@ async function sendOutboundText(lead: any, to: string, text: string, metadata?: 
   });
 
   try {
-    const { sendWhatsAppText } = await import('@/lib/whatsapp');
-    const apiResult = await sendWhatsAppText(to, text);
+    const apiResult = await sendWhatsAppText(to, finalContent);
     await WhatsAppMessage.updateOne(
       { _id: message._id },
       { 
@@ -284,7 +329,7 @@ async function runSimpleChatbot(lead: any, ctx: InboundContext): Promise<string 
   return null;
 }
 
-async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Promise<string | null> {
+async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Promise<any | null> {
   const md = lead?.metadata || {};
   const state = md.chatbotFlowState || { flowId: String(flow._id), nodeId: flow.startNodeId };
   
@@ -300,7 +345,7 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   console.log(`[Chatbot] Lead ${ctx.fromPhone} at node ${state.nodeId} (${currentNode.type})`);
 
   let nextNodeId = currentNode.nextNodeId;
-  let reply: string | null = null;
+  let replyObj: any = null;
 
   // 1) Logic to determine next node based on input
   if (currentNode.type === 'question' || currentNode.type === 'buttons') {
@@ -316,10 +361,7 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
       // For free text questions, we just move to nextNodeId if it exists
       nextNodeId = currentNode.nextNodeId;
     } else {
-      // Didn't match any option and not a free-text question? 
-      // Ask again or stay here. For now, stay here but return null to not spam.
-      // Alternatively, we could re-send the question.
-      return `I'm sorry, I didn't understand that. Please choose one of: ${currentNode.options.map((o: any) => o.label).join(', ')}`;
+      return { text: `I'm sorry, I didn't understand that. Please choose one of: ${currentNode.options.map((o: any) => o.label).join(', ')}` };
     }
   }
 
@@ -334,15 +376,18 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
     }
 
     if (nextNode.type === 'message' || nextNode.type === 'question' || nextNode.type === 'buttons') {
-      reply = nextNode.messageText || nextNode.questionText || null;
+      replyObj = {
+        text: nextNode.messageText || nextNode.questionText,
+        spintaxEnabled: nextNode.spintaxEnabled,
+        presenceType: nextNode.presenceType,
+        presenceDelay: nextNode.presenceDelay
+      };
     } else if (nextNode.type === 'template') {
-      // Handle template node? 
-      // For now we just return a placeholder or handle it via sendOutboundTemplate
-      // But this function returns a string reply usually.
+       // ... placeholder
     } else if (nextNode.type === 'end') {
-      reply = nextNode.messageText || 'Thank you!';
+      replyObj = { text: nextNode.messageText || 'Thank you!' };
       await Lead.updateOne({ _id: lead._id }, { $unset: { 'metadata.chatbotFlowState': 1 } });
-      return reply;
+      return replyObj;
     }
 
     // Update state to the new node
@@ -355,7 +400,7 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
     await Lead.updateOne({ _id: lead._id }, { $unset: { 'metadata.chatbotFlowState': 1 } });
   }
 
-  return reply;
+  return replyObj;
 }
 
 export async function handleInboundWhatsAppAutomations(input: {
@@ -423,8 +468,15 @@ export async function handleInboundWhatsAppAutomations(input: {
       if (activeFlow) {
         try {
           const reply = await advanceChatbotFlow(lead, ctx, activeFlow);
-          if (reply) {
-            await sendOutboundText(lead, fromPhone, reply, { automation: { ruleId: String((rule as any)._id), flowId: String(activeFlow._id) } });
+          if (reply && reply.text) {
+            await sendOutboundText(lead, fromPhone, reply.text, { 
+               chatbot: { 
+                  flowId: String(activeFlow._id),
+                  spintaxEnabled: reply.spintaxEnabled,
+                  presenceType: reply.presenceType,
+                  presenceDelay: reply.presenceDelay
+               } 
+            });
             await markThrottle(lead._id, rule, now);
           }
         } catch (err) {

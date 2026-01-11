@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     timestamp: new Date().toISOString(),
     environment: {
       nodeVersion: process.version,
-      hasMongoDBUri: !!process.env.MONGODB_URI,
+      hasMongoDBUri: !!(process.env.MONGODB_URI || process.env.MONGODB_URI_MAIN),
       hasJwtSecret: !!process.env.JWT_SECRET,
     },
     checks: {

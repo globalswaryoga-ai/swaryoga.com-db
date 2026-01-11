@@ -188,32 +188,49 @@ export default function SocialMediaAdmin() {
     }
   };
 
-  const uploadToBlob = async (file: File): Promise<UploadedMedia> => {
+  const uploadToS3 = async (file: File): Promise<UploadedMedia> => {
     setUploadError('');
     setUploadingCount((c) => c + 1);
     try {
-      const form = new FormData();
-      form.append('file', file);
-
-      const response = await fetch('/api/admin/uploads/blob', {
+      // 1. Get Presigned URL from CRM S3 API
+      const presignedRes = await fetch('/api/admin/crm/upload/s3/presigned', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
-        body: form,
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document',
+          contentType: file.type
+        })
       });
 
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Upload failed');
+      if (!presignedRes.ok) {
+        const errData = await presignedRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to get upload URL');
       }
 
-      const url = payload?.data?.url as string | undefined;
-      if (!url) {
-        throw new Error('Upload failed: missing url');
+      const presignedData = await presignedRes.json();
+      const { uploadUrl, publicUrl } = presignedData.data;
+
+      // 2. Upload DIRECTLY to S3
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type
+        },
+        body: file
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(`Upload to S3 failed: ${uploadRes.statusText}`);
       }
 
-      return { url, name: file.name };
+      return { url: publicUrl, name: file.name };
+    } catch (err: any) {
+      console.error('S3 Upload Error:', err);
+      throw err;
     } finally {
       setUploadingCount((c) => Math.max(0, c - 1));
     }
@@ -552,12 +569,22 @@ export default function SocialMediaAdmin() {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
+                          disabled={uploadingCount > 0}
                           onClick={() => imageFileInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold px-4 py-2 rounded-lg"
+                          className={`inline-flex items-center gap-2 font-black text-[10px] uppercase tracking-wider px-4 py-2.5 rounded-lg transition-all shadow-md ${uploadingCount > 0 ? 'bg-indigo-600/20 text-indigo-200 animate-pulse' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                         >
-                          <Plus size={18} /> Add image(s)
+                          {uploadingCount > 0 ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-indigo-200 border-t-transparent rounded-full animate-spin"></div>
+                              <span>Uploading ({uploadingCount})...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={18} /> Add image(s)
+                            </>
+                          )}
                         </button>
-                        <span className="text-slate-400 text-xs">PNG/JPG/WebP • multiple allowed</span>
+                        <span className="text-slate-400 text-[10px] font-bold uppercase">PNG/JPG/WebP • multiple allowed</span>
                       </div>
 
                       <input
@@ -571,7 +598,7 @@ export default function SocialMediaAdmin() {
 
                           try {
                             for (const file of files) {
-                              const uploaded = await uploadToBlob(file);
+                              const uploaded = await uploadToS3(file);
                               setNewPostImages((prev) => [...prev, uploaded]);
                             }
                           } catch (err) {
@@ -628,12 +655,22 @@ export default function SocialMediaAdmin() {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
+                          disabled={uploadingCount > 0}
                           onClick={() => videoFileInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold px-4 py-2 rounded-lg"
+                          className={`inline-flex items-center gap-2 font-black text-[10px] uppercase tracking-wider px-4 py-2.5 rounded-lg transition-all shadow-md ${uploadingCount > 0 ? 'bg-indigo-600/20 text-indigo-200 animate-pulse' : 'bg-indigo-600 hover:bg-indigo-500 text-white'}`}
                         >
-                          <Plus size={18} /> Add video
+                          {uploadingCount > 0 ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-indigo-200 border-t-transparent rounded-full animate-spin"></div>
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={18} /> Add video
+                            </>
+                          )}
                         </button>
-                        <span className="text-slate-400 text-xs">MP4/MOV • one at a time</span>
+                        <span className="text-slate-400 text-[10px] font-bold uppercase">MP4/MOV • one at a time</span>
                       </div>
 
                       <input
@@ -645,7 +682,7 @@ export default function SocialMediaAdmin() {
                           if (!file) return;
 
                           try {
-                            const uploaded = await uploadToBlob(file);
+                            const uploaded = await uploadToS3(file);
                             setNewPostVideos((prev) => [...prev, uploaded]);
                           } catch (err) {
                             const message = err instanceof Error ? err.message : 'Upload failed';

@@ -43,7 +43,9 @@ export async function GET(request: NextRequest) {
         message: e.message,
         phoneNumber: e.phoneNumber,
         receivedAt: e.receivedAt,
-        ok: e.ok
+        ok: e.ok,
+        source: e.source,
+        sample: e.sample
       }));
 
       // If ONLY global events were requested (no phone), return early
@@ -107,6 +109,8 @@ export async function GET(request: NextRequest) {
         waMessageId: e.waMessageId,
         status: e.status,
         receivedAt: e.receivedAt,
+        source: e.source,
+        sample: e.sample,
       })),
     };
 

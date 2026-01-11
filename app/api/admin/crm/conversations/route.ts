@@ -34,22 +34,35 @@ export async function GET(request: NextRequest) {
     const q = url.searchParams.get('q')?.trim();
     const status = url.searchParams.get('status')?.trim();
     const label = url.searchParams.get('label')?.trim();
+  const providerParam = url.searchParams.get('provider')?.trim();
 
     await connectDB();
 
     const pipeline: any[] = [];
 
-    // Include messages from known providers, or if they have no provider (to avoid missing data)
-    pipeline.push({
-      $match: {
-        $or: [
-          { provider: { $in: ['meta', 'whatsapp_web_bridge'] } },
-          { provider: { $exists: false } },
-          { provider: null },
-          { provider: 'pending' },
-        ],
-      },
-    });
+    // Provider filtering:
+    // - Default (no provider param): current behavior (Meta + legacy web bridge + older records)
+    // - provider=meta: Meta only
+    // - provider=qr: QR inbox only (no overlap)
+    if (providerParam === 'meta') {
+      pipeline.push({ $match: { provider: 'meta' } });
+    } else if (providerParam === 'qr') {
+      // IMPORTANT: QR pipeline must be completely separate.
+      // Any QR ingestion should write WhatsAppMessage.provider = 'whatsapp_qr'.
+      pipeline.push({ $match: { provider: 'whatsapp_qr' } });
+    } else {
+      // Default (existing behavior)
+      pipeline.push({
+        $match: {
+          $or: [
+            { provider: { $in: ['meta', 'whatsapp_web_bridge'] } },
+            { provider: { $exists: false } },
+            { provider: null },
+            { provider: 'pending' },
+          ],
+        },
+      });
+    }
 
     // Normalize the timestamp used for ordering.
     // Some older records may not have sentAt.

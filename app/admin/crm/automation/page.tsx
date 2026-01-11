@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
 
-type FetchScope = 'page' | 'rules' | 'scheduled' | 'broadcast' | 'save';
+type FetchScope = 'page' | 'rules' | 'scheduled' | 'broadcast' | 'save' | null;
 
 interface AutomationRule {
   _id: string;
@@ -68,10 +68,11 @@ export default function AutomationPage() {
   const [broadcastLists, setBroadcastLists] = useState<BroadcastList[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
   // loadingScope helps avoid the whole page flickering to a spinner for small actions
-  // like tab switches or toggling a single rule.
   const [loadingScope, setLoadingScope] = useState<FetchScope>('page');
   const loading = loadingScope === 'page';
+
   const [showNewRuleModal, setShowNewRuleModal] = useState(false);
   const [newRuleName, setNewRuleName] = useState('');
   const [newRuleTrigger, setNewRuleTrigger] = useState('welcome');
@@ -106,10 +107,12 @@ export default function AutomationPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch rules');
     } finally {
-      setLoadingScope('page');
+      if (loadingScope !== 'page') {
+        setLoadingScope(null);
+      }
       inFlightRef.current = null;
     }
-  }, [crm]);
+  }, [crm.fetch]); // Only depend on fetch function identity
 
   const fetchScheduledMessages = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -117,17 +120,18 @@ export default function AutomationPage() {
     try {
       setLoadingScope((s) => (s === 'page' ? 'page' : 'scheduled'));
       const result = await crm.fetch('/api/admin/crm/scheduled-messages', {
-        params: { limit: 50, skip: 0 },
+        params: { limit: 100, skip: 0 },
       });
-      // API returns { jobs }, not { messages }
-      setScheduledMessages(result?.jobs || []);
+      setScheduledMessages(result?.scheduled || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch scheduled messages');
+      setError(err instanceof Error ? err.message : 'Failed to fetch scheduled');
     } finally {
-      setLoadingScope('page');
+      if (loadingScope !== 'page') {
+        setLoadingScope(null);
+      }
       inFlightRef.current = null;
     }
-  }, [crm]);
+  }, [crm.fetch]);
 
   const fetchBroadcastLists = useCallback(async () => {
     if (inFlightRef.current) return;
@@ -135,16 +139,20 @@ export default function AutomationPage() {
     try {
       setLoadingScope((s) => (s === 'page' ? 'page' : 'broadcast'));
       const result = await crm.fetch('/api/admin/crm/broadcast-lists', {
-        params: { limit: 50, skip: 0 },
+        params: { limit: 100, skip: 0 },
       });
       setBroadcastLists(result?.lists || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch broadcast lists');
+      setError(err instanceof Error ? err.message : 'Failed to fetch broadcasts');
     } finally {
-      setLoadingScope('page');
+      if (loadingScope !== 'page') {
+        setLoadingScope(null);
+      }
       inFlightRef.current = null;
     }
-  }, [crm]);
+  }, [crm.fetch]);
+
+  const initialFetchDoneRef = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!mounted) return;
@@ -153,9 +161,9 @@ export default function AutomationPage() {
       return;
     }
 
-    const key = `${token}:welcome`;
-    if (lastFetchKeyRef.current === key) return;
-    lastFetchKeyRef.current = key;
+    if (initialFetchDoneRef.current['welcome']) return;
+    initialFetchDoneRef.current['welcome'] = true;
+
     setLoadingScope('page');
     void fetchRules();
   }, [mounted, token, router, fetchRules]);
@@ -169,9 +177,8 @@ export default function AutomationPage() {
     setActiveTab(tab);
     if (!token) return;
 
-    const key = `${token}:${tab}`;
-    if (lastFetchKeyRef.current === key) return;
-    lastFetchKeyRef.current = key;
+    if (initialFetchDoneRef.current[tab]) return;
+    initialFetchDoneRef.current[tab] = true;
 
     if (tab === 'scheduled') void fetchScheduledMessages();
     else if (tab === 'broadcast') void fetchBroadcastLists();

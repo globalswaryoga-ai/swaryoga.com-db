@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Upload to S3
-    const uploadResult = await uploadTemplateFileToS3({
+    const s3Url = await uploadTemplateFileToS3({
       file: fileBuffer,
       fileName: file.name,
       mimeType: mimeType,
@@ -78,9 +78,9 @@ export async function POST(request: NextRequest) {
       templateId: templateId,
     });
 
-    if (!uploadResult.success) {
+    if (!s3Url) {
       return NextResponse.json(
-        { error: uploadResult.error || 'Upload failed' },
+        { error: 'Upload to S3 failed' },
         { status: 500 }
       );
     }
@@ -89,10 +89,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        url: uploadResult.url,
-        fileName: uploadResult.fileName,
-        mimeType: uploadResult.mimeType,
-        sizeBytes: uploadResult.sizeBytes,
+        url: s3Url,
+        fileName: file.name,
+        mimeType: mimeType,
+        sizeBytes: file.size,
       },
     });
 

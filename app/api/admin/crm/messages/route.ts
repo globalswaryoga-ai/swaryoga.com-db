@@ -47,8 +47,19 @@ export async function GET(request: NextRequest) {
     };
     const filter: any = buildFilter(filterParams);
 
-    // Include both Meta and legacy bridge messages
-    filter.provider = { $in: ['meta', 'whatsapp_web_bridge'] };
+    const providerParam = url.searchParams.get('provider');
+
+    // Provider filtering:
+    // - Default: Meta + legacy bridge
+    // - provider=meta: Meta only
+    // - provider=qr: QR inbox only (no overlap)
+    if (providerParam === 'meta') {
+      filter.provider = 'meta';
+    } else if (providerParam === 'qr') {
+      filter.provider = 'whatsapp_qr';
+    } else {
+      filter.provider = { $in: ['meta', 'whatsapp_web_bridge'] };
+    }
 
     // Add date range filter
     const startDate = url.searchParams.get('startDate');

@@ -452,6 +452,9 @@ export default function BroadcastPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <Link href="/admin/crm" style={{ fontSize: 13, background: '#F3F4F6', padding: '6px 12px', borderRadius: 8, fontWeight: 700, textDecoration: 'none', color: '#374151' }}>
+            🏠 Dashboard
+          </Link>
           <Link href="/admin/crm/automation" style={{ fontSize: 13 }}>
             Automation
           </Link>

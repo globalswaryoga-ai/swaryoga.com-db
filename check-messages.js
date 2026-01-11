@@ -1,7 +1,7 @@
-require('dotenv').config();
+require('dotenv').config({ path: '.env.local' });
 const mongoose = require('mongoose');
 
-const mongoUri = process.env.MONGODB_URI;
+const mongoUri = process.env.MONGODB_URI_MAIN;
 const dbName = 'swaryogaDB';
 
 async function check() {

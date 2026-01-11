@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
     if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
     const { leadId, phoneNumber, messageContent, headerText, footerText, media, senderDisplayName } = body;
+    const providerScope = body?.provider === 'qr' ? 'qr' : 'meta';
+    const providerValue = providerScope === 'qr' ? 'whatsapp_qr' : 'meta';
     const hasMedia = Boolean(media?.base64);
     const hasText = Boolean(String(messageContent || '').trim());
     if (!phoneNumber || (!hasText && !hasMedia)) {
@@ -73,6 +75,22 @@ export async function POST(request: NextRequest) {
 
     const to = normalizePhone(String(phoneNumber));
 
+    const mergedMetadata = {
+      ...(typeof body?.metadata === 'object' && body.metadata ? body.metadata : {}),
+      ...(media
+        ? {
+            media: {
+              kind: String(media?.kind || ''),
+              fileName: String(media?.fileName || ''),
+              mimeType: String(media?.mimeType || ''),
+              sizeBytes: Number(media?.sizeBytes || 0),
+              hasBase64: Boolean(media?.base64),
+            },
+          }
+        : {}),
+      channel: providerScope === 'qr' ? 'qr' : 'meta',
+    };
+
     // Create message record in database (always)
     const messageRecord = await WhatsAppMessage.create({
       leadId: lead._id,
@@ -83,22 +101,11 @@ export async function POST(request: NextRequest) {
       footerText: footerText != null ? String(footerText) : undefined,
       senderDisplayName: senderDisplayName != null ? String(senderDisplayName) : undefined,
       // We avoid persisting base64 blobs in Mongo for now; keep a small summary.
-      metadata: media
-        ? {
-            ...(typeof body?.metadata === 'object' && body.metadata ? body.metadata : {}),
-            media: {
-              kind: String(media?.kind || ''),
-              fileName: String(media?.fileName || ''),
-              mimeType: String(media?.mimeType || ''),
-              sizeBytes: Number(media?.sizeBytes || 0),
-              hasBase64: Boolean(media?.base64),
-            },
-          }
-        : body?.metadata,
+      metadata: mergedMetadata,
       direction: 'outbound',
       status: 'queued',
       sentAt: new Date(),
-      provider: 'meta', // We are now Meta-only, so assume meta unless it explicitly fails to bridge
+      provider: providerValue,
     });
 
     try {
@@ -108,7 +115,7 @@ export async function POST(request: NextRequest) {
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
-        provider: 'meta',
+        provider: providerValue,
         senderNumber: '9779006820',
         waMessageId: apiResult.waMessageId,
       });
