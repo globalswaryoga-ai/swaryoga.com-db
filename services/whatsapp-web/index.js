@@ -7,8 +7,6 @@ const { Server } = require('socket.io');
 const qrcode = require('qrcode');
 const cors = require('cors');
 require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
