@@ -45,7 +45,7 @@ const client = new Client({
   },
   puppeteer: {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    headless: true,
+    headless: "new", // Use the more stable "new" headless mode
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -56,6 +56,8 @@ const client = new Client({
       '--disable-gpu',
       '--disable-software-rasterizer',
       '--disable-extensions',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-site-isolation-trials',
     ]
   }
 });
