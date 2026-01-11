@@ -33,27 +33,54 @@ const authenticate = (req, res, next) => {
   next();
 };
 
-// Helper to find the Chrome binary installed via 'npx puppeteer browsers install chrome'
-const getPuppeteerPath = () => {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-  
+const bytesToMB = (bytes) => Math.round((bytes / 1024 / 1024) * 100) / 100;
+
+// Returns a usable executable path or undefined.
+// Preference order:
+// 1) Explicit env var
+// 2) Puppeteer cache (latest version)
+// 3) System chrome/chromium paths
+const getBrowserExecutablePath = () => {
+  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (envPath && fs.existsSync(envPath)) return envPath;
+
   const homeDir = require('os').homedir();
-  const chromeDir = path.join(homeDir, '.cache', 'puppeteer', 'chrome');
-  
+  const chromeCacheDir = path.join(homeDir, '.cache', 'puppeteer', 'chrome');
   try {
-    if (fs.existsSync(chromeDir)) {
-      const versions = fs.readdirSync(chromeDir);
+    if (fs.existsSync(chromeCacheDir)) {
+      const versions = fs
+        .readdirSync(chromeCacheDir)
+        .filter((v) => v && !v.startsWith('.'))
+        .sort()
+        .reverse();
+
       for (const version of versions) {
-        const fullPath = path.join(chromeDir, version, 'chrome-linux64', 'chrome');
-        if (fs.existsSync(fullPath)) {
-          console.log(`- Found Chrome at: ${fullPath}`);
-          return fullPath;
+        const candidate = path.join(chromeCacheDir, version, 'chrome-linux64', 'chrome');
+        if (fs.existsSync(candidate)) {
+          try {
+            fs.accessSync(candidate, fs.constants.X_OK);
+            return candidate;
+          } catch {
+            // Exists but not executable; keep searching.
+          }
         }
       }
     }
   } catch (e) {
-    console.error('Error searching for chrome binary:', e.message);
+    console.error('Error searching browser cache:', e.message);
   }
+
+  const systemCandidates = [
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+  ];
+  for (const p of systemCandidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
   return undefined;
 };
 
@@ -70,7 +97,7 @@ const client = new Client({
     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
   },
   puppeteer: {
-    executablePath: getPuppeteerPath(),
+    executablePath: getBrowserExecutablePath(),
     headless: "new",
     args: [
       '--no-sandbox',
@@ -88,8 +115,20 @@ const client = new Client({
 console.log('Environment Debug:');
 console.log('- OS:', process.platform, process.arch);
 console.log('- Node:', process.version);
-console.log('- Puppeteer Path:', process.env.PUPPETEER_EXECUTABLE_PATH || 'default');
-console.log('- Disk Space Check (Internal):', require('os').freemem() / 1024 / 1024, 'MB free RAM');
+console.log('- PUPPETEER_EXECUTABLE_PATH env:', process.env.PUPPETEER_EXECUTABLE_PATH || '(not set)');
+console.log('- Resolved browser path:', client.options?.puppeteer?.executablePath || '(default puppeteer)');
+console.log('- Free RAM (MB):', bytesToMB(require('os').freemem()));
+
+// Fail fast with a very clear message if the browser path is configured but missing.
+// This avoids the confusing "Browser was not found at the configured executablePath" loop.
+const resolvedBrowserPath = client.options?.puppeteer?.executablePath;
+if (resolvedBrowserPath && !fs.existsSync(resolvedBrowserPath)) {
+  console.error('\nFATAL: Configured browser path does not exist:');
+  console.error(`- ${resolvedBrowserPath}`);
+  console.error('This usually happens after an ENOSPC (disk full) interrupted browser install.');
+  console.error('Fix: free disk space and reinstall, or install system chromium and unset PUPPETEER_EXECUTABLE_PATH.\n');
+  process.exit(1);
+}
 
 client.on('qr', (qr) => {
   console.log('QR RECEIVED', qr);

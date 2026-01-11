@@ -12,6 +12,9 @@ rm -rf ~/.npm/_cacache
 sudo apt-get clean
 sudo apt-get autoremove -y
 
+echo "📦 Removing broken Puppeteer browser cache (often incomplete after ENOSPC)..."
+rm -rf ~/.cache/puppeteer/*
+
 # 2. UBUNTU 24.04 LIBRARIES & SECURITY
 echo "🛠 Fixing Ubuntu 24.04 't64' libraries..."
 sudo apt-get update
@@ -22,11 +25,13 @@ sudo ln -sf /usr/lib/x86_64-linux-gnu/libatk-1.0.so.0t64 /usr/lib/x86_64-linux-g
 echo "🔓 Unlocking AppArmor sandbox restriction..."
 sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
-# 3. RE-INSTALL CHROME
-echo "🌐 Re-installing Chrome..."
-rm -rf ~/.cache/puppeteer/*
-cd ~/swaryoga.com-db/services/whatsapp-web
-npx puppeteer browsers install chrome
+# 3. INSTALL A SYSTEM BROWSER (smaller + faster on tiny disks)
+echo "🌐 Installing system Chromium (recommended on small EC2 disks)..."
+sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+
+echo "✅ Chromium path (if installed):"
+command -v chromium-browser || true
+command -v chromium || true
 
 echo "✅ Repair complete! Checking disk space:"
 df -h /
