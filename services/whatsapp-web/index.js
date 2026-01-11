@@ -45,24 +45,25 @@ const client = new Client({
   },
   puppeteer: {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    headless: "new", // Use the more stable "new" headless mode
+    headless: "new",
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
       '--disable-gpu',
-      '--disable-software-rasterizer',
       '--disable-extensions',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--disable-site-isolation-trials',
+      '--no-zygote',
+      '--single-process',
+      '--no-first-run',
     ]
   }
 });
 
-console.log('Using Puppeteer path:', process.env.PUPPETEER_EXECUTABLE_PATH || 'default');
+console.log('Environment Debug:');
+console.log('- OS:', process.platform, process.arch);
+console.log('- Node:', process.version);
+console.log('- Puppeteer Path:', process.env.PUPPETEER_EXECUTABLE_PATH || 'default');
+console.log('- Disk Space Check (Internal):', require('os').freemem() / 1024 / 1024, 'MB free RAM');
 
 client.on('qr', (qr) => {
   console.log('QR RECEIVED', qr);
