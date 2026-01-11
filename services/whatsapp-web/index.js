@@ -24,6 +24,15 @@ const BRIDGE_PORT = process.env.WHATSAPP_WEB_PORT || 3333;
 const CLIENT_ID = process.env.WHATSAPP_CLIENT_ID || 'crm-whatsapp-session';
 const BRIDGE_SECRET = process.env.WHATSAPP_WEB_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 
+// Middleware for basic protection
+const authenticate = (req, res, next) => {
+  const secret = req.headers['x-bridge-secret'];
+  if (BRIDGE_SECRET && secret !== BRIDGE_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized bridge access' });
+  }
+  next();
+};
+
 // Helper to find the Chrome binary installed via 'npx puppeteer browsers install chrome'
 const getPuppeteerPath = () => {
   if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
