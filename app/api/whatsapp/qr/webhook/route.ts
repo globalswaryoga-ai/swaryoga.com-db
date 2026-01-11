@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { normalizePhone } from '@/lib/whatsapp';
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
+import { normalizeQRIncomingMessages } from '@/lib/qrWebhookNormalize';
 
 /**
  * QR Chat webhook receiver.
@@ -52,78 +53,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
-type NormalizedQRMessage = {
-  from: string;
-  to?: string;
-  text?: string;
-  messageId?: string;
-  timestamp?: Date;
-};
-
-function asString(v: unknown): string | undefined {
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number') return String(v);
-  return undefined;
-}
-
-function normalizeIncomingMessages(payload: any): NormalizedQRMessage[] {
-  const list: any[] =
-    (Array.isArray(payload?.messages) && payload.messages) ||
-    (Array.isArray(payload?.data?.messages) && payload.data.messages) ||
-    (Array.isArray(payload?.message) && payload.message) ||
-    (payload?.message && typeof payload.message === 'object' ? [payload.message] : []);
-
-  if (!list.length) {
-    // Common single-message shapes
-    if (payload?.from || payload?.sender || payload?.phone) {
-      return [payload].map((m) => ({
-        from: asString(m.from || m.sender || m.phone) || '',
-        to: asString(m.to || m.receiver),
-        text: asString(m.text || m.body || m.message || m?.content?.text),
-        messageId: asString(m.id || m.messageId || m.msgId),
-        timestamp: m.timestamp ? new Date(Number(m.timestamp) * 1000) : undefined,
-      })).filter((m) => !!m.from);
-    }
-    return [];
-  }
-
-  return list
-    .map((m) => {
-      const text =
-        asString(m.text) ||
-        asString(m.body) ||
-        asString(m.message) ||
-        asString(m?.content?.text) ||
-        asString(m?.text?.body);
-
-      const tsRaw = m.timestamp ?? m.ts ?? m.time ?? m.createdAt;
-      let timestamp: Date | undefined;
-      if (typeof tsRaw === 'number') {
-        // providers may send seconds or ms - handle both
-        timestamp = new Date(tsRaw < 10_000_000_000 ? tsRaw * 1000 : tsRaw);
-      } else if (typeof tsRaw === 'string' && tsRaw) {
-        const n = Number(tsRaw);
-        if (!Number.isNaN(n)) {
-          timestamp = new Date(n < 10_000_000_000 ? n * 1000 : n);
-        } else {
-          const d = new Date(tsRaw);
-          if (!Number.isNaN(d.getTime())) timestamp = d;
-        }
-      }
-
-      return {
-        from: asString(m.from || m.sender || m.phone || m?.contact?.id || m?.chatId) || '',
-        to: asString(m.to || m.receiver),
-        text,
-        messageId: asString(m.id || m.messageId || m.msgId || m?.key?.id),
-        timestamp,
-      } as NormalizedQRMessage;
-    })
-    .filter((m) => !!m.from);
-}
-
 async function ingestQRPayload(payload: any) {
-  const messages = normalizeIncomingMessages(payload);
+  const messages = normalizeQRIncomingMessages(payload);
   if (!messages.length) {
     return { count: 0, reason: 'no_messages_detected' };
   }
@@ -139,11 +70,12 @@ async function ingestQRPayload(payload: any) {
     const text = (m.text || '').trim();
     if (!text) continue;
 
-    const normalizedPhone = normalizePhone(m.from);
+    const fromPhone = m.fromMe ? (m.to || m.from) : m.from;
+    const normalizedPhone = normalizePhone(fromPhone);
 
     const doc: any = {
       provider: 'whatsapp_qr',
-      direction: 'inbound',
+      direction: m.fromMe ? 'outbound' : 'inbound',
       phoneNumber: normalizedPhone,
       messageContent: text,
       messageType: 'text',
@@ -165,7 +97,6 @@ async function ingestQRPayload(payload: any) {
       const existing = await WhatsAppMessage.findOne({
         provider: 'whatsapp_qr',
         waMessageId: m.messageId,
-        direction: 'inbound',
       }).select({ _id: 1 });
       if (existing) continue;
     }
@@ -188,7 +119,7 @@ async function ingestQRPayload(payload: any) {
     created++;
 
     // TRIGGER AUTOMATIONS (Chatbot, Auto-replies, etc.)
-    if (text) {
+    if (text && doc.direction === 'inbound') {
       try {
         // Check if this is the first inbound message in recent history (e.g. 24h)
         const count = await WhatsAppMessage.countDocuments({

@@ -82,7 +82,7 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
         <div className="p-6 border-b border-swar-border flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <img
-              src="https://i.postimg.cc/xTPRSY4X/swar_yoga_new_logo.png"
+              src="/logo.png"
               alt="Swar Yoga Logo"
               className="w-10 h-10 rounded-lg bg-white/10 p-1"
             />

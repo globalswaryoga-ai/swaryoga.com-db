@@ -246,8 +246,10 @@ function startClient() {
 startClient();
 
 // Message handling
-client.on('message', async (msg) => {
-  console.log('MESSAGE RECEIVED', msg.body);
+client.on('message_create', async (msg) => {
+  // message_create fires for both inbound and outbound (sent from this phone)
+  console.log(`${msg.fromMe ? 'OUTBOUND' : 'INBOUND'} MESSAGE:`, msg.body);
+  
   // Forward to CRM webhook if configured
   if (process.env.NEXT_BASE_URL) {
     try {

@@ -175,7 +175,7 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3 min-w-0 flex-1">
               <img
-                src="https://i.postimg.cc/xTPRSY4X/swar_yoga_new_logo.png"
+                src="/logo.png"
                 alt="Swar Yoga Logo"
                 className="w-10 h-10 rounded-lg flex-shrink-0"
               />
