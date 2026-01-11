@@ -44,6 +44,7 @@ const client = new Client({
     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
   },
   puppeteer: {
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     headless: true,
     args: [
       '--no-sandbox',
@@ -52,11 +53,14 @@ const client = new Client({
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--single-process',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-extensions',
     ]
   }
 });
+
+console.log('Using Puppeteer path:', process.env.PUPPETEER_EXECUTABLE_PATH || 'default');
 
 client.on('qr', (qr) => {
   console.log('QR RECEIVED', qr);

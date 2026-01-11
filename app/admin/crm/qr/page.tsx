@@ -6,6 +6,18 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function QRWhatsAppInboxPage() {
   const token = useAuth();
+  
+  // If no token, useAuth will redirect to login, but we should handle this gracefully
+  if (!token) {
+    return (
+      <div className="h-screen bg-white flex items-center justify-center font-jakarta">
+        <div className="text-center">
+          <p className="text-slate-500 font-bold">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
+
   const [status, setStatus] = useState('loading');
   const [qr, setQr] = useState<string | null>(null);
   const [chats, setChats] = useState<any[]>([]);
@@ -66,6 +78,11 @@ export default function QRWhatsAppInboxPage() {
     question: '', 
     options: ['', ''] 
   });
+  const [buttonModalOpen, setButtonModalOpen] = useState(false);
+  const [buttonData, setButtonData] = useState({
+    text: '',
+    buttons: ['', '', '']
+  });
 
   const [teamMembers, setTeamMembers] = useState<any[]>([
     { id: 'admin', name: 'System Admin' },
@@ -93,6 +110,10 @@ export default function QRWhatsAppInboxPage() {
   useEffect(() => {
     const checkStatus = async () => {
       try {
+        if (!token) {
+          setStatus('disconnected');
+          return;
+        }
         const res = await bridgeFetch(`${bridgeUrl}/status`);
         if (!res.ok) throw new Error('Bridge unreachable');
         const data = await res.json();
@@ -115,7 +136,7 @@ export default function QRWhatsAppInboxPage() {
     // Refresh status every 30s
     const timer = setInterval(checkStatus, 30000);
     return () => clearInterval(timer);
-  }, [bridgeUrl]);
+  }, [bridgeUrl, token]);
 
   const fetchQR = async () => {
     try {
@@ -128,7 +149,7 @@ export default function QRWhatsAppInboxPage() {
   };
 
   const fetchChats = async () => {
-    if (loadingChats) return;
+    if (loadingChats || !token) return;
     setLoadingChats(true);
     try {
       // 1. Try CRM API (with assignments logic)
@@ -498,6 +519,36 @@ export default function QRWhatsAppInboxPage() {
     }, 100);
   };
 
+  const sendButtons = async () => {
+    if (!buttonData.text.trim()) return;
+    const filteredButtons = buttonData.buttons.filter(b => b.trim() !== '');
+    if (filteredButtons.length === 0) return;
+
+    setSending(true);
+    try {
+      await fetch('/api/admin/crm/whatsapp/qr/send', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          to: selectedChatIdStr,
+          message: buttonData.text,
+          type: 'buttons',
+          buttons: filteredButtons
+        })
+      });
+      setButtonModalOpen(false);
+      setButtonData({ text: '', buttons: ['', '', ''] });
+      setTimeout(() => fetchMessages(selectedChatIdStr), 1500);
+    } catch (e) {
+      alert('Failed to send buttons');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const toggleThreadSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const next = new Set(selectedThreadIds);
@@ -576,13 +627,46 @@ export default function QRWhatsAppInboxPage() {
 
   if (status === 'disconnected') return (
     <div className="h-screen bg-rose-50 flex items-center justify-center p-6 font-jakarta">
-       <div className="bg-white max-w-md w-full rounded-[40px] shadow-2xl p-12 text-center space-y-6">
+       <div className="bg-white max-w-xl w-full rounded-[40px] shadow-2xl p-12 text-center space-y-6 overflow-y-auto max-h-[90vh]">
           <div className="w-24 h-24 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-5xl mb-4">
              <i className="ph-bold ph-plugs"></i>
           </div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Connection Lost</h2>
-          <p className="text-slate-500 font-medium leading-relaxed">The WhatsApp Bridge is currently unreachable. This could be due to maintenance or a server restart.</p>
-          <button onClick={() => window.location.reload()} className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black uppercase tracking-widest text-[11px] hover:bg-black transition-all shadow-xl active:scale-95">Retry Connection</button>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Bridge Unreachable</h2>
+          <p className="text-slate-500 font-medium leading-relaxed">External service at <span className="font-bold underline text-rose-600">{bridgeUrl}</span> is not responding.</p>
+          
+          <div className="text-left bg-slate-50 rounded-3xl p-6 border border-rose-100 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <i className="ph-fill ph-terminal text-rose-500"></i>
+              <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">VPS Troubleshooting Commands</p>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400">1. Check if Bridge is running:</p>
+                <code className="block bg-slate-900 text-emerald-400 p-3 rounded-xl text-xs font-mono">sudo docker ps | grep wa-bridge</code>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400">2. Restart Bridge service:</p>
+                <code className="block bg-slate-900 text-emerald-400 p-3 rounded-xl text-xs font-mono">cd ~/swaryoga/swaryoga.com-db/deploy/wa-bridge && sudo docker compose restart wa-bridge</code>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400">3. Check Nginx configuration:</p>
+                <code className="block bg-slate-900 text-emerald-400 p-3 rounded-xl text-xs font-mono">sudo nginx -t && sudo systemctl reload nginx</code>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-bold text-slate-400">4. Check Firewall (Port 443):</p>
+                <code className="block bg-slate-900 text-emerald-400 p-3 rounded-xl text-xs font-mono">sudo ufw status | grep 443</code>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <button onClick={() => window.location.reload()} className="flex-1 py-5 bg-slate-900 text-white rounded-3xl font-black uppercase tracking-widest text-[11px] hover:bg-black transition-all shadow-xl active:scale-95">Retry Sync</button>
+            <button onClick={startConnection} className="flex-1 py-5 bg-emerald-500 text-white rounded-3xl font-black uppercase tracking-widest text-[11px] hover:bg-emerald-600 transition-all shadow-xl active:scale-95">Force Connect</button>
+          </div>
+          
+          <p className="text-[10px] font-bold text-slate-400 pt-4 border-t border-slate-100">
+             Images, Videos, and Interactive Buttons are supported when bridge is online.
+          </p>
        </div>
     </div>
   );
@@ -677,6 +761,7 @@ export default function QRWhatsAppInboxPage() {
                 <div className={`divide-y ${theme === 'dark' ? 'divide-slate-800' : 'divide-slate-50'}`}>
                   {chats.filter(chat => {
                     const chatId = getChatIdStr(chat);
+                    if (!chatId) return false; // Filter out chats with empty IDs
                     const name = chat.name || chatId.split('@')[0] || '';
                     const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
                     if (!matchesSearch) return false;
@@ -685,6 +770,7 @@ export default function QRWhatsAppInboxPage() {
                     return true;
                   }).map((chat) => {
                     const chatId = getChatIdStr(chat);
+                    if (!chatId) return null; // Safety check
                     const isSelected = selectedChatIdStr === chatId;
                     return (
                       <div 
@@ -697,7 +783,7 @@ export default function QRWhatsAppInboxPage() {
                       >
                         <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200/50 shadow-sm relative">
                            <img 
-                            src={`https://ui-avatars.com/api/?name=${chat.name || chatId.split('@')[0]}&bg=0ea5e9&color=fff&bold=true`} 
+                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name || chatId.split('@')[0] || 'User')}&bg=0ea5e9&color=fff&bold=true`} 
                             alt="" 
                             className="w-full h-full object-cover"
                            />
@@ -748,7 +834,7 @@ export default function QRWhatsAppInboxPage() {
                 <div className="flex items-center gap-4 cursor-pointer" onClick={() => setRightSidebarOpen(!rightSidebarOpen)} title="View Contact Info">
                   <div className="w-12 h-12 rounded-[18px] bg-slate-100 overflow-hidden shadow-sm border border-slate-200/50 relative hover:scale-105 transition-transform">
                     <img 
-                      src={`https://ui-avatars.com/api/?name=${selectedChat.name || selectedChatIdStr.split('@')[0]}&bg=0ea5e9&color=fff&bold=true&size=128`} 
+                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(selectedChat.name || selectedChatIdStr.split('@')[0] || 'User')}&bg=0ea5e9&color=fff&bold=true&size=128`} 
                       alt="" 
                       className="w-full h-full object-cover" 
                     />
@@ -756,7 +842,7 @@ export default function QRWhatsAppInboxPage() {
                   </div>
                   <div>
                     <h3 className={`text-xl font-black leading-none mb-1 tracking-tighter ${currentTheme.text}`}>
-                      {selectedChat.name || (typeof selectedChatIdStr === 'string' ? selectedChatIdStr.split('@')[0] : 'Chat')}
+                      {selectedChat?.name || (typeof selectedChatIdStr === 'string' && selectedChatIdStr ? selectedChatIdStr.split('@')[0] : 'Chat')}
                     </h3>
                     <div className="flex items-center gap-2">
                        <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-1.5 py-0.5 rounded-md">Realtime Sync</span>
@@ -845,9 +931,19 @@ export default function QRWhatsAppInboxPage() {
                              {[
                                { id: 'image', label: 'Photo & Video', icon: 'ph-fill ph-image', color: 'bg-emerald-50 text-emerald-600' },
                                { id: 'document', label: 'Document', icon: 'ph-fill ph-file-text', color: 'bg-blue-50 text-blue-600' },
+                               { id: 'buttons', label: 'Interactive Buttons', icon: 'ph-fill ph-hand-tap', color: 'bg-indigo-50 text-indigo-600' },
                                { id: 'poll', label: 'Create Poll', icon: 'ph-fill ph-chart-bar', color: 'bg-rose-50 text-rose-600' },
                              ].map(item => (
-                               <button key={item.id} onClick={() => { if (item.id === 'poll') setPollModalOpen(true); else document.getElementById('bridge-file-upload')?.click(); setShowRichControls(false); }} className={`flex items-center gap-4 w-full p-3 rounded-2xl transition-all group ${theme === 'dark' ? 'hover:bg-slate-700' : 'hover:bg-slate-50'}`}>
+                               <button 
+                                 key={item.id} 
+                                 onClick={() => { 
+                                   if (item.id === 'poll') setPollModalOpen(true); 
+                                   else if (item.id === 'buttons') setButtonModalOpen(true);
+                                   else document.getElementById('bridge-file-upload')?.click(); 
+                                   setShowRichControls(false); 
+                                 }} 
+                                 className={`flex items-center gap-4 w-full p-3 rounded-2xl transition-all group ${theme === 'dark' ? 'hover:bg-slate-700' : 'hover:bg-slate-50'}`}
+                               >
                                   <div className={`w-10 h-10 rounded-xl ${item.color} flex items-center justify-center text-xl transition-transform group-hover:scale-110`}><i className={item.icon}></i></div>
                                   <span className={`text-[14px] font-bold group-hover:text-emerald-500 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{item.label}</span>
                                </button>
@@ -977,30 +1073,113 @@ export default function QRWhatsAppInboxPage() {
       )}
 
       {pollModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-             <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden">
-                <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-                   <h3 className="text-xl font-black text-slate-800 tracking-tighter">Create Poll</h3>
-                   <button onClick={() => setPollModalOpen(false)} className="p-2 text-slate-400"><i className="ph-bold ph-x text-xl"></i></button>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <div className={`w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 ${theme === 'dark' ? 'bg-slate-900 border border-slate-800' : 'bg-white'}`}>
+             <div className="p-8 space-y-6">
+                <div className="flex items-center justify-between">
+                   <h2 className={`text-2xl font-black tracking-tighter ${currentTheme.text}`}>Create Poll</h2>
+                   <button onClick={() => setPollModalOpen(false)} className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center"><i className="ph ph-x text-xl"></i></button>
                 </div>
-                <div className="p-6 space-y-4">
-                   <input type="text" value={pollData.question} onChange={(e) => setPollData({...pollData, question: e.target.value})} placeholder="Question" className="w-full p-4 bg-slate-50 rounded-2xl font-bold" />
+                
+                <div className="space-y-1">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Question</p>
+                   <input 
+                      type="text" 
+                      placeholder="e.g. Can you join today's session?" 
+                      className={`w-full border-2 p-4 rounded-2xl font-bold outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-50 text-slate-900 focus:bg-white focus:border-emerald-500'}`}
+                      value={pollData.question}
+                      onChange={e => setPollData({...pollData, question: e.target.value})}
+                   />
                 </div>
-                <div className="p-6 pt-0">
-                   <button onClick={() => { setPollModalOpen(false); }} className="w-full py-4 bg-[#00a884] text-white rounded-2xl font-black uppercase tracking-widest text-xs">Send Poll</button>
+
+                <div className="space-y-3">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Options</p>
+                   {pollData.options.map((opt, i) => (
+                      <div key={i} className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder={`Option ${i+1}`}
+                          className={`flex-1 border-2 p-3 rounded-xl font-bold outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-50 text-slate-900 focus:bg-white focus:border-emerald-500'}`}
+                          value={opt}
+                          onChange={e => {
+                            const next = [...pollData.options];
+                            next[i] = e.target.value;
+                            setPollData({...pollData, options: next});
+                          }}
+                        />
+                        {pollData.options.length > 2 && (
+                          <button onClick={() => setPollData({...pollData, options: pollData.options.filter((_, idx)=>idx!==i)})} className="text-rose-500 p-2"><i className="ph ph-trash"></i></button>
+                        )}
+                      </div>
+                   ))}
+                   {pollData.options.length < 5 && (
+                     <button onClick={() => setPollData({...pollData, options: [...pollData.options, '']})} className="text-[11px] font-black uppercase tracking-widest text-emerald-500">+ Add Option</button>
+                   )}
                 </div>
+
+                <button 
+                  onClick={sendPoll}
+                  className="w-full py-5 bg-emerald-500 text-white rounded-3xl font-black uppercase tracking-widest text-[11px] hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/30"
+                >
+                   Send as Text Fallback
+                </button>
              </div>
           </div>
+        </div>
       )}
 
-      {/* Hidden file upload input */}
-      <input 
-        id="bridge-file-upload" 
-        type="file" 
-        hidden 
-        onChange={handleFileUpload}
-        className="hidden"
-      />
+      {/* Button Modal */}
+      {buttonModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+          <div className={`w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 ${theme === 'dark' ? 'bg-slate-900 border border-slate-800' : 'bg-white'}`}>
+             <div className="p-8 space-y-6">
+                <div className="flex items-center justify-between">
+                   <h2 className={`text-2xl font-black tracking-tighter ${currentTheme.text}`}>Interactive Buttons</h2>
+                   <button onClick={() => setButtonModalOpen(false)} className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center"><i className="ph ph-x text-xl"></i></button>
+                </div>
+                
+                <p className="text-xs text-slate-400 font-medium leading-relaxed italic">Note: Real "blue buttons" work best with Cloud API. The Bridge uses WWebJS Buttons which may fallback to numbers on some phone OS versions.</p>
+
+                <div className="space-y-1">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Message Text</p>
+                   <textarea 
+                      placeholder="e.g. Please choose an option below:" 
+                      className={`w-full border-2 p-4 rounded-2xl font-bold outline-none transition-all min-h-[100px] resize-none ${theme === 'dark' ? 'bg-slate-800 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-50 text-slate-900 focus:bg-white focus:border-emerald-500'}`}
+                      value={buttonData.text}
+                      onChange={e => setButtonData({...buttonData, text: e.target.value})}
+                   />
+                </div>
+
+                <div className="space-y-3">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Button Options</p>
+                   {buttonData.buttons.map((btn, i) => (
+                      <input 
+                        key={i}
+                        type="text" 
+                        placeholder={`Button ${i+1} text (max 20 chars)`}
+                        maxLength={20}
+                        className={`w-full border-2 p-3 rounded-xl font-bold outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-800 text-white focus:border-emerald-500' : 'bg-slate-50 border-slate-50 text-slate-900 focus:bg-white focus:border-emerald-500'}`}
+                        value={btn}
+                        onChange={e => {
+                          const next = [...buttonData.buttons];
+                          next[i] = e.target.value;
+                          setButtonData({...buttonData, buttons: next});
+                        }}
+                      />
+                   ))}
+                </div>
+
+                <button 
+                  onClick={sendButtons}
+                  disabled={sending || !buttonData.text.trim()}
+                  className="w-full py-5 bg-emerald-500 text-white rounded-3xl font-black uppercase tracking-widest text-[11px] hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/30 disabled:opacity-50"
+                >
+                   {sending ? 'Sending...' : 'Send Interactive Message'}
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

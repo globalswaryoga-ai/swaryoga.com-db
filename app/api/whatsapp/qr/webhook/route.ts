@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { normalizePhone } from '@/lib/whatsapp';
+import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 
 /**
  * QR Chat webhook receiver.
@@ -129,18 +130,21 @@ async function ingestQRPayload(payload: any) {
 
   await connectDB();
 
-  const { getWhatsAppMessage } = await import('@/lib/schemas/enterpriseSchemas');
+  const { getWhatsAppMessage, getLead } = await import('@/lib/schemas/enterpriseSchemas');
   const WhatsAppMessage = getWhatsAppMessage();
+  const Lead = getLead();
 
   let created = 0;
   for (const m of messages) {
     const text = (m.text || '').trim();
     if (!text) continue;
 
+    const normalizedPhone = normalizePhone(m.from);
+
     const doc: any = {
       provider: 'whatsapp_qr',
       direction: 'inbound',
-      phoneNumber: m.from,
+      phoneNumber: normalizedPhone,
       messageContent: text,
       messageType: 'text',
       status: 'delivered',
@@ -166,11 +170,43 @@ async function ingestQRPayload(payload: any) {
       if (existing) continue;
     }
 
-    await WhatsAppMessage.create({
-      ...doc,
-      phoneNumber: normalizePhone(m.from)
-    });
+    // Check for existing lead or match
+    let lead = await Lead.findOne({ phoneNumber: normalizedPhone });
+    if (!lead) {
+        // Auto-create lead for incoming messages if it doesn't exist
+        lead = await Lead.create({
+            phoneNumber: normalizedPhone,
+            name: `QR Lead ${normalizedPhone}`,
+            source: 'whatsapp_qr',
+            status: 'Leads'
+        });
+    }
+    
+    doc.leadId = lead._id;
+
+    const newMessage = await WhatsAppMessage.create(doc);
     created++;
+
+    // TRIGGER AUTOMATIONS (Chatbot, Auto-replies, etc.)
+    if (text) {
+      try {
+        // Check if this is the first inbound message in recent history (e.g. 24h)
+        const count = await WhatsAppMessage.countDocuments({
+          leadId: lead._id,
+          direction: 'inbound',
+          sentAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+        });
+
+        await handleInboundWhatsAppAutomations({
+          leadId: lead._id,
+          phoneNumber: normalizedPhone,
+          messageBody: text,
+          wasFirstInbound: count <= 1 // Including current one
+        });
+      } catch (autoErr) {
+        console.error('[QR WEBHOOK AUTOMATION ERROR]:', autoErr);
+      }
+    }
   }
 
   return { count: created };
