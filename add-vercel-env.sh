@@ -55,6 +55,28 @@ curl -s -X POST \
     "target": ["production"]
   }' | jq . && echo "✓ NEXT_PUBLIC_WHATSAPP_BRIDGE_WS_URL added"
 
+# Add NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET
+curl -s -X POST \
+  "https://api.vercel.com/v10/projects/${PROJECT_ID}/env" \
+  -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET",
+    "value": "swar-bridge-secret-2024",
+    "target": ["production"]
+  }' | jq . && echo "✓ NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET added"
+
+# Add WHATSAPP_WEB_BRIDGE_SECRET
+curl -s -X POST \
+  "https://api.vercel.com/v10/projects/${PROJECT_ID}/env" \
+  -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "WHATSAPP_WEB_BRIDGE_SECRET",
+    "value": "swar-bridge-secret-2024",
+    "target": ["production"]
+  }' | jq . && echo "✓ WHATSAPP_WEB_BRIDGE_SECRET added"
+
 echo ""
 echo "✅ All environment variables added to Vercel!"
 echo ""
