@@ -49,11 +49,11 @@ export default function QRWhatsAppInboxPage() {
   const [theme, setTheme] = useState<'white' | 'dark' | 'green' | 'blue' | 'lavender'>('white');
 
   const themeConfig = {
-    white: { bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900', sidebar: 'bg-slate-50', chatBg: '#efeae2', header: 'bg-white/80' },
-    dark: { bg: 'bg-slate-900', border: 'border-slate-800', text: 'text-white', sidebar: 'bg-slate-950', chatBg: '#0f172a', header: 'bg-slate-900/80' },
-    green: { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-900', sidebar: 'bg-emerald-100/50', chatBg: '#dcfce7', header: 'bg-emerald-50/80' },
-    blue: { bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-900', sidebar: 'bg-blue-100/50', chatBg: '#dbeafe', header: 'bg-blue-50/80' },
-    lavender: { bg: 'bg-purple-50', border: 'border-purple-100', text: 'text-purple-900', sidebar: 'bg-purple-100/50', chatBg: '#f3e8ff', header: 'bg-purple-50/80' },
+    white: { bg: 'bg-white', border: 'border-slate-100', text: 'text-slate-900', sidebar: 'bg-slate-50/80', chatBg: '#efeae2', header: 'bg-white/90' },
+    dark: { bg: 'bg-slate-950', border: 'border-slate-800', text: 'text-white', sidebar: 'bg-slate-900', chatBg: '#0b141a', header: 'bg-slate-900/95' },
+    green: { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-900', sidebar: 'bg-emerald-100/40', chatBg: '#dcfce7', header: 'bg-emerald-50/90' },
+    blue: { bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-900', sidebar: 'bg-blue-100/40', chatBg: '#dbeafe', header: 'bg-blue-50/90' },
+    lavender: { bg: 'bg-purple-50', border: 'border-purple-100', text: 'text-purple-900', sidebar: 'bg-purple-100/40', chatBg: '#f3e8ff', header: 'bg-purple-50/90' },
   };
 
   const currentTheme = themeConfig[theme];
@@ -131,6 +131,7 @@ export default function QRWhatsAppInboxPage() {
     if (loadingChats) return;
     setLoadingChats(true);
     try {
+      // 1. Try CRM API (with assignments logic)
       const res = await fetch('/api/admin/crm/whatsapp/qr/chats', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -139,9 +140,18 @@ export default function QRWhatsAppInboxPage() {
       const data = await res.json();
       if (data.success && Array.isArray(data.chats)) {
         setChats(data.chats);
+        return;
+      }
+      
+      // 2. Fallback: Try direct bridge (if CRM API is unreachable or fails)
+      console.warn('CRM Chats API failed, trying direct bridge fallback...');
+      const bridgeRes = await bridgeFetch(`${bridgeUrl}/chats`);
+      const bridgeData = await bridgeRes.json();
+      if (Array.isArray(bridgeData.chats)) {
+        setChats(bridgeData.chats);
       }
     } catch (e) {
-      console.error('Failed to fetch filtered chats');
+      console.error('Failed to fetch chats from all sources');
     } finally {
       setLoadingChats(false);
     }
@@ -264,80 +274,29 @@ export default function QRWhatsAppInboxPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check size - if > 25MB we might want to warn
-    if (file.size > 25 * 1024 * 1024) {
-      if (!window.confirm('This file is over 25MB. Upload might take a while. Continue?')) return;
+    // Check size - if > 5MB we warn about base64 size
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File too large for direct sending (>5MB). Please compress it first or use a direct URL.');
+      return;
     }
 
     setIsUploading(true);
     
     try {
-      // 1. Get Presigned URL
-      const presignedRes = await fetch('/api/admin/crm/upload/s3/presigned', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document',
-          contentType: file.type
-        })
-      });
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
+        
+        const confirmSend = window.confirm(`Send ${file.name} to this contact?`);
+        if (!confirmSend) {
+          setIsUploading(false);
+          return;
+        }
 
-      if (presignedRes.status === 401) {
-        throw new Error('Unauthorized: Your session may have expired. Please login again.');
-      }
-
-      const presignedData = await presignedRes.json();
-      if (!presignedData.success) {
-        throw new Error(presignedData.error || 'Failed to get upload URL');
-      }
-
-      const { uploadUrl, publicUrl, key, indirectUrl } = presignedData.data;
-
-      // 2. Upload DIRECTLY to S3
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type
-        },
-        body: file
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error(`Upload to S3 failed: ${uploadRes.statusText}`);
-      }
-
-      // 3. Save to Media Database
-      await fetch('/api/admin/crm/media/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          originalName: file.name,
-          s3Key: key,
-          contentType: file.type,
-          size: file.size,
-          category: 'social_media'
-        })
-      });
-
-      // 4. Success! Set the media state
-      const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
-      // Use indirect link for internal CRM viewing
-      setMediaUrl(indirectUrl);
-      setMediaType(type as any);
-      setShowRichControls(true);
-
-      // AUTO-SEND if a chat is selected
-      if (selectedChatIdStr) {
-        const confirmSend = window.confirm(`File uploaded successfully. Send ${type} now?`);
-        if (confirmSend) {
-           await fetch('/api/admin/crm/whatsapp/qr/send', {
+        try {
+          const response = await fetch('/api/admin/crm/whatsapp/qr/send', {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
@@ -345,22 +304,31 @@ export default function QRWhatsAppInboxPage() {
             },
             body: JSON.stringify({ 
               to: selectedChatIdStr, 
-              message: newMessage || `Sent an ${type}`,
-              type: type,
-              url: publicUrl // Using public URL for WhatsApp sending
+              type: type, 
+              url: base64Data, // Simple logic: send base64 directly to our bridge
+              caption: '',
+              message: ''
             })
           });
-          setMediaUrl('');
-          setMediaType('text');
-          setShowRichControls(false);
-          setNewMessage('');
-          setTimeout(() => fetchMessages(selectedChatIdStr), 1500);
+
+          if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || 'Failed to send file');
+          }
+
+          setIsUploading(false);
+          alert('Message sent successfully!');
+          // Refresh messages
+          if (selectedChatIdStr) {
+             fetchMessages(selectedChatIdStr);
+          }
+        } catch (err: any) {
+          alert(err.message || 'Send failed');
+          setIsUploading(false);
         }
-      }
+      };
     } catch (err: any) {
-      alert(err.message || 'Upload failed');
-      console.error('Upload Error:', err);
-    } finally {
+      alert('Failed to process file');
       setIsUploading(false);
     }
   };
@@ -695,9 +663,15 @@ export default function QRWhatsAppInboxPage() {
 
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {loadingChats ? (
-               <div className="p-8 flex flex-col items-center justify-center gap-3 opacity-40">
-                  <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-[10px] font-black uppercase tracking-tighter">Syncing Chats...</span>
+               <div className="p-12 flex flex-col items-center justify-center gap-4 opacity-40">
+                  <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-[11px] font-black uppercase tracking-[0.2em]">Syncing Threads...</span>
+               </div>
+            ) : chats.length === 0 ? (
+               <div className="p-12 text-center space-y-4 opacity-30 mt-10">
+                  <i className="ph-bold ph-chats-teardrop text-6xl"></i>
+                  <p className="text-[13px] font-bold">No conversations found</p>
+                  <button onClick={handleRefresh} className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-500">Retry Sync</button>
                </div>
             ) : (
                 <div className={`divide-y ${theme === 'dark' ? 'divide-slate-800' : 'divide-slate-50'}`}>
@@ -904,19 +878,30 @@ export default function QRWhatsAppInboxPage() {
               </div>
             </>
           ) : (
-            <div className={`flex-1 flex flex-col items-center justify-center gap-6 relative overflow-hidden transition-colors duration-500 ${
-              theme === 'dark' ? 'bg-slate-950 text-slate-600' : currentTheme.sidebar + ' ' + currentTheme.text + ' opacity-60'
+            <div className={`flex-1 flex flex-col items-center justify-center gap-8 relative overflow-hidden transition-colors duration-500 ${
+              theme === 'dark' ? 'bg-slate-950 text-slate-600' : 'bg-slate-50/50'
             }`}>
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 blur-[120px] rounded-full"></div>
-               <div className={`w-40 h-40 rounded-[40px] shadow-2xl flex items-center justify-center border relative overflow-hidden ${
-                 theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'
-               }`}>
-                  <img src="/logo-square.png" alt="" className="w-24 h-24 grayscale opacity-10" />
-                  <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-emerald-500"></div>
+               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-500/5 blur-[120px] rounded-full animate-pulse"></div>
+               <div className="relative group">
+                  <div className={`w-40 h-40 rounded-[48px] shadow-2xl flex items-center justify-center border-4 relative overflow-hidden transition-all duration-700 group-hover:scale-105 group-hover:rotate-3 ${
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800 shadow-emerald-500/5' : 'bg-white border-white shadow-slate-200/50'
+                  }`}>
+                     <img src="/logo-square.png" alt="" className="w-24 h-24 grayscale opacity-10 group-hover:scale-110 transition-transform duration-700" />
+                     <div className="absolute inset-x-0 bottom-0 h-2 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600"></div>
+                  </div>
+                  <div className="absolute -bottom-4 -right-4 w-12 h-12 bg-white rounded-2xl shadow-xl flex items-center justify-center text-emerald-500 text-xl border-4 border-slate-50">
+                    <i className="ph-fill ph-whatsapp-logo"></i>
+                  </div>
                </div>
-               <div className="text-center space-y-3 z-10">
-                  <h3 className={`text-3xl font-black tracking-tighter ${currentTheme.text}`}>Swar Yoga WhatsApp</h3>
-                  <p className="text-[15px] text-slate-500 max-w-sm mx-auto font-medium">Select a conversation to start chatting.</p>
+               <div className="text-center space-y-4 z-10">
+                  <h3 className={`text-4xl font-black tracking-tighter ${currentTheme.text} opacity-20`}>Swar Yoga WhatsApp</h3>
+                  <div className="flex flex-col items-center gap-2">
+                     <p className={`text-[15px] font-bold max-w-sm mx-auto ${currentTheme.text} opacity-40`}>Select a conversation to start chatting.</p>
+                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600">
+                        <i className="ph-fill ph-shield-check"></i>
+                        <span className="text-[10px] font-black uppercase tracking-widest">End-to-End Secure</span>
+                     </div>
+                  </div>
                </div>
             </div>
           )}

@@ -199,17 +199,30 @@ app.post('/send', authenticate, async (req, res) => {
     let response;
     
     if (type === 'image' || type === 'video' || type === 'document') {
-      console.log(`Media Send [${type}]: ${url}`);
-      if (!url) return res.status(400).json({ error: `Missing ${type} URL` });
+      console.log(`Media Send [${type}]: ${url || 'base64-data'}`);
+      
       try {
-        const media = await MessageMedia.fromUrl(url, { unsafe: true });
+        let media;
+        if (url && url.startsWith('data:')) {
+          // It's a data URI
+          const parts = url.split(';base64,');
+          const mimetype = parts[0].split(':')[1];
+          const data = parts[1];
+          media = new MessageMedia(mimetype, data, caption || 'file');
+        } else if (url) {
+          // It's a URL
+          media = await MessageMedia.fromUrl(url, { unsafe: true });
+        } else {
+          return res.status(400).json({ error: `Missing ${type} URL or base64 data` });
+        }
+
         response = await client.sendMessage(formattedTo, media, { 
           caption: caption || message,
           sendMediaAsDocument: type === 'document'
         });
       } catch (mediaErr) {
-        console.error('FAILED TO FETCH MEDIA FROM URL:', mediaErr.message);
-        return res.status(500).json({ error: 'Failed to fetch media from URL. Ensure it is a direct link.' });
+        console.error('FAILED TO PROCESS MEDIA:', mediaErr.message);
+        return res.status(500).json({ error: 'Failed to process media. Ensure it is a valid URL or base64 data.' });
       }
     } else if (type === 'buttons') {
       console.log('Buttons Send');

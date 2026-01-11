@@ -43,28 +43,31 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, chats: data.chats });
     }
 
-    // 3. Filter by assignedToUserId for regular admins
+    // 3. Filter for regular admins: Show their assigned leads OR unassigned ones.
     await connectDB();
     const Lead = getLead();
     
-    // Extract phone numbers from bridge chats (id format "919876543210@c.us")
+    // Extract phone numbers from bridge chats
     const phoneNumbers = data.chats.map((c: any) => {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
       return idStr.split('@')[0];
     }).filter(Boolean);
 
-    // Find leads assigned to this user among these phone numbers
+    // Find all leads for these numbers
     const leads = await Lead.find({
-      phoneNumber: { $in: phoneNumbers },
-      assignedToUserId: viewerUserId
+      phoneNumber: { $in: phoneNumbers }
     }).select('phoneNumber assignedToUserId');
 
-    const allowedPhones = new Set(leads.map(l => l.phoneNumber));
+    const leadMap = new Map();
+    leads.forEach(l => leadMap.set(l.phoneNumber, l.assignedToUserId));
 
     const filteredChats = data.chats.filter((c: any) => {
       const idStr = typeof c.id === 'string' ? c.id : (c.id?._serialized || '');
       const phone = idStr.split('@')[0];
-      return allowedPhones.has(phone);
+      
+      const assignedTo = leadMap.get(phone);
+      // Show if unassigned OR assigned to viewer
+      return !assignedTo || assignedTo === viewerUserId;
     });
 
     return NextResponse.json({ success: true, chats: filteredChats });
