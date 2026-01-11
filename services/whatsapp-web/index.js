@@ -1,10 +1,14 @@
 const { Client, LocalAuth, MessageMedia, Buttons } = require('whatsapp-web.js');
 const express = require('express');
 const http = require('http');
+const path = require('path');
+const fs = require('fs');
 const { Server } = require('socket.io');
 const qrcode = require('qrcode');
 const cors = require('cors');
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -22,13 +26,28 @@ const BRIDGE_PORT = process.env.WHATSAPP_WEB_PORT || 3333;
 const CLIENT_ID = process.env.WHATSAPP_CLIENT_ID || 'crm-whatsapp-session';
 const BRIDGE_SECRET = process.env.WHATSAPP_WEB_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 
-// Middleware for basic protection
-const authenticate = (req, res, next) => {
-  const secret = req.headers['x-bridge-secret'];
-  if (BRIDGE_SECRET && secret !== BRIDGE_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized bridge access' });
+// Helper to find the Chrome binary installed via 'npx puppeteer browsers install chrome'
+const getPuppeteerPath = () => {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  
+  const homeDir = require('os').homedir();
+  const chromeDir = path.join(homeDir, '.cache', 'puppeteer', 'chrome');
+  
+  try {
+    if (fs.existsSync(chromeDir)) {
+      const versions = fs.readdirSync(chromeDir);
+      for (const version of versions) {
+        const fullPath = path.join(chromeDir, version, 'chrome-linux64', 'chrome');
+        if (fs.existsSync(fullPath)) {
+          console.log(`- Found Chrome at: ${fullPath}`);
+          return fullPath;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error searching for chrome binary:', e.message);
   }
-  next();
+  return undefined;
 };
 
 let qrCodeData = null;
@@ -44,7 +63,7 @@ const client = new Client({
     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
   },
   puppeteer: {
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+    executablePath: getPuppeteerPath(),
     headless: "new",
     args: [
       '--no-sandbox',
