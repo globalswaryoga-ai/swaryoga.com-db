@@ -1,0 +1,44 @@
+# Systemd unit to run the WhatsApp Web bridge persistently on EC2
+#
+# Install (on EC2):
+#   sudo cp deploy/systemd/swaryoga-whatsapp-bridge.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now swaryoga-whatsapp-bridge
+#   sudo systemctl status swaryoga-whatsapp-bridge
+#
+# Logs:
+#   journalctl -u swaryoga-whatsapp-bridge -f
+#
+# Required env is usually stored in:
+#   /etc/default/swaryoga-whatsapp-bridge
+#
+# Example /etc/default/swaryoga-whatsapp-bridge:
+#   WHATSAPP_WEB_PORT=3333
+#   WHATSAPP_CLIENT_ID=crm-whatsapp-session
+#   WHATSAPP_WEB_BRIDGE_SECRET=...
+#   PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+#   NEXT_BASE_URL=https://your-domain.com
+
+[Unit]
+Description=SwarYoga WhatsApp Web Bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/swaryoga.com-db/services/whatsapp-web
+EnvironmentFile=-/etc/default/swaryoga-whatsapp-bridge
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=3
+
+# Hardening (safe defaults)
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Give Chromium some room; adjust if needed
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

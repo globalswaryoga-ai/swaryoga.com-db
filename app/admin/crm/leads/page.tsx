@@ -48,6 +48,7 @@ type LeadFormValues = {
 
 type AdminUserOption = {
   userId: string;
+  name?: string;
   email?: string;
   permissions?: string[];
 };
@@ -147,6 +148,7 @@ export default function LeadsPage() {
           users
             .map((x: any) => ({
               userId: String(x?.userId || '').trim(),
+              name: x?.name ? String(x.name) : undefined,
               email: x?.email ? String(x.email) : undefined,
               permissions: Array.isArray(x?.permissions) ? x.permissions : undefined,
             }))
@@ -386,7 +388,7 @@ export default function LeadsPage() {
     if (!id) return '';
     const match = (userOptions || []).find((u: any) => String(u?.userId || '').trim() === id);
     if (!match) return id;
-    return String(match?.userId || match?.email || id);
+    return String(match?.name || match?.email || match?.userId || id);
   };
 
   const columns: LeadColumn[] = [
@@ -507,9 +509,9 @@ export default function LeadsPage() {
           </button>
 
           <button
-            onClick={() => router.push(`/admin/crm/whatsapp?leadId=${encodeURIComponent(lead._id)}`)}
+            onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}`)}
             className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-            title="Open WhatsApp"
+            title="Open QR WhatsApp"
           >
             <span aria-hidden>🟢</span>
             WhatsApp
@@ -775,7 +777,7 @@ export default function LeadsPage() {
                   <option value="">All Users</option>
                   {userOptions.map((u) => (
                     <option key={u.userId} value={u.userId}>
-                      {u.email || u.userId}
+                      {u.name || u.email || u.userId}
                     </option>
                   ))}
                 </select>
@@ -878,7 +880,7 @@ export default function LeadsPage() {
                       <option value="">Assign User (optional)</option>
                       {userOptions.map((u) => (
                         <option key={u.userId} value={u.userId}>
-                          {u.email || u.userId}
+                          {u.name || u.email || u.userId}
                         </option>
                       ))}
                     </select>
@@ -1031,25 +1033,28 @@ export default function LeadsPage() {
           cancelLabel="Cancel"
         >
           <div className="space-y-4">
-            {isSuperAdmin && (
-              <div>
-                <label className="block text-slate-700 text-sm mb-2 font-semibold">Assign to User (Optional)</label>
-                <select
-                  name="assignedToUserId"
-                  value={form.values.assignedToUserId || ''}
-                  onChange={form.handleChange}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
-                >
-                  <option value="">(Default: current admin)</option>
-                  {userOptions.map((u) => (
+            {/* Admin User Assignment - visible to all admins */}
+            <div>
+              <label className="block text-slate-700 text-sm mb-2 font-semibold">Assign to Admin User (Optional)</label>
+              <select
+                name="assignedToUserId"
+                value={form.values.assignedToUserId || ''}
+                onChange={form.handleChange}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+              >
+                <option value="">(Default: current admin)</option>
+                {isSuperAdmin && userOptions.length > 0 ? (
+                  userOptions.map((u) => (
                     <option key={u.userId} value={u.userId}>
-                      {u.userId}
+                      {u.name || u.email || u.userId}
                     </option>
-                  ))}
-                </select>
-                <p className="text-slate-600 text-xs mt-1">This controls which user can see/manage this lead.</p>
-              </div>
-            )}
+                  ))
+                ) : (
+                  <option value="" disabled>Loading users...</option>
+                )}
+              </select>
+              <p className="text-slate-600 text-xs mt-1">This controls which admin user can see/manage this lead.</p>
+            </div>
             <div>
               <label className="block text-slate-700 text-sm mb-2 font-semibold">Name *</label>
               <input

@@ -1,0 +1,184 @@
+
+# ╔════════════════════════════════════════════════════════════════════════════╗
+# ║                   WhatsApp QR - macOS Terminal Commands                   ║
+# ║                          Quick Reference v1.0                             ║
+# ╚════════════════════════════════════════════════════════════════════════════╝
+
+# 🚀 FIRST TIME SETUP (Run once)
+qa-setup                           # Interactive setup wizard
+source ~/.zshrc                    # Reload shell aliases
+
+# 🔌 BRIDGE MANAGEMENT
+qa-bridge-status                   # Check if bridge is running
+qa-bridge-start                    # Start WhatsApp bridge (Docker)
+qa-bridge-restart                  # Restart bridge (fixes most issues)
+qa-bridge-stop                     # Stop bridge
+qa-bridge-logs                     # View live logs (Ctrl+C to exit)
+
+# 💻 DEVELOPMENT SERVER
+qa-dev-start                       # Start Next.js on :3020
+qa-qr-open                         # Open QR page in browser
+
+# 📊 DIAGNOSTICS & TESTING
+qa-diagnose                        # Full health check (bridges, server, DB)
+qa-test-flow                       # Test send/receive pipeline
+
+# 💾 DATABASE QUERIES
+qa-db-check                        # Check MongoDB connectivity
+qa-db-messages                     # List last 10 messages
+qa-db-leads                        # List last 10 leads
+
+# ⚙️  CONFIGURATION
+qa-config-bridge                   # Edit bridge .env
+qa-config-app                      # Edit app .env.local
+
+# 📖 HELP
+qa-help                            # Show all commands (you're reading it!)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TYPICAL DAILY WORKFLOW
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# TERMINAL 1: Monitor Bridge
+qa-bridge-start
+qa-bridge-logs          # Keep this open to see real-time events
+
+# TERMINAL 2: Run Dev Server
+qa-dev-start            # Starts on http://localhost:3020
+
+# TERMINAL 3: Testing & Debugging
+qa-diagnose             # Check everything is working
+qa-test-flow            # Test complete pipeline
+qa-db-messages          # See incoming messages
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TROUBLESHOOTING
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# "Bridge not responding"
+qa-diagnose                        # Check status
+qa-bridge-restart                  # Restart it
+sleep 10
+qa-bridge-status                   # Verify it's back
+
+# "Can't see messages"
+qa-db-check                        # Test database
+qa-bridge-logs | grep -i error     # Look for errors
+qa-test-flow                       # Test everything
+
+# "QR page shows error"
+qa-dev-start                       # Make sure dev server is running
+qa-bridge-start                    # Make sure bridge is running
+qa-test-flow                       # Test both together
+
+# "Need to restart everything"
+qa-bridge-restart
+sleep 10
+qa-diagnose
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# EXPECTED OUTPUT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# ✅ Bridge Status (Connected)
+$ qa-bridge-status
+{
+  "status": "connected",
+  "connected": true,
+  "chats": 5
+}
+
+# ✅ Full Diagnostics (All Green)
+$ qa-diagnose
+1. System Info
+   macOS: 14.2.1 ✓
+   Node: v18.17.0 ✓
+   Docker: running ✓
+
+2. Services
+   ✓ Local Bridge (127.0.0.1:3333)
+   ✓ Dev Server (localhost:3020)
+   ✓ VPS Bridge (wa-bridge.swaryoga.com)
+
+3. Database
+   ✓ MongoDB connected
+
+# ✅ Recent Messages (Data flowing)
+$ qa-db-messages
+[
+  {
+    "phoneNumber": "+919123456789",
+    "messageContent": "Hello team!",
+    "direction": "inbound"
+  },
+  ...
+]
+
+# ✅ QR Page Loading
+$ qa-test-flow
+✓ Bridge running (status: connected)
+✓ Dev server running on :3020
+✓ Database connected
+
+Next steps:
+1. Open: http://localhost:3020/admin/crm/qr
+2. Messages should load automatically
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# NEXT: Register Team Members
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Once QR is working:
+# 1. Login to CRM admin panel
+# 2. Add team members:
+#    - Name: [Team member name]
+#    - Email: [Team member email]
+#    - Role: admin
+#    - userId: [Unique ID like "mohan", "sales_1"]
+#
+# 3. Assign leads to team members:
+#    - Lead → Assign to: [Team member]
+#
+# 4. Team members log in and see only their assigned chats
+#
+# 5. All outgoing messages show who sent them (attribution)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# KEYBOARD SHORTCUTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# In any terminal:
+↑↑↑                     # Arrow up to repeat last command
+Ctrl+C                  # Stop running command
+Ctrl+L                  # Clear screen
+Ctrl+A                  # Go to start of line
+Ctrl+E                  # Go to end of line
+
+# While viewing logs:
+Ctrl+C                  # Exit log viewer
+q                       # (if using pager)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# IMPORTANT FILES
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/Users/mohankalburgi/swaryoga.com-db/.env.local
+    → App configuration (MongoDB, Bridge URLs, Secrets)
+
+/Users/mohankalburgi/swaryoga.com-db/deploy/wa-bridge/.env
+    → Bridge configuration (origins, secrets, session ID)
+
+/Users/mohankalburgi/swaryoga.com-db/app/admin/crm/qr/page.tsx
+    → QR inbox UI code
+
+/Users/mohankalburgi/swaryoga.com-db/WHATSAPP_QR_TERMINAL_GUIDE.md
+    → Full documentation (read this for detailed info!)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# CREATED: January 2026
+# Print this card and keep it near your desk! 📋
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

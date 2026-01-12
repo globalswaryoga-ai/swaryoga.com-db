@@ -640,18 +640,16 @@ export default function SalesPage() {
                 return;
               }
 
-              // Route into our CRM WhatsApp inbox (keeps everything inside the admin tool).
+              // Route into QR WhatsApp page (shared WhatsApp session).
               // If leadId exists, prefer it; otherwise fallback to phone.
-              const message = `Hi ${sale.customerName || ''} — here are your receipt details. I can also send the PDF if needed.`.trim();
               const params = new URLSearchParams();
               if (sale.leadId) params.set('leadId', String(sale.leadId));
               if (phone) params.set('phone', phone);
-              if (message) params.set('message', message);
 
-              router.push(`/admin/crm/whatsapp?${params.toString()}`);
+              router.push(`/admin/crm/qr?${params.toString()}`);
             }}
             className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-medium transition-colors"
-            title="WhatsApp"
+            title="QR WhatsApp"
           >
             WhatsApp
           </button>

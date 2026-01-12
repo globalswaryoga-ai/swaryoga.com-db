@@ -42,6 +42,14 @@ type ChatMessage = {
 
 type ActionMode = 'notes' | 'whatsapp' | 'meta' | 'email' | 'sms' | 'todos' | 'reminder' | 'nextFollowup' | 'labels';
 
+// Helper to convert mouse-resizable textarea height to row count
+const getRowsFromHeight = (height: number): number => {
+  const lineHeight = 24; // Approximate line height in pixels
+  const padding = 8; // Padding top/bottom
+  const rows = Math.max(3, Math.min(8, Math.round((height - padding) / lineHeight)));
+  return rows;
+};
+
 type HeaderPreview = {
   leadId: string;
   actionType: ActionMode;
@@ -211,6 +219,7 @@ function LeadsFollowupPageContent() {
 
   const [actionMode, setActionMode] = useState<ActionMode>('notes');
   const [message, setMessage] = useState('');
+  const [textareaRows, setTextareaRows] = useState(8);
   const [aiCorrecting, setAiCorrecting] = useState(false);
   const [followupStatus, setFollowupStatus] = useState<'pending' | 'in-progress' | 'completed'>('pending');
   const [todos, setTodos] = useState('');
@@ -1737,9 +1746,15 @@ function LeadsFollowupPageContent() {
                           <textarea
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
+                            onMouseUp={(e) => {
+                              const target = e.currentTarget;
+                              const rows = getRowsFromHeight(target.offsetHeight);
+                              setTextareaRows(rows);
+                            }}
                             placeholder="Type your message here... (*bold* _italic_ ~strikethrough~ ```code```)"
-                            className="w-full px-4 py-4 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none text-sm"
-                            rows={8}
+                            className="w-full px-4 py-4 border border-slate-300 rounded-lg focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-vertical text-sm"
+                            rows={textareaRows}
+                            style={{ minHeight: '72px', maxHeight: '192px' }}
                           />
                           <div className="mt-2 flex items-center justify-between">
                             <button

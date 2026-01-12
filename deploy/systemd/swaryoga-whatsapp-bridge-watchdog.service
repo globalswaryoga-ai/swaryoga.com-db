@@ -1,0 +1,35 @@
+# Optional systemd unit: watchdog that monitors /health and restarts bridge if needed.
+#
+# Install (on EC2):
+#   sudo cp deploy/systemd/swaryoga-whatsapp-bridge-watchdog.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now swaryoga-whatsapp-bridge-watchdog
+#
+# Set env in:
+#   /etc/default/swaryoga-whatsapp-bridge-watchdog
+#
+# Example /etc/default/swaryoga-whatsapp-bridge-watchdog:
+#   WHATSAPP_BRIDGE_HTTP_URL=http://localhost:3333
+#   WHATSAPP_BRIDGE_SECRET=...
+#   WATCHDOG_INTERVAL_MS=15000
+#   WATCHDOG_RESTART_COOLDOWN_MS=120000
+#   WATCHDOG_MAX_CONSECUTIVE_FAILS=3
+
+[Unit]
+Description=SwarYoga WhatsApp Bridge Watchdog
+After=network-online.target swaryoga-whatsapp-bridge.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/swaryoga.com-db
+EnvironmentFile=-/etc/default/swaryoga-whatsapp-bridge-watchdog
+ExecStart=/usr/bin/node scripts/whatsapp-bridge-watchdog.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

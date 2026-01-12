@@ -109,9 +109,42 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      // Current shared helper sends text. For media-only sends we still enqueue + store,
-      // and attempt to send a blank/placeholder text to avoid hard failure.
-      const apiResult = await sendWhatsAppText(to, hasText ? String(messageContent) : '');
+      // Route based on provider
+      let apiResult: any;
+
+      if (providerScope === 'qr') {
+        // For QR/WhatsApp Web Bridge: skip Meta and go directly to bridge
+        const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
+        const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
+
+        if (!bridgeUrl || !bridgeSecret) {
+          throw new Error('QR Bridge is not configured (missing WHATSAPP_BRIDGE_HTTP_URL or WHATSAPP_WEB_BRIDGE_SECRET)');
+        }
+
+        const bridgeRes = await fetch(`${bridgeUrl}/api/messages/send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-bridge-secret': bridgeSecret,
+          },
+          body: JSON.stringify({
+            phone: to,
+            message: hasText ? String(messageContent) : '(media)',
+          }),
+          cache: 'no-store',
+        });
+
+        const bridgeData = await bridgeRes.json().catch(() => ({}));
+
+        if (!bridgeRes.ok) {
+          throw new Error(bridgeData?.error || `QR Bridge error: ${bridgeRes.statusText}`);
+        }
+
+        apiResult = { waMessageId: bridgeData?.messageId || 'qr-sent', raw: { ...bridgeData, provider: 'whatsapp_qr' } };
+      } else {
+        // For Meta: use the shared helper
+        apiResult = await sendWhatsAppText(to, hasText ? String(messageContent) : '');
+      }
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
@@ -127,6 +160,7 @@ export async function POST(request: NextRequest) {
             messageId: messageRecord._id,
             status: 'sent',
             waMessageId: apiResult.waMessageId,
+            provider: providerScope,
           },
         },
         { status: 200 }
@@ -148,6 +182,7 @@ export async function POST(request: NextRequest) {
             status: 'queued',
             via: 'database',
             warning: message.substring(0, 120),
+            provider: providerScope,
           },
         },
         { status: 202 }

@@ -19,11 +19,13 @@ function asString(v: unknown): string | undefined {
  * Supports whatsapp-web.js message_create payloads (id._serialized, fromMe, body, to).
  */
 export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[] {
-  const list: any[] =
-    (Array.isArray(payload?.messages) && payload.messages) ||
-    (Array.isArray(payload?.data?.messages) && payload.data.messages) ||
-    (Array.isArray(payload?.message) && payload.message) ||
-    (payload?.message && typeof payload.message === 'object' ? [payload.message] : []);
+  let list: any[] = [];
+
+  if (Array.isArray(payload?.messages)) list = payload.messages;
+  else if (Array.isArray(payload?.data?.messages)) list = payload.data.messages;
+  else if (Array.isArray(payload?.message)) list = payload.message;
+  else if (payload?.message && typeof payload.message === 'object') list = [payload.message];
+  else if (payload?.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) list = [payload.data];
 
   if (!list.length) {
     // Common single-message shapes

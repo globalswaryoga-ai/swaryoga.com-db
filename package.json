@@ -23,7 +23,11 @@
     "pm2:logs": "pm2 logs swar-yoga-web",
     "pm2:status": "pm2 status",
     "pm2:monit": "pm2 monit",
-    "bridge": "cd services/whatsapp-web && node index.js"
+    "bridge": "cd services/whatsapp-web && node index.js",
+    "bridge:smoke": "node scripts/whatsapp-bridge-smoke.js",
+    "bridge:pm2:start": "pm2 start services/whatsapp-web/ecosystem.config.cjs",
+    "bridge:pm2:restart": "pm2 restart swaryoga-whatsapp-bridge",
+    "bridge:pm2:logs": "pm2 logs swaryoga-whatsapp-bridge"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",

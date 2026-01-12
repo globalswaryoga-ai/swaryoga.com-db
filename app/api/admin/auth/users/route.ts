@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all admin users (minimal fields for assignment UI)
     const adminUsers = await User.find({ isAdmin: true })
-      .select('_id userId email role isAdmin createdAt')
+      .select('_id userId email name role isAdmin createdAt')
       .lean();
 
     return NextResponse.json({ success: true, data: adminUsers }, { status: 200 });
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { userId, email, password, permissions } = await request.json();
+    const { userId, email, password, name, permissions } = await request.json();
 
     // Validation
     if (!userId || !email || !password) {
@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
     const newAdminUser = new User({
       userId,
       email,
+      name: name || userId, // Use provided name or default to userId
       password: hashedPassword,
       isAdmin: true,
       role: 'admin',
@@ -116,6 +117,7 @@ export async function POST(request: NextRequest) {
           _id: newAdminUser._id,
           userId: newAdminUser.userId,
           email: newAdminUser.email,
+          name: newAdminUser.name,
           permissions: newAdminUser.permissions,
           createdAt: newAdminUser.createdAt,
         },

@@ -101,6 +101,7 @@ export default function AdminRoot() {
   const [loading, setLoading] = useState(true);
   const [adminUser, setAdminUser] = useState('');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [hasCRMPermission, setHasCRMPermission] = useState(false);
 
   useEffect(() => {
     const token = typeof window !== 'undefined'
@@ -113,17 +114,21 @@ export default function AdminRoot() {
       const user = getStoredAdminUser();
       setAdminUser(user.userId || 'Admin');
       const perms = Array.isArray(user.permissions) ? user.permissions : [];
-      setIsSuperAdmin((user.userId || '') === 'admin' || perms.includes('all'));
+      const superAdmin = (user.userId || '') === 'admin' || perms.includes('all');
+      const hasCRM = superAdmin || perms.includes('crm');
+      setIsSuperAdmin(superAdmin);
+      setHasCRMPermission(hasCRM);
       setLoading(false);
     }
   }, [router]);
 
   // Requested behavior:
   // - Full-access admin (admin / permissions: ['all']) can open Dashboard + Admin CRM.
-  // - Other admin users can open only User CRM.
+  // - CRM admin (permissions: ['crm']) can open CRM only.
+  // - Other admin users cannot access CRM.
   const canDashboard = isSuperAdmin;
   const canAdminCRM = isSuperAdmin;
-  const canUserCRM = true;
+  const canUserCRM = hasCRMPermission;
 
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
@@ -193,11 +198,11 @@ export default function AdminRoot() {
             icon={<Users size={40} className="text-white" />}
           />
           <Card
-            href="/admin/users"
+            href="/admin/crm"
             enabled={canUserCRM}
-            title="User CRM"
-            description="CRM access for users based on the permissions you assign."
-            cta="→ Open User CRM"
+            title={isSuperAdmin ? "CRM (Admin)" : "CRM"}
+            description={isSuperAdmin ? "Full admin CRM access (leads, templates, analytics, admin controls)." : "CRM access for managing leads, chats, templates, and analytics."}
+            cta={isSuperAdmin ? "→ Open Admin CRM" : "→ Open CRM"}
             gradientClass="bg-gradient-to-br from-purple-600 to-purple-800"
             icon={<UserCheck size={40} className="text-white" />}
           />

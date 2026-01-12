@@ -425,7 +425,7 @@ export default function AdminCommunityPage() {
       }
     };
     fetchMembers();
-  }, [selectedCommunity, statusFilter, token]);
+   }, [selectedCommunity, statusFilter, token, router]);
 
   const filteredMembers = members.filter(member => 
     (member.name.toLowerCase().includes(searchQuery.toLowerCase()) || member.mobile.includes(searchQuery)) && 

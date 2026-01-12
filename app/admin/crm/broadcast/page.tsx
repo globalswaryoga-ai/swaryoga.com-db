@@ -18,7 +18,7 @@ type LeadRow = {
   assignedToUserId?: string;
 };
 
-type AdminUserRow = { _id: string; userId?: string; email?: string };
+type AdminUserRow = { _id: string; userId?: string; email?: string; name?: string };
 
 type WhatsAppTemplateRow = {
   _id: string;
@@ -573,7 +573,7 @@ export default function BroadcastPage() {
                   <option value="">All</option>
                   {adminUsers.map((u) => (
                     <option key={u._id} value={u.userId || ''}>
-                      {u.userId || u.email || u._id}
+                      {u.name || u.userId || u.email || u._id}
                     </option>
                   ))}
                 </select>

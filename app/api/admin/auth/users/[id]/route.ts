@@ -46,6 +46,14 @@ export async function PUT(
       update.email = email;
     }
 
+    // Name (optional)
+    if (body.name !== undefined) {
+      const name = String(body.name || '').trim();
+      if (name) {
+        update.name = name;
+      }
+    }
+
     // Permissions (optional)
     if (body.permissions !== undefined) {
       const permissions = Array.isArray(body.permissions)

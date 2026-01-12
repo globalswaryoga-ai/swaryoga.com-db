@@ -9,6 +9,8 @@ interface CRMStats {
   totalLeads: number;
   totalSales: number;
   totalMessages: number;
+  metaMessagesSent: number;
+  qrWhatsappMessagesSent: number;
   conversionRate: number;
 }
 
@@ -87,6 +89,8 @@ export default function CRMDashboard() {
           totalLeads: overview.totalLeads,
           totalSales: overview.totalSales || 0,
           totalMessages: overview.totalMessages || 0,
+          metaMessagesSent: overview.metaMessagesSent || 0,
+          qrWhatsappMessagesSent: overview.qrWhatsappMessagesSent || 0,
           conversionRate: parseFloat(conversionRate as string),
         });
         setError(null);
@@ -100,7 +104,7 @@ export default function CRMDashboard() {
     };
 
     fetchStats();
-  }, [token]);
+  }, [token, router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -135,7 +139,7 @@ export default function CRMDashboard() {
               { href: '/admin/crm', label: 'Overview', icon: '📊' },
               { href: '/admin/crm/leads', label: 'Leads', icon: '👥' },
               { href: '/admin/crm/meta', label: 'Meta Inbox', icon: '🟢' },
-              { href: '/admin/crm/qr', label: 'QR WhatsApp', icon: '💚' },
+              { href: '/admin/crm/qr', label: 'QR WhatsApp Inbox', icon: '💚' },
               { href: '/admin/crm/leads-followup', label: 'Leads Followup', icon: '📋' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
               { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
@@ -143,6 +147,7 @@ export default function CRMDashboard() {
               { href: '/admin/crm/labels', label: 'Labels', icon: '🏷️' },
               { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
               { href: '/admin/crm/permissions', label: 'Consent', icon: '✅' },
+              { href: '/admin/crm/users', label: 'Admin Users', icon: '🔐' },
             ].map((item) => (
               <Link
                 key={item.href}
@@ -166,8 +171,8 @@ export default function CRMDashboard() {
 
           {/* Stats Grid */}
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-              {[1, 2, 3, 4].map((i) => (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+              {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="bg-slate-700/50 backdrop-blur rounded-xl p-6 animate-pulse h-24" />
               ))}
             </div>
@@ -196,7 +201,7 @@ export default function CRMDashboard() {
               </div>
             </div>
           ) : stats ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
               <StatCard
                 label="Total Leads"
                 value={stats.totalLeads}
@@ -212,11 +217,18 @@ export default function CRMDashboard() {
                 href="/admin/crm/sales"
               />
               <StatCard
-                label="Messages Sent"
-                value={stats.totalMessages}
+                label="Meta Messages"
+                value={stats.metaMessagesSent}
                 icon="💬"
                 color="from-purple-500 to-purple-600"
-                href="/admin/crm/messages"
+                href="/admin/crm/meta"
+              />
+              <StatCard
+                label="QR WhatsApp Messages"
+                value={stats.qrWhatsappMessagesSent}
+                icon="💚"
+                color="from-emerald-500 to-teal-600"
+                href="/admin/crm/qr"
               />
               <StatCard
                 label="Conversion Rate"
@@ -244,21 +256,15 @@ export default function CRMDashboard() {
                 </Link>
                 <Link
                   href="/admin/crm/meta"
-                  className="block bg-[#1E7F43] hover:bg-[#166235] text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
+                  className="block bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
                   🟢 Meta Inbox
                 </Link>
                 <Link
                   href="/admin/crm/qr"
-                  className="block bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
+                  className="block bg-gradient-to-r from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
                 >
-                  🟢 QR WhatsApp
-                </Link>
-                <Link
-                  href="/admin/crm/whatsapp"
-                  className="block bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-lg transition-colors text-center font-medium"
-                >
-                  WhatsApp Inbox
+                  🟢 QR WhatsApp Inbox
                 </Link>
                 <Link
                   href="/admin/crm/sales"
