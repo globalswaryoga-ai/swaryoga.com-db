@@ -54,16 +54,29 @@ export async function PUT(
       }
     }
 
-    // Permissions (optional)
+    // Permissions V2 (new granular permissions - optional)
+    if (body.permissionsV2 !== undefined) {
+      update.permissionsV2 = body.permissionsV2;
+    }
+
+    // Permissions (legacy - optional, for backward compatibility)
     if (body.permissions !== undefined) {
       const permissions = Array.isArray(body.permissions)
         ? body.permissions.map((p: any) => String(p).trim()).filter(Boolean)
         : [];
-      if (permissions.length === 0) {
+      if (permissions.length === 0 && !update.permissionsV2) {
         return NextResponse.json({ error: 'At least one permission is required' }, { status: 400 });
       }
-      const validPermissions = ['all', 'crm', 'whatsapp', 'email'];
-      const invalidPerms = permissions.filter((p: string) => !validPermissions.includes(p));
+      const validPermissions = [
+        'all', 'crm', 'whatsapp', 'email', 'broadcasts', 'analytics', 
+        'users', 'workshops', 'templates', 'settings', 'payments', 'reports',
+        // Also accept granular format like "leads:read"
+      ];
+      const invalidPerms = permissions.filter((p: string) => {
+        // Allow granular format "module:action"
+        if (p.includes(':')) return false;
+        return !validPermissions.includes(p);
+      });
       if (invalidPerms.length > 0) {
         return NextResponse.json(
           { error: `Invalid permissions: ${invalidPerms.join(', ')}` },

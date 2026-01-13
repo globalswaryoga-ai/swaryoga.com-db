@@ -351,6 +351,78 @@ app.get('/contact/:contactId', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /group/:chatId - Get group details including description and invite link
+app.get('/group/:chatId', authMiddleware, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    console.log(`[group] Fetching group details: ${chatId}`);
+    
+    // Find the group chat
+    const groupChat = chats.find(c => c.id._serialized === chatId && c.isGroup);
+    
+    if (!groupChat) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    
+    // Get group metadata
+    let groupInfo = {
+      id: groupChat.id._serialized,
+      name: groupChat.name,
+      isGroup: true,
+      description: null,
+      inviteCode: null,
+      participants: [],
+      owner: null,
+      createdAt: null,
+      profilePicUrl: null
+    };
+    
+    try {
+      // Get full group metadata
+      const groupMetadata = await groupChat.groupMetadata;
+      
+      if (groupMetadata) {
+        groupInfo.description = groupMetadata.desc || null;
+        groupInfo.owner = groupMetadata.owner ? groupMetadata.owner._serialized : null;
+        groupInfo.createdAt = groupMetadata.creation ? groupMetadata.creation * 1000 : null;
+        groupInfo.participants = groupMetadata.participants ? groupMetadata.participants.map((p) => ({
+          id: p.id._serialized,
+          isAdmin: p.isAdmin || false,
+          isSuperAdmin: p.isSuperAdmin || false
+        })) : [];
+      }
+      
+      // Try to get invite code/link
+      try {
+        const inviteCode = await groupChat.getInviteCode();
+        if (inviteCode) {
+          groupInfo.inviteCode = inviteCode;
+        }
+      } catch (inviteErr) {
+        console.warn(`[group] Could not get invite code: ${inviteErr.message}`);
+      }
+      
+      // Try to get profile picture
+      try {
+        const profilePicUrl = await groupChat.getProfilePicUrl();
+        if (profilePicUrl) {
+          groupInfo.profilePicUrl = profilePicUrl;
+        }
+      } catch (picErr) {
+        console.warn(`[group] Could not get profile picture: ${picErr.message}`);
+      }
+      
+    } catch (metaErr) {
+      console.warn(`[group] Could not get full metadata: ${metaErr.message}`);
+    }
+    
+    res.json(groupInfo);
+  } catch (err) {
+    console.error('[group] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /messages/:chatId - Get messages
 app.get('/messages/:chatId', authMiddleware, async (req, res) => {
   try {
@@ -360,13 +432,40 @@ app.get('/messages/:chatId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Chat not found' });
     }
     const messages = await chat.fetchMessages({ limit: 50 });
-    const formattedMessages = messages.map(msg => ({
-      id: msg.id._serialized,
-      body: msg.body,
-      fromMe: msg.fromMe,
-      timestamp: msg.timestamp,
-      author: msg.author || msg.from
+    
+    // Format messages with media support
+    const formattedMessages = await Promise.all(messages.map(async (msg) => {
+      const formatted = {
+        id: msg.id._serialized,
+        body: msg.body,
+        fromMe: msg.fromMe,
+        timestamp: msg.timestamp,
+        author: msg.author || msg.from,
+        hasMedia: msg.hasMedia,
+        ack: msg.ack,
+        type: msg.type
+      };
+      
+      // If message has media, try to download and get URL
+      if (msg.hasMedia) {
+        try {
+          const media = await msg.downloadMedia();
+          if (media) {
+            // Convert media to data URL for display
+            formatted.mediaUrl = `data:${media.mimetype};base64,${media.data}`;
+            formatted.mediaMimetype = media.mimetype;
+            formatted.mediaFilename = media.filename;
+          }
+        } catch (mediaErr) {
+          console.warn(`[messages] Failed to download media for message ${msg.id._serialized}:`, mediaErr.message);
+          // Don't fail the whole request, just mark that media failed
+          formatted.mediaError = 'Failed to download media';
+        }
+      }
+      
+      return formatted;
     }));
+    
     res.json({ messages: formattedMessages });
   } catch (err) {
     console.error('Error fetching messages:', err);
@@ -444,18 +543,62 @@ app.post('/media/upload', authMiddleware, upload.single('file'), async (req, res
 // POST /send - Send message
 app.post('/send', authMiddleware, async (req, res) => {
   try {
-    const { chatId, message } = req.body;
-    if (!chatId || !message) {
-      return res.status(400).json({ error: 'Missing chatId or message' });
+    const { chatId, message, to, media, caption } = req.body;
+    
+    // Support both chatId and to parameters
+    const targetChatId = chatId || to;
+    const messageText = message || caption || '';
+    
+    if (!targetChatId) {
+      return res.status(400).json({ error: 'Missing chatId or to parameter' });
     }
     
-    console.log(`[send] Sending message to ${chatId}: "${message.substring(0, 50)}..."`);
+    console.log(`[send] Sending ${media ? 'media' : 'text'} message to ${targetChatId}`);
+    if (media) {
+      console.log(`[send] Media URL: ${media}`);
+    }
+    if (messageText) {
+      console.log(`[send] Message: "${messageText.substring(0, 50)}..."`);
+    }
     
     // Try to find chat in loaded chats
-    const chat = chats.find(c => c.id._serialized === chatId);
+    let chat = chats.find(c => c.id._serialized === targetChatId);
     if (!chat) {
-      console.warn(`[send] Chat not found in loaded chats. Available chats: ${chats.length}`);
-      return res.status(404).json({ error: 'Chat not found' });
+      console.warn(`[send] Chat not found in loaded chats. Will try to send to number directly. Available chats: ${chats.length}`);
+      
+      // Try to send to the number directly
+      if (!client || !sessionReady) {
+        console.error('[send] Client not ready');
+        return res.status(503).json({ error: 'WhatsApp client not connected' });
+      }
+      
+      try {
+        const { MessageMedia } = require('whatsapp-web.js');
+        
+        if (media) {
+          // Download media from URL and send
+          console.log(`[send] Downloading media from: ${media}`);
+          const mediaData = await MessageMedia.fromUrl(media);
+          const sentMessage = await client.sendMessage(targetChatId, mediaData, { caption: messageText });
+          console.log(`[send] Media message sent successfully: ${sentMessage.id._serialized}`);
+        } else if (messageText) {
+          const sentMessage = await client.sendMessage(targetChatId, messageText);
+          console.log(`[send] Text message sent successfully: ${sentMessage.id._serialized}`);
+        } else {
+          return res.status(400).json({ error: 'No message or media provided' });
+        }
+        
+        return res.json({ 
+          success: true, 
+          message: 'Message sent'
+        });
+      } catch (sendErr) {
+        console.error('[send] Failed to send via client:', sendErr.message);
+        return res.status(400).json({ 
+          error: sendErr.message,
+          details: 'Failed to send message. Chat may not exist.'
+        });
+      }
     }
     
     // Check if client is ready
@@ -466,13 +609,33 @@ app.post('/send', authMiddleware, async (req, res) => {
     
     // Send the message with error handling
     try {
-      const sentMessage = await chat.sendMessage(message);
-      console.log(`[send] Message sent successfully: ${sentMessage.id._serialized}`);
-      res.json({ 
-        success: true, 
-        message: 'Message sent',
-        messageId: sentMessage.id._serialized
-      });
+      if (media) {
+        // Send media message
+        const { MessageMedia } = require('whatsapp-web.js');
+        
+        console.log(`[send] Downloading media from: ${media}`);
+        const mediaData = await MessageMedia.fromUrl(media);
+        const sentMessage = await chat.sendMessage(mediaData, { caption: messageText });
+        console.log(`[send] Media message sent successfully: ${sentMessage.id._serialized}`);
+        
+        res.json({ 
+          success: true, 
+          message: 'Media message sent',
+          messageId: sentMessage.id._serialized
+        });
+      } else if (messageText) {
+        // Send text message
+        const sentMessage = await chat.sendMessage(messageText);
+        console.log(`[send] Text message sent successfully: ${sentMessage.id._serialized}`);
+        
+        res.json({ 
+          success: true, 
+          message: 'Message sent',
+          messageId: sentMessage.id._serialized
+        });
+      } else {
+        return res.status(400).json({ error: 'No message or media provided' });
+      }
     } catch (sendErr) {
       console.error('[send] Failed to send message:', sendErr.message);
       // Return 503 if it's a connection issue, 400 for other errors

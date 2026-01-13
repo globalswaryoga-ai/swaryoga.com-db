@@ -1239,6 +1239,111 @@ const CrmReceiptSchema = new mongoose.Schema(
 CrmReceiptSchema.index({ leadId: 1, issuedAt: -1 });
 CrmReceiptSchema.index({ customerPhone: 1, issuedAt: -1 });
 
+// ============================================================================
+// EMAIL AUTOMATION SCHEMAS
+// ============================================================================
+
+// Email Template Schema
+const EmailTemplateSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    subject: { type: String, required: true },
+    body: { type: String, required: true },
+    category: { type: String },
+    variables: [{ type: String }],
+    createdBy: { type: String },
+  },
+  { timestamps: true, collection: 'email_templates' }
+);
+
+EmailTemplateSchema.index({ name: 1 });
+EmailTemplateSchema.index({ category: 1 });
+
+// Email Campaign Schema
+const EmailCampaignSchema = new mongoose.Schema(
+  {
+    name: { type: String },
+    subject: { type: String, required: true },
+    body: { type: String, required: true },
+    templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate' },
+    recipients: [{ type: String }], // Array of email addresses
+    status: { 
+      type: String, 
+      enum: ['draft', 'scheduled', 'sending', 'sent', 'failed'],
+      default: 'draft'
+    },
+    scheduledAt: { type: Date },
+    sentAt: { type: Date },
+    stats: {
+      total: { type: Number, default: 0 },
+      sent: { type: Number, default: 0 },
+      delivered: { type: Number, default: 0 },
+      opened: { type: Number, default: 0 },
+      clicked: { type: Number, default: 0 },
+      bounced: { type: Number, default: 0 },
+      failed: { type: Number, default: 0 },
+    },
+    createdBy: { type: String, required: true },
+  },
+  { timestamps: true, collection: 'email_campaigns' }
+);
+
+EmailCampaignSchema.index({ status: 1, scheduledAt: 1 });
+EmailCampaignSchema.index({ createdBy: 1, createdAt: -1 });
+
+// Follow-up Sequence Schema
+const FollowUpSequenceSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    description: { type: String },
+    trigger: { 
+      type: String, 
+      enum: ['manual', 'lead_created', 'workshop_registered', 'payment_received', 'custom'],
+      required: true 
+    },
+    steps: [{
+      id: { type: String, required: true },
+      delayDays: { type: Number, required: true, default: 1 },
+      delayHours: { type: Number, default: 0 },
+      templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'EmailTemplate' },
+      subject: { type: String, required: true },
+      body: { type: String, required: true },
+      condition: { type: String },
+    }],
+    active: { type: Boolean, default: true },
+    stats: {
+      triggered: { type: Number, default: 0 },
+      completed: { type: Number, default: 0 },
+      inProgress: { type: Number, default: 0 },
+    },
+    createdBy: { type: String },
+  },
+  { timestamps: true, collection: 'followup_sequences' }
+);
+
+FollowUpSequenceSchema.index({ active: 1, trigger: 1 });
+FollowUpSequenceSchema.index({ createdBy: 1 });
+
+// Follow-up Instance Schema (tracks individual follow-up executions)
+const FollowUpInstanceSchema = new mongoose.Schema(
+  {
+    sequenceId: { type: mongoose.Schema.Types.ObjectId, ref: 'FollowUpSequence', required: true },
+    leadId: { type: String, required: true },
+    currentStep: { type: Number, default: 0 },
+    status: { type: String, enum: ['active', 'completed', 'paused', 'cancelled'], default: 'active' },
+    nextExecutionAt: { type: Date },
+    executedSteps: [{
+      stepId: String,
+      executedAt: Date,
+      status: String,
+    }],
+  },
+  { timestamps: true, collection: 'followup_instances' }
+);
+
+FollowUpInstanceSchema.index({ leadId: 1, status: 1 });
+FollowUpInstanceSchema.index({ nextExecutionAt: 1, status: 1 });
+
 
 // ============================================================================
 // MODEL INITIALIZATION (LAZY - DEFERRED TO FIRST USE)
@@ -1316,6 +1421,10 @@ export function getChatbotFlow() { return getModel('ChatbotFlow', ChatbotFlowSch
 export function getChatbotSettings() { return getModel('ChatbotSettings', ChatbotSettingsSchema); }
 export function getCrmReceipt() { return getModel('CrmReceipt', CrmReceiptSchema); }
 export function getMediaFile() { return getModel('MediaFile', MediaFileSchema); }
+export function getEmailTemplate() { return getModel('EmailTemplate', EmailTemplateSchema); }
+export function getEmailCampaign() { return getModel('EmailCampaign', EmailCampaignSchema); }
+export function getFollowUpSequence() { return getModel('FollowUpSequence', FollowUpSequenceSchema); }
+export function getFollowUpInstance() { return getModel('FollowUpInstance', FollowUpInstanceSchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
@@ -1347,3 +1456,7 @@ export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
 export const CrmReceipt = createModelProxy('CrmReceipt', CrmReceiptSchema);
 export const MediaFile = createModelProxy('MediaFile', MediaFileSchema);
+export const EmailTemplate = createModelProxy('EmailTemplate', EmailTemplateSchema);
+export const EmailCampaign = createModelProxy('EmailCampaign', EmailCampaignSchema);
+export const FollowUpSequence = createModelProxy('FollowUpSequence', FollowUpSequenceSchema);
+export const FollowUpInstance = createModelProxy('FollowUpInstance', FollowUpInstanceSchema);

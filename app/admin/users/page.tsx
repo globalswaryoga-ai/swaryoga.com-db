@@ -3,14 +3,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Users, LogOut, Menu, X, UserPlus, Pencil, Trash2 } from 'lucide-react';
+import { Users, LogOut, Menu, X, UserPlus, Pencil, Trash2, Shield } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
+import PermissionManager from '@/components/admin/PermissionManager';
+import { UserPermissions, migrateOldPermissions, getUserPermissionsList } from '@/lib/permissions';
 
 type AdminUserRow = {
   _id: string;
   userId: string;
   email?: string;
-  permissions?: string[];
+  permissions?: string[]; // Legacy
+  permissionsV2?: UserPermissions; // New granular permissions
   createdAt?: string;
 };
 
@@ -34,12 +37,15 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
-  const [permissionMode, setPermissionMode] = useState<'all' | 'selected'>('selected');
+  
+  // Permission state - supports both legacy and new V2
+  const [permissionMode, setPermissionMode] = useState<'legacy' | 'granular'>('granular');
   const [selectedPermissions, setSelectedPermissions] = useState({
     crm: true,
     whatsapp: false,
     email: false,
   });
+  const [granularPermissions, setGranularPermissions] = useState<UserPermissions>({ isSuperAdmin: false });
 
   const token = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -134,18 +140,26 @@ export default function AdminUsersPage() {
     setSelectedUser(u);
     setEditEmail(String(u.email || '').trim());
     setEditPassword('');
-    const perms = Array.isArray(u.permissions) ? u.permissions : [];
-    if (perms.includes('all')) {
-      setPermissionMode('all');
-      setSelectedPermissions({ crm: true, whatsapp: false, email: false });
+    
+    // Load permissions - prefer V2, fallback to legacy
+    if (u.permissionsV2) {
+      setPermissionMode('granular');
+      setGranularPermissions(u.permissionsV2);
     } else {
-      setPermissionMode('selected');
+      // Migrate legacy permissions to V2 format
+      const legacyPerms = Array.isArray(u.permissions) ? u.permissions : [];
+      const migratedPerms = migrateOldPermissions(legacyPerms);
+      setPermissionMode('granular');
+      setGranularPermissions(migratedPerms);
+      
+      // Also set legacy checkboxes for backward compatibility view
       setSelectedPermissions({
-        crm: perms.includes('crm') || perms.length === 0,
-        whatsapp: perms.includes('whatsapp'),
-        email: perms.includes('email'),
+        crm: legacyPerms.includes('crm') || legacyPerms.includes('all') || legacyPerms.length === 0,
+        whatsapp: legacyPerms.includes('whatsapp') || legacyPerms.includes('all'),
+        email: legacyPerms.includes('email') || legacyPerms.includes('all'),
       });
     }
+    
     setEditMsg('');
     setEditOpen(true);
   };
@@ -155,11 +169,23 @@ export default function AdminUsersPage() {
   };
 
   const buildPermissionsPayload = () => {
-    if (permissionMode === 'all') return ['all'];
-    const chosen = (Object.keys(selectedPermissions) as Array<keyof typeof selectedPermissions>)
-      .filter((k) => selectedPermissions[k])
-      .map((k) => String(k));
-    return chosen;
+    if (permissionMode === 'granular') {
+      // Use new granular permissions
+      return {
+        permissionsV2: granularPermissions,
+        // Also generate legacy array for backward compatibility
+        permissions: getUserPermissionsList(granularPermissions),
+      };
+    } else {
+      // Legacy mode (for backward compatibility)
+      const chosen = (Object.keys(selectedPermissions) as Array<keyof typeof selectedPermissions>)
+        .filter((k) => selectedPermissions[k])
+        .map((k) => String(k));
+      return {
+        permissions: chosen.length > 0 ? chosen : ['crm'],
+        permissionsV2: migrateOldPermissions(chosen),
+      };
+    }
   };
 
   const saveEdit = async () => {
@@ -175,13 +201,27 @@ export default function AdminUsersPage() {
       return;
     }
 
-    const permissions = buildPermissionsPayload();
-    if (permissions.length === 0) {
-      setEditMsg('Select at least one permission (CRM/WhatsApp/Email) or choose Full Access.');
-      return;
+    const permissionsPayload = buildPermissionsPayload();
+    
+    // Validate that at least some permission is granted
+    if (permissionMode === 'granular' && !granularPermissions.isSuperAdmin) {
+      const hasSomePermission = Object.keys(granularPermissions).some(key => {
+        if (key === 'isSuperAdmin') return false;
+        const module = (granularPermissions as any)[key];
+        return module && typeof module === 'object' && Object.values(module).some(v => v === true);
+      });
+      
+      if (!hasSomePermission) {
+        setEditMsg('Select at least one permission or enable Super Administrator.');
+        return;
+      }
     }
 
-    const body: Record<string, any> = { email, permissions };
+    const body: Record<string, any> = { 
+      email, 
+      ...permissionsPayload 
+    };
+    
     const password = editPassword;
     if (password && password.trim().length > 0) {
       body.password = password;
@@ -270,17 +310,75 @@ export default function AdminUsersPage() {
     }
   };
 
-  const PermissionBadges = ({ permissions }: { permissions?: string[] }) => {
-    const perms = Array.isArray(permissions) ? permissions : [];
-    if (perms.includes('all')) {
-      return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">all</span>;
+  const PermissionBadges = ({ user }: { user: AdminUserRow }) => {
+    const legacyPerms = Array.isArray(user.permissions) ? user.permissions : [];
+    const v2Perms = user.permissionsV2;
+    
+    // Show V2 if available, otherwise fall back to legacy
+    if (v2Perms) {
+      if (v2Perms.isSuperAdmin) {
+        return (
+          <div className="flex items-center gap-1">
+            <Shield className="w-3 h-3 text-purple-600" />
+            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+              Super Admin
+            </span>
+          </div>
+        );
+      }
+      
+      // Count enabled modules
+      const enabledModules: string[] = [];
+      Object.keys(v2Perms).forEach(module => {
+        if (module === 'isSuperAdmin') return;
+        const modulePerms = (v2Perms as any)[module];
+        if (modulePerms && typeof modulePerms === 'object') {
+          const hasAnyPermission = Object.values(modulePerms).some(v => v === true);
+          if (hasAnyPermission) {
+            enabledModules.push(module);
+          }
+        }
+      });
+      
+      if (enabledModules.length === 0) {
+        return <span className="text-xs text-red-600">No permissions</span>;
+      }
+      
+      return (
+        <div className="flex flex-wrap gap-1">
+          {enabledModules.slice(0, 3).map((module) => (
+            <span key={module} className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+              {module}
+            </span>
+          ))}
+          {enabledModules.length > 3 && (
+            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+              +{enabledModules.length - 3} more
+            </span>
+          )}
+        </div>
+      );
     }
-    if (perms.length === 0) {
+    
+    // Legacy permission display
+    if (legacyPerms.includes('all')) {
+      return (
+        <div className="flex items-center gap-1">
+          <Shield className="w-3 h-3 text-blue-600" />
+          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+            all (legacy)
+          </span>
+        </div>
+      );
+    }
+    
+    if (legacyPerms.length === 0) {
       return <span className="text-xs text-swar-text-secondary">—</span>;
     }
+    
     return (
       <div className="flex flex-wrap gap-1">
-        {PERMISSION_KEYS.filter((k) => perms.includes(k)).map((p) => (
+        {PERMISSION_KEYS.filter((k) => legacyPerms.includes(k)).map((p) => (
           <span key={p} className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-swar-primary-light text-swar-text">
             {p}
           </span>
@@ -372,7 +470,7 @@ export default function AdminUsersPage() {
                           <td className="px-6 py-4 text-sm text-swar-text font-semibold">{u.userId}</td>
                           <td className="px-6 py-4 text-sm text-swar-text-secondary">{u.email || '—'}</td>
                           <td className="px-6 py-4 text-sm">
-                            <PermissionBadges permissions={u.permissions} />
+                            <PermissionBadges user={u} />
                           </td>
                           <td className="px-6 py-4 text-sm text-swar-text-secondary">
                             {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
@@ -477,25 +575,46 @@ export default function AdminUsersPage() {
               </div>
 
               <div className="mt-5 border-t border-swar-border pt-4">
-                <p className="text-sm font-semibold text-swar-text mb-2">Permissions</p>
-                <div className="flex flex-col gap-3">
-                  <label className="flex items-start gap-3">
-                    <input
-                      type="radio"
-                      name="permission-mode"
-                      checked={permissionMode === 'selected'}
-                      onChange={() => setPermissionMode('selected')}
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm font-semibold text-swar-text">Permissions</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPermissionMode('legacy')}
+                      className={`text-xs px-3 py-1 rounded ${
+                        permissionMode === 'legacy' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
                       disabled={editBusy}
-                      className="mt-1"
-                    />
-                    <div>
-                      <div className="font-semibold text-swar-text">Custom</div>
-                      <div className="text-sm text-swar-text-secondary">Select CRM/WhatsApp/Email.</div>
-                    </div>
-                  </label>
+                    >
+                      Legacy View
+                    </button>
+                    <button
+                      onClick={() => setPermissionMode('granular')}
+                      className={`text-xs px-3 py-1 rounded ${
+                        permissionMode === 'granular' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                      disabled={editBusy}
+                    >
+                      Granular Permissions
+                    </button>
+                  </div>
+                </div>
 
-                  {permissionMode === 'selected' && (
-                    <div className="ml-7 grid grid-cols-1 md:grid-cols-3 gap-3 bg-swar-primary-light rounded-lg p-3">
+                {permissionMode === 'granular' ? (
+                  <PermissionManager
+                    initialPermissions={granularPermissions}
+                    onChange={setGranularPermissions}
+                    disabled={editBusy}
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                      ⚠️ <strong>Legacy Mode:</strong> This is the old permission system. We recommend using Granular Permissions for better control.
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-swar-primary-light rounded-lg p-3">
                       <label className="flex items-center gap-2 text-sm text-swar-text">
                         <input
                           type="checkbox"
@@ -524,23 +643,8 @@ export default function AdminUsersPage() {
                         Email
                       </label>
                     </div>
-                  )}
-
-                  <label className="flex items-start gap-3">
-                    <input
-                      type="radio"
-                      name="permission-mode"
-                      checked={permissionMode === 'all'}
-                      onChange={() => setPermissionMode('all')}
-                      disabled={editBusy}
-                      className="mt-1"
-                    />
-                    <div>
-                      <div className="font-semibold text-swar-text">Full Access (all)</div>
-                      <div className="text-sm text-swar-text-secondary">Use only for trusted admins.</div>
-                    </div>
-                  </label>
-                </div>
+                  </div>
+                )}
               </div>
 
               {editMsg && (

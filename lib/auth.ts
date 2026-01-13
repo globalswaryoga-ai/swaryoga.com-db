@@ -11,6 +11,7 @@ export interface TokenPayload {
   username?: string;
   role?: string;
   permissions?: string[];
+  permissionsV2?: Record<string, Record<string, boolean>>;
 }
 
 export const generateToken = (payload: TokenPayload): string => {

@@ -30,6 +30,8 @@ export default function QRWhatsAppInboxPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showContactPanel, setShowContactPanel] = useState(false);
   const [contactDetails, setContactDetails] = useState<any>(null);
+  const [showGroupPanel, setShowGroupPanel] = useState(false);
+  const [groupDetails, setGroupDetails] = useState<any>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [showNewContactModal, setShowNewContactModal] = useState(false);
@@ -385,7 +387,36 @@ export default function QRWhatsAppInboxPage() {
           if (res.ok) {
             const data = await res.json();
             console.log('[loadChats] Got chats:', data.chats?.length || 0);
-            setChats(data.chats || []);
+            
+            // Merge strategy: preserve lead data to prevent flickering
+            setChats((prevChats) => {
+              const newChats = data.chats || [];
+              const prevChatsMap = new Map(
+                prevChats.map((chat) => [
+                  typeof chat.id === 'string' ? chat.id : chat.id?._serialized,
+                  chat
+                ])
+              );
+              
+              return newChats.map((newChat: any) => {
+                const chatId = typeof newChat.id === 'string' ? newChat.id : newChat.id?._serialized;
+                const existingChat = prevChatsMap.get(chatId);
+                
+                // Preserve lead data if it exists
+                if (existingChat && (existingChat.leadId || existingChat.displayName)) {
+                  return {
+                    ...newChat,
+                    displayName: existingChat.displayName || newChat.displayName,
+                    leadId: existingChat.leadId,
+                    leadStatus: existingChat.leadStatus,
+                    leadLabel: existingChat.leadLabel,
+                  };
+                }
+                
+                return newChat;
+              });
+            });
+            
             setBridgeError(null);
           } else {
             const err = await parseBridgeError(res);
@@ -399,8 +430,8 @@ export default function QRWhatsAppInboxPage() {
       };
 
       loadChats();
-      // Poll chats every 15 seconds instead of 5 to reduce vibration/flickering
-      const interval = setInterval(loadChats, 15000);
+      // Poll chats every 30 seconds to prevent vibration/flickering
+      const interval = setInterval(loadChats, 30000);
       return () => clearInterval(interval);
     }
   }, [status, bridgeUrl]);
@@ -687,6 +718,12 @@ export default function QRWhatsAppInboxPage() {
   // Upload media to S3 and send
   const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedChat || !event.target.files) return;
+
+    // CHECK PERMISSIONS: Non-super-admins can only send media to assigned leads
+    if (!isSuperAdmin && activeLeadId && !assignedLeadIds.has(activeLeadId)) {
+      alert('❌ You can only send media to customers assigned to you. Please add this lead to your account first.');
+      return;
+    }
 
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
@@ -1050,6 +1087,21 @@ export default function QRWhatsAppInboxPage() {
     }
   };
 
+  // Load group details
+  const loadGroupDetails = async (groupId: string | { _serialized: string }) => {
+    try {
+      const chatId = typeof groupId === 'string' ? groupId : groupId._serialized;
+      const res = await bridgeFetch(`/group/${chatId}`, { method: 'GET' }, 8_000);
+      if (res.ok) {
+        const data = await res.json();
+        setGroupDetails(data);
+        setShowGroupPanel(true);
+      }
+    } catch (err) {
+      console.error('Failed to load group details:', err);
+    }
+  };
+
   // Mark chat as read
   const markChatAsRead = async (chat: any) => {
     try {
@@ -1354,9 +1406,24 @@ export default function QRWhatsAppInboxPage() {
             </div>
           ) : (
             chats
+              // Filter by search query
               .filter((chat) =>
                 chat.name?.toLowerCase().includes(searchQuery.toLowerCase())
               )
+              // Permission filter: Non-super admins can only see assigned leads
+              .filter((chat) => {
+                // Super admins see all chats
+                if (isSuperAdmin) return true;
+                
+                // If chat has a leadId, check if it's assigned to current user
+                if (chat.leadId) {
+                  return assignedLeadIds.has(String(chat.leadId));
+                }
+                
+                // For chats without leadId (new contacts), allow viewing
+                // but they won't be able to send messages (checked in send handler)
+                return true;
+              })
               // Sort: selected chat first, then by timestamp
               .sort((a, b) => {
                 const aIsSelected = selectedChat && 
@@ -1564,7 +1631,13 @@ export default function QRWhatsAppInboxPage() {
                     {getInitials(selectedChat.name || 'U')}
                   </div>
                 )}
-                <div className="flex-1 cursor-pointer" onClick={() => !selectedChat.isGroup && loadContactDetails(selectedChat.id)}>
+                <div className="flex-1 cursor-pointer" onClick={() => {
+                  if (selectedChat.isGroup) {
+                    loadGroupDetails(selectedChat.id);
+                  } else {
+                    loadContactDetails(selectedChat.id);
+                  }
+                }}>
                   {/* Name (top line) */}
                   <h2 className="text-sm font-bold text-slate-900 truncate hover:text-blue-600 transition-colors">
                     {activeName || selectedChat.name}
@@ -2304,6 +2377,141 @@ export default function QRWhatsAppInboxPage() {
               </button>
               <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-900 font-medium transition-colors text-sm">
                 🚫 Block Contact
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Settings Side Panel */}
+      {showGroupPanel && groupDetails && (
+        <div className="fixed right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200 shadow-lg z-40 flex flex-col">
+          {/* Header */}
+          <div className="border-b border-slate-200 p-4 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-slate-900">Group Settings</h3>
+            <button
+              onClick={() => setShowGroupPanel(false)}
+              className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Group Info */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Profile Section */}
+            <div className="p-4 border-b border-slate-100 flex flex-col items-center gap-3">
+              {groupDetails.profilePicUrl ? (
+                <img
+                  src={groupDetails.profilePicUrl}
+                  alt={groupDetails.name}
+                  className="w-20 h-20 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold text-3xl">
+                  👥
+                </div>
+              )}
+              <div className="text-center">
+                <h2 className="text-lg font-bold text-slate-900">{groupDetails.name}</h2>
+                <p className="text-sm text-slate-500">
+                  {groupDetails.participants?.length || 0} participants
+                </p>
+              </div>
+            </div>
+
+            {/* Group Description */}
+            {groupDetails.description && (
+              <div className="p-4 border-b border-slate-100">
+                <p className="text-xs text-slate-600 mb-2 font-semibold">GROUP DESCRIPTION</p>
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <p className="text-sm text-slate-900 break-words whitespace-pre-wrap">
+                    {groupDetails.description}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Invite Link */}
+            {groupDetails.inviteCode && (
+              <div className="p-4 border-b border-slate-100">
+                <p className="text-xs text-slate-600 mb-2 font-semibold">INVITE LINK</p>
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                  <p className="text-xs text-slate-700 break-all mb-2 font-mono">
+                    https://chat.whatsapp.com/{groupDetails.inviteCode}
+                  </p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://chat.whatsapp.com/${groupDetails.inviteCode}`);
+                      alert('Invite link copied to clipboard!');
+                    }}
+                    className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded transition-colors"
+                  >
+                    📋 Copy Link
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Group Info */}
+            <div className="p-4 border-b border-slate-100 space-y-3">
+              {groupDetails.createdAt && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Created</span>
+                  <span className="text-sm font-medium text-slate-900">
+                    {new Date(groupDetails.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+              {groupDetails.owner && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Owner</span>
+                  <span className="text-sm font-medium text-slate-900 truncate ml-2">
+                    {groupDetails.owner.replace('@c.us', '')}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Participants */}
+            {groupDetails.participants && groupDetails.participants.length > 0 && (
+              <div className="p-4 border-b border-slate-100">
+                <p className="text-xs text-slate-600 mb-2 font-semibold">
+                  PARTICIPANTS ({groupDetails.participants.length})
+                </p>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {groupDetails.participants.slice(0, 20).map((participant: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-slate-50"
+                    >
+                      <span className="text-sm text-slate-700 truncate">
+                        {participant.id.replace('@c.us', '')}
+                      </span>
+                      {(participant.isAdmin || participant.isSuperAdmin) && (
+                        <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {groupDetails.participants.length > 20 && (
+                    <p className="text-xs text-slate-500 text-center py-2">
+                      + {groupDetails.participants.length - 20} more
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="p-4 space-y-2">
+              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-900 font-medium transition-colors text-sm">
+                🔔 Mute Group
+              </button>
+              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-900 font-medium transition-colors text-sm">
+                🚪 Exit Group
               </button>
             </div>
           </div>

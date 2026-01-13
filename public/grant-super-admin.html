@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grant Super Admin Permissions</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .warning {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .warning strong {
+      color: #856404;
+    }
+    label {
+      display: block;
+      margin: 15px 0 5px;
+      font-weight: 600;
+      color: #333;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 20px;
+      transition: transform 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      display: none;
+    }
+    .result.success {
+      background: #d4edda;
+      border: 2px solid #28a745;
+      color: #155724;
+      display: block;
+    }
+    .result.error {
+      background: #f8d7da;
+      border: 2px solid #dc3545;
+      color: #721c24;
+      display: block;
+    }
+    .permissions-list {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .permissions-list code {
+      display: block;
+      padding: 5px;
+      font-size: 12px;
+      color: #495057;
+    }
+    .loader {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      margin-left: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Grant Super Admin Permissions</h1>
+    <p class="subtitle">This will grant FULL administrative access to the admincrm user</p>
+    
+    <div class="warning">
+      <strong>⚠️ Warning:</strong> This will grant complete access to all CRM features, including:
+      <ul>
+        <li>View, edit, and delete all leads</li>
+        <li>Send broadcast messages</li>
+        <li>Manage all users and permissions</li>
+        <li>Access all analytics and reports</li>
+        <li>Manage system settings</li>
+      </ul>
+    </div>
+
+    <form id="grantForm">
+      <label for="token">Admin JWT Token *</label>
+      <input 
+        type="text" 
+        id="token" 
+        placeholder="Paste your JWT token from localStorage (swar_yoga_auth_token)" 
+        required
+      />
+      <small style="color: #666; display: block; margin-top: 5px;">
+        💡 Open browser console → localStorage.getItem('swar_yoga_auth_token')
+      </small>
+
+      <button type="submit" id="submitBtn">
+        Grant Super Admin Permissions
+      </button>
+    </form>
+
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById('grantForm');
+    const resultDiv = document.getElementById('result');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const token = document.getElementById('token').value.trim();
+      
+      if (!token) {
+        showResult('Please enter a valid JWT token', 'error');
+        return;
+      }
+
+      // Disable button and show loading
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'Processing... <div class="loader"></div>';
+      resultDiv.style.display = 'none';
+
+      try {
+        const response = await fetch('/api/admin/grant-super-admin', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          let message = `
+            <strong>✅ Success!</strong><br>
+            ${data.message}<br><br>
+            <strong>User Details:</strong><br>
+            User ID: ${data.user.userId}<br>
+            Email: ${data.user.email}<br>
+            Is Admin: ${data.user.isAdmin}<br><br>
+            <strong>Granted Permissions:</strong>
+            <div class="permissions-list">
+              ${data.user.permissions.map(p => `<code>✓ ${p}</code>`).join('')}
+            </div>
+          `;
+          showResult(message, 'success');
+        } else {
+          showResult(`❌ Error: ${data.error || 'Failed to grant permissions'}`, 'error');
+        }
+      } catch (error) {
+        showResult(`❌ Network Error: ${error.message}`, 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Grant Super Admin Permissions';
+      }
+    });
+
+    function showResult(message, type) {
+      resultDiv.innerHTML = message;
+      resultDiv.className = `result ${type}`;
+      resultDiv.style.display = 'block';
+    }
+
+    // Auto-fill token from localStorage if available
+    window.addEventListener('load', () => {
+      const storedToken = localStorage.getItem('swar_yoga_auth_token');
+      if (storedToken) {
+        document.getElementById('token').value = storedToken;
+      }
+    });
+  </script>
+</body>
+</html>
