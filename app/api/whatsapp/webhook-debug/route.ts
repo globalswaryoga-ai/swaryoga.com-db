@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Required: This route uses request.url and request.headers
+export const dynamic = 'force-dynamic';
+
 /**
  * Debug endpoint to see exactly what Meta is sending during webhook verification
  * Visit: https://crm.swaryoga.com/api/whatsapp/webhook-debug?hub.mode=subscribe&hub.verify_token=test&hub.challenge=test

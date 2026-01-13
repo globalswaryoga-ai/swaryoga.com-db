@@ -3,6 +3,9 @@ import { connectDB } from '@/lib/db';
 import { Session, Purchase, ViewTracking } from '@/lib/schemas/recordedSessionsSchemas';
 import { verifyToken } from '@/lib/auth';
 
+// Required: This route uses request.url
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/sessions
  * List all published sessions with pagination and filtering

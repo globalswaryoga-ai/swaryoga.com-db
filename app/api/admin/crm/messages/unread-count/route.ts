@@ -7,6 +7,9 @@ import {
 } from '@/lib/crm-handlers';
 import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 
+// Required: This route uses request.headers which cannot be statically rendered
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/admin/crm/messages/unread-count
  * Returns unread message count for admin dashboard notification badge

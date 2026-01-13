@@ -4,6 +4,9 @@ import { ViewTracking, Purchase, Session } from '@/lib/schemas/recordedSessionsS
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 
+// Required: This route uses request.headers
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/sessions/[id]/analytics
  * Get analytics for a specific session (admin only)

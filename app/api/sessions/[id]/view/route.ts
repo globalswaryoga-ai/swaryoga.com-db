@@ -4,6 +4,9 @@ import { ViewTracking, Session } from '@/lib/schemas/recordedSessionsSchemas';
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 
+// Required: This route uses request.headers
+export const dynamic = 'force-dynamic';
+
 /**
  * PUT /api/sessions/[id]/view
  * Update viewing progress for a session

@@ -19,6 +19,9 @@ import {
 } from '@/lib/logging';
 import { Timer } from '@/lib/logging';
 
+// Required: This route uses request.url
+export const dynamic = 'force-dynamic';
+
 const timer = new Timer();
 
 export async function GET(request: NextRequest) {

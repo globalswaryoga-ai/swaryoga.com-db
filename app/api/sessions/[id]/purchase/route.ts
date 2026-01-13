@@ -4,6 +4,9 @@ import { Purchase, Session, ViewTracking } from '@/lib/schemas/recordedSessionsS
 import { verifyToken } from '@/lib/auth';
 import mongoose from 'mongoose';
 
+// Required: This route uses request.headers
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/sessions/[id]/purchase
  * Create purchase/enrollment for session
