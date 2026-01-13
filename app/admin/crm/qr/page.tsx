@@ -1296,7 +1296,7 @@ export default function QRWhatsAppInboxPage() {
             <button
               onClick={() => setShowNewLeadModal(true)}
               title="Add new lead"
-              className="px-4 py-2 bg-white hover:bg-slate-50 text-black border border-slate-300 rounded-lg font-bold transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-purple-200 hover:bg-purple-300 text-purple-900 border border-purple-400 rounded-lg font-bold transition-colors flex items-center gap-2"
             >
               <span>+</span>
               <span className="text-xs hidden sm:inline">Lead</span>
@@ -1638,11 +1638,12 @@ export default function QRWhatsAppInboxPage() {
                         {/* Message Bubble */}
                         <div className={`flex gap-2 ${msg.fromMe ? 'justify-end' : 'justify-start'}`}>
                           <div
-                            className={`max-w-xs rounded-2xl px-4 py-2 text-sm leading-tight shadow-sm ${
+                            className={`max-w-xs rounded-2xl px-4 py-2 text-base leading-tight shadow-sm font-sans ${
                               msg.fromMe
                                 ? 'bg-[#d9fdd3] text-slate-900 rounded-tr-none'
                                 : 'bg-white text-slate-900 border border-slate-100 rounded-tl-none'
                             }`}
+                            style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif" }}
                           >
 
                         {/* Media Content */}
@@ -1842,14 +1843,14 @@ export default function QRWhatsAppInboxPage() {
                     </button>
 
                     {/* Message Input */}
-                    <input
-                      type="text"
+                    <textarea
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleScheduledSend()}
-                      placeholder="Type a message..."
-                      className="flex-1 px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                      onKeyPress={(e) => e.key === 'Enter' && e.ctrlKey && handleScheduledSend()}
+                      placeholder="Type a message... (Ctrl+Enter to send)"
+                      className="flex-1 px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
                       disabled={sending || status !== 'connected'}
+                      rows={8}
                     />
 
                     {/* Send Button */}
@@ -1974,7 +1975,7 @@ export default function QRWhatsAppInboxPage() {
                             onChange={(e) => setNewTemplate({ ...newTemplate, message: e.target.value })}
                             placeholder="Template message..."
                             className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                            rows={2}
+                            rows={8}
                           />
                           <div className="flex gap-2">
                             <button
