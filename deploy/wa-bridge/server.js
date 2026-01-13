@@ -372,14 +372,89 @@ app.post('/send', authMiddleware, async (req, res) => {
     if (!chatId || !message) {
       return res.status(400).json({ error: 'Missing chatId or message' });
     }
+    
+    console.log(`[send] Sending message to ${chatId}: "${message.substring(0, 50)}..."`);
+    
+    // Try to find chat in loaded chats
     const chat = chats.find(c => c.id._serialized === chatId);
     if (!chat) {
+      console.warn(`[send] Chat not found in loaded chats. Available chats: ${chats.length}`);
       return res.status(404).json({ error: 'Chat not found' });
     }
-    await chat.sendMessage(message);
-    res.json({ success: true, message: 'Message sent' });
+    
+    // Check if client is ready
+    if (!client || !sessionReady) {
+      console.error('[send] Client not ready');
+      return res.status(503).json({ error: 'WhatsApp client not connected' });
+    }
+    
+    // Send the message with error handling
+    try {
+      const sentMessage = await chat.sendMessage(message);
+      console.log(`[send] Message sent successfully: ${sentMessage.id._serialized}`);
+      res.json({ 
+        success: true, 
+        message: 'Message sent',
+        messageId: sentMessage.id._serialized
+      });
+    } catch (sendErr) {
+      console.error('[send] Failed to send message:', sendErr.message);
+      // Return 503 if it's a connection issue, 400 for other errors
+      const statusCode = sendErr.message.includes('disconnect') ? 503 : 400;
+      res.status(statusCode).json({ 
+        error: sendErr.message,
+        details: 'Failed to send message. Please try again.'
+      });
+    }
   } catch (err) {
-    console.error('Error sending message:', err);
+    console.error('[send] Unexpected error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /send-to-number - Send message to a phone number (for new leads)
+app.post('/send-to-number', authMiddleware, async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone || !message) {
+      return res.status(400).json({ error: 'Missing phone or message' });
+    }
+    
+    // Normalize phone number (remove non-digits, add country code if needed)
+    let normalizedPhone = phone.replace(/\D/g, '');
+    if (normalizedPhone.length === 10) {
+      normalizedPhone = '91' + normalizedPhone; // India country code
+    }
+    const chatId = `${normalizedPhone}@c.us`;
+    
+    console.log(`[send-to-number] Sending message to ${phone} (${chatId}): "${message.substring(0, 50)}..."`);
+    
+    // Check if client is ready
+    if (!client || !sessionReady) {
+      console.error('[send-to-number] Client not ready');
+      return res.status(503).json({ error: 'WhatsApp client not connected' });
+    }
+    
+    try {
+      // Send directly to the number (WhatsApp Web API allows this)
+      const sentMessage = await client.sendMessage(chatId, message);
+      console.log(`[send-to-number] Message sent successfully to ${chatId}`);
+      res.json({ 
+        success: true, 
+        message: 'Message sent',
+        messageId: sentMessage.id._serialized,
+        chatId: chatId
+      });
+    } catch (sendErr) {
+      console.error('[send-to-number] Failed to send message:', sendErr.message);
+      const statusCode = sendErr.message.includes('disconnect') ? 503 : 400;
+      res.status(statusCode).json({ 
+        error: sendErr.message,
+        details: 'Failed to send message. Please try again.'
+      });
+    }
+  } catch (err) {
+    console.error('[send-to-number] Unexpected error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

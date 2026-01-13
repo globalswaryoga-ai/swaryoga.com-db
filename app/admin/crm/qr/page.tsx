@@ -654,7 +654,7 @@ export default function QRWhatsAppInboxPage() {
       console.log('[sendMessage] Sending to chat:', chatId, 'message:', newMessage);
       const res = await bridgeFetch('/send', {
         method: 'POST',
-        body: JSON.stringify({ to: chatId, message: newMessage })
+        body: JSON.stringify({ chatId: chatId, message: newMessage })
       });
 
       console.log('[sendMessage] Response ok?', res.ok, 'status:', res.status);
