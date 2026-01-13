@@ -19,8 +19,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing path parameter' }, { status: 400 });
     }
 
+    // Decode the path to handle special characters like @
+    let decodedPath = path;
+    try {
+      decodedPath = decodeURIComponent(path);
+    } catch (e) {
+      console.warn('[QR Bridge Proxy] Could not decode path:', path);
+    }
+
     const method = (action || 'GET').toUpperCase();
-    const bridgeUrl = `${BRIDGE_URL}${path}`;
+    const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
     const fetchOptions: RequestInit = {
       method,
@@ -61,7 +69,15 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const path = req.nextUrl.searchParams.get('path') || '/status';
+    let path = req.nextUrl.searchParams.get('path') || '/status';
+    
+    // Decode the path to handle special characters like @
+    try {
+      path = decodeURIComponent(path);
+    } catch (e) {
+      // If decoding fails, use the original path
+      console.warn('[QR Bridge Proxy] Could not decode path:', path);
+    }
 
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
