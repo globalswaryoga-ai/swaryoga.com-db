@@ -32,8 +32,18 @@ export async function POST(req: NextRequest) {
     console.log(`[QR Bridge Proxy] ${method} ${bridgeUrl}`);
 
     const res = await fetch(bridgeUrl, fetchOptions);
+    
+    // Check if response is successful before parsing as JSON
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
+      return NextResponse.json(
+        { error: `Bridge error: ${res.status}`, details: errorText.substring(0, 100) },
+        { status: res.status }
+      );
+    }
+    
     const data = await res.json();
-
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
     console.error('[QR Bridge Proxy] Error:', err);
@@ -58,6 +68,16 @@ export async function GET(req: NextRequest) {
         'x-bridge-secret': BRIDGE_SECRET
       }
     });
+
+    // Check if response is successful before parsing as JSON
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
+      return NextResponse.json(
+        { error: `Bridge error: ${res.status}`, details: errorText.substring(0, 100) },
+        { status: res.status }
+      );
+    }
 
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
