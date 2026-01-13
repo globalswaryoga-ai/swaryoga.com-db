@@ -27,7 +27,12 @@
     "bridge:smoke": "node scripts/whatsapp-bridge-smoke.js",
     "bridge:pm2:start": "pm2 start services/whatsapp-web/ecosystem.config.cjs",
     "bridge:pm2:restart": "pm2 restart swaryoga-whatsapp-bridge",
-    "bridge:pm2:logs": "pm2 logs swaryoga-whatsapp-bridge"
+    "bridge:pm2:logs": "pm2 logs swaryoga-whatsapp-bridge",
+    "test:load": "node scripts/test-domain-load.js",
+    "test:load:domain": "BASE_URL=https://app.swaryoga.com node scripts/test-domain-load.js",
+    "domain:show": "node scripts/domain-config.js show",
+    "domain:set": "node scripts/domain-config.js set",
+    "domain:list": "node scripts/domain-config.js list"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",

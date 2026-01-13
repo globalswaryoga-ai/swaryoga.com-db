@@ -114,7 +114,26 @@ function initializeClient() {
     loadChats();
   });
 
-  client.initialize();
+  client.on('error', (err) => {
+    console.error('WhatsApp client error:', err);
+    sessionReady = false;
+  });
+
+  client.on('auth_failure', (err) => {
+    console.error('WhatsApp authentication failed:', err);
+    sessionReady = false;
+    qrCode = null;
+  });
+
+  client.initialize().catch((err) => {
+    console.error('Failed to initialize WhatsApp client:', err);
+    sessionReady = false;
+    // Attempt to reinitialize after delay
+    setTimeout(() => {
+      console.log('Attempting to reinitialize client...');
+      initializeClient();
+    }, 5000);
+  });
 }
 
 async function loadChats() {
@@ -246,16 +265,58 @@ app.get('/health', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🌐 WhatsApp Bridge running on http://localhost:${PORT}`);
   console.log(`📱 Bridge Secret: ${BRIDGE_SECRET}`);
   initializeClient();
 });
 
+// Handle server errors
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
 process.on('SIGINT', () => {
-  console.log('\nShutting down...');
+  console.log('\nShutting down gracefully...');
   if (client) {
-    client.destroy();
+    client.destroy().catch(err => {
+      console.error('Error destroying client:', err);
+    });
   }
   process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\nTerminating gracefully...');
+  if (client) {
+    client.destroy().catch(err => {
+      console.error('Error destroying client:', err);
+    });
+  }
+  process.exit(0);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  console.error('Stack trace:', err.stack);
+  if (client) {
+    client.destroy().catch(() => {
+      process.exit(1);
+    });
+  } else {
+    process.exit(1);
+  }
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise);
+  console.error('Reason:', reason);
+  // Don't exit on unhandled rejections, just log them
 });
