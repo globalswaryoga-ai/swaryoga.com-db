@@ -175,6 +175,28 @@ app.get('/status', authMiddleware, (req, res) => {
   });
 });
 
+// GET /profile - Get current user profile
+app.get('/profile', authMiddleware, async (req, res) => {
+  try {
+    if (!client || !sessionReady) {
+      return res.status(503).json({ error: 'WhatsApp not connected' });
+    }
+    
+    const profile = {
+      id: client.info?.wid?._serialized || 'unknown',
+      name: client.info?.pushname || 'WhatsApp User',
+      phone: client.info?.wid?.user || 'unknown',
+      isConnected: sessionReady,
+      status: 'connected'
+    };
+    
+    res.json(profile);
+  } catch (err) {
+    console.error('[profile] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /qr - Get QR code
 app.get('/qr', authMiddleware, (req, res) => {
   if (!qrCode) {
@@ -262,6 +284,62 @@ app.get('/chats', authMiddleware, (req, res) => {
     unreadCount: chat.unreadCount
   }));
   res.json({ chats: formattedChats });
+});
+
+// GET /contact/:contactId - Get contact details
+app.get('/contact/:contactId', authMiddleware, async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    console.log(`[contact] Fetching contact: ${contactId}`);
+    
+    // Contact ID might be in format like "919876543210@c.us"
+    // First check if it exists in any chat
+    let contactInfo = null;
+    
+    for (const chat of chats) {
+      if (chat.id._serialized === contactId) {
+        contactInfo = {
+          id: chat.id._serialized,
+          name: chat.name || chat.contact?.pushname || 'Unknown',
+          isGroup: chat.isGroup,
+          lastMessage: chat.lastMessage ? {
+            body: chat.lastMessage.body,
+            timestamp: chat.lastMessage.timestamp
+          } : null,
+          unreadCount: chat.unreadCount,
+          participantsCount: chat.participants ? chat.participants.length : 0
+        };
+        break;
+      }
+    }
+    
+    if (!contactInfo) {
+      // Try to get contact from WhatsApp
+      if (client && client.getContactById) {
+        try {
+          const contact = await client.getContactById(contactId);
+          contactInfo = {
+            id: contactId,
+            name: contact.name || contact.pushname || 'Unknown',
+            phone: contact.number,
+            isGroup: false,
+            profilePicUrl: contact.profilePicUrl || null
+          };
+        } catch (err) {
+          console.log(`[contact] Could not get contact from WhatsApp: ${err.message}`);
+        }
+      }
+    }
+    
+    if (!contactInfo) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+    
+    res.json(contactInfo);
+  } catch (err) {
+    console.error('[contact] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /messages/:chatId - Get messages
