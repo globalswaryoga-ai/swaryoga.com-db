@@ -299,23 +299,13 @@ server.on('error', (err) => {
 });
 
 process.on('SIGINT', () => {
-  console.log('\nShutting down gracefully...');
-  if (client) {
-    client.destroy().catch(err => {
-      console.error('Error destroying client:', err);
-    });
-  }
-  process.exit(0);
+  console.log('\n⚠ Received SIGINT - staying alive...');
+  // Don't exit - keep running
 });
 
 process.on('SIGTERM', () => {
-  console.log('\nTerminating gracefully...');
-  if (client) {
-    client.destroy().catch(err => {
-      console.error('Error destroying client:', err);
-    });
-  }
-  process.exit(0);
+  console.log('\n⚠ Received SIGTERM - staying alive...');
+  // Don't exit - keep running
 });
 
 // Handle uncaught exceptions
