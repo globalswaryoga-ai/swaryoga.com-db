@@ -821,11 +821,24 @@ export default function QRWhatsAppInboxPage() {
         throw new Error(createData?.error || 'Failed to create lead');
       }
 
-      console.log('[NewLead] Created lead:', createData.data?._id);
+      const leadId = createData.data?._id;
+      const leadName = createData.data?.name || newLeadForm.name || 'New Lead';
+      const leadStatus = createData.data?.status || 'lead';
+      const leadPhone = newLeadForm.phone.trim();
+
+      console.log('[NewLead] Created lead:', leadId, 'Name:', leadName, 'Status:', leadStatus);
 
       // Close modal and reset form
       setShowNewLeadModal(false);
       setNewLeadForm({ name: '', email: '', phone: '', source: 'qr-whatsapp', status: 'lead', workshopName: '', assignedToUserId: '' });
+
+      // Set the lead details in state so header shows ID and status
+      if (leadId) {
+        setActiveLeadId(leadId);
+        setActiveName(leadName);
+        setActiveStatus(leadStatus);
+        setActivePhone(leadPhone);
+      }
 
       // Try to find and open the chat for this number
       const normalizedPhone = newLeadForm.phone.replace(/\D/g, '');
@@ -838,35 +851,46 @@ export default function QRWhatsAppInboxPage() {
         setSelectedChat(matchingChat);
         setBridgeError(null);
       } else {
-        // Chat not yet available, might need to wait or create a new conversation
-        console.log('[NewLead] Chat not found yet, might be created soon');
-        setBridgeError('Lead created. Chat should appear shortly.');
+        // Chat not yet available, create a synthetic chat for this lead
+        console.log('[NewLead] Chat not found, creating synthetic chat for:', leadPhone);
         
-        // Try to reload chats
-        setTimeout(() => {
-          const loadChats = async () => {
-            try {
-              const res = await bridgeFetch('/chats', { method: 'GET' }, 12_000);
-              if (res.ok) {
-                const data = await res.json();
-                setChats(data.chats || []);
-                
-                // Try again to find the chat
-                const updatedChat = data.chats.find((chat: any) => {
-                  const chatPhone = String(chat.name || chat.id || '').replace(/\D/g, '');
-                  return chatPhone === normalizedPhone;
-                });
-                if (updatedChat) {
-                  setSelectedChat(updatedChat);
-                  setBridgeError(null);
-                }
-              }
-            } catch (err) {
-              console.error('[NewLead] Failed to reload chats');
-            }
-          };
-          loadChats();
-        }, 1500);
+        // Format phone number to WhatsApp format
+        let phoneId = leadPhone.replace(/\D/g, '');
+        if (!phoneId.startsWith('91') && phoneId.length === 10) {
+          phoneId = '91' + phoneId;
+        }
+        phoneId = phoneId + '@c.us';
+        
+        const syntheticChat = {
+          id: { _serialized: phoneId },
+          name: leadPhone,
+          displayName: leadName,
+          isGroup: false,
+          isReadOnly: false,
+          unreadCount: 0,
+          timestamp: null,
+          archived: false,
+          leadId: leadId,
+          leadStatus: leadStatus,
+          leadLabel: undefined,
+        };
+        
+        // Add synthetic chat to list
+        setChats((prevChats) => {
+          const exists = prevChats.some((c) => {
+            const cPhone = String(c.name || c.id || '').replace(/\D/g, '');
+            return cPhone === normalizedPhone;
+          });
+          
+          if (!exists) {
+            return [syntheticChat, ...prevChats];
+          }
+          return prevChats;
+        });
+        
+        setSelectedChat(syntheticChat);
+        setBridgeError(`✓ Lead "${leadName}" created and chat ready for messaging.`);
+        setTimeout(() => setBridgeError(null), 3000);
       }
     } catch (err) {
       setBridgeError(err instanceof Error ? err.message : 'Failed to create lead');
@@ -1405,8 +1429,15 @@ export default function QRWhatsAppInboxPage() {
                         </span>
                       </div>
                       
-                      {/* Phone number - second line */}
-                      {(chat.displayName || chat.name) && /^\d+$/.test(String(chat.name)) && (
+                      {/* Phone number - second line (show if displayName is set and name is phone) */}
+                      {chat.displayName && (
+                        <p className="text-[11px] text-slate-500 truncate">
+                          📱 {String(chat.name).replace(/\D/g, '').slice(-10)}
+                        </p>
+                      )}
+                      
+                      {/* Phone number - second line (show if no displayName and name is all digits) */}
+                      {!chat.displayName && /^\d+$/.test(String(chat.name)) && (
                         <p className="text-[11px] text-slate-500 truncate">
                           📱 {chat.name}
                         </p>
