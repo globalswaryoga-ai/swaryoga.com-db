@@ -2,36 +2,41 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import mongoose from 'mongoose';
 
-// Newsletter Subscriber Schema
-const newsletterSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true,
-  },
-  subscribedAt: {
-    type: Date,
-    default: Date.now,
-  },
-  status: {
-    type: String,
-    enum: ['active', 'unsubscribed'],
-    default: 'active',
-  },
-  language: {
-    type: String,
-    enum: ['en', 'hi', 'mr'],
-    default: 'en',
-  },
-});
+export const dynamic = 'force-dynamic';
 
-const Newsletter = mongoose.models.Newsletter || mongoose.model('Newsletter', newsletterSchema);
+// Lazy load newsletter model to avoid MongoDB connection during build
+function getNewsletterModel() {
+  const newsletterSchema = new mongoose.Schema({
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    subscribedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    status: {
+      type: String,
+      enum: ['active', 'unsubscribed'],
+      default: 'active',
+    },
+    language: {
+      type: String,
+      enum: ['en', 'hi', 'mr'],
+      default: 'en',
+    },
+  });
+  
+  return mongoose.models.Newsletter || mongoose.model('Newsletter', newsletterSchema);
+}
 
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
+    const Newsletter = getNewsletterModel();
 
     const { email } = await request.json();
 
@@ -83,6 +88,7 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     await connectDB();
+    const Newsletter = getNewsletterModel();
 
     const subscribers = await Newsletter.find({ status: 'active' })
       .select('email subscribedAt language')
