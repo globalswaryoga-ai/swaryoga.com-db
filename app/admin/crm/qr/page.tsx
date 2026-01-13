@@ -1843,7 +1843,8 @@ export default function QRWhatsAppInboxPage() {
 
                 {/* Message Input Area with Quick Actions */}
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
+                  {/* Top button row */}
+                  <div className="flex items-center gap-2 px-3 md:px-4">
                     {/* Media Button */}
                     <button
                       onClick={() => setShowMediaMenu(!showMediaMenu)}
@@ -1888,14 +1889,17 @@ export default function QRWhatsAppInboxPage() {
                     >
                       😊
                     </button>
+                  </div>
 
-                    {/* Message Input */}
+                  {/* Message Input Row - Full Width */}
+                  <div className="flex items-end gap-2 px-3 md:px-4">
+                    {/* Message Input - Now Full Width */}
                     <textarea
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && e.ctrlKey && handleScheduledSend()}
                       placeholder="Type a message... (Ctrl+Enter to send)"
-                      className="flex-1 px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
+                      className="flex-1 w-full px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
                       disabled={sending || status !== 'connected'}
                       rows={8}
                     />
