@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3333';
 const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || process.env.WHATSAPP_WEB_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 
+// Mark as dynamic (uses request.nextUrl for query parameters)
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const { action, path, body } = await req.json();
