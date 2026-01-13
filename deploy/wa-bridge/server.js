@@ -104,9 +104,20 @@ function initializeClient() {
   });
 
   client.on('disconnected', () => {
-    console.log('WhatsApp disconnected');
+    console.log('⚠ WhatsApp disconnected - attempting to reconnect...');
     sessionReady = false;
     qrCode = null;
+    // Auto-reconnect after 5 seconds
+    setTimeout(() => {
+      console.log('Attempting to reconnect...');
+      try {
+        client.initialize().catch(err => {
+          console.error('Reconnection failed:', err);
+        });
+      } catch (err) {
+        console.error('Error during reconnection:', err);
+      }
+    }, 5000);
   });
 
   client.on('message', (msg) => {
@@ -115,23 +126,29 @@ function initializeClient() {
   });
 
   client.on('error', (err) => {
-    console.error('WhatsApp client error:', err);
+    console.error('⚠ WhatsApp client error:', err.message);
     sessionReady = false;
+    // Don't disconnect on error - keep trying
   });
 
   client.on('auth_failure', (err) => {
-    console.error('WhatsApp authentication failed:', err);
+    console.error('⚠ WhatsApp authentication failed:', err);
     sessionReady = false;
     qrCode = null;
+    // Keep client alive for QR code generation
   });
 
   client.initialize().catch((err) => {
-    console.error('Failed to initialize WhatsApp client:', err);
+    console.error('Failed to initialize WhatsApp client:', err.message);
     sessionReady = false;
     // Attempt to reinitialize after delay
     setTimeout(() => {
       console.log('Attempting to reinitialize client...');
-      initializeClient();
+      try {
+        client.initialize();
+      } catch (e) {
+        console.error('Reinitialization error:', e);
+      }
     }, 5000);
   });
 }
@@ -303,15 +320,10 @@ process.on('SIGTERM', () => {
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
+  console.error('❌ Uncaught exception:', err.message);
   console.error('Stack trace:', err.stack);
-  if (client) {
-    client.destroy().catch(() => {
-      process.exit(1);
-    });
-  } else {
-    process.exit(1);
-  }
+  // Don't crash - log and continue
+  console.log('⚠ Keeping server alive...');
 });
 
 // Handle unhandled promise rejections
