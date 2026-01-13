@@ -34,8 +34,8 @@ fi
 # Set variables
 INSTANCE_NAME="swar-yoga-whatsapp-bridge"
 REGION=${AWS_REGION:-"ap-south-1"}  # India region
-INSTANCE_TYPE="t2.micro"  # Free tier
-AMI_ID="ami-0c55b159cbfafe1f0"  # Ubuntu 24.04 LTS in ap-south-1 (update if needed)
+INSTANCE_TYPE="t3.micro"  # Free tier eligible
+AMI_ID="ami-06a644026f43160a5"  # Ubuntu 22.04 LTS in ap-south-1 (Mumbai)
 KEY_NAME="swar-yoga-bridge-key"
 SECURITY_GROUP="swar-yoga-bridge-sg"
 

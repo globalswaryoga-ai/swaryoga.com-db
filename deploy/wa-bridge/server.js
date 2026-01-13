@@ -264,9 +264,9 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, port: PORT });
 });
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(`🌐 WhatsApp Bridge running on http://localhost:${PORT}`);
+// Start server - bind to all interfaces (0.0.0.0) so ngrok can reach it
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🌐 WhatsApp Bridge running on http://0.0.0.0:${PORT}`);
   console.log(`📱 Bridge Secret: ${BRIDGE_SECRET}`);
   initializeClient();
 });
