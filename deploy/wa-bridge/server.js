@@ -206,18 +206,48 @@ app.post('/connect', authMiddleware, (req, res) => {
   });
 });
 
-// POST /disconnect - Disconnect
-app.post('/disconnect', authMiddleware, (req, res) => {
-  if (client) {
-    client.logout();
+// POST /disconnect - Disconnect and force QR regeneration
+app.post('/disconnect', authMiddleware, async (req, res) => {
+  try {
+    console.log('🔄 Processing disconnect request...');
+    if (client) {
+      try {
+        await client.logout();
+        console.log('✓ Client logged out');
+      } catch (err) {
+        console.log('⚠ Logout error (may be already disconnected):', err.message);
+      }
+      try {
+        await client.destroy();
+        console.log('✓ Client destroyed');
+      } catch (err) {
+        console.log('⚠ Destroy error:', err.message);
+      }
+    }
+    
+    // Reset state
     sessionReady = false;
     qrCode = null;
     chats = [];
+    client = null;
+    
+    // Reinitialize client to generate fresh QR
+    console.log('🔄 Reinitializing client for fresh QR...');
+    setTimeout(() => {
+      initializeClient();
+    }, 1000);
+    
+    res.json({
+      message: 'Disconnected and reinitializing',
+      status: 'disconnected'
+    });
+  } catch (err) {
+    console.error('Error during disconnect:', err);
+    res.status(500).json({
+      error: err.message,
+      status: 'error'
+    });
   }
-  res.json({
-    message: 'Disconnected',
-    status: 'disconnected'
-  });
 });
 
 // GET /chats - List chats
