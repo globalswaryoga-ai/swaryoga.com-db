@@ -158,7 +158,7 @@ export default function QRWhatsAppInboxPage() {
     return 'disconnected';
   };
 
-  // Check status
+  // Check status - poll less frequently to reduce flickering/vibration
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -181,7 +181,8 @@ export default function QRWhatsAppInboxPage() {
     };
 
     checkStatus();
-    const interval = setInterval(checkStatus, 3000);
+    // Poll every 10 seconds instead of 3 to reduce UI flickering/vibration
+    const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
   }, [bridgeUrl]);
 
@@ -398,7 +399,8 @@ export default function QRWhatsAppInboxPage() {
       };
 
       loadChats();
-      const interval = setInterval(loadChats, 5000);
+      // Poll chats every 15 seconds instead of 5 to reduce vibration/flickering
+      const interval = setInterval(loadChats, 15000);
       return () => clearInterval(interval);
     }
   }, [status, bridgeUrl]);
