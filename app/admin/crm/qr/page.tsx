@@ -723,7 +723,23 @@ export default function QRWhatsAppInboxPage() {
 
         if (!uploadRes.ok) {
           const error = await uploadRes.json();
-          throw new Error(error.error || 'Upload failed');
+          const errorMsg = error.error || 'Upload failed';
+          const details = error.details || {};
+          
+          // Provide helpful error messages
+          let fullMessage = errorMsg;
+          if (details.message) {
+            fullMessage += `: ${details.message}`;
+          }
+          if (details.hasAccessKey === false) {
+            fullMessage += '\n❌ Missing AWS_ACCESS_KEY_ID on bridge';
+          }
+          if (details.hasSecretKey === false) {
+            fullMessage += '\n❌ Missing AWS_SECRET_ACCESS_KEY on bridge';
+          }
+          
+          console.error('[uploadMedia] Backend error:', fullMessage, error);
+          throw new Error(fullMessage);
         }
 
         const uploadData = await uploadRes.json();

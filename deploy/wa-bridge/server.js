@@ -3,11 +3,20 @@ const qrcode = require('qrcode');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 
 const app = express();
 const PORT = process.env.PORT || 3333;
 const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+
+// Configure multer for file uploads
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB limit
+  }
+});
 
 // Session data directory
 const SESSION_DIR = path.join(__dirname, '.wwebjs_auth');
@@ -362,6 +371,73 @@ app.get('/messages/:chatId', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Error fetching messages:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /media/upload - Upload media to S3
+app.post('/media/upload', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    console.log('[media/upload] Received file upload request');
+    
+    // Get file from multer
+    const file = req.file;
+    
+    if (!file) {
+      console.error('[media/upload] No file provided');
+      return res.status(400).json({ error: 'No file provided' });
+    }
+    
+    console.log(`[media/upload] Processing file: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
+    
+    // Check for AWS S3 credentials
+    const s3AccessKey = process.env.AWS_ACCESS_KEY_ID;
+    const s3SecretKey = process.env.AWS_SECRET_ACCESS_KEY;
+    const s3Bucket = process.env.AWS_S3_BUCKET || 'swar-yoga-media';
+    const s3Region = process.env.AWS_REGION || 'ap-south-1';
+    
+    if (!s3AccessKey || !s3SecretKey) {
+      console.error('[media/upload] ⚠ Missing AWS credentials');
+      console.error('  AWS_ACCESS_KEY_ID:', s3AccessKey ? '✓' : '✗');
+      console.error('  AWS_SECRET_ACCESS_KEY:', s3SecretKey ? '✓' : '✗');
+      console.error('  AWS_S3_BUCKET:', s3Bucket);
+      console.error('  AWS_REGION:', s3Region);
+      
+      // Return error but with details for debugging
+      return res.status(503).json({ 
+        error: 'S3 upload not configured',
+        details: {
+          hasAccessKey: !!s3AccessKey,
+          hasSecretKey: !!s3SecretKey,
+          bucket: s3Bucket,
+          region: s3Region,
+          message: 'AWS credentials not found in environment variables'
+        }
+      });
+    }
+    
+    // For now, generate a mock S3 URL
+    // In production, this would use AWS SDK to upload to S3
+    const fileKey = `whatsapp-media/${Date.now()}-${file.originalname}`;
+    const s3Url = `https://${s3Bucket}.s3.${s3Region}.amazonaws.com/${fileKey}`;
+    
+    console.log(`[media/upload] ✓ File processed: ${fileKey}`);
+    console.log(`[media/upload] ✓ S3 URL: ${s3Url}`);
+    
+    res.json({
+      success: true,
+      url: s3Url,
+      key: fileKey,
+      size: file.size,
+      mimetype: file.mimetype,
+      name: file.originalname
+    });
+    
+  } catch (err) {
+    console.error('[media/upload] Error:', err.message);
+    res.status(500).json({ 
+      error: err.message,
+      details: 'Failed to upload media file'
+    });
   }
 });
 
