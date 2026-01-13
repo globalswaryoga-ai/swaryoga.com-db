@@ -24,6 +24,9 @@ import { sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
  * DELETE: Delete message
  */
 
+// Mark this route as dynamic (uses request.url for filtering)
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const Lead = getLead();
