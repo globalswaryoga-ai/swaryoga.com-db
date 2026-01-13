@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3333';
+// In production (Vercel), use EC2 IP. In development, use localhost.
+const DEFAULT_BRIDGE_URL = process.env.NODE_ENV === 'production' 
+  ? 'http://3.109.154.61:3333'
+  : 'http://localhost:3333';
+
+const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || DEFAULT_BRIDGE_URL;
 const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || process.env.WHATSAPP_WEB_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 
 // Mark as dynamic (uses request.nextUrl for query parameters)
