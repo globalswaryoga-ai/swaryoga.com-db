@@ -286,6 +286,13 @@ export default function QRWhatsAppInboxPage() {
         setLastStatusCode(res.status);
         const data = await res.json();
         setLastStatusData(data);
+        console.log('[checkStatus] /status response:', {
+          status: data.status,
+          hasQr: data.hasQr,
+          qrLength: data.qr ? data.qr.length : 0,
+          qrPresent: !!data.qr,
+          fullResponse: data
+        });
         setBridgeErrorIfChanged(null);
 
         // Reset backoff on success
