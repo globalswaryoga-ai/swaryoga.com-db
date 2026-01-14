@@ -54,6 +54,7 @@ export default function QRWhatsAppInboxPage() {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [lastStatusCode, setLastStatusCode] = useState<number | null>(null);
   const [lastQrCode, setLastQrCode] = useState<number | null>(null);
+  const [lastStatusData, setLastStatusData] = useState<any>(null);
 
   const [loggingInNewNumber, setLoggingInNewNumber] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
@@ -284,6 +285,7 @@ export default function QRWhatsAppInboxPage() {
         }
         setLastStatusCode(res.status);
         const data = await res.json();
+        setLastStatusData(data);
         setBridgeErrorIfChanged(null);
 
         // Reset backoff on success
@@ -1656,7 +1658,9 @@ export default function QRWhatsAppInboxPage() {
               <div className="space-y-0.5 opacity-90">
                 <div>Bridge URL: <span className="opacity-70">{bridgeUrl}</span></div>
                 <div>Last /status: <span className={lastStatusCode ? 'opacity-70' : 'text-red-700'}>{lastStatusCode || '—'}</span></div>
-                <div>Last /qr: <span className={lastQrCode === 200 ? 'opacity-70' : lastQrCode ? 'text-red-700' : 'text-gray-500'}>{lastQrCode || '—'}</span></div>
+                <div>QR in response: <span className={lastStatusData?.qr ? 'opacity-70' : 'text-red-700'}>{lastStatusData?.qr ? `✓ (${lastStatusData.qr.length} chars)` : '✗ MISSING'}</span></div>
+                <div>Status: <span className="opacity-70">{lastStatusData?.status || '—'}</span></div>
+                <div>HasQr: <span className="opacity-70">{lastStatusData?.hasQr ? '✓' : '✗'}</span></div>
                 <div>Secret set: <span className="opacity-70">{bridgeSecret ? '✓' : '✗'}</span></div>
               </div>
               <button
