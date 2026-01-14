@@ -118,35 +118,36 @@ export default function Navigation() {
         <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             {/* Logo - Image Based */}
-            <Link href="/" className="flex items-center space-x-3 group hover:opacity-80 transition-opacity">
-              {/* Logo Image */}
-              <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center flex-shrink-0">
+            <Link href="/" className="flex items-center space-x-2 sm:space-x-3 group hover:opacity-90 transition-opacity">
+              {/* Logo Image - Enhanced Size */}
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex items-center justify-center flex-shrink-0">
                 <img 
-                  src="/logo.png"
+                  src="/logo with mohan sir.png"
                   alt="Swar Yoga Logo"
                   className="w-full h-full object-contain"
+                  loading="eager"
                 />
               </div>
               
               {/* Text - Poppins Font */}
-              <div className="flex flex-col tracking-tight">
+              <div className="flex flex-col tracking-tight hidden sm:block">
                 <span 
-                  className="text-xl sm:text-2xl font-bold" 
+                  className="text-lg sm:text-xl md:text-2xl font-bold leading-none" 
                   style={{
                     fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                     letterSpacing: "-0.01em",
                     fontWeight: 700,
-                    color: "#000000"
+                    color: "#2D6A4F"
                   }}
                 >
                   Swar Yoga
                 </span>
                 <div 
-                  className="text-xs sm:text-sm font-semibold -mt-0.5 hidden sm:block" 
+                  className="text-[10px] sm:text-xs font-semibold leading-tight" 
                   style={{
                     fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                     letterSpacing: "0.02em",
-                    color: "#ff751f",
+                    color: "#FF6B35",
                     fontWeight: 600
                   }}
                 >
