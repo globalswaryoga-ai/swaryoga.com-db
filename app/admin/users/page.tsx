@@ -207,8 +207,8 @@ export default function AdminUsersPage() {
     if (permissionMode === 'granular' && !granularPermissions.isSuperAdmin) {
       const hasSomePermission = Object.keys(granularPermissions).some(key => {
         if (key === 'isSuperAdmin') return false;
-        const module = (granularPermissions as any)[key];
-        return module && typeof module === 'object' && Object.values(module).some(v => v === true);
+        const permGroup = (granularPermissions as any)[key];
+        return permGroup && typeof permGroup === 'object' && Object.values(permGroup).some(v => v === true);
       });
       
       if (!hasSomePermission) {
@@ -329,13 +329,13 @@ export default function AdminUsersPage() {
       
       // Count enabled modules
       const enabledModules: string[] = [];
-      Object.keys(v2Perms).forEach(module => {
-        if (module === 'isSuperAdmin') return;
-        const modulePerms = (v2Perms as any)[module];
+      Object.keys(v2Perms).forEach((permKey) => {
+        if (permKey === 'isSuperAdmin') return;
+        const modulePerms = (v2Perms as any)[permKey];
         if (modulePerms && typeof modulePerms === 'object') {
           const hasAnyPermission = Object.values(modulePerms).some(v => v === true);
           if (hasAnyPermission) {
-            enabledModules.push(module);
+            enabledModules.push(permKey);
           }
         }
       });
@@ -346,9 +346,9 @@ export default function AdminUsersPage() {
       
       return (
         <div className="flex flex-wrap gap-1">
-          {enabledModules.slice(0, 3).map((module) => (
-            <span key={module} className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-              {module}
+          {enabledModules.slice(0, 3).map((moduleName) => (
+            <span key={moduleName} className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+              {moduleName}
             </span>
           ))}
           {enabledModules.length > 3 && (
