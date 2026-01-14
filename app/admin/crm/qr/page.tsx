@@ -3,6 +3,25 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchParams } from 'next/navigation';
+import { 
+  Paperclip, 
+  Zap, 
+  FileText, 
+  Clock, 
+  Smile, 
+  Send,
+  MoreVertical,
+  Search,
+  UserPlus,
+  RefreshCw,
+  LogOut,
+  Settings,
+  X,
+  Plus,
+  Image as ImageIcon,
+  File as FileIcon,
+  Mic
+} from 'lucide-react';
 
 export default function QRWhatsAppInboxPage() {
   const token = useAuth();
@@ -1427,7 +1446,8 @@ export default function QRWhatsAppInboxPage() {
                 className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors flex items-center gap-1"
                 title="Add new contact"
               >
-                <span>⊕</span> New
+                <Plus size={16} />
+                New
               </button>
 
               {/* Login Button - Green (when disconnected) */}
@@ -1438,7 +1458,7 @@ export default function QRWhatsAppInboxPage() {
                   className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors flex items-center gap-1"
                   title="Login with QR"
                 >
-                  {connecting ? '⟳' : '↑'} Login
+                  {connecting ? <RefreshCw className="animate-spin" size={16} /> : '↑'} Login
                 </button>
               )}
             </div>
@@ -1476,7 +1496,7 @@ export default function QRWhatsAppInboxPage() {
               title="Add new lead"
               className="px-4 py-2 bg-purple-200 hover:bg-purple-300 text-purple-900 border border-purple-400 rounded-lg font-bold transition-colors flex items-center gap-2"
             >
-              <span>+</span>
+              <Plus size={16} />
               <span className="text-xs hidden sm:inline">Lead</span>
             </button>
           </div>
@@ -1798,10 +1818,10 @@ export default function QRWhatsAppInboxPage() {
               {/* Right: Close Button Only */}
               <button
                 onClick={() => setSelectedChat(null)}
-                className="text-slate-500 hover:text-slate-800 text-xl leading-none"
+                className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
                 aria-label="Close chat"
               >
-                ×
+                <X size={24} />
               </button>
             </div>
 
@@ -1929,438 +1949,167 @@ export default function QRWhatsAppInboxPage() {
               )}
             </div>
 
-            {/* Message Input */}
-            <div className="border-t border-slate-200 p-2 md:p-3 bg-[#f0f2f5]">
-              <div className="flex gap-1 md:gap-2 items-end">
-                {/* Media/Tools Menu */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowMediaMenu(!showMediaMenu)}
-                    className="p-1.5 md:p-2 rounded-full hover:bg-slate-200 text-slate-600 text-lg md:text-xl transition-colors flex-shrink-0"
-                    title="Attach media"
-                  >
-                    +
-                  </button>
-                  
-                  {/* Media Menu Dropdown */}
-                  {showMediaMenu && (
-                    <div className="absolute bottom-12 left-0 bg-white rounded-lg shadow-lg border border-slate-200 min-w-max z-40">
-                      <button
-                        onClick={() => {
-                          mediaInputRef.current?.click();
-                          setShowMediaMenu(false);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors first:rounded-t-lg"
-                      >
-                        <span className="text-xl">🖼️</span> Photos & Videos
-                      </button>
-                      <button
-                        onClick={() => {
-                          mediaInputRef.current?.click();
-                          setShowMediaMenu(false);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <span className="text-xl">📄</span> Document
-                      </button>
-                      <button
-                        onClick={() => {
-                          mediaInputRef.current?.click();
-                          setShowMediaMenu(false);
-                        }}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <span className="text-xl">🎤</span> Audio
-                      </button>
-                      <div className="border-t border-slate-100" />
-                      <button
-                        onClick={() => setShowMediaMenu(false)}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <span className="text-xl">👥</span> Contact
-                      </button>
-                      <button
-                        onClick={() => setShowMediaMenu(false)}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <span className="text-xl">📍</span> Location
-                      </button>
-                    </div>
-                  )}
-                </div>
+            {/* Message Input Area */}
+            <div className="border-t border-slate-200 bg-[#f0f2f5]/50 flex flex-col">
+              {/* Toolbar */}
+              <div className="flex items-center gap-1 px-3 py-1 border-b border-slate-100 bg-white/80">
+                <button
+                  onClick={() => setShowMediaMenu(!showMediaMenu)}
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 relative ${
+                    showMediaMenu ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                  }`}
+                  title="Attach media"
+                >
+                  <Paperclip size={18} />
+                </button>
 
-                {/* Hidden File Input */}
-                <input
-                  ref={mediaInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*,video/*,.pdf,.doc,.docx,audio/*"
-                  onChange={handleMediaUpload}
-                  className="hidden"
-                  disabled={uploadingMedia}
-                />
+                <button
+                  onClick={() => setShowQuickReplies(!showQuickReplies)}
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                    showQuickReplies ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                  }`}
+                  title="Quick replies"
+                >
+                  <Zap size={18} />
+                </button>
 
-                {/* Message Input Area with Quick Actions */}
-                <div className="flex flex-col gap-2">
-                  {/* Top button row */}
-                  <div className="flex items-center gap-2 px-3 md:px-4">
-                    {/* Media Button */}
+                <button
+                  onClick={() => setShowTemplates(!showTemplates)}
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                    showTemplates ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                  }`}
+                  title="Message templates"
+                >
+                  <FileText size={18} />
+                </button>
+
+                <button
+                  onClick={() => setShowSchedulePanel(!showSchedulePanel)}
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                    showSchedulePanel ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                  }`}
+                  title="Schedule or delay message"
+                >
+                  <Clock size={18} />
+                </button>
+
+                <button
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                    showEmojiPicker ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                  }`}
+                  title="Emoji picker"
+                >
+                  <Smile size={18} />
+                </button>
+
+                {/* Media Dropdown Menu */}
+                {showMediaMenu && (
+                  <div className="absolute bottom-28 left-4 bg-white rounded-xl shadow-2xl border border-slate-200 min-w-[200px] z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <button
-                      onClick={() => setShowMediaMenu(!showMediaMenu)}
-                      className="p-1.5 md:p-2 rounded-full hover:bg-slate-200 text-slate-600 text-lg md:text-xl transition-colors flex-shrink-0 relative"
-                      title="Attach media"
+                      onClick={() => { mediaInputRef.current?.click(); setShowMediaMenu(false); }}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-emerald-50 transition-colors border-b border-slate-50"
                     >
-                      📎
+                      <ImageIcon className="text-emerald-500" size={18} />
+                      Photos & Videos
                     </button>
-
-                    {/* Quick Reply Button */}
                     <button
-                      onClick={() => setShowQuickReplies(!showQuickReplies)}
-                      className="p-1.5 md:p-2 rounded-full hover:bg-slate-200 text-slate-600 text-lg md:text-xl transition-colors flex-shrink-0"
-                      title="Quick replies"
+                      onClick={() => { mediaInputRef.current?.click(); setShowMediaMenu(false); }}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-emerald-50 transition-colors border-b border-slate-50"
                     >
-                      ⚡
+                      <FileIcon className="text-blue-500" size={18} />
+                      Document
                     </button>
-
-                    {/* Template Button */}
                     <button
-                      onClick={() => setShowTemplates(!showTemplates)}
-                      className="p-1.5 md:p-2 rounded-full hover:bg-slate-200 text-slate-600 text-lg md:text-xl transition-colors flex-shrink-0"
-                      title="Message templates"
+                      onClick={() => { mediaInputRef.current?.click(); setShowMediaMenu(false); }}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-emerald-50 transition-colors"
                     >
-                      📋
-                    </button>
-
-                    {/* Schedule Button */}
-                    <button
-                      onClick={() => setShowSchedulePanel(!showSchedulePanel)}
-                      className="p-1.5 md:p-2 rounded-full hover:bg-slate-200 text-slate-600 text-lg md:text-xl transition-colors flex-shrink-0"
-                      title="Schedule or delay message"
-                    >
-                      ⏰
-                    </button>
-
-                    {/* Emoji Picker */}
-                    <button
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className="p-1.5 md:p-2 rounded-full hover:bg-slate-200 text-slate-600 text-lg md:text-xl transition-colors flex-shrink-0"
-                      title="Emoji picker"
-                    >
-                      😊
+                      <Mic className="text-orange-500" size={18} />
+                      Audio
                     </button>
                   </div>
-
-                  {/* Message Input Row - Full Width */}
-                  <div className="flex items-end gap-2 px-3 md:px-4">
-                    {/* Message Input - Now Full Width */}
-                    <textarea
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && e.ctrlKey && handleScheduledSend()}
-                      placeholder="Type a message... (Ctrl+Enter to send)"
-                      className="flex-1 w-full px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
-                      disabled={sending || status !== 'connected'}
-                      rows={8}
-                    />
-
-                    {/* Send Button */}
-                    <button
-                      onClick={handleScheduledSend}
-                      disabled={sending || !newMessage.trim() || status !== 'connected' || uploadingMedia}
-                      className="p-1.5 md:p-2 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold transition-all text-lg md:text-xl flex-shrink-0"
-                      title={uploadingMedia ? 'Uploading...' : 'Send message'}
-                    >
-                      {sending || uploadingMedia ? '⟳' : '➤'}
-                    </button>
-                  </div>
-
-                  {/* Quick Replies Panel */}
-                  {showQuickReplies && (
-                    <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-sm text-slate-900">Quick Replies</h3>
-                        <button
-                          onClick={() => setShowQuickReplies(false)}
-                          className="text-xs text-slate-500 hover:text-slate-700"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      
-                      {/* Quick Reply List */}
-                      <div className="space-y-1 max-h-40 overflow-y-auto">
-                        {quickReplies.map((reply) => (
-                          <div key={reply.id} className="flex items-center justify-between gap-2 bg-slate-50 p-2 rounded">
-                            <button
-                              onClick={() => insertQuickReply(reply.message)}
-                              className="flex-1 text-left text-sm text-slate-700 hover:bg-emerald-100 px-2 py-1 rounded truncate"
-                            >
-                              {reply.message}
-                            </button>
-                            <button
-                              onClick={() => deleteQuickReply(reply.id)}
-                              className="text-xs text-red-600 hover:text-red-800 flex-shrink-0"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Add New Quick Reply */}
-                      <div className="flex gap-2 pt-2 border-t border-slate-200">
-                        <input
-                          type="text"
-                          value={newQuickReply}
-                          onChange={(e) => setNewQuickReply(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && addQuickReply()}
-                          placeholder="Add new quick reply..."
-                          className="flex-1 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                        <button
-                          onClick={addQuickReply}
-                          className="px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Templates Panel */}
-                  {showTemplates && (
-                    <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-sm text-slate-900">Message Templates</h3>
-                        <button
-                          onClick={() => setShowTemplates(false)}
-                          className="text-xs text-slate-500 hover:text-slate-700"
-                        >
-                          ✕
-                        </button>
-                      </div>
-
-                      {/* Templates List */}
-                      <div className="space-y-1 max-h-48 overflow-y-auto">
-                        {templates.map((template) => (
-                          <div key={template.id} className="bg-slate-50 p-2 rounded">
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <span className="font-medium text-xs text-emerald-700">{template.name}</span>
-                              <button
-                                onClick={() => deleteTemplate(template.id)}
-                                className="text-xs text-red-600 hover:text-red-800 flex-shrink-0"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                            <button
-                              onClick={() => insertTemplate(template.message)}
-                              className="w-full text-left text-xs text-slate-700 bg-white hover:bg-emerald-100 px-2 py-1 rounded border border-slate-200 truncate"
-                            >
-                              {template.message}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Add New Template */}
-                      {!showTemplateForm ? (
-                        <button
-                          onClick={() => setShowTemplateForm(true)}
-                          className="w-full py-2 text-xs text-emerald-600 border-t border-slate-200 hover:bg-emerald-50 rounded mt-2"
-                        >
-                          + Add Template
-                        </button>
-                      ) : (
-                        <div className="pt-2 border-t border-slate-200 space-y-2">
-                          <input
-                            type="text"
-                            value={newTemplate.name}
-                            onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                            placeholder="Template name (e.g., Welcome)"
-                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          />
-                          <textarea
-                            value={newTemplate.message}
-                            onChange={(e) => setNewTemplate({ ...newTemplate, message: e.target.value })}
-                            placeholder="Template message..."
-                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                            rows={8}
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              onClick={addTemplate}
-                              className="flex-1 px-2 py-1 bg-emerald-600 text-white text-xs rounded hover:bg-emerald-700"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setShowTemplateForm(false)}
-                              className="flex-1 px-2 py-1 bg-slate-300 text-slate-700 text-xs rounded hover:bg-slate-400"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Schedule & Delay Panel */}
-                  {showSchedulePanel && (
-                    <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-sm text-slate-900">Schedule & Delay</h3>
-                        <button
-                          onClick={() => setShowSchedulePanel(false)}
-                          className="text-xs text-slate-500 hover:text-slate-700"
-                        >
-                          ✕
-                        </button>
-                      </div>
-
-                      {/* Send Now vs Delay Tabs */}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => { setUseSchedule(false); setUseDelay(false); }}
-                          className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
-                            !useSchedule && !useDelay
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          }`}
-                        >
-                          Send Now
-                        </button>
-                        <button
-                          onClick={() => { setUseDelay(true); setUseSchedule(false); }}
-                          className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
-                            useDelay
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          }`}
-                        >
-                          Delay
-                        </button>
-                        <button
-                          onClick={() => { setUseSchedule(true); setUseDelay(false); }}
-                          className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-colors ${
-                            useSchedule
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          }`}
-                        >
-                          Schedule
-                        </button>
-                      </div>
-
-                      {/* Delay Controls */}
-                      {useDelay && (
-                        <div className="bg-slate-50 p-2 rounded space-y-2">
-                          <p className="text-xs text-slate-700 font-medium">Delay time</p>
-                          <div className="grid grid-cols-4 gap-2">
-                            <div>
-                              <label className="text-xs text-slate-600">Days</label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={delayDays}
-                                onChange={(e) => setDelayDays(e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-slate-600">Hours</label>
-                              <input
-                                type="number"
-                                min="0"
-                                max="23"
-                                value={delayHours}
-                                onChange={(e) => setDelayHours(e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-slate-600">Minutes</label>
-                              <input
-                                type="number"
-                                min="0"
-                                max="59"
-                                value={delayMinutes}
-                                onChange={(e) => setDelayMinutes(e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-slate-600">Seconds</label>
-                              <input
-                                type="number"
-                                min="0"
-                                max="59"
-                                value={delaySeconds}
-                                onChange={(e) => setDelaySeconds(e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Schedule Controls */}
-                      {useSchedule && (
-                        <div className="bg-slate-50 p-2 rounded">
-                          <p className="text-xs text-slate-700 font-medium mb-2">Schedule date & time</p>
-                          <input
-                            type="datetime-local"
-                            value={scheduleDateTime}
-                            onChange={(e) => setScheduleDateTime(e.target.value)}
-                            className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
-              {/* Upload Progress Indicators */}
-              {uploadingMedia && Object.keys(uploadProgress).length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {Object.entries(uploadProgress).map(([fileId, progress]) => (
-                    <div key={fileId} className="text-xs text-slate-600">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="truncate">{fileId.split('-').slice(0, -1).join('-')}</span>
-                        <span>{Math.round(progress)}%</span>
-                      </div>
-                      <div className="w-full bg-slate-200 rounded-full h-1">
-                        <div
-                          className="bg-emerald-600 h-1 rounded-full transition-all duration-200"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Hidden File Input */}
+              <input
+                ref={mediaInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf,.doc,.docx,audio/*"
+                onChange={handleMediaUpload}
+                className="hidden"
+              />
 
-              {uploadingMedia && Object.keys(uploadProgress).length === 0 && (
-                <div className="mt-2 text-xs text-slate-600 animate-pulse">
-                  📤 Uploading media...
-                </div>
-              )}              {/* Emoji Picker Grid */}
-              {showEmojiPicker && (
-                <div className="mt-2 grid grid-cols-8 gap-1 bg-white p-2 rounded-lg border border-slate-200 max-h-40 overflow-y-auto">
-                  {['😊', '😂', '🥰', '😍', '🎉', '🎊', '🔥', '👍', '❤️', '😢', '😡', '🤔', '👏', '🙌', '💪', '🚀', '⭐', '✨', '💯', '🎈', '🎁', '🌟', '💝', '😎', '🤗', '😘', '😌', '😴', '🤗', '😷', '🥳', '💕'].map((emoji, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setNewMessage(prev => prev + emoji);
-                        setShowEmojiPicker(false);
-                      }}
-                      className="p-1 hover:bg-slate-100 rounded text-xl transition-colors"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+              {/* Main Input Field */}
+              <div className="flex items-end gap-2 px-3 py-2.5">
+                <textarea
+                  value={newMessage}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (newMessage.trim() && !sending && status === 'connected') {
+                        handleScheduledSend();
+                      }
+                    }
+                  }}
+                  placeholder="Type a message... (Enter to send)"
+                  className="flex-1 w-full px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
+                  rows={1}
+                />
+
+                <button
+                  onClick={handleScheduledSend}
+                  disabled={sending || !newMessage.trim() || status !== 'connected' || uploadingMedia}
+                  className="flex-shrink-0 w-11 h-11 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95"
+                >
+                  {sending || uploadingMedia ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send size={20} className="ml-0.5" />
+                  )}
+                </button>
+              </div>
+
+              {/* Status/Progress Area (Nested) */}
+              {(uploadingMedia || showEmojiPicker) && (
+                <div className="px-4 pb-2">
+                  {/* Upload Progress */}
+                  {uploadingMedia && Object.keys(uploadProgress).length > 0 && (
+                    <div className="space-y-1 py-2 border-t border-slate-100">
+                      {Object.entries(uploadProgress).map(([fileId, progress]) => (
+                        <div key={fileId} className="text-[10px] text-slate-500">
+                          <div className="flex justify-between mb-1">
+                            <span className="truncate max-w-[150px]">{fileId.split('-')[0]}</span>
+                            <span>{Math.round(progress)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1">
+                            <div className="bg-emerald-500 h-1 rounded-full" style={{ width: `${progress}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Emoji Picker Grid */}
+                  {showEmojiPicker && (
+                    <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 bg-white p-2 rounded-xl border border-slate-200 max-h-40 overflow-y-auto shadow-inner my-1 animate-in zoom-in-95 duration-200">
+                      {['😊', '😂', '🥰', '😍', '🎉', '🎊', '🔥', '👍', '❤️', '😢', '😡', '🤔', '👏', '🙌', '💪', '🚀', '⭐', '✨', '💯', '🎈', '🎁', '🌟', '💝', '😎', '🤗', '😘', '😌', '😴', '😷', '�', '�', '�', '🙌', '�'].map((emoji, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => { setNewMessage(prev => prev + emoji); setShowEmojiPicker(false); }}
+                          className="p-1.5 hover:bg-slate-100 rounded text-xl transition-colors hover:scale-125 duration-100"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2390,7 +2139,7 @@ export default function QRWhatsAppInboxPage() {
               className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
               aria-label="Close"
             >
-              ×
+              <X size={24} />
             </button>
           </div>
 
@@ -2478,7 +2227,7 @@ export default function QRWhatsAppInboxPage() {
               className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
               aria-label="Close"
             >
-              ×
+              <X size={24} />
             </button>
           </div>
 
@@ -2534,7 +2283,7 @@ export default function QRWhatsAppInboxPage() {
                       onClick={() => setIsEditingGroupName(true)}
                       className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-purple-600 transition-opacity"
                     >
-                      ✎
+                      <MoreVertical size={16} />
                     </button>
                     <p className="text-sm text-slate-500">
                       {groupDetails.participants?.length || 0} participants
@@ -2725,7 +2474,7 @@ export default function QRWhatsAppInboxPage() {
                 className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
                 aria-label="Close"
               >
-                ×
+                <X size={24} />
               </button>
             </div>
 
