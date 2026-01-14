@@ -8,6 +8,8 @@ import EnquiryForm from '@/components/EnquiryForm';
 import { ArrowLeft, Calendar, Clock, Users, MapPin, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { addCartItem, CartCurrency } from '@/lib/cart';
+import PayUStaticButton from '@/components/PayUStaticButton';
+import { getWorkshopPaymentLink } from '@/lib/workshops/workshopPaymentConfig';
 
 interface Schedule {
   id: string;
@@ -49,6 +51,17 @@ export default function RegisterPage() {
   const [addedSchedules, setAddedSchedules] = useState<Record<string, boolean>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // PayU direct pay-now: show only when a link exists for the selected workshop + mode.
+  // Language is currently fixed to Hindi for this page's Pay Now button.
+  const selectedLanguageForPayNow = 'hindi' as const;
+  const payNowLink = useMemo(() => {
+    if (!workshopSlug) return '';
+    // NOTE: This uses the centralized payment config. If you haven't filled the PayU URL
+    // for a workshop/mode yet, it will correctly hide the Pay Now button.
+    return getWorkshopPaymentLink(workshopSlug, selectedMode, selectedLanguageForPayNow);
+  }, [workshopSlug, selectedMode]);
+  const showPayNow = Boolean(payNowLink);
 
   useEffect(() => {
     return () => {
@@ -292,6 +305,18 @@ export default function RegisterPage() {
               </div>
               <div className="text-lg md:text-2xl font-bold text-blue-600">{workshopInfo?.price || 'Price TBA'}</div>
             </div>
+
+            {showPayNow && (
+              <div className="mt-6 flex justify-center">
+                <PayUStaticButton
+                  payuLink={payNowLink}
+                  workshopName={workshopInfo?.name || workshopSlug}
+                  mode={selectedMode}
+                  language={selectedLanguageForPayNow}
+                  buttonText="Pay Now"
+                />
+              </div>
+            )}
           </div>
 
           {/* Mode Selection */}

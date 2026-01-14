@@ -9,6 +9,8 @@ interface EnquiryFormModalProps {
   month: string;
   mode: string;
   language: string;
+  priceInr?: number;
+  payNowHref?: string;
   onClose: () => void;
 }
 
@@ -18,6 +20,8 @@ export default function EnquiryFormModal({
   month,
   mode,
   language,
+  priceInr,
+  payNowHref,
   onClose,
 }: EnquiryFormModalProps) {
   const [formData, setFormData] = useState({
@@ -30,6 +34,7 @@ export default function EnquiryFormModal({
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [leadNumber, setLeadNumber] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -43,6 +48,7 @@ export default function EnquiryFormModal({
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+    setLeadNumber(null);
 
     // Validation
     if (!formData.name.trim()) {
@@ -76,7 +82,7 @@ export default function EnquiryFormModal({
     }
 
     try {
-      const res = await fetch('/api/workshop-enquiry', {
+      const res = await fetch('/api/workshop-leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,13 +91,16 @@ export default function EnquiryFormModal({
           month,
           mode,
           language,
+          priceInr,
           ...formData,
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Thank you! We will contact you soon.' });
+        const ln = data?.data?.leadNumber || data?.leadNumber;
+        if (ln) setLeadNumber(String(ln));
+        setMessage({ type: 'success', text: 'Thank you! Your form is submitted successfully.' });
         setFormData({
           name: '',
           mobile: '',
@@ -135,6 +144,16 @@ export default function EnquiryFormModal({
             <p className="text-sm text-gray-700">
               <strong>For:</strong> {month} • {mode} • {language}
             </p>
+            {typeof priceInr === 'number' && priceInr > 0 && (
+              <p className="text-sm text-gray-700">
+                <strong>Fee:</strong> ₹{Number(priceInr).toLocaleString('en-IN')}
+              </p>
+            )}
+            {leadNumber && (
+              <p className="text-sm text-gray-700 mt-1">
+                <strong>Lead ID:</strong> <span className="font-black">{leadNumber}</span>
+              </p>
+            )}
           </div>
 
           {message && (
@@ -241,6 +260,15 @@ export default function EnquiryFormModal({
             >
               {loading ? 'Submitting...' : 'Submit Enquiry'}
             </button>
+
+            {payNowHref && (
+              <a
+                href={payNowHref}
+                className="w-full inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+              >
+                Pay Now
+              </a>
+            )}
           </form>
         </div>
       </div>

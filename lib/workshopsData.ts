@@ -24,6 +24,36 @@ export type WorkshopOverview = {
 
 // Workshop metadata (displayed on main pages and catalog)
 const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
+  'master-swar-yoga': {
+    name: 'Master Swar Yoga – 6 Month Masterclass (L1–L5)',
+    slug: 'master-swar-yoga',
+    image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
+    description: 'A 6-month masterclass combining Swar Yoga Levels 1 to 5. New batch starts every month (3 days/week).',
+    detailedDescription:
+      'This Master Swar Yoga program combines Levels 1–5 in a single guided 6-month journey. The curriculum includes: Level-1, Level-2 (Aham Brahmasmi), Level-3 (Astavakra), Level-4, and Level-5 (Bandhan Mukti). New batch starts every month. Classes run 3 days a week with timings and dates managed from Admin schedules. Choose monthly payment or a discounted 3-month plan.',
+    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    duration: '6 months',
+    level: 'Masterclass',
+    category: 'Training',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR']
+  },
+  'swar-yoga-basic-program': {
+    name: 'Swar Yoga Basic Program',
+    slug: 'swar-yoga-basic-program',
+    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=800',
+    description: '2-day starter program (1.5 hours/day) to learn the fundamentals of Swar Yoga.',
+    detailedDescription:
+      'Swar Yoga Basic Program is a short 2-day introduction designed for beginners. Learn the core foundations of Swar Yoga in 1.5-hour classes. Schedules (next batch dates and timings) are controlled from Admin. Seats are limited per batch.',
+    videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
+    duration: '2 days',
+    level: 'Beginner',
+    category: 'Health',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR']
+  },
   'yogasana-sadhana': {
     name: 'Yogasana & Sadhana',
     slug: 'yogasana-sadhana',
@@ -39,7 +69,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     currency: ['INR', 'NPR', 'USD']
   },
   'swar-yoga-level-1': {
-    name: 'Swar Yoga Level-1 Workshop',
+    name: 'Swar Yoga Basic Workshop',
     slug: 'swar-yoga-level-1',
     image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=800',
     description: 'First level comprehensive Swar Yoga training',
@@ -327,6 +357,26 @@ export const workshopDetails: Record<string, WorkshopDetail> = {
       }
     ]
   },
+  'swar-yoga-basic-program': {
+    id: 1001,
+    name: 'Swar Yoga Basic Program',
+    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=800',
+    duration: '2 days',
+    level: 'Beginner',
+    price: '₹145',
+    schedules: [
+      {
+        id: 'jan-2026',
+        mode: 'online',
+        startDate: '2026-01-19',
+        endDate: '2026-01-20',
+        time: '7:00 PM - 8:30 PM',
+        seats: 99,
+        price: 145,
+        currency: 'INR'
+      }
+    ]
+  },
   'swar-yoga-basic': {
     id: 1,
     name: 'Swar Yoga Basic Workshop',
@@ -442,6 +492,8 @@ export interface WorkshopLandingData {
   introVideoUrl: string;
   whatYouWillLearn: string[];
   highlightVideos: Array<{ title: string; url: string }>;
+  // Additional small videos shown in a compact grid (3 recommended)
+  detailVideos?: Array<{ title: string; url: string }>;
   mentorInfo: string;
   testimonials: Array<{ quote: string; name: string; place: string }>;
   videoTestimonials: Array<{ name: string; url: string }>;

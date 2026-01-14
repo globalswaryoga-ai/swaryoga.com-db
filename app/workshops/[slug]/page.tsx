@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { findWorkshopBySlug } from '@/lib/workshopsData';
 import WorkshopBatchForm from '@/components/WorkshopBatchForm';
+import WorkshopPaymentButton from '@/components/WorkshopPaymentButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,18 @@ export default function WorkshopDetailPage({ params }: { params: { slug: string 
   // Extract first 5 lines from description for "About This Workshop" section
   const aboutLines = extractFiveLines(workshop.detailedDescription || workshop.description || '');
 
-  const registerLink = `/workshops/${workshop.slug}/register`;
+  // New canonical registration URL format:
+  // /registration/<mode>/<language>/<workshopSlug>
+  // Defaulting to online + hindi (can be made dynamic later)
+  const registerLink = `/registration/online/hindi/${workshop.slug}`;
+
+  // Show PayU payment button only for workshops present in workshopPaymentConfig.
+  // This keeps current UX unchanged for all other workshops.
+  const isPayUConfiguredWorkshop =
+    params.slug === 'swar-yoga-basic-program' ||
+    params.slug === 'swar-yoga-level-1' ||
+    params.slug === 'yogasana-sadhana' ||
+    params.slug === 'breathing-basics';
 
   return (
     <>
@@ -244,6 +256,23 @@ export default function WorkshopDetailPage({ params }: { params: { slug: string 
                 Join thousands of practitioners on the path to wellness and spiritual growth
               </p>
             </div>
+
+            {isPayUConfiguredWorkshop && (
+              <div className="mb-10 flex justify-center">
+                <div className="w-full max-w-md">
+                  <WorkshopPaymentButton
+                    workshopSlug={params.slug}
+                    // Swar Yoga Basic Program: lock to online + hindi by default.
+                    // Other configured workshops: allow selectors.
+                    mode={params.slug === 'swar-yoga-basic-program' ? 'online' : undefined}
+                    language={params.slug === 'swar-yoga-basic-program' ? 'hindi' : undefined}
+                    showDetails={true}
+                    showModeSelector={params.slug !== 'swar-yoga-basic-program'}
+                    showLanguageSelector={params.slug !== 'swar-yoga-basic-program'}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* 5 Blinking Green Register Buttons */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

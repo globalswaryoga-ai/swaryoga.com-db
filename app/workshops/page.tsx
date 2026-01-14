@@ -13,7 +13,9 @@ export const dynamic = 'force-dynamic';
 
 // Fee mapping for all workshops
 const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; currency: string }> = {
+  'swar-yoga-basic-program': { minPrice: 145, maxPrice: 145, currency: 'INR' },
   'swar-yoga-basic': { minPrice: 96, maxPrice: 96, currency: 'INR' },
+  'master-swar-yoga': { minPrice: 1500, maxPrice: 1500, currency: 'INR' },
   'yogasana-sadhana': { minPrice: 5400, maxPrice: 5400, currency: 'INR' },
   'swar-yoga-level-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-level-3': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
@@ -127,6 +129,7 @@ function formatDate(isoDate: string): string {
 function WorkshopsPageInner() {
   const [currentPage, setCurrentPage] = useState(1);
   const workshopsPerPage = 20; // 5 rows of 4 cards
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
@@ -248,15 +251,42 @@ function WorkshopsPageInner() {
     return a.name.localeCompare(b.name);
   });
 
+  // Pin the first four workshops in a specific order (as requested).
+  // We keep the remaining workshops in their existing sorted order.
+  const PINNED_FIRST_WORKSHOP_SLUGS = [
+    // 1st card
+    'swar-yoga-basic',
+    // 2nd card
+    'master-swar-yoga',
+    // keep the other previously pinned items after these two
+    'pre-pregnancy',
+    'weight-loss',
+  ];
+
+  const pinnedFirstWorkshops = PINNED_FIRST_WORKSHOP_SLUGS
+    .map((slug) => sortedWorkshops.find((w) => w.slug === slug))
+    .filter(Boolean) as WorkshopOverview[];
+
+  const workshopsForDisplay = [
+    ...pinnedFirstWorkshops,
+    ...sortedWorkshops.filter((w) => !PINNED_FIRST_WORKSHOP_SLUGS.includes(w.slug)),
+  ];
+
   // Filter workshops based on selected filters
-  const filteredWorkshops = sortedWorkshops.filter((workshop: WorkshopOverview) => {
+  const filteredWorkshops = workshopsForDisplay.filter((workshop: WorkshopOverview) => {
+    const q = searchTerm.trim().toLowerCase();
+    const textMatch =
+      !q ||
+      [workshop.name, workshop.slug, workshop.category]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
     const categoryMatch = !selectedCategory || workshop.category === selectedCategory;
     const workshopMatch = !selectedWorkshop || workshop.slug === selectedWorkshop;
     const modeMatch = !selectedMode || (workshop.mode && workshop.mode.includes(selectedMode));
     const languageMatch = !selectedLanguage || (workshop.language && workshop.language.includes(selectedLanguage));
     const currencyMatch = !selectedPayment || (workshop.currency && workshop.currency.includes(selectedPayment));
 
-    return categoryMatch && workshopMatch && modeMatch && languageMatch && currencyMatch;
+    return textMatch && categoryMatch && workshopMatch && modeMatch && languageMatch && currencyMatch;
   });
 
   const categoryOptions = Array.from(new Set(workshopCatalog.map((w) => w.category))).sort((a, b) => a.localeCompare(b));
@@ -331,6 +361,40 @@ function WorkshopsPageInner() {
               </h2>
               <p className="text-sm sm:text-base md:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed px-2">
                 Each workshop is carefully designed by yoga masters to provide authentic learning and personal transformation.
+              </p>
+            </div>
+
+            {/* Search */}
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8 mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="workshop-search">
+                Search workshops
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="workshop-search"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Type a workshop name…"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500"
+                />
+                {searchTerm.trim().length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCurrentPage(1);
+                    }}
+                    className="shrink-0 px-4 py-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 font-semibold text-sm text-gray-700"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Searches by name, category, or URL slug.
               </p>
             </div>
 
@@ -715,7 +779,7 @@ function WorkshopsPageInner() {
                               <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
                             </Link>
                             <Link
-                              href={`/registernow?workshop=${encodeURIComponent(workshop.slug)}`}
+                              href={`/registration/online/hindi/${encodeURIComponent(workshop.slug)}`}
                               className="bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition-all duration-300 font-bold flex items-center justify-center text-[10px]"
                             >
                               Register Now
@@ -843,7 +907,7 @@ function WorkshopsPageInner() {
                               <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
                             </Link>
                             <Link
-                              href={`/registernow?workshop=${encodeURIComponent(workshop.slug)}`}
+                              href={`/registration/online/hindi/${encodeURIComponent(workshop.slug)}`}
                               className="bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg transition-all duration-300 font-bold flex items-center justify-center text-[10px]"
                             >
                               Register Now

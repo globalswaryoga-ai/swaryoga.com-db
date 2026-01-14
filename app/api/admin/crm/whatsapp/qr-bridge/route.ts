@@ -5,8 +5,19 @@ const DEFAULT_BRIDGE_URL = process.env.NODE_ENV === 'production'
   ? 'http://3.109.154.61:3333'
   : 'http://localhost:3333';
 
-const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || DEFAULT_BRIDGE_URL;
-const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || process.env.WHATSAPP_WEB_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+// Prefer server-only vars, but also allow NEXT_PUBLIC_* (often configured first in Vercel/env files).
+// This route runs server-side, so either works.
+const BRIDGE_URL =
+  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
+  process.env.WHATSAPP_BRIDGE_URL ||
+  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
+  DEFAULT_BRIDGE_URL;
+
+const BRIDGE_SECRET =
+  process.env.WHATSAPP_BRIDGE_SECRET ||
+  process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
+  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
+  'swar-bridge-secret-2024';
 
 // Mark as dynamic (uses request.nextUrl for query parameters)
 export const dynamic = 'force-dynamic';

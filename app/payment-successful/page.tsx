@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { parsePaymentParams, formatPaymentAmount } from '@/lib/payments/payuButtonHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,11 @@ function PaymentSuccessfulInner() {
   const transactionId = searchParams?.get('mihpayid') || '';
   const amount = searchParams?.get('amount') || '';
   const email = searchParams?.get('email') || '';
+  
+  // Workshop details from PayU button helper
+  const workshopParams = useMemo(() => {
+    return parsePaymentParams(searchParams || new URLSearchParams());
+  }, [searchParams]);
 
   const [order, setOrder] = useState<SafeOrder | null>(null);
   const [loading, setLoading] = useState<boolean>(!!orderId);
@@ -37,11 +43,22 @@ function PaymentSuccessfulInner() {
 
   const summaryLine = useMemo(() => {
     const parts: string[] = [];
-    if (amount) parts.push(`Amount: ₹${amount}`);
-    if (transactionId) parts.push(`PayU ID: ${transactionId}`);
-    if (email) parts.push(`Email: ${email}`);
+    
+    // If workshop details available, use those
+    if (workshopParams.workshopName) {
+      parts.push(`Workshop: ${workshopParams.workshopName}`);
+      if (workshopParams.amount) {
+        parts.push(`Amount: ${formatPaymentAmount(workshopParams.amount, workshopParams.currency)}`);
+      }
+    } else {
+      // Fallback to order details
+      if (amount) parts.push(`Amount: ₹${amount}`);
+      if (transactionId) parts.push(`PayU ID: ${transactionId}`);
+      if (email) parts.push(`Email: ${email}`);
+    }
+    
     return parts.join(' • ');
-  }, [amount, transactionId, email]);
+  }, [amount, transactionId, email, workshopParams]);
 
   useEffect(() => {
     if (!orderId) return;
