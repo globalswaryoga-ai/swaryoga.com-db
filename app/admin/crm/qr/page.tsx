@@ -50,6 +50,11 @@ export default function QRWhatsAppInboxPage() {
   const lastBridgeErrorRef = useRef<string | null>(null);
   const lastStatusRef = useRef<string>('loading');
 
+  // Diagnostics for troubleshooting (admin-only, hidden by default)
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [lastStatusCode, setLastStatusCode] = useState<number | null>(null);
+  const [lastQrCode, setLastQrCode] = useState<number | null>(null);
+
   const [loggingInNewNumber, setLoggingInNewNumber] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -277,6 +282,7 @@ export default function QRWhatsAppInboxPage() {
           const msg = await parseBridgeError(res);
           throw new Error(msg || 'Bridge unreachable');
         }
+        setLastStatusCode(res.status);
         const data = await res.json();
         setBridgeErrorIfChanged(null);
 
@@ -292,6 +298,7 @@ export default function QRWhatsAppInboxPage() {
           // Try to fetch QR from /qr endpoint
           try {
             const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8_000);
+            setLastQrCode(qrRes.status);
             if (qrRes.ok) {
               const qrData = await qrRes.json();
               if (qrData.qr && typeof qrData.qr === 'string' && qrData.qr.length > 0) {
@@ -1654,6 +1661,25 @@ export default function QRWhatsAppInboxPage() {
                 className="mt-2 w-full py-1 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700"
               >
                 Clear Offline Cache
+              </button>
+            </div>
+          )}
+
+          {/* Diagnostics banner (admin-only, show on error or when toggled) */}
+          {(bridgeError || showDiagnostics) && isSuperAdmin && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-[10px] leading-snug text-blue-900 font-mono">
+              <div className="font-bold mb-1">🔧 Diagnostics (Super Admin)</div>
+              <div className="space-y-0.5 opacity-90">
+                <div>Bridge URL: <span className="opacity-70">{bridgeUrl}</span></div>
+                <div>Last /status: <span className={lastStatusCode ? 'opacity-70' : 'text-red-700'}>{lastStatusCode || '—'}</span></div>
+                <div>Last /qr: <span className={lastQrCode === 200 ? 'opacity-70' : lastQrCode ? 'text-red-700' : 'text-gray-500'}>{lastQrCode || '—'}</span></div>
+                <div>Secret set: <span className="opacity-70">{bridgeSecret ? '✓' : '✗'}</span></div>
+              </div>
+              <button
+                onClick={() => setShowDiagnostics(!showDiagnostics)}
+                className="mt-1 text-blue-600 hover:underline text-[9px]"
+              >
+                {showDiagnostics ? 'Hide' : 'Show'} details
               </button>
             </div>
           )}
