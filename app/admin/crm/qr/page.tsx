@@ -295,28 +295,12 @@ export default function QRWhatsAppInboxPage() {
 
         // Automatically fetch and show QR if available
         if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
-          // Try to fetch QR from /qr endpoint
-          try {
-            const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8_000);
-            setLastQrCode(qrRes.status);
-            if (qrRes.ok) {
-              const qrData = await qrRes.json();
-              if (qrData.qr && typeof qrData.qr === 'string' && qrData.qr.length > 0) {
-                setQr(qrData.qr);
-                // Auto-open modal if status changed to qr/disconnected
-                if (statusChanged && (newStatus === 'qr' || newStatus === 'disconnected')) {
-                  setShowQRModal(true);
-                }
-              }
-            }
-          } catch (qrErr) {
-            console.warn('[checkStatus] Failed to fetch QR:', qrErr);
-            // Fallback to inline QR from status
-            if (typeof data.qr === 'string' && data.qr.length > 0) {
-              setQr(data.qr);
-              if (statusChanged && (newStatus === 'qr' || newStatus === 'disconnected')) {
-                setShowQRModal(true);
-              }
+          // QR is included in the /status response, no need for separate /qr fetch
+          if (typeof data.qr === 'string' && data.qr.length > 0) {
+            setQr(data.qr);
+            // Auto-open modal if status changed to qr/disconnected
+            if (statusChanged && (newStatus === 'qr' || newStatus === 'disconnected')) {
+              setShowQRModal(true);
             }
           }
         }
