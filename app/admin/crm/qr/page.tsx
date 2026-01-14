@@ -1383,35 +1383,14 @@ export default function QRWhatsAppInboxPage() {
       console.log('[refreshQr] Status data:', data);
       setStatus(normalizeBridgeStatus(data.status));
       
-      // If status says QR is available, fetch it from /qr endpoint
-      if (data.hasQr || data.status === 'qr') {
-        console.log('[refreshQr] QR available, fetching...');
-        try {
-          const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8_000);
-          console.log('[refreshQr] QR response ok?', qrRes.ok, 'status:', qrRes.status);
-          if (qrRes.ok) {
-            const qrData = await qrRes.json();
-            console.log('[refreshQr] QR data length:', qrData.qr?.length || 0);
-            if (qrData.qr && typeof qrData.qr === 'string') {
-              console.log('[refreshQr] Setting QR image and showing modal');
-              setQr(qrData.qr);
-              setShowQRModal(true);
-              return;
-            }
-          } else {
-            console.warn('[refreshQr] QR response not ok');
-          }
-        } catch (qrErr) {
-          console.warn('[refreshQr] Failed to fetch /qr:', qrErr);
-        }
-      }
-      
-      // Fallback: check if /status returns inline QR
+      // QR is included directly in the /status response
       if (typeof data.qr === 'string' && data.qr.length > 0) {
-        console.log('[refreshQr] QR found in status, setting it');
+        console.log('[refreshQr] QR found in status, setting it (length:', data.qr.length, ')');
         setQr(data.qr);
         setShowQRModal(true);
         return;
+      } else {
+        console.log('[refreshQr] QR not available in status response. hasQr:', data.hasQr, 'status:', data.status);
       }
       
       // Last resort: keep modal open with "Generating" message
