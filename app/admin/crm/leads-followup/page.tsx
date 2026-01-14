@@ -1065,7 +1065,7 @@ function LeadsFollowupPageContent() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => router.push(`/admin/crm/whatsapp?leadId=${encodeURIComponent(selectedLead._id)}`)}
+                    onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(selectedLead._id)}&phone=${encodeURIComponent(selectedLead.phoneNumber || '')}&name=${encodeURIComponent(selectedLead.name || '')}`)}
                     className="p-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors shadow-sm"
                     title="Open WhatsApp"
                   >

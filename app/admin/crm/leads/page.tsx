@@ -509,7 +509,7 @@ export default function LeadsPage() {
           </button>
 
           <button
-            onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}`)}
+            onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}&name=${encodeURIComponent(lead.name || '')}`)}
             className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
             title="Open QR WhatsApp"
           >

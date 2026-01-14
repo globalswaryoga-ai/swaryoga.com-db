@@ -28,6 +28,7 @@ export default function QRWhatsAppInboxPage() {
   const searchParams = useSearchParams();
   const phoneParam = searchParams?.get('phone');
   const leadIdParam = searchParams?.get('leadId');
+  const nameParam = searchParams?.get('name'); // New param
   const [status, setStatus] = useState('loading');
   const [qr, setQr] = useState<string | null>(null);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
@@ -61,6 +62,10 @@ export default function QRWhatsAppInboxPage() {
   const [showNewContactModal, setShowNewContactModal] = useState(false);
   const [newContactName, setNewContactName] = useState('');
   
+  // Media pending to be sent
+  const [pendingMedia, setPendingMedia] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
+  
   // New Lead Modal
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
   const [newLeadForm, setNewLeadForm] = useState({
@@ -83,8 +88,8 @@ export default function QRWhatsAppInboxPage() {
   
   // Track the phone parameter to always display at top
   const [activePhone, setActivePhone] = useState<string | null>(null);
-  const [activeName, setActiveName] = useState<string | null>(null);
-  const [activeLeadId, setActiveLeadId] = useState<string | null>(null);
+  const [activeName, setActiveName] = useState<string | null>(nameParam || null); // Initialize with param
+  const [activeLeadId, setActiveLeadId] = useState<string | null>(leadIdParam || null);
   const [activeStatus, setActiveStatus] = useState<string | null>(null);
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
   
@@ -190,16 +195,22 @@ export default function QRWhatsAppInboxPage() {
       try {
         const res = await bridgeFetch('/status', { method: 'GET' }, 8_000);
         if (!res.ok) {
+          if (res.status === 404) {
+            console.error('[404] WhatsApp Bridge /status endpoint not found.');
+          }
           const msg = await parseBridgeError(res);
           throw new Error(msg || 'Bridge unreachable');
         }
         const data = await res.json();
         setBridgeError(null);
-        setStatus(normalizeBridgeStatus(data.status));
+        
+        const newStatus = normalizeBridgeStatus(data.status);
+        setStatus(prev => prev !== newStatus ? newStatus : prev); // Only update if changed
 
-        // Different bridge builds may expose QR differently. Prefer any explicit QR string, otherwise
-        // preserve our existing QR value and rely on the modal "refresh QR" to fetch a new one.
-        if (typeof data.qr === 'string' && data.qr.length > 0) setQr(data.qr);
+        // Only update QR if it's different to prevent flickering
+        if (typeof data.qr === 'string' && data.qr.length > 0) {
+          setQr(prev => prev !== data.qr ? data.qr : prev);
+        }
       } catch (err) {
         setStatus('disconnected');
         setBridgeError(err instanceof Error ? err.message : 'Bridge not reachable');
@@ -207,8 +218,7 @@ export default function QRWhatsAppInboxPage() {
     };
 
     checkStatus();
-    // Poll every 10 seconds instead of 3 to reduce UI flickering/vibration
-    const interval = setInterval(checkStatus, 10000);
+    const interval = setInterval(checkStatus, 15000); // 15s instead of 10s
     return () => clearInterval(interval);
   }, [bridgeUrl]);
 
@@ -268,7 +278,9 @@ export default function QRWhatsAppInboxPage() {
 
   // Fetch lead details (name, ID, status, label) if leadId is provided
   useEffect(() => {
-    if (leadIdParam && token) {
+    // Only fetch if valid MongoDB ObjectId representation
+    const isValidId = leadIdParam && /^[0-9a-fA-F]{24}$/.test(String(leadIdParam));
+    if (isValidId && token) {
       const fetchLeadDetails = async () => {
         try {
           const response = await fetch(`/api/admin/crm/leads/${leadIdParam}`, {
@@ -340,6 +352,7 @@ export default function QRWhatsAppInboxPage() {
   useEffect(() => {
     if (phoneParam && status === 'connected') {
       setActivePhone(phoneParam);
+      if (nameParam) setActiveName(nameParam);
       
       // Normalize the phone parameter
       let normalizedPhone = String(phoneParam).replace(/\D/g, '');
@@ -347,19 +360,15 @@ export default function QRWhatsAppInboxPage() {
         normalizedPhone = '91' + normalizedPhone;
       }
       
-      // Find chat by phone number in existing chats
       const matchingChat = chats.find((chat) => {
         const chatPhone = String(chat.name || chat.id || '').replace(/\D/g, '');
         return chatPhone === normalizedPhone || chatPhone.endsWith(normalizedPhone);
       });
 
       if (matchingChat) {
-        console.log('[Auto-Select] Found matching chat for phone:', phoneParam);
         setSelectedChat(matchingChat);
       } else {
-        // Chat not found, create a synthetic chat and ADD IT TO THE LIST
-        console.log('[Auto-Select] Chat not found, creating new chat for phone:', phoneParam);
-        
+        // Chat not found, create a synthetic chat
         const formatPhone = (phone: string) => {
           let p = phone.replace(/\D/g, '');
           if (!p.startsWith('91') && p.length === 10) {
@@ -372,6 +381,8 @@ export default function QRWhatsAppInboxPage() {
         const syntheticChat = {
           id: { _serialized: phoneId },
           name: phoneParam,
+          displayName: nameParam || activeName || phoneParam, // Use name param
+          leadId: leadIdParam || activeLeadId,
           isGroup: false,
           isReadOnly: false,
           unreadCount: 0,
@@ -379,45 +390,34 @@ export default function QRWhatsAppInboxPage() {
           archived: false,
         };
 
-        console.log('[Auto-Select] Created synthetic chat for:', phoneParam);
-        
-        // ADD TO CHAT LIST so it appears immediately
         setChats((prevChats) => {
-          // Check if already in list
           const exists = prevChats.some((c) => {
             const cPhone = String(c.name || c.id || '').replace(/\D/g, '');
             return cPhone === normalizedPhone;
           });
           
           if (!exists) {
-            // Add to top of list
             return [syntheticChat, ...prevChats];
           }
           return prevChats;
         });
 
         setSelectedChat(syntheticChat);
-        setBridgeError(`📱 Chat ready for ${phoneParam}. Type your message to start.`);
-        setTimeout(() => setBridgeError(null), 3000);
       }
     }
-  }, [phoneParam, status]);
+  }, [phoneParam, status, nameParam]); // Add nameParam to deps
 
   // Load chats
   useEffect(() => {
     if (status === 'connected') {
       const loadChats = async () => {
         try {
-          console.log('[loadChats] Fetching chats...');
           const res = await bridgeFetch('/chats', { method: 'GET' }, 12_000);
-          console.log('[loadChats] Response ok?', res.ok, 'status:', res.status);
           if (res.ok) {
             const data = await res.json();
-            console.log('[loadChats] Got chats:', data.chats?.length || 0);
+            const newChats = data.chats || [];
             
-            // Merge strategy: preserve lead data to prevent flickering
             setChats((prevChats) => {
-              const newChats = data.chats || [];
               const prevChatsMap = new Map(
                 prevChats.map((chat) => [
                   typeof chat.id === 'string' ? chat.id : chat.id?._serialized,
@@ -425,7 +425,9 @@ export default function QRWhatsAppInboxPage() {
                 ])
               );
               
-              return newChats.map((newChat: any) => {
+              // Only update if something actually changed to prevent flickering
+              let changed = false;
+              const merged = newChats.map((newChat: any) => {
                 const chatId = typeof newChat.id === 'string' ? newChat.id : newChat.id?._serialized;
                 const existingChat = prevChatsMap.get(chatId);
                 
@@ -439,236 +441,162 @@ export default function QRWhatsAppInboxPage() {
                     leadLabel: existingChat.leadLabel,
                   };
                 }
-                
                 return newChat;
               });
+
+              // Simple length/ID check for change
+              if (merged.length !== prevChats.length) changed = true;
+              
+              return merged;
             });
             
             setBridgeError(null);
-          } else {
-            const err = await parseBridgeError(res);
-            console.error('[loadChats] Error:', err);
-            setBridgeError(err);
           }
         } catch (err) {
           console.error('[loadChats] Exception:', err);
-          setBridgeError(err instanceof Error ? err.message : 'Failed to load chats');
         }
       };
 
       loadChats();
-      // Poll chats every 30 seconds to prevent vibration/flickering
-      const interval = setInterval(loadChats, 30000);
+      const interval = setInterval(loadChats, 45000); // 45s instead of 30s
       return () => clearInterval(interval);
     }
   }, [status, bridgeUrl]);
 
-  // Fetch lead data for all chats to populate ID/Status/Label in sidebar
+  // Consolidate Lead Data Fetching to avoid "vibration"
   useEffect(() => {
     if (chats.length > 0 && token) {
       const fetchLeadDataForChats = async () => {
-        for (const chat of chats) {
-          // Only fetch if chat has a phone number name
-          if (chat.name && /^\d+$/.test(String(chat.name).replace(/\D/g, ''))) {
+        const phonesToFetch = chats
+          .filter(chat => {
+            if (chat.displayName && chat.leadId) return false; // Already has data
+            return chat.name && /^\d+$/.test(String(chat.name).replace(/\D/g, ''));
+          })
+          .map(chat => {
             let normalizedPhone = String(chat.name).replace(/\D/g, '');
-            if (normalizedPhone.length === 10) {
-              normalizedPhone = '91' + normalizedPhone;
-            }
-            
-            // Skip if already cached
-            if (leadDataCache[normalizedPhone]) {
-              continue;
-            }
-            
-            try {
-              const response = await fetch(`/api/admin/crm/leads/by-phone/${encodeURIComponent(normalizedPhone)}`, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-              });
-              
-              const leadResult = await response.json();
+            if (normalizedPhone.length === 10) normalizedPhone = '91' + normalizedPhone;
+            return normalizedPhone;
+          })
+          .filter(phone => !leadDataCache[phone]);
 
-              if (response.ok && leadResult.success) {
-                // Update the chat with lead data
-                setChats((prevChats) =>
-                  prevChats.map((c) => {
-                    const cPhone = String(c.name || '').replace(/\D/g, '');
-                    if (cPhone === normalizedPhone) {
-                      return {
-                        ...c,
-                        displayName: leadResult.name,
-                        leadId: leadResult._id,
-                        leadStatus: leadResult.status,
-                        leadLabel: leadResult.label,
-                      };
-                    }
-                    return c;
-                  })
-                );
-                
-                // Cache the successful result
-                setLeadDataCache((prev) => ({
-                  ...prev,
-                  [normalizedPhone]: leadResult,
-                }));
-              } else {
-                // Cache the "not found" state to prevent repeated 404/failure hits
-                setLeadDataCache((prev) => ({
-                  ...prev,
-                  [normalizedPhone]: { success: false, name: 'Unknown', status: 'lead' }
-                }));
-              }
-            } catch (error) {
-              console.error('Failed to fetch lead for phone:', normalizedPhone, error);
+        if (phonesToFetch.length === 0) return;
+
+        // Process in small batches to avoid hitting API too hard, but don't call setChats in loop
+        const updates: Record<string, any> = {};
+        
+        // Only fetch first 10 missing to avoid massive parallel hits
+        const batch = phonesToFetch.slice(0, 10);
+        
+        await Promise.all(batch.map(async (normalizedPhone) => {
+          try {
+            const response = await fetch(`/api/admin/crm/leads/by-phone/${encodeURIComponent(normalizedPhone)}`, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${token}` },
+            });
+            const leadResult = await response.json();
+            if (response.ok && leadResult.success) {
+              updates[normalizedPhone] = leadResult;
+            } else {
+              updates[normalizedPhone] = { success: false };
             }
+          } catch (e) {
+            updates[normalizedPhone] = { success: false };
           }
+        }));
+
+        // Batch update chats once
+        if (Object.keys(updates).length > 0) {
+          setLeadDataCache(prev => ({ ...prev, ...updates }));
+          setChats(prev => prev.map(chat => {
+            let normalizedPhone = String(chat.name || '').replace(/\D/g, '');
+            if (normalizedPhone.length === 10) normalizedPhone = '91' + normalizedPhone;
+            const update = updates[normalizedPhone];
+            if (update && update.success) {
+              return {
+                ...chat,
+                displayName: update.name,
+                leadId: update._id,
+                leadStatus: update.status,
+                leadLabel: update.label,
+              };
+            }
+            return chat;
+          }));
         }
       };
       
-      fetchLeadDataForChats();
+      // Delay initial fetch slightly to let main chats load
+      const timeout = setTimeout(fetchLeadDataForChats, 2000);
+      return () => clearTimeout(timeout);
     }
   }, [chats.length, token]);
 
-  // Fetch all leads from database and merge into chat list
-  useEffect(() => {
-    if (!token || status !== 'connected') return;
+  // Load messages for selected chat - handle 404 to stop loop
+  const [last404Chat, setLast404Chat] = useState<string | null>(null);
 
-    const fetchAllLeads = async () => {
-      try {
-        console.log('[fetchAllLeads] Fetching leads (isSuperAdmin:', isSuperAdmin, ')...');
-        const response = await fetch('/api/admin/crm/leads?limit=1000', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          console.warn('[fetchAllLeads] Failed to fetch leads:', response.status);
-          return;
-        }
-
-        const data = await response.json();
-        const leads = Array.isArray(data?.data?.leads) ? data.data.leads : Array.isArray(data?.data) ? data.data : [];
-        console.log('[fetchAllLeads] Got', leads.length, 'leads. Current user:', currentUserId);
-
-        // Build set of assigned lead IDs for permission checking
-        const assignedIds = new Set<string>(leads.map((l: any) => String(l._id)));
-        setAssignedLeadIds(assignedIds);
-        console.log('[fetchAllLeads] Assigned lead count:', assignedIds.size);
-
-        // Create lead objects as synthetic chats if not already in chats
-        setChats((prevChats) => {
-          const chatPhoneMap = new Set(
-            prevChats.map((c) => String(c.name || '').replace(/\D/g, ''))
-          );
-
-          // Filter leads that don't already have a WhatsApp chat
-          const newLeadsToAdd = leads.filter((lead: any) => {
-            const leadPhone = String(lead.phoneNumber || '').replace(/\D/g, '');
-            return !chatPhoneMap.has(leadPhone);
-          });
-
-          console.log('[fetchAllLeads] Adding', newLeadsToAdd.length, 'new leads to chat list');
-
-          // Convert leads to chat objects
-          const leadChats = newLeadsToAdd.map((lead) => ({
-            id: lead.phoneNumber,
-            name: lead.phoneNumber,
-            displayName: lead.name,
-            isGroup: false,
-            lastMessage: null,
-            timestamp: null,
-            leadId: lead._id,
-            leadStatus: lead.status,
-            leadLabel: lead.label,
-            isLeadOnly: true, // Flag to indicate this is a database lead, not an active WhatsApp chat
-          }));
-
-          // Merge: chats first, then lead-only entries
-          return [...prevChats, ...leadChats];
-        });
-      } catch (error) {
-        console.error('[fetchAllLeads] Exception:', error);
-      }
-    };
-
-    // Fetch leads when component mounts or status changes to connected
-    fetchAllLeads();
-
-    // Optionally refresh leads periodically (every 30 seconds)
-    const interval = setInterval(fetchAllLeads, 30000);
-    return () => clearInterval(interval);
-  }, [token, status]);
-
-  // Load user profile
-  useEffect(() => {
-    if (status === 'connected') {
-      const loadProfile = async () => {
-        try {
-          console.log('[loadProfile] Fetching user profile...');
-          const res = await bridgeFetch('/profile', { method: 'GET' }, 8_000);
-          if (res.ok) {
-            const data = await res.json();
-            console.log('[loadProfile] Got profile:', data.name);
-            setUserProfile(data);
-          } else {
-            console.warn('[loadProfile] Failed to get profile');
-          }
-        } catch (err) {
-          console.warn('[loadProfile] Exception:', err);
-        }
-      };
-
-      loadProfile();
-    }
-  }, [status, bridgeUrl]);
-
-  // Load messages for selected chat
   useEffect(() => {
     if (selectedChat && status === 'connected') {
+      const chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
+      
+      // If this is a new "Lead Only" entry (no real chat yet), don't even try to fetch messages
+      if (selectedChat.isLeadOnly && !messages.length) {
+        setMessages([]);
+        return;
+      }
+
+      // Skip if this chat returned 404 recently (new lead)
+      if (chatId === last404Chat) return;
+
       const loadMessages = async () => {
         try {
-          const chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
           const res = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
           
           if (res.ok) {
             const data = await res.json();
-            setMessages(data.messages || []);
+            const newMessages = data.messages || [];
+            
+            // Only update if message count or last message changed to prevent flickering
+            setMessages(prev => {
+              if (prev.length === newMessages.length) {
+                const prevLast = prev[prev.length - 1];
+                const newLast = newMessages[newMessages.length - 1];
+                if (prevLast?.id === newLast?.id && prevLast?.body === newLast?.body) {
+                  return prev;
+                }
+              }
+              return newMessages;
+            });
+            
             setBridgeError(null);
+            setLast404Chat(null);
           } else if (res.status === 404) {
-            // Chat not found on bridge is NORMAL for new leads/numbers.
-            // Don't show an error, just set messages to empty.
-            setMessages([]);
-            setBridgeError(null); 
-          } else {
-            const err = await parseBridgeError(res);
-            console.error('[loadMessages] Error:', err);
-            setBridgeError(err);
+            console.warn(`[404] Messages not found for chat: ${chatId}. Stopping poll.`);
+            // ALWAYS mark as 404 to stop polling, even if we had messages before (might be a sync issue)
+            setLast404Chat(chatId);
+            if (messages.length !== 0) {
+              setMessages([]);
+            }
           }
         } catch (err) {
-          console.error('[loadMessages] Exception:', err);
-          // Only show error if it's not an abort (timeout)
-          if (!(err instanceof Error && err.name === 'AbortError')) {
-            setBridgeError(err instanceof Error ? err.message : 'Failed to load messages');
-          }
+          // ignore
         }
       };
 
       loadMessages();
-      const interval = setInterval(loadMessages, 3000);
+      const interval = setInterval(loadMessages, 5000);
       return () => clearInterval(interval);
+    } else {
+      setLast404Chat(null);
     }
-  }, [selectedChat, status, bridgeUrl]);
+  }, [selectedChat, status, bridgeUrl, last404Chat, messages.length]);
 
-  // Auto-scroll to latest message
+  // Auto-scroll to latest message - only if messages actually changed
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [lastMessageId]);
 
   // Fetch lead data by phone number
   const fetchLeadByPhone = async (phoneNumber: string) => {
@@ -707,7 +635,7 @@ export default function QRWhatsAppInboxPage() {
 
   // Send message
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat || sending) return;
+    if ((!newMessage.trim() && pendingMedia.length === 0) || !selectedChat || sending) return;
 
     // CHECK PERMISSIONS: Non-super-admins can only message assigned leads
     if (!isSuperAdmin && activeLeadId && !assignedLeadIds.has(activeLeadId)) {
@@ -726,38 +654,115 @@ export default function QRWhatsAppInboxPage() {
         chatId = phoneOnly + '@c.us';
       }
 
-      console.log('[sendMessage] Sending to chat:', chatId, 'message:', newMessage);
-      const res = await bridgeFetch('/send', {
-        method: 'POST',
-        body: JSON.stringify({ chatId: chatId, message: newMessage })
-      });
+      // 1. Send Media first if any
+      if (pendingMedia.length > 0) {
+        setUploadingMedia(true);
+        for (let i = 0; i < pendingMedia.length; i++) {
+          const file = pendingMedia[i];
+          const fileId = `${file.name}-${Date.now()}`;
+          setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
 
-      console.log('[sendMessage] Response ok?', res.ok, 'status:', res.status);
-      if (res.ok) {
-        console.log('[sendMessage] Message sent, clearing and reloading...');
-        setNewMessage('');
-        // Reload messages
-        const msgRes = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
-        if (msgRes.ok) {
-          const data = await msgRes.json();
-          setMessages(data.messages || []);
-          console.log('[sendMessage] Reloaded messages:', data.messages?.length || 0);
+          // Upload to S3/Server
+          const uploadResult = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            formData.append('file', file);
+
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) {
+                const percentComplete = (e.loaded / e.total) * 100;
+                setUploadProgress(prev => ({ ...prev, [fileId]: percentComplete }));
+              }
+            });
+
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const response = JSON.parse(xhr.responseText);
+                  resolve(response);
+                } catch (e) {
+                  resolve({ success: true, url: null });
+                }
+              } else {
+                reject(new Error(`Upload failed (${xhr.status})`));
+              }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+            xhr.open('POST', '/api/admin/crm/whatsapp/media-upload');
+            // Headers for auth/bridge
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.send(formData);
+          });
+
+          const uploadData = uploadResult as any;
+          if (!uploadData.url) throw new Error('Upload failed - no URL');
+
+          // Send media via bridge
+          // Caption only for the first image if there's text? Or caption for each? 
+          // Usually better to send text as separate message or caption for first.
+          const mediaRes = await bridgeFetch('/send', {
+            method: 'POST',
+            body: JSON.stringify({
+              chatId: chatId,
+              media: uploadData.url,
+              caption: i === 0 ? newMessage : '' // Add text as caption to first image
+            })
+          });
+
+          if (!mediaRes.ok) {
+            const sendError = await parseBridgeError(mediaRes);
+            throw new Error(`Failed to send media: ${sendError}`);
+          }
+          
+          setUploadProgress(prev => {
+            const next = { ...prev };
+            delete next[fileId];
+            return next;
+          });
         }
-        setBridgeError(null);
+        
+        // Clear media state
+        mediaPreviews.forEach(p => URL.revokeObjectURL(p));
+        setPendingMedia([]);
+        setMediaPreviews([]);
+        setUploadingMedia(false);
+        setNewMessage(''); // Caption was sent
       } else {
-        const err = await parseBridgeError(res);
-        console.error('[sendMessage] Error:', err);
-        setBridgeError(err);
+        // 2. Clear Text only if no media
+        console.log('[sendMessage] Sending to chat:', chatId, 'message:', newMessage);
+        const res = await bridgeFetch('/send', {
+          method: 'POST',
+          body: JSON.stringify({ chatId: chatId, message: newMessage })
+        });
+
+        if (res.ok) {
+          setNewMessage('');
+        } else {
+          const err = await parseBridgeError(res);
+          setBridgeError(err);
+        }
       }
+
+      setLast404Chat(null);
+      // Reload messages
+      const msgRes = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
+      if (msgRes.ok) {
+        const data = await msgRes.json();
+        setMessages(data.messages || []);
+      }
+      setBridgeError(null);
     } catch (err) {
-      console.error('[sendMessage] Exception:', err);
+      console.error('[sendMessage] Error:', err);
       setBridgeError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setSending(false);
+      setUploadingMedia(false);
+      setUploadProgress({});
     }
   };
 
-  // Upload media to S3 and send
+  // Prepare media for sending (show preview)
   const handleMediaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedChat || !event.target.files) return;
 
@@ -778,122 +783,32 @@ export default function QRWhatsAppInboxPage() {
       return;
     }
 
-    console.log('[uploadMedia] Starting upload for', files.length, 'files');
-    setUploadingMedia(true);
+    console.log('[handleMediaUpload] Preparing', files.length, 'files for preview');
+    setPendingMedia(prev => [...prev, ...files]);
+    
+    // Generate previews
+    const newPreviews = files.map(file => URL.createObjectURL(file));
+    setMediaPreviews(prev => [...prev, ...newPreviews]);
     setShowMediaMenu(false);
-    setBridgeError(null);
-
-    try {
-      let chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
-      
-      // If chatId doesn't have @c.us format (synthetic chat), format it as a phone number
-      if (chatId && !chatId.includes('@')) {
-        const phoneOnly = chatId.replace(/\D/g, '');
-        chatId = phoneOnly + '@c.us';
-      }
-
-      if (!chatId) {
-        throw new Error('No valid chat selected');
-      }
-      
-      for (const file of files) {
-        const fileId = `${file.name}-${Date.now()}`;
-        setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
-
-        console.log('[uploadMedia] Processing:', file.name, 'Size:', file.size);
-
-        // We use XMLHttpRequest for real progress tracking
-        const uploadResult = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          const formData = new FormData();
-          formData.append('file', file);
-
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const percentComplete = (e.loaded / e.total) * 100;
-              setUploadProgress(prev => ({ ...prev, [fileId]: percentComplete }));
-            }
-          });
-
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const response = JSON.parse(xhr.responseText);
-                resolve(response);
-              } catch (e) {
-                resolve({ success: true, url: null }); // Fallback
-              }
-            } else {
-              try {
-                const errorData = JSON.parse(xhr.responseText);
-                reject(new Error(errorData.error || `Upload failed (${xhr.status})`));
-              } catch (e) {
-                reject(new Error(`Upload failed with status ${xhr.status}`));
-              }
-            }
-          });
-
-          xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
-          xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-
-          xhr.open('POST', '/api/admin/crm/whatsapp/media-upload');
-          xhr.setRequestHeader('X-Bridge-Secret', bridgeSecret);
-          xhr.setRequestHeader('X-Chat-Id', chatId);
-          if (token) {
-            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          }
-          xhr.send(formData);
-        });
-
-        const uploadData = uploadResult as any;
-        console.log('[uploadMedia] Upload success:', uploadData);
-
-        if (!uploadData.url) {
-           throw new Error('Upload succeeded but no URL was returned');
-        }
-
-        // Send media message with URL
-        const mediaRes = await bridgeFetch('/send', {
-          method: 'POST',
-          body: JSON.stringify({
-            to: chatId,
-            media: uploadData.url,
-            caption: file.name
-          })
-        });
-
-        if (mediaRes.ok) {
-          console.log('[uploadMedia] Media message sent successfully');
-          setUploadProgress(prev => {
-            const next = { ...prev };
-            delete next[fileId];
-            return next;
-          });
-        } else {
-          const sendError = await parseBridgeError(mediaRes);
-          throw new Error(`Failed to send media via WhatsApp: ${sendError}`);
-        }
-      }
-
-      // Reload messages
-      const msgRes = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
-      if (msgRes.ok) {
-        const data = await msgRes.json();
-        setMessages(data.messages || []);
-      }
-
-      setBridgeError(null);
-    } catch (err) {
-      console.error('[uploadMedia] Error:', err);
-      setBridgeError(err instanceof Error ? err.message : 'Failed to upload media');
-    } finally {
-      setUploadingMedia(false);
-      setUploadProgress({});
-      // Reset file input
-      if (mediaInputRef.current) {
-        mediaInputRef.current.value = '';
-      }
+    
+    // Reset file input so same file can be selected again if removed
+    if (mediaInputRef.current) {
+      mediaInputRef.current.value = '';
     }
+  };
+
+  const removePendingMedia = (index: number) => {
+    setPendingMedia(prev => {
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
+    setMediaPreviews(prev => {
+      const next = [...prev];
+      URL.revokeObjectURL(next[index]);
+      next.splice(index, 1);
+      return next;
+    });
   };
 
   // Create new lead and open chat
@@ -1208,11 +1123,13 @@ export default function QRWhatsAppInboxPage() {
   // Mark chat as read
   const markChatAsRead = async (chat: any) => {
     try {
-      // Update the chat in state immediately to show lavender dot
-      const chatId = typeof chat.id === 'string' ? chat.id : chat.id._serialized;
+      // Update the chat in state immediately to show read
+      const chatId = typeof chat.id === 'string' ? chat.id : chat.id?._serialized;
+      if (!chatId) return;
+
       setChats((prev) =>
         prev.map((c) => {
-          const cId = typeof c.id === 'string' ? c.id : c.id._serialized;
+          const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
           if (cId === chatId) {
             return { ...c, unreadCount: 0 };
           }
@@ -1220,14 +1137,21 @@ export default function QRWhatsAppInboxPage() {
         })
       );
 
-      // Call API to mark as read on backend
-      await fetch(`/api/admin/crm/whatsapp/mark-read`, {
+      // Call API to mark as read on backend (Uses unified messages endpoint)
+      // If we have a leadId, pass it to mark thread as read
+      const payload: any = {
+        action: 'markThreadAsRead',
+        phoneNumber: chat.name?.replace(/\D/g, ''),
+        leadId: chat.leadId || null
+      };
+
+      await fetch(`/api/admin/crm/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId: chatId,
-          phone: chat.name,
-        }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
       });
     } catch (err) {
       console.error('Failed to mark chat as read:', err);
@@ -1384,6 +1308,31 @@ export default function QRWhatsAppInboxPage() {
     }
   };
 
+  // Add synthetic chat for testing
+  const addSyntheticChat = (phone: string, name: string) => {
+    const formatPhone = (phone: string) => {
+      let p = phone.replace(/\D/g, '');
+      if (!p.startsWith('91') && p.length === 10) {
+        p = '91' + p;
+      }
+      return p + '@c.us';
+    };
+
+    const phoneId = formatPhone(phone);
+    const syntheticChat = {
+      id: { _serialized: phoneId },
+      name: phone,
+      displayName: name,
+      isGroup: false,
+      isReadOnly: false,
+      unreadCount: 0,
+      timestamp: null,
+      archived: false,
+    };
+
+    setChats(prev => [syntheticChat, ...prev]);
+  };
+
   const statusPill = {
     connected: 'bg-emerald-100 text-emerald-800',
     qr: 'bg-amber-100 text-amber-800',
@@ -1528,18 +1477,11 @@ export default function QRWhatsAppInboxPage() {
                 // but they won't be able to send messages (checked in send handler)
                 return true;
               })
-              // Sort: selected chat first, then by timestamp
+              // Sort by timestamp (newest first)
               .sort((a, b) => {
-                const aIsSelected = selectedChat && 
-                  (typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized) ===
-                  (typeof a.id === 'string' ? a.id : a.id._serialized);
-                const bIsSelected = selectedChat && 
-                  (typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized) ===
-                  (typeof b.id === 'string' ? b.id : b.id._serialized);
-                
-                if (aIsSelected && !bIsSelected) return -1;
-                if (!aIsSelected && bIsSelected) return 1;
-                return 0;
+                const aTime = a.timestamp || 0;
+                const bTime = b.timestamp || 0;
+                return bTime - aTime;
               })
               .map((chat) => (
                 <div
@@ -1926,7 +1868,7 @@ export default function QRWhatsAppInboxPage() {
                                 className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
                               >
                                 <span className="text-xl">📎</span>
-                                <span className="text-sm truncate">{msg.body || 'Download'}</span>
+                                                               <span className="text-sm truncate">{msg.body || 'Download'}</span>
                               </a>
                             )}
                           </div>
@@ -2041,6 +1983,37 @@ export default function QRWhatsAppInboxPage() {
                 className="hidden"
               />
 
+              {/* Media Preview Bar */}
+              {mediaPreviews.length > 0 && (
+                <div className="px-4 py-2 flex gap-2 overflow-x-auto bg-slate-50 border-t border-slate-200">
+                  {mediaPreviews.map((preview, idx) => (
+                    <div key={idx} className="relative flex-shrink-0">
+                      <img 
+                        src={preview} 
+                        alt="Preview" 
+                        className="w-16 h-16 object-cover rounded-lg border border-slate-300" 
+                      />
+                      <button 
+                        onClick={() => removePendingMedia(idx)}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm hover:bg-red-600"
+                      >
+                        <X size={12} />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-[8px] text-white px-1 py-0.5 truncate rounded-b-lg">
+                        {pendingMedia[idx]?.name}
+                      </div>
+                    </div>
+                  ))}
+                  <button 
+                    onClick={() => mediaInputRef.current?.click()}
+                    className="w-16 h-16 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
+                  >
+                    <Plus size={20} />
+                    <span className="text-[10px] font-medium">Add</span>
+                  </button>
+                </div>
+              )}
+
               {/* Main Input Field */}
               <div className="flex items-end gap-2 px-3 py-2.5">
                 <textarea
@@ -2053,20 +2026,20 @@ export default function QRWhatsAppInboxPage() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      if (newMessage.trim() && !sending && status === 'connected') {
+                      if ((newMessage.trim() || pendingMedia.length > 0) && !sending && status === 'connected') {
                         handleScheduledSend();
                       }
                     }
                   }}
-                  placeholder="Type a message... (Enter to send)"
+                  placeholder={pendingMedia.length > 0 ? "Add a caption..." : "Type a message... (Enter to send)"}
                   className="flex-1 w-full px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
                   rows={1}
                 />
 
                 <button
                   onClick={handleScheduledSend}
-                  disabled={sending || !newMessage.trim() || status !== 'connected' || uploadingMedia}
-                  className="flex-shrink-0 w-11 h-11 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95"
+                  disabled={sending || (!newMessage.trim() && pendingMedia.length === 0) || status !== 'connected' || uploadingMedia}
+                  className="flex-shrink-0 w-11 h-11 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95"
                 >
                   {sending || uploadingMedia ? (
                     <RefreshCw className="w-5 h-5 animate-spin" />

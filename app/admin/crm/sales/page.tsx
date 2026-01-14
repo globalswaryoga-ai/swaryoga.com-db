@@ -645,6 +645,7 @@ export default function SalesPage() {
               const params = new URLSearchParams();
               if (sale.leadId) params.set('leadId', String(sale.leadId));
               if (phone) params.set('phone', phone);
+              if (sale.customerName) params.set('name', sale.customerName);
 
               router.push(`/admin/crm/qr?${params.toString()}`);
             }}
