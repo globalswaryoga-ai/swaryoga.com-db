@@ -302,15 +302,18 @@ export default function QRWhatsAppInboxPage() {
         const statusChanged = status !== newStatus;
         setStatusIfChanged(newStatus);
 
-        // Automatically fetch and show QR if available
-        if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
-          // QR is included in the /status response, no need for separate /qr fetch
-          if (typeof data.qr === 'string' && data.qr.length > 0) {
-            setQr(data.qr);
-            // Auto-open modal if status changed to qr/disconnected
-            if (statusChanged && (newStatus === 'qr' || newStatus === 'disconnected')) {
-              setShowQRModal(true);
-            }
+        // Always set QR if it's in the response (regardless of status change)
+        if (typeof data.qr === 'string' && data.qr.length > 0) {
+          setQr(data.qr);
+          // Auto-open modal if status changed to qr/disconnected or if we just got a QR
+          if (statusChanged && (newStatus === 'qr' || newStatus === 'disconnected')) {
+            setShowQRModal(true);
+          }
+        }
+        // If hasQr flag is set but no QR data yet, just show the modal
+        else if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
+          if (statusChanged) {
+            setShowQRModal(true);
           }
         }
       } catch (err) {
