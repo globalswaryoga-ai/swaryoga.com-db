@@ -944,6 +944,80 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
           </div>
         </section>
 
+        {/* MASTER CLASS LEVELS SECTION - Only for master-swar-yoga */}
+        {params.slug === 'master-swar-yoga' && (
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+            <div className="mb-12 text-center">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+                Master Swar Yoga – Level 1 to 5
+              </h2>
+              <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+                The complete 6-month journey combining all five levels in a single guided progression
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+              {[
+                { slug: 'swar-yoga-level-1', name: 'Swar Yoga', label: 'L-1' },
+                { slug: 'swar-yoga-level-2', name: 'Aham Brahmasmi', label: 'L-2' },
+                { slug: 'astavakra', name: 'Astavakra Dhyan', label: 'L-3' },
+                { slug: 'swar-yoga-level-4', name: 'Swar Yoga', label: 'L-4' },
+                { slug: 'bandhan-mukti', name: 'Bandhan Mukti', label: 'L-5' }
+              ].map((level) => (
+                <Link
+                  key={level.slug}
+                  href={`/workshops/${level.slug}/landing`}
+                  className="group relative rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col h-full"
+                >
+                  {/* Card Background Gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-50 via-transparent to-blue-50 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                  {/* Level Badge */}
+                  <div className="relative z-10 p-6 pb-4">
+                    <div className="inline-block mb-3">
+                      <span className="inline-block bg-gradient-to-r from-green-600 to-blue-600 text-white font-black px-4 py-2 rounded-full text-sm">
+                        {level.label}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 leading-tight group-hover:text-green-700 transition-colors">
+                      {level.name}
+                    </h3>
+                  </div>
+
+                  {/* Content */}
+                  <div className="relative z-10 px-6 py-4 flex-grow flex flex-col justify-between">
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {level.slug === 'swar-yoga-level-1' && 'Learn the foundational principles of Swar Yoga and breathing techniques.'}
+                      {level.slug === 'swar-yoga-level-2' && 'Explore the deeper philosophy: "I am Brahman" consciousness.'}
+                      {level.slug === 'astavakra' && 'Advanced meditation using Astavakra Gita teachings and non-dual wisdom.'}
+                      {level.slug === 'swar-yoga-level-4' && 'Master advanced Swar Yoga practices and integration techniques.'}
+                      {level.slug === 'bandhan-mukti' && 'Liberation from limitation through the highest Swar Yoga practices.'}
+                    </p>
+
+                    {/* CTA Arrow */}
+                    <div className="mt-4 flex items-center gap-2 text-green-700 font-bold text-sm group-hover:translate-x-2 transition-transform">
+                      <span>Explore</span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Hover Border Effect */}
+                  <div className="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-green-400 transition-colors pointer-events-none" />
+                </Link>
+              ))}
+            </div>
+
+            {/* Info Text */}
+            <div className="mt-12 p-6 sm:p-8 rounded-2xl bg-blue-50 border border-blue-200">
+              <p className="text-gray-700 text-center leading-relaxed">
+                <span className="font-bold text-blue-900">Complete Your Journey:</span> Enroll in Master Swar Yoga and access all 5 levels with flexible monthly or discounted 3-month payment plans. New batches start every month with 3 days/week classes.
+              </p>
+            </div>
+          </section>
+        )}
+
         {/* FINAL CTA */}
         <section className="bg-green-50 py-16 sm:py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
