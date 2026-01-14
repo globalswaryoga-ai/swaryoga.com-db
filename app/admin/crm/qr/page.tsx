@@ -48,6 +48,7 @@ export default function QRWhatsAppInboxPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const msgContainerRef = useRef<HTMLDivElement>(null);
   const [showContactPanel, setShowContactPanel] = useState(false);
   const [contactDetails, setContactDetails] = useState<any>(null);
   const [showGroupPanel, setShowGroupPanel] = useState(false);
@@ -90,6 +91,7 @@ export default function QRWhatsAppInboxPage() {
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(nameParam || null); // Initialize with param
   const [activeLeadId, setActiveLeadId] = useState<string | null>(leadIdParam || null);
+  const [activeLeadNumber, setActiveLeadNumber] = useState<string | null>(null); // Human-friendly ID
   const [activeStatus, setActiveStatus] = useState<string | null>(null);
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
   
@@ -130,7 +132,7 @@ export default function QRWhatsAppInboxPage() {
   const bridgeUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
   const bridgeSecret = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 
-  const bridgeFetch = async (path: string, init: RequestInit = {}, timeoutMs = 12_000) => {
+  const bridgeFetch = async (path: string, init: RequestInit = {}, timeoutMs = 20_000) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -141,6 +143,8 @@ export default function QRWhatsAppInboxPage() {
       // For GET requests, use query param to avoid preflight
       if (method === 'GET') {
         const url = new URL(proxyUrl, window.location.origin);
+        // FIX: Remove one layer of encoding if input path is already encoded
+        // but normalize it for the proxy.
         url.searchParams.set('path', path);
         
         const res = await fetch(url.toString(), {
@@ -197,6 +201,7 @@ export default function QRWhatsAppInboxPage() {
         if (!res.ok) {
           if (res.status === 404) {
             console.error('[404] WhatsApp Bridge /status endpoint not found.');
+            setBridgeError('Bridge service not responding (404). Make sure the WhatsApp bridge is running.');
           }
           const msg = await parseBridgeError(res);
           throw new Error(msg || 'Bridge unreachable');
@@ -205,11 +210,34 @@ export default function QRWhatsAppInboxPage() {
         setBridgeError(null);
         
         const newStatus = normalizeBridgeStatus(data.status);
-        setStatus(prev => prev !== newStatus ? newStatus : prev); // Only update if changed
+        const statusChanged = status !== newStatus;
+        setStatus(newStatus);
 
-        // Only update QR if it's different to prevent flickering
-        if (typeof data.qr === 'string' && data.qr.length > 0) {
-          setQr(prev => prev !== data.qr ? data.qr : prev);
+        // Automatically fetch and show QR if available
+        if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
+          // Try to fetch QR from /qr endpoint
+          try {
+            const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8_000);
+            if (qrRes.ok) {
+              const qrData = await qrRes.json();
+              if (qrData.qr && typeof qrData.qr === 'string' && qrData.qr.length > 0) {
+                setQr(qrData.qr);
+                // Auto-open modal if status changed to qr/disconnected
+                if (statusChanged && (newStatus === 'qr' || newStatus === 'disconnected')) {
+                  setShowQRModal(true);
+                }
+              }
+            }
+          } catch (qrErr) {
+            console.warn('[checkStatus] Failed to fetch QR:', qrErr);
+            // Fallback to inline QR from status
+            if (typeof data.qr === 'string' && data.qr.length > 0) {
+              setQr(data.qr);
+              if (statusChanged && (newStatus === 'qr' || newStatus === 'disconnected')) {
+                setShowQRModal(true);
+              }
+            }
+          }
         }
       } catch (err) {
         setStatus('disconnected');
@@ -220,7 +248,7 @@ export default function QRWhatsAppInboxPage() {
     checkStatus();
     const interval = setInterval(checkStatus, 15000); // 15s instead of 10s
     return () => clearInterval(interval);
-  }, [bridgeUrl]);
+  }, [bridgeUrl, status]);
 
   // Load admin user permissions and user list
   useEffect(() => {
@@ -304,6 +332,9 @@ export default function QRWhatsAppInboxPage() {
             }
             if (lead.label) {
               setActiveLabel(lead.label);
+            }
+            if (lead.leadNumber) {
+              setActiveLeadNumber(lead.leadNumber);
             }
           }
         } catch (error) {
@@ -516,6 +547,7 @@ export default function QRWhatsAppInboxPage() {
                 ...chat,
                 displayName: update.name,
                 leadId: update._id,
+                leadNumber: update.leadNumber, // Added
                 leadStatus: update.status,
                 leadLabel: update.label,
               };
@@ -569,6 +601,26 @@ export default function QRWhatsAppInboxPage() {
             
             setBridgeError(null);
             setLast404Chat(null);
+
+            // Auto scroll to bottom
+            setTimeout(() => {
+              if (msgContainerRef.current) {
+                msgContainerRef.current.scrollTop = msgContainerRef.current.scrollHeight;
+              }
+            }, 100);
+
+            // Mark as read in CRM
+            if (activeLeadId || activePhone) {
+              await fetch('/api/admin/crm/messages', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  action: 'markThreadAsRead', 
+                  leadId: activeLeadId,
+                  phoneNumber: activePhone
+                }),
+              }).catch(err => console.warn('Failed to mark thread as read:', err));
+            }
           } else if (res.status === 404) {
             console.warn(`[404] Messages not found for chat: ${chatId}. Stopping poll.`);
             // ALWAYS mark as 404 to stop polling, even if we had messages before (might be a sync issue)
@@ -750,6 +802,26 @@ export default function QRWhatsAppInboxPage() {
       if (msgRes.ok) {
         const data = await msgRes.json();
         setMessages(data.messages || []);
+        
+        // Auto scroll to bottom
+        setTimeout(() => {
+          if (msgContainerRef.current) {
+            msgContainerRef.current.scrollTop = msgContainerRef.current.scrollHeight;
+          }
+        }, 100);
+
+        // Mark as read in CRM
+        if (activeLeadId || activePhone) {
+          await fetch('/api/admin/crm/messages', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              action: 'markThreadAsRead', 
+              leadId: activeLeadId,
+              phoneNumber: activePhone
+            }),
+          }).catch(err => console.warn('Failed to mark thread as read:', err));
+        }
       }
       setBridgeError(null);
     } catch (err) {
@@ -1564,7 +1636,7 @@ export default function QRWhatsAppInboxPage() {
                           {/* ID Tag */}
                           {chat.leadId && (
                             <span className="px-1.5 py-0.5 bg-pink-100 text-pink-700 text-[9px] font-bold rounded border border-pink-300 whitespace-nowrap">
-                              ID: {chat.leadId.toString().slice(-6)}
+                              ID: {chat.leadNumber || chat.leadId.toString().slice(-6)}
                             </span>
                           )}
                           
@@ -1702,7 +1774,7 @@ export default function QRWhatsAppInboxPage() {
                       {/* ID Tag */}
                       {activeLeadId && (
                         <span className="px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] font-bold rounded border border-pink-300">
-                          ID: {activeLeadId.slice(-6)}
+                          ID: {activeLeadNumber || activeLeadId.slice(-6)}
                         </span>
                       )}
                       
@@ -1832,44 +1904,19 @@ export default function QRWhatsAppInboxPage() {
                             )}
 
                             {isVideo && (
-                              <div className="relative bg-slate-100 rounded-lg overflow-hidden">
+                              <div className="relative bg-slate-900 rounded-lg overflow-hidden">
                                 <video
                                   src={mediaUrl}
-                                  className="w-full h-auto max-w-xs rounded-lg"
                                   controls
-                                  onError={(e) => {
-                                    console.error('[video] Load error:', mediaUrl);
-                                    const parent = (e.target as HTMLVideoElement).parentElement;
-                                    if (parent) {
-                                      parent.innerHTML = '<div class="bg-slate-200 rounded p-4 text-center text-slate-600">📹 Video failed to load</div>';
-                                    }
-                                  }}
-                                />
+                                  className="w-full h-auto max-w-xs object-cover rounded-lg"
+                                >
+                                  Your browser does not support the video tag.
+                                </video>
                               </div>
                             )}
 
-                            {isPDF && (
-                              <a
-                                href={mediaUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                              >
-                                <span className="text-xl">📄</span>
-                                <span className="text-sm truncate">Open PDF</span>
-                              </a>
-                            )}
-
-                            {!isImage && !isVideo && !isPDF && mediaUrl && (
-                              <a
-                                href={mediaUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                              >
-                                <span className="text-xl">📎</span>
-                                                               <span className="text-sm truncate">{msg.body || 'Download'}</span>
-                              </a>
+                            {msg.body && msg.body.trim() && (
+                              <div className="break-words font-normal">{msg.body}</div>
                             )}
                           </div>
                         ) : (
