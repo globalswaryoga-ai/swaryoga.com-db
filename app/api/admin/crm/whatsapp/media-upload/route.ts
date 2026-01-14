@@ -48,7 +48,10 @@ export async function POST(req: NextRequest) {
       const error = await uploadRes.json();
       console.error('[media-upload] Bridge error:', error);
       return NextResponse.json(
-        { error: error.error || 'Failed to upload to S3' },
+        { 
+          error: error.error || 'Failed to upload to S3',
+          details: error.details || {}
+        },
         { status: uploadRes.status }
       );
     }

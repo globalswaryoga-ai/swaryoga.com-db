@@ -213,6 +213,16 @@ export default function Contact() {
               <div className="space-y-6">
                 <div className="flex items-start space-x-4">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-swar-primary-light rounded-full flex items-center justify-center flex-shrink-0">
+                    <MapPin className="h-5 w-5 sm:h-6 sm:w-6 text-swar-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-swar-text mb-1">Company</h3>
+                    <p className="text-swar-text-secondary">UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-swar-primary-light rounded-full flex items-center justify-center flex-shrink-0">
                     <Mail className="h-5 w-5 sm:h-6 sm:w-6 text-swar-primary" />
                   </div>
                   <div>

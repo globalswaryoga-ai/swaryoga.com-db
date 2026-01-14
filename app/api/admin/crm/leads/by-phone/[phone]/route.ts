@@ -26,8 +26,11 @@ export async function GET(
     // Connect to database
     await connectDB();
 
-    // Normalize phone number - remove all non-digits
-    const normalizedPhone = String(params.phone).replace(/\D/g, '');
+    // Normalize phone number using the app-wide standard
+    let normalizedPhone = String(params.phone).replace(/\D/g, '');
+    if (normalizedPhone.length === 10) {
+      normalizedPhone = `91${normalizedPhone}`;
+    }
 
     if (!normalizedPhone) {
       return NextResponse.json(
@@ -40,25 +43,30 @@ export async function GET(
     const Lead = getLead();
 
     // Search for lead by phone number
-    // Try to match with different phone formats
-    const lead = await Lead.findOne({
-      $or: [
-        { phoneNumber: normalizedPhone },
-        { phoneNumber: { $regex: normalizedPhone + '$' } },
-        { phoneNumber: { $regex: '^' + normalizedPhone } },
-        { phoneNumber: { $regex: normalizedPhone } },
-      ],
-    }).lean();
+    // We prioritize EXACT match on normalized phone first
+    let lead = await Lead.findOne({ phoneNumber: normalizedPhone }).lean();
+    
+    if (!lead) {
+      // Fallback: search for variants if exact match fails
+      lead = await Lead.findOne({
+        $or: [
+          { phoneNumber: { $regex: normalizedPhone + '$' } },
+          { phoneNumber: { $regex: '^' + normalizedPhone } },
+        ],
+      }).lean();
+    }
 
     if (!lead) {
+      // RETURN 200 with success: false instead of 404 to avoid console spam and bridge errors
       return NextResponse.json(
-        { error: 'Lead not found', phone: normalizedPhone },
-        { status: 404 }
+        { success: false, error: 'Lead not found', phone: normalizedPhone },
+        { status: 200 }
       );
     }
 
-    // Return lead data
+    // Return lead data with success: true
     return NextResponse.json({
+      success: true,
       _id: lead._id,
       name: lead.name,
       phoneNumber: lead.phoneNumber,

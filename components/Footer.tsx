@@ -297,7 +297,7 @@ export default function Footer() {
         <div className="container mx-auto px-6 py-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between text-center md:text-left space-y-2 md:space-y-0">
             <p className="text-swar-text-secondary text-sm">
-              &copy; {currentYear} SwarYoga.com. All rights reserved.
+              &copy; {currentYear} UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED. All rights reserved.
             </p>
             <div className="text-sm text-swar-text-secondary">
               <span>Made with </span>

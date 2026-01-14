@@ -21,7 +21,7 @@ export default function RefundsAndCancellationsPage() {
 
               <div className="mt-8 space-y-6 text-gray-700 leading-relaxed">
                 <p>
-                  This policy explains how cancellations and refunds are handled for Swar Yoga bookings.
+                  This policy explains how cancellations and refunds are handled for bookings made with UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED (Swar Yoga).
                   By placing an order on our website, you agree to this policy.
                 </p>
 

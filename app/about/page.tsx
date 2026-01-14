@@ -117,7 +117,7 @@ export default function About() {
               
               <div className="space-y-6">
                 <p className="text-swar-text-secondary text-lg md:text-xl leading-relaxed">
-                  At Swar Yoga, we are dedicated to preserving and sharing the transformative 
+                  At Swar Yoga, a brand of UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED, we are dedicated to preserving and sharing the transformative 
                   practice of yoga through sound and breath. Our mission is to empower individuals 
                   to discover their inner harmony and achieve holistic well-being through authentic yoga practices.
                 </p>

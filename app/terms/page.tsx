@@ -21,16 +21,16 @@ export default function TermsPage() {
 
               <div className="mt-8 space-y-6 text-gray-700 leading-relaxed">
                 <p>
-                  These Terms &amp; Conditions ("Terms") govern your access to and use of the Swar Yoga website and
-                  services (including workshops, programs, retreats, and related digital services). By using our
+                  These Terms &amp; Conditions (&quot;Terms&quot;) govern your access to and use of the website and
+                  services (including workshops, programs, retreats, and related digital services) provided by UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED (operating as &quot;Swar Yoga&quot;). By using our
                   website or making a booking/purchase, you agree to these Terms.
                 </p>
 
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">1. Services</h2>
                   <p className="mt-2">
-                    Swar Yoga offers wellness programs such as yoga workshops, online/offline sessions, retreats, and
-                    related services. Program content, schedule, faculty, venue, and inclusions may change when
+                    UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED offers wellness programs such as yoga workshops, online/offline sessions, retreats, and
+                    related services through the Swar Yoga platform. Program content, schedule, faculty, venue, and inclusions may change when
                     necessary.
                   </p>
                 </div>
@@ -80,7 +80,7 @@ export default function TermsPage() {
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">5. Intellectual Property</h2>
                   <p className="mt-2">
-                    Website content, program materials, logos, and branding are owned by Swar Yoga or used with
+                    Website content, program materials, logos, and branding are owned by UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED or used with
                     permission. You may not copy, reproduce, distribute, or create derivative works without prior
                     written consent.
                   </p>

@@ -21,7 +21,7 @@ export default function PrivacyPage() {
 
               <div className="mt-8 space-y-6 text-gray-700 leading-relaxed">
                 <p>
-                  This Privacy Policy explains how Swar Yoga collects, uses, shares, and protects information when you
+                  This Privacy Policy explains how UPAMNYU INTERNATIONAL EDUCATION PRIVATE LIMITED (operating as &quot;Swar Yoga&quot;) collects, uses, shares, and protects information when you
                   visit our website or register for our programs.
                 </p>
 

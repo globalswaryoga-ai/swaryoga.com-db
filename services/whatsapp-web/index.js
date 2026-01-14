@@ -269,6 +269,8 @@ app.get('/health', (req, res) => {
     browserExists: resolvedBrowserPath ? fs.existsSync(resolvedBrowserPath) : null,
     freeRamMB: bytesToMB(require('os').freemem()),
     freeDiskBytes: diskFreeBytes,
+    s3Configured: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
+    s3Bucket: process.env.AWS_S3_BUCKET || 'social-media'
   });
 });
 
@@ -870,6 +872,19 @@ app.post('/media/upload', authenticate, upload.single('file'), async (req, res) 
     return res.status(400).json({ error: 'No file provided' });
   }
 
+  const s3Configured = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+  if (!s3Configured) {
+    console.error('S3 Upload Error: AWS credentials missing in environment');
+    return res.status(500).json({ 
+      error: 'AWS S3 credentials not configured on bridge',
+      details: {
+        hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+        hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+        message: 'Please add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to your environment/pm2 config'
+      }
+    });
+  }
+
   const fileKey = `whatsapp-media/${uuidv4()}-${req.file.originalname}`;
   const params = {
     Bucket: process.env.AWS_S3_BUCKET || 'social-media',
@@ -890,7 +905,14 @@ app.post('/media/upload', authenticate, upload.single('file'), async (req, res) 
     });
   } catch (err) {
     console.error('S3 Upload Error:', err);
-    res.status(500).json({ error: 'Failed to upload to S3', details: err.message });
+    res.status(500).json({ 
+      error: 'Failed to upload to S3', 
+      details: {
+        message: err.message,
+        code: err.code,
+        bucket: params.Bucket
+      }
+    });
   }
 });
 
@@ -1121,23 +1143,99 @@ app.delete('/db/clear-all', authenticate, async (req, res) => {
   }
 });
 
-server.on('error', (err) => {
-  if (err && err.code === 'EADDRINUSE') {
-    console.error(
-      `Bridge port ${BRIDGE_PORT} is already in use. ` +
-        `Stop the other process or set WHATSAPP_WEB_PORT to a free port (or 0 for auto).`
-    );
-  } else {
-    console.error('HTTP server error:', err);
+// Group details and management
+app.get('/group/:groupId', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
   }
+  try {
+    const { groupId } = req.params;
+    const chat = await client.getChatById(groupId);
+    
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
 
-  // Exit so PM2 can restart (but with a clear reason in logs).
-  process.exit(1);
+    const participants = await chat.getParticipants();
+    let profilePicUrl = null;
+    try {
+      profilePicUrl = await chat.getProfilePicUrl();
+    } catch (e) {
+      // Not available
+    }
+
+    let inviteCode = null;
+    try {
+      // Only admins can get invite codes usually, but we try
+      inviteCode = await chat.getInviteCode();
+    } catch (e) {
+      // Not an admin or feature disabled
+    }
+
+    res.json({
+      id: chat.id._serialized,
+      name: chat.name,
+      description: chat.description,
+      owner: chat.owner?._serialized || null,
+      createdAt: chat.createdAt ? chat.createdAt.toISOString() : null,
+      profilePicUrl,
+      participants: participants.map(p => ({
+        id: p.id._serialized,
+        phoneNumber: p.id.user,
+        isAdmin: p.isAdmin,
+        isSuperAdmin: p.isSuperAdmin
+      })),
+      inviteCode,
+      isReadOnly: chat.isReadOnly,
+      infoAdminsOnly: chat.infoAdminsOnly || false,
+      unreadCount: chat.unreadCount,
+      timestamp: chat.timestamp
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-server.listen(BRIDGE_PORT, () => {
-  const addr = server.address();
-  const port = typeof addr === 'object' && addr ? addr.port : BRIDGE_PORT;
-  console.log(`WhatsApp Bridge listening on port ${port}`);
+// Update group settings
+app.post('/group/:groupId/settings', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const { subject, description, settings } = req.body;
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    const results = {};
+
+    if (subject) {
+      await chat.setSubject(subject);
+      results.subject = 'updated';
+    }
+
+    if (description !== undefined) {
+      await chat.setDescription(description);
+      results.description = 'updated';
+    }
+
+    if (settings) {
+      if (settings.onlyAdminsCanSendMessages !== undefined) {
+        await chat.setMessagesAdminsOnly(settings.onlyAdminsCanSendMessages);
+        results.messagesAdminsOnly = 'updated';
+      }
+      if (settings.onlyAdminsCanEditInfo !== undefined) {
+        await chat.setInfoAdminsOnly(settings.onlyAdminsCanEditInfo);
+        results.infoAdminsOnly = 'updated';
+      }
+    }
+
+    res.json({ success: true, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 

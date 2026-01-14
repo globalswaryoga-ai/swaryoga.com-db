@@ -32,6 +32,11 @@ export default function QRWhatsAppInboxPage() {
   const [contactDetails, setContactDetails] = useState<any>(null);
   const [showGroupPanel, setShowGroupPanel] = useState(false);
   const [groupDetails, setGroupDetails] = useState<any>(null);
+  const [isUpdatingGroup, setIsUpdatingGroup] = useState(false);
+  const [editGroupName, setEditGroupName] = useState('');
+  const [editGroupDesc, setEditGroupDesc] = useState('');
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [isEditingGroupDesc, setIsEditingGroupDesc] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [showNewContactModal, setShowNewContactModal] = useState(false);
@@ -318,12 +323,15 @@ export default function QRWhatsAppInboxPage() {
       setActivePhone(phoneParam);
       
       // Normalize the phone parameter
-      const normalizedPhone = String(phoneParam).replace(/\D/g, '');
+      let normalizedPhone = String(phoneParam).replace(/\D/g, '');
+      if (normalizedPhone.length === 10) {
+        normalizedPhone = '91' + normalizedPhone;
+      }
       
       // Find chat by phone number in existing chats
       const matchingChat = chats.find((chat) => {
         const chatPhone = String(chat.name || chat.id || '').replace(/\D/g, '');
-        return chatPhone === normalizedPhone;
+        return chatPhone === normalizedPhone || chatPhone.endsWith(normalizedPhone);
       });
 
       if (matchingChat) {
@@ -442,8 +450,11 @@ export default function QRWhatsAppInboxPage() {
       const fetchLeadDataForChats = async () => {
         for (const chat of chats) {
           // Only fetch if chat has a phone number name
-          if (chat.name && /^\d+$/.test(String(chat.name))) {
-            const normalizedPhone = String(chat.name).replace(/\D/g, '');
+          if (chat.name && /^\d+$/.test(String(chat.name).replace(/\D/g, ''))) {
+            let normalizedPhone = String(chat.name).replace(/\D/g, '');
+            if (normalizedPhone.length === 10) {
+              normalizedPhone = '91' + normalizedPhone;
+            }
             
             // Skip if already cached
             if (leadDataCache[normalizedPhone]) {
@@ -459,9 +470,9 @@ export default function QRWhatsAppInboxPage() {
                 },
               });
               
-              if (response.ok) {
-                const lead = await response.json();
-                
+              const leadResult = await response.json();
+
+              if (response.ok && leadResult.success) {
                 // Update the chat with lead data
                 setChats((prevChats) =>
                   prevChats.map((c) => {
@@ -469,20 +480,26 @@ export default function QRWhatsAppInboxPage() {
                     if (cPhone === normalizedPhone) {
                       return {
                         ...c,
-                        displayName: lead.name,
-                        leadId: lead._id,
-                        leadStatus: lead.status,
-                        leadLabel: lead.label,
+                        displayName: leadResult.name,
+                        leadId: leadResult._id,
+                        leadStatus: leadResult.status,
+                        leadLabel: leadResult.label,
                       };
                     }
                     return c;
                   })
                 );
                 
-                // Cache the result
+                // Cache the successful result
                 setLeadDataCache((prev) => ({
                   ...prev,
-                  [normalizedPhone]: lead,
+                  [normalizedPhone]: leadResult,
+                }));
+              } else {
+                // Cache the "not found" state to prevent repeated 404/failure hits
+                setLeadDataCache((prev) => ({
+                  ...prev,
+                  [normalizedPhone]: { success: false, name: 'Unknown', status: 'lead' }
                 }));
               }
             } catch (error) {
@@ -598,14 +615,17 @@ export default function QRWhatsAppInboxPage() {
       const loadMessages = async () => {
         try {
           const chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
-          console.log('[loadMessages] Loading messages for chat:', chatId);
           const res = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
-          console.log('[loadMessages] Response ok?', res.ok, 'status:', res.status);
+          
           if (res.ok) {
             const data = await res.json();
-            console.log('[loadMessages] Got messages:', data.messages?.length || 0);
             setMessages(data.messages || []);
             setBridgeError(null);
+          } else if (res.status === 404) {
+            // Chat not found on bridge is NORMAL for new leads/numbers.
+            // Don't show an error, just set messages to empty.
+            setMessages([]);
+            setBridgeError(null); 
           } else {
             const err = await parseBridgeError(res);
             console.error('[loadMessages] Error:', err);
@@ -613,7 +633,10 @@ export default function QRWhatsAppInboxPage() {
           }
         } catch (err) {
           console.error('[loadMessages] Exception:', err);
-          setBridgeError(err instanceof Error ? err.message : 'Failed to load messages');
+          // Only show error if it's not an abort (timeout)
+          if (!(err instanceof Error && err.name === 'AbortError')) {
+            setBridgeError(err instanceof Error ? err.message : 'Failed to load messages');
+          }
         }
       };
 
@@ -647,14 +670,14 @@ export default function QRWhatsAppInboxPage() {
         },
       });
       
+      const lead = await response.json();
       if (response.ok) {
-        const lead = await response.json();
-        // Cache the result
+        // Cache even if not found to prevent repeating requests
         setLeadDataCache((prev) => ({
           ...prev,
           [normalizedPhone]: lead,
         }));
-        return lead;
+        return lead.success ? lead : null;
       }
     } catch (error) {
       console.error('Failed to fetch lead by phone:', error);
@@ -728,61 +751,87 @@ export default function QRWhatsAppInboxPage() {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
+    // Next.js App Router API routes have a default limit (usually 4MB)
+    const MAX_FILE_SIZE = 4.5 * 1024 * 1024; // 4.5MB limit
+    const largeFiles = files.filter(f => f.size > MAX_FILE_SIZE);
+    if (largeFiles.length > 0) {
+      alert(`❌ File too large: ${largeFiles[0].name} is over 4.5MB. \n\nPlease resize the image or upload a smaller file.`);
+      return;
+    }
+
+    console.log('[uploadMedia] Starting upload for', files.length, 'files');
     setUploadingMedia(true);
     setShowMediaMenu(false);
+    setBridgeError(null);
 
     try {
       let chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
       
       // If chatId doesn't have @c.us format (synthetic chat), format it as a phone number
-      if (!chatId.includes('@')) {
+      if (chatId && !chatId.includes('@')) {
         const phoneOnly = chatId.replace(/\D/g, '');
         chatId = phoneOnly + '@c.us';
+      }
+
+      if (!chatId) {
+        throw new Error('No valid chat selected');
       }
       
       for (const file of files) {
         const fileId = `${file.name}-${Date.now()}`;
         setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
 
-        // Create FormData for file upload
-        const formData = new FormData();
-        formData.append('file', file);
+        console.log('[uploadMedia] Processing:', file.name, 'Size:', file.size);
 
-        console.log('[uploadMedia] Uploading:', file.name, 'Size:', file.size);
+        // We use XMLHttpRequest for real progress tracking
+        const uploadResult = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          const formData = new FormData();
+          formData.append('file', file);
 
-        // Upload to backend (uses proxy to S3)
-        const uploadRes = await fetch('/api/admin/crm/whatsapp/media-upload', {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'X-Bridge-Secret': bridgeSecret,
-            'X-Chat-Id': chatId
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percentComplete = (e.loaded / e.total) * 100;
+              setUploadProgress(prev => ({ ...prev, [fileId]: percentComplete }));
+            }
+          });
+
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText);
+                resolve(response);
+              } catch (e) {
+                resolve({ success: true, url: null }); // Fallback
+              }
+            } else {
+              try {
+                const errorData = JSON.parse(xhr.responseText);
+                reject(new Error(errorData.error || `Upload failed (${xhr.status})`));
+              } catch (e) {
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+              }
+            }
+          });
+
+          xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+          xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+          xhr.open('POST', '/api/admin/crm/whatsapp/media-upload');
+          xhr.setRequestHeader('X-Bridge-Secret', bridgeSecret);
+          xhr.setRequestHeader('X-Chat-Id', chatId);
+          if (token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
           }
+          xhr.send(formData);
         });
 
-        if (!uploadRes.ok) {
-          const error = await uploadRes.json();
-          const errorMsg = error.error || 'Upload failed';
-          const details = error.details || {};
-          
-          // Provide helpful error messages
-          let fullMessage = errorMsg;
-          if (details.message) {
-            fullMessage += `: ${details.message}`;
-          }
-          if (details.hasAccessKey === false) {
-            fullMessage += '\n❌ Missing AWS_ACCESS_KEY_ID on bridge';
-          }
-          if (details.hasSecretKey === false) {
-            fullMessage += '\n❌ Missing AWS_SECRET_ACCESS_KEY on bridge';
-          }
-          
-          console.error('[uploadMedia] Backend error:', fullMessage, error);
-          throw new Error(fullMessage);
-        }
-
-        const uploadData = await uploadRes.json();
+        const uploadData = uploadResult as any;
         console.log('[uploadMedia] Upload success:', uploadData);
+
+        if (!uploadData.url) {
+           throw new Error('Upload succeeded but no URL was returned');
+        }
 
         // Send media message with URL
         const mediaRes = await bridgeFetch('/send', {
@@ -795,14 +844,15 @@ export default function QRWhatsAppInboxPage() {
         });
 
         if (mediaRes.ok) {
-          console.log('[uploadMedia] Media message sent');
+          console.log('[uploadMedia] Media message sent successfully');
           setUploadProgress(prev => {
             const next = { ...prev };
             delete next[fileId];
             return next;
           });
         } else {
-          throw new Error('Failed to send media message');
+          const sendError = await parseBridgeError(mediaRes);
+          throw new Error(`Failed to send media via WhatsApp: ${sendError}`);
         }
       }
 
@@ -880,10 +930,14 @@ export default function QRWhatsAppInboxPage() {
       }
 
       // Try to find and open the chat for this number
-      const normalizedPhone = newLeadForm.phone.replace(/\D/g, '');
+      let normalizedPhone = newLeadForm.phone.replace(/\D/g, '');
+      if (normalizedPhone.length === 10) {
+        normalizedPhone = '91' + normalizedPhone;
+      }
+
       const matchingChat = chats.find((chat) => {
         const chatPhone = String(chat.name || chat.id || '').replace(/\D/g, '');
-        return chatPhone === normalizedPhone;
+        return chatPhone === normalizedPhone || chatPhone.endsWith(normalizedPhone);
       });
 
       if (matchingChat) {
@@ -1095,10 +1149,40 @@ export default function QRWhatsAppInboxPage() {
       if (res.ok) {
         const data = await res.json();
         setGroupDetails(data);
+        setEditGroupName(data.name || '');
+        setEditGroupDesc(data.description || '');
         setShowGroupPanel(true);
       }
     } catch (err) {
       console.error('Failed to load group details:', err);
+    }
+  };
+
+  // Update group settings
+  const updateGroupSettings = async (settings: any) => {
+    if (!groupDetails) return;
+    try {
+      setIsUpdatingGroup(true);
+      const chatId = groupDetails.id;
+      const res = await bridgeFetch(`/group/${chatId}/settings`, {
+        method: 'POST',
+        body: JSON.stringify(settings)
+      }, 10_000);
+      
+      if (res.ok) {
+        // Refresh group details
+        await loadGroupDetails(chatId);
+        setIsEditingGroupName(false);
+        setIsEditingGroupDesc(false);
+      } else {
+        const err = await parseBridgeError(res);
+        alert(`Failed to update group: ${err}`);
+      }
+    } catch (err) {
+      console.error('Failed to update group settings:', err);
+      alert('Network error while updating group settings');
+    } finally {
+      setIsUpdatingGroup(false);
     }
   };
 
@@ -1983,7 +2067,7 @@ export default function QRWhatsAppInboxPage() {
                     <button
                       onClick={handleScheduledSend}
                       disabled={sending || !newMessage.trim() || status !== 'connected' || uploadingMedia}
-                      className="p-1.5 md:p-2 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold transition-all text-lg md:text-xl flex-shrink-0"
+                      className="p-1.5 md:p-2 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold transition-all text-lg md:text-xl flex-shrink-0"
                       title={uploadingMedia ? 'Uploading...' : 'Send message'}
                     >
                       {sending || uploadingMedia ? '⟳' : '➤'}
@@ -2321,8 +2405,8 @@ export default function QRWhatsAppInboxPage() {
                   className="w-20 h-20 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-2xl">
-                  {getInitials(contactDetails.name)}
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-3xl">
+                  👤
                 </div>
               )}
               <div className="text-center">
@@ -2413,25 +2497,134 @@ export default function QRWhatsAppInboxPage() {
                   👥
                 </div>
               )}
-              <div className="text-center">
-                <h2 className="text-lg font-bold text-slate-900">{groupDetails.name}</h2>
-                <p className="text-sm text-slate-500">
-                  {groupDetails.participants?.length || 0} participants
-                </p>
+              <div className="text-center w-full">
+                {isEditingGroupName ? (
+                  <div className="flex flex-col gap-2 px-4">
+                    <input
+                      type="text"
+                      className="w-full px-3 py-1.5 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-slate-800 font-medium"
+                      value={editGroupName}
+                      onChange={(e) => setEditGroupName(e.target.value)}
+                      placeholder="Group Name"
+                      disabled={isUpdatingGroup}
+                    />
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => updateGroupSettings({ subject: editGroupName })}
+                        disabled={isUpdatingGroup}
+                        className="px-3 py-1 bg-purple-600 text-white text-xs font-bold rounded hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        {isUpdatingGroup ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingGroupName(false);
+                          setEditGroupName(groupDetails.name);
+                        }}
+                        className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="group relative px-4">
+                    <h2 className="text-lg font-bold text-slate-900 pr-6">{groupDetails.name}</h2>
+                    <button
+                      onClick={() => setIsEditingGroupName(true)}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-purple-600 transition-opacity"
+                    >
+                      ✎
+                    </button>
+                    <p className="text-sm text-slate-500">
+                      {groupDetails.participants?.length || 0} participants
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Group Description */}
-            {groupDetails.description && (
-              <div className="p-4 border-b border-slate-100">
-                <p className="text-xs text-slate-600 mb-2 font-semibold">GROUP DESCRIPTION</p>
+            <div className="p-4 border-b border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-slate-600 font-semibold uppercase tracking-wider">Group Description</p>
+                {!isEditingGroupDesc && (
+                  <button
+                    onClick={() => setIsEditingGroupDesc(true)}
+                    className="text-purple-600 hover:text-purple-800 text-xs font-bold"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+              
+              {isEditingGroupDesc ? (
+                <div className="space-y-2">
+                  <textarea
+                    className="w-full px-3 py-2 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm text-slate-800 h-24 resize-none"
+                    value={editGroupDesc}
+                    onChange={(e) => setEditGroupDesc(e.target.value)}
+                    placeholder="Description"
+                    disabled={isUpdatingGroup}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => updateGroupSettings({ description: editGroupDesc })}
+                      disabled={isUpdatingGroup}
+                      className="flex-1 py-1.5 bg-purple-600 text-white text-xs font-bold rounded hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {isUpdatingGroup ? 'Saving...' : 'Save Description'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsEditingGroupDesc(false);
+                        setEditGroupDesc(groupDetails.description || '');
+                      }}
+                      className="px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                   <p className="text-sm text-slate-900 break-words whitespace-pre-wrap">
-                    {groupDetails.description}
+                    {groupDetails.description || <span className="text-slate-400 italic">No description set</span>}
                   </p>
                 </div>
+              )}
+            </div>
+
+            {/* Admin Controls */}
+            <div className="p-4 border-b border-slate-100 bg-purple-50/50">
+              <p className="text-xs text-slate-600 mb-3 font-semibold uppercase tracking-wider">Group Permissions</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-700">Send Messages</span>
+                  <select
+                    className="text-xs border border-slate-300 rounded px-2 py-1 bg-white"
+                    value={groupDetails.isReadOnly ? 'admins' : 'all'}
+                    onChange={(e) => updateGroupSettings({ settings: { onlyAdminsCanSendMessages: e.target.value === 'admins' } })}
+                    disabled={isUpdatingGroup}
+                  >
+                    <option value="all">Everyone</option>
+                    <option value="admins">Only Admins</option>
+                  </select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-700">Edit Group Info</span>
+                  <select
+                    className="text-xs border border-slate-300 rounded px-2 py-1 bg-white"
+                    value={groupDetails.infoAdminsOnly ? 'admins' : 'all'}
+                    onChange={(e) => updateGroupSettings({ settings: { onlyAdminsCanEditInfo: e.target.value === 'admins' } })}
+                    disabled={isUpdatingGroup}
+                  >
+                    <option value="all">Everyone</option>
+                    <option value="admins">Only Admins</option>
+                  </select>
+                </div>
               </div>
-            )}
+            </div>
 
             {/* Invite Link */}
             {groupDetails.inviteCode && (
