@@ -43,6 +43,13 @@ export default function QRWhatsAppInboxPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [userProfile, setUserProfile] = useState<any>(null);
 
+  const isOffline = status !== 'connected';
+
+  // Reduce status/404 vibration: keep a lightweight backoff for polling on repeated failures
+  const statusPollDelayRef = useRef<number>(15000);
+  const lastBridgeErrorRef = useRef<string | null>(null);
+  const lastStatusRef = useRef<string>('loading');
+
   const [loggingInNewNumber, setLoggingInNewNumber] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -132,6 +139,24 @@ export default function QRWhatsAppInboxPage() {
   const bridgeUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
   const bridgeSecret = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 
+  // Offline cache keys (localStorage)
+  const CHAT_CACHE_KEY = 'wa_qr_cached_chats_v1';
+  const CHAT_SELECTED_CACHE_KEY = 'wa_qr_cached_selected_chat_id_v1';
+  const MESSAGES_CACHE_KEY_PREFIX = 'wa_qr_cached_messages_v1:';
+  const cacheKeyForChat = (chat: any) => {
+    const id = typeof chat?.id === 'string' ? chat.id : chat?.id?._serialized;
+    return id ? `${MESSAGES_CACHE_KEY_PREFIX}${id}` : null;
+  };
+  const getChatId = (chat: any) => (typeof chat?.id === 'string' ? chat.id : chat?.id?._serialized);
+  const safeJsonParse = <T,>(value: string | null): T | null => {
+    if (!value) return null;
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return null;
+    }
+  };
+
   const bridgeFetch = async (path: string, init: RequestInit = {}, timeoutMs = 20_000) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -193,25 +218,74 @@ export default function QRWhatsAppInboxPage() {
     return 'disconnected';
   };
 
+  // Load cached chats/messages on mount (so UI still shows history when bridge is disconnected)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const cachedChats = safeJsonParse<any[]>(localStorage.getItem(CHAT_CACHE_KEY));
+    if (Array.isArray(cachedChats) && cachedChats.length > 0) {
+      setChats((prev) => (prev.length > 0 ? prev : cachedChats));
+    }
+
+    // Restore last selected chat if possible
+    const cachedSelectedId = localStorage.getItem(CHAT_SELECTED_CACHE_KEY);
+    if (cachedSelectedId && Array.isArray(cachedChats) && cachedChats.length > 0) {
+      const match = cachedChats.find((c) => getChatId(c) === cachedSelectedId);
+      if (match) {
+        setSelectedChat((prev: any) => prev || match);
+
+        const msgKey = cacheKeyForChat(match);
+        if (msgKey) {
+          const cachedMsgs = safeJsonParse<any[]>(localStorage.getItem(msgKey));
+          if (Array.isArray(cachedMsgs) && cachedMsgs.length > 0) {
+            setMessages((prev) => (prev.length > 0 ? prev : cachedMsgs));
+          }
+        }
+      }
+    }
+  }, []);
+
   // Check status - poll less frequently to reduce flickering/vibration
   useEffect(() => {
+    let cancelled = false;
+
+    const setBridgeErrorIfChanged = (msg: string | null) => {
+      if (lastBridgeErrorRef.current === msg) return;
+      lastBridgeErrorRef.current = msg;
+      setBridgeError(msg);
+    };
+
+    const setStatusIfChanged = (s: string) => {
+      if (lastStatusRef.current === s) return;
+      lastStatusRef.current = s;
+      setStatus(s);
+    };
+
+    const scheduleNext = () => {
+      if (cancelled) return;
+      window.setTimeout(checkStatus, statusPollDelayRef.current);
+    };
+
     const checkStatus = async () => {
       try {
         const res = await bridgeFetch('/status', { method: 'GET' }, 8_000);
         if (!res.ok) {
           if (res.status === 404) {
             console.error('[404] WhatsApp Bridge /status endpoint not found.');
-            setBridgeError('Bridge service not responding (404). Make sure the WhatsApp bridge is running.');
+            setBridgeErrorIfChanged('Bridge service not responding (404). Make sure the WhatsApp bridge is running.');
           }
           const msg = await parseBridgeError(res);
           throw new Error(msg || 'Bridge unreachable');
         }
         const data = await res.json();
-        setBridgeError(null);
+        setBridgeErrorIfChanged(null);
+
+        // Reset backoff on success
+        statusPollDelayRef.current = 15000;
         
         const newStatus = normalizeBridgeStatus(data.status);
         const statusChanged = status !== newStatus;
-        setStatus(newStatus);
+        setStatusIfChanged(newStatus);
 
         // Automatically fetch and show QR if available
         if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
@@ -240,14 +314,20 @@ export default function QRWhatsAppInboxPage() {
           }
         }
       } catch (err) {
-        setStatus('disconnected');
-        setBridgeError(err instanceof Error ? err.message : 'Bridge not reachable');
+        setStatusIfChanged('disconnected');
+        setBridgeErrorIfChanged(err instanceof Error ? err.message : 'Bridge not reachable');
+
+        // Backoff up to 60s when failing to reduce UI thrash
+        statusPollDelayRef.current = Math.min(statusPollDelayRef.current * 2, 60000);
       }
+
+      scheduleNext();
     };
 
     checkStatus();
-    const interval = setInterval(checkStatus, 15000); // 15s instead of 10s
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+    };
   }, [bridgeUrl, status]);
 
   // Load admin user permissions and user list
@@ -480,6 +560,13 @@ export default function QRWhatsAppInboxPage() {
               
               return merged;
             });
+
+            // Persist chats to cache (best-effort)
+            try {
+              localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(newChats));
+            } catch (e) {
+              console.warn('[cache] Failed to persist chats:', e);
+            }
             
             setBridgeError(null);
           }
@@ -493,6 +580,33 @@ export default function QRWhatsAppInboxPage() {
       return () => clearInterval(interval);
     }
   }, [status, bridgeUrl]);
+
+  // Persist selected chat id so it can be restored offline
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!selectedChat) return;
+    const id = getChatId(selectedChat);
+    if (!id) return;
+    try {
+      localStorage.setItem(CHAT_SELECTED_CACHE_KEY, id);
+    } catch (e) {
+      console.warn('[cache] Failed to persist selected chat:', e);
+    }
+  }, [selectedChat]);
+
+  // Persist messages for selected chat (best-effort)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!selectedChat) return;
+    if (!Array.isArray(messages) || messages.length === 0) return;
+    const msgKey = cacheKeyForChat(selectedChat);
+    if (!msgKey) return;
+    try {
+      localStorage.setItem(msgKey, JSON.stringify(messages));
+    } catch (e) {
+      console.warn('[cache] Failed to persist messages:', e);
+    }
+  }, [messages, selectedChat]);
 
   // Consolidate Lead Data Fetching to avoid "vibration"
   useEffect(() => {
@@ -1419,6 +1533,33 @@ export default function QRWhatsAppInboxPage() {
     loading: 'Loading...'
   }[status];
 
+  const handleClearOfflineCache = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.removeItem(CHAT_CACHE_KEY);
+      localStorage.removeItem(CHAT_SELECTED_CACHE_KEY);
+
+      // Remove message caches
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(MESSAGES_CACHE_KEY_PREFIX)) keysToRemove.push(k);
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+      // Also reset UI state
+      setChats([]);
+      setSelectedChat(null);
+      setMessages([]);
+      setBridgeError('Offline cache cleared. Please reconnect to reload chats.');
+      setTimeout(() => setBridgeError(null), 2500);
+    } catch (e) {
+      console.warn('[cache] Failed to clear offline cache:', e);
+      setBridgeError('Failed to clear cache.');
+      setTimeout(() => setBridgeError(null), 2500);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-[#f0f2f5]">
       {/* Left Sidebar - Chats (Hidden on mobile, shown on larger screens) */}
@@ -1498,6 +1639,22 @@ export default function QRWhatsAppInboxPage() {
                   Reconnect Now
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Offline banner */}
+          {isOffline && !bridgeError && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] leading-snug text-amber-900">
+              <div className="font-bold">Offline mode</div>
+              <div className="opacity-90">
+                Showing last loaded chats/messages. Connect to refresh.
+              </div>
+              <button
+                onClick={handleClearOfflineCache}
+                className="mt-2 w-full py-1 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700"
+              >
+                Clear Offline Cache
+              </button>
             </div>
           )}
         </div>
