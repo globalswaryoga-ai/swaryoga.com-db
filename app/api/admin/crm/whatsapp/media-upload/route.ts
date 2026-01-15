@@ -104,9 +104,11 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('[media-upload] Exception:', error);
+    const errorMsg = error instanceof Error ? error.message : 'Failed to upload media';
     return NextResponse.json(
       { 
-        error: error instanceof Error ? error.message : 'Failed to upload media'
+        error: errorMsg,
+        type: error instanceof Error ? error.constructor.name : 'Unknown'
       },
       { status: 500 }
     );

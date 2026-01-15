@@ -214,6 +214,15 @@ export default function QRWhatsAppInboxPage() {
       });
 
       return res;
+    } catch (error) {
+      // Handle AbortError specifically
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.error(`[bridgeFetch] Request timeout after ${timeoutMs}ms for path: ${path}`);
+          throw new Error(`Bridge request timeout (${timeoutMs}ms) - Check if bridge is running`);
+        }
+      }
+      throw error;
     } finally {
       clearTimeout(timeout);
     }
@@ -827,12 +836,21 @@ export default function QRWhatsAppInboxPage() {
             }
           }
         } catch (err) {
-          console.warn('[Bridge Load Error]:', err);
+          // Detailed error logging
+          const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+          const errorType = err instanceof Error ? err.constructor.name : 'Unknown';
+          console.error(`[Bridge Load Error] ${errorType}:`, errorMsg);
+          
           // FALLBACK: Try CRM messages when bridge fails
           if (messages.length === 0) {
-            const crmMessages = await loadMessagesFromCRM();
-            if (crmMessages.length > 0) {
-              setMessages(crmMessages);
+            try {
+              const crmMessages = await loadMessagesFromCRM();
+              if (crmMessages.length > 0) {
+                setMessages(crmMessages);
+                console.log('[Bridge Load Fallback] Loaded from CRM - bridge error:', errorMsg);
+              }
+            } catch (crmErr) {
+              console.error('[CRM Load Fallback Error]:', crmErr);
             }
           }
         }
@@ -941,16 +959,28 @@ export default function QRWhatsAppInboxPage() {
               if (xhr.status >= 200 && xhr.status < 300) {
                 try {
                   const response = JSON.parse(xhr.responseText);
-                  resolve(response);
+                  if (!response.url) {
+                    reject(new Error('Server did not return media URL'));
+                  } else {
+                    resolve(response);
+                  }
                 } catch (e) {
-                  resolve({ success: true, url: null });
+                  reject(new Error(`Invalid response from server: ${e}`));
                 }
               } else {
-                reject(new Error(`Upload failed (${xhr.status})`));
+                // Try to parse error response
+                try {
+                  const errorData = JSON.parse(xhr.responseText);
+                  const errorMsg = errorData.error || errorData.message || 'Unknown error';
+                  reject(new Error(`Upload failed (${xhr.status}): ${errorMsg}`));
+                } catch {
+                  reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
               }
             });
 
-            xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+            xhr.addEventListener('error', () => reject(new Error('Network error - check bridge connection')));
+            xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled')));
             xhr.open('POST', '/api/admin/crm/whatsapp/media-upload');
             // Headers for auth/bridge
             if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
