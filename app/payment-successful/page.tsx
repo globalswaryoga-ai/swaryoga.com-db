@@ -109,11 +109,11 @@ function PaymentSuccessfulInner() {
 
             <div className="p-8 sm:p-10">
               {!orderId ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
-                  <p className="text-swar-text font-semibold">Missing order id</p>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+                  <p className="text-swar-text font-semibold">Payment received</p>
                   <p className="text-swar-text mt-1">
-                    We received a success callback, but no <span className="font-mono">orderId</span> was provided.
-                    If your money was deducted, please contact support.
+                    Soon you will get all payment details and receipts.
+                    Please take a screenshot of this page and send it to us on WhatsApp.
                   </p>
                 </div>
               ) : loading ? (
