@@ -42,8 +42,12 @@ export async function POST(req: NextRequest) {
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
     // Determine timeout based on endpoint type
-    // Messages polling should be fast (5s), other endpoints 10s
-    const timeoutMs = decodedPath.includes('/messages') ? 5000 : 10000;
+    // Messages polling: 5s (fast)
+    // Contact/Group details: 3s (timeout quickly, use fallback)
+    // Other endpoints: 8s
+    let timeoutMs = 8000;
+    if (decodedPath.includes('/messages')) timeoutMs = 5000;
+    if (decodedPath.includes('/contact') || decodedPath.includes('/group')) timeoutMs = 3000;
     
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -115,8 +119,12 @@ export async function GET(req: NextRequest) {
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
     // Determine timeout based on endpoint type
-    // Messages polling should be fast (5s), other endpoints 10s
-    const timeoutMs = path.includes('/messages') ? 5000 : 10000;
+    // Messages polling: 5s (fast)
+    // Contact/Group details: 3s (timeout quickly, use fallback)
+    // Other endpoints: 8s
+    let timeoutMs = 8000;
+    if (path.includes('/messages')) timeoutMs = 5000;
+    if (path.includes('/contact') || path.includes('/group')) timeoutMs = 3000;
     
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);

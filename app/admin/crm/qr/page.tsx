@@ -1480,13 +1480,17 @@ export default function QRWhatsAppInboxPage() {
   };
 
   const loadContactDetails = async (contactId: string) => {
+    // TODO: Bridge /contact endpoint is broken (times out)
+    // Skip for now - contact details not critical for chat display
     try {
-      const res = await bridgeFetch(`/contact/${contactId}`, { method: 'GET' }, 8_000);
-      if (res.ok) {
-        const data = await res.json();
-        setContactDetails(data);
-        setShowContactPanel(true);
-      }
+      // If bridge is fixed in future, uncomment:
+      // const res = await bridgeFetch(`/contact/${contactId}`, { method: 'GET' }, 3_000);
+      // if (res.ok) {
+      //   const data = await res.json();
+      //   setContactDetails(data);
+      //   setShowContactPanel(true);
+      // }
+      console.warn('[loadContactDetails] Endpoint disabled - bridge /contact hangs');
     } catch (err) {
       console.error('Failed to load contact details:', err);
     }
