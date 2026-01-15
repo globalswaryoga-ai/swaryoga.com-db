@@ -26,6 +26,12 @@ function CheckoutInner() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [leadLookup, setLeadLookup] = useState({
+    code: '',
+    loading: false,
+    foundLeadNumber: '' as string | '',
+    message: '' as string,
+  });
 
   const searchParams = useSearchParams();
   const supportedCurrencies = ['INR', 'USD', 'NPR'] as const;
@@ -77,6 +83,82 @@ function CheckoutInner() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError('');
+  };
+
+  const applyLeadAutofill = (lead: {
+    name?: string;
+    email?: string;
+    phoneNumber?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    leadNumber?: string;
+  }) => {
+    const name = String(lead?.name || '').trim();
+    const parts = name ? name.split(/\s+/) : [];
+    const [firstName = '', ...rest] = parts;
+    const lastName = rest.join(' ');
+
+    setFormData((prev) => ({
+      ...prev,
+      firstName: prev.firstName || firstName,
+      lastName: prev.lastName || lastName,
+      email: prev.email || String(lead?.email || '').trim(),
+      phone: prev.phone || String(lead?.phoneNumber || '').trim(),
+      city: prev.city || String(lead?.city || '').trim(),
+      state: prev.state || String(lead?.state || '').trim(),
+    }));
+  };
+
+  const handleLeadLookup = async () => {
+    const raw = leadLookup.code.trim();
+    if (!raw) {
+      setLeadLookup((prev) => ({ ...prev, message: 'Enter your code to autofill details.' }));
+      return;
+    }
+    if (!/^\d{1,6}$/.test(raw)) {
+      setLeadLookup((prev) => ({ ...prev, message: 'Code must be 1 to 6 digits (example: 006999).' }));
+      return;
+    }
+
+    const leadNumber = raw.padStart(6, '0');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      setLeadLookup((prev) => ({ ...prev, message: 'Please sign in to use code autofill.' }));
+      return;
+    }
+
+    setLeadLookup((prev) => ({
+      ...prev,
+      loading: true,
+      message: '',
+      foundLeadNumber: '',
+    }));
+
+    try {
+      const resp = await fetch(`/api/crm/lead-by-number?leadNumber=${encodeURIComponent(leadNumber)}`, {
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      });
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok || !json?.success) {
+        const msg = json?.error || 'Unable to find details for that code.';
+        setLeadLookup((prev) => ({ ...prev, loading: false, message: msg }));
+        return;
+      }
+
+      applyLeadAutofill(json.data || {});
+      setLeadLookup((prev) => ({
+        ...prev,
+        loading: false,
+        foundLeadNumber: String(json?.data?.leadNumber || leadNumber),
+        message: 'Details loaded from your code.',
+      }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to lookup code.';
+      setLeadLookup((prev) => ({ ...prev, loading: false, message: msg }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -254,6 +336,48 @@ function CheckoutInner() {
           <div className="grid md:grid-cols-3 gap-8">
             <div className="md:col-span-2">
               <form onSubmit={handleSubmit} className="space-y-8">
+                {/* Lead Code Autofill */}
+                <div className="bg-white rounded-lg shadow-md p-8">
+                  <h2 className="text-2xl font-bold mb-2 text-yoga-700">Auto-fill with your code</h2>
+                  <p className="text-sm text-gray-600 mb-6">
+                    If you have a 6-digit code (example: 006999), enter it to auto-fill your details.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="\d*"
+                      name="leadCode"
+                      value={leadLookup.code}
+                      onChange={(e) => setLeadLookup((prev) => ({ ...prev, code: e.target.value, message: '' }))}
+                      className="w-full sm:flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-yoga-600"
+                      placeholder="Enter code (e.g. 006999)"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleLeadLookup}
+                      disabled={leadLookup.loading}
+                      className={`px-6 py-3 rounded-lg font-bold text-white transition ${
+                        leadLookup.loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-yoga-600 hover:bg-yoga-700'
+                      }`}
+                    >
+                      {leadLookup.loading ? 'Searching...' : 'Fetch Details'}
+                    </button>
+                  </div>
+
+                  {(leadLookup.message || leadLookup.foundLeadNumber) && (
+                    <div className="mt-4 text-sm">
+                      {leadLookup.foundLeadNumber && (
+                        <div className="text-green-700 font-semibold">Code: {leadLookup.foundLeadNumber}</div>
+                      )}
+                      {leadLookup.message && (
+                        <div className="text-gray-700">{leadLookup.message}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Shipping Information */}
                 <div className="bg-white rounded-lg shadow-md p-8">
                   <h2 className="text-2xl font-bold mb-6 text-yoga-700">Shipping Information</h2>

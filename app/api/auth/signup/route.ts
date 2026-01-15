@@ -111,6 +111,10 @@ export async function POST(request: NextRequest) {
 
       await user.save();
 
+  // If we can map the user to a CRM leadNumber, return it in the signup response.
+  // This supports a single human-friendly identifier (e.g. "006999") across modules.
+  let leadNumber: string | null = null;
+
       // ALSO: create/update CRM lead (Option A)
       // This makes every website signup visible in CRM leads immediately.
       try {
@@ -156,10 +160,12 @@ export async function POST(request: NextRequest) {
             );
             // Ensure even existing leads are added to broadcast list on signup
             await addLeadToMainBroadcastList(existingLead);
+
+            leadNumber = String((existingLead as any).leadNumber || '') || null;
           } else {
-            const { leadNumber } = await allocateNextLeadNumber();
+            const { leadNumber: allocatedLeadNumber } = await allocateNextLeadNumber();
             const newLead = await Lead.create({
-              leadNumber,
+              leadNumber: allocatedLeadNumber,
               name: cleanedName,
               email: cleanedEmail,
               phoneNumber: cleanedPhone,
@@ -173,6 +179,8 @@ export async function POST(request: NextRequest) {
             });
             // Auto-add to main broadcast list
             await addLeadToMainBroadcastList(newLead);
+
+            leadNumber = String((newLead as any).leadNumber || allocatedLeadNumber || '') || null;
           }
         }
       } catch (crmLeadError) {
@@ -198,6 +206,7 @@ export async function POST(request: NextRequest) {
         user: {
           id: user._id,
           profileId: user.profileId,
+          leadNumber: leadNumber || undefined,
           name: user.name,
           email: user.email,
           phone: user.phone,
