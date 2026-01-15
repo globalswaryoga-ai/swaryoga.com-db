@@ -302,6 +302,9 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
   // Defaulting to online + hindi (can be made dynamic later)
   const registerLink = `/registration/online/hindi/${workshop.slug}`;
 
+  // Special-case: Master class one-month PayU link (₹1500)
+  const masterClassPayNowHref = 'https://u.payu.in/9ItludruJA4x';
+
   const openForm = (monthLabel: string) => {
     // Keep month context (current/coming soon) but open a single consistent form.
     setEnquiryModal({ isOpen: true, month: monthLabel });
@@ -1061,7 +1064,13 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
           mode={workshop.mode?.join(', ') || 'Online'}
           language={workshop.language?.join(', ') || 'English'}
           priceInr={WORKSHOP_FEES[params.slug]?.minPrice}
-          payNowHref={hasConfirmedDates ? registerLink : undefined}
+          payNowHref={
+            hasConfirmedDates
+              ? params.slug === 'master-swar-yoga'
+                ? masterClassPayNowHref
+                : registerLink
+              : undefined
+          }
           onClose={() => {
             setEnquiryModal({ isOpen: false, month: '' });
             setFormModalOpen(false);

@@ -1395,6 +1395,28 @@ export default function QRWhatsAppInboxPage() {
       } else {
         console.log('[refreshQr] QR not available in status response. hasQr:', data.hasQr, 'status:', data.status);
       }
+
+      // Some bridge versions only expose QR via /qr (status.hasQr=true but no status.qr).
+      // Fall back to /qr to avoid leaving the UI stuck on “Generating QR…”.
+      if (data.hasQr) {
+        try {
+          console.log('[refreshQr] hasQr=true but no qr in status; fetching /qr...');
+          const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8_000);
+          if (qrRes.ok) {
+            const qrData = await qrRes.json();
+            if (typeof qrData?.qr === 'string' && qrData.qr.length > 0) {
+              console.log('[refreshQr] QR found in /qr, setting it (length:', qrData.qr.length, ')');
+              setQr(qrData.qr);
+              setShowQRModal(true);
+              return;
+            }
+          } else {
+            console.warn('[refreshQr] /qr not ok:', qrRes.status);
+          }
+        } catch (e) {
+          console.warn('[refreshQr] /qr fallback failed:', e);
+        }
+      }
       
       // Last resort: keep modal open with "Generating" message
       if (data.hasQr) {
