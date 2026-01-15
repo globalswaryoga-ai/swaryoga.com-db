@@ -41,21 +41,43 @@ export async function POST(req: NextRequest) {
     const method = (action || 'GET').toUpperCase();
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
+    // Determine timeout based on endpoint type
+    // Messages polling should be fast (5s), other endpoints 10s
+    const timeoutMs = decodedPath.includes('/messages') ? 5000 : 10000;
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
     const fetchOptions: RequestInit = {
       method,
       headers: {
         'x-bridge-secret': BRIDGE_SECRET,
         'Content-Type': 'application/json'
-      }
+      },
+      signal: controller.signal
     };
 
     if (body && (method === 'POST' || method === 'PUT')) {
       fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
     }
 
-    console.log(`[QR Bridge Proxy] ${method} ${bridgeUrl}`);
+    console.log(`[QR Bridge Proxy] ${method} ${bridgeUrl} (timeout: ${timeoutMs}ms)`);
 
-    const res = await fetch(bridgeUrl, fetchOptions);
+    let res;
+    try {
+      res = await fetch(bridgeUrl, fetchOptions);
+    } catch (err) {
+      clearTimeout(timeout);
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.error(`[QR Bridge Proxy] Bridge timeout (${timeoutMs}ms) for ${decodedPath}`);
+        return NextResponse.json(
+          { error: `Bridge timeout (${timeoutMs}ms)`, path: decodedPath },
+          { status: 504 }
+        );
+      }
+      throw err;
+    }
+    clearTimeout(timeout);
     
     // Check if response is successful before parsing as JSON
     if (!res.ok) {
@@ -92,14 +114,36 @@ export async function GET(req: NextRequest) {
 
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
-    console.log(`[QR Bridge Proxy] GET ${bridgeUrl}`);
+    // Determine timeout based on endpoint type
+    // Messages polling should be fast (5s), other endpoints 10s
+    const timeoutMs = path.includes('/messages') ? 5000 : 10000;
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const res = await fetch(bridgeUrl, {
-      method: 'GET',
-      headers: {
-        'x-bridge-secret': BRIDGE_SECRET
+    console.log(`[QR Bridge Proxy] GET ${bridgeUrl} (timeout: ${timeoutMs}ms)`);
+
+    let res;
+    try {
+      res = await fetch(bridgeUrl, {
+        method: 'GET',
+        headers: {
+          'x-bridge-secret': BRIDGE_SECRET
+        },
+        signal: controller.signal
+      });
+    } catch (err) {
+      clearTimeout(timeout);
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.error(`[QR Bridge Proxy] Bridge timeout (${timeoutMs}ms) for ${path}`);
+        return NextResponse.json(
+          { error: `Bridge timeout (${timeoutMs}ms)`, path },
+          { status: 504 }
+        );
       }
-    });
+      throw err;
+    }
+    clearTimeout(timeout);
 
     // Check if response is successful before parsing as JSON
     if (!res.ok) {
