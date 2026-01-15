@@ -11,6 +11,7 @@ interface EnquiryFormModalProps {
   language: string;
   priceInr?: number;
   payNowHref?: string;
+  payNowHref3Month?: string; // Additional link for Master Class
   onClose: () => void;
 }
 
@@ -22,6 +23,7 @@ export default function EnquiryFormModal({
   language,
   priceInr,
   payNowHref,
+  payNowHref3Month,
   onClose,
 }: EnquiryFormModalProps) {
   const [formData, setFormData] = useState({
@@ -262,12 +264,47 @@ export default function EnquiryFormModal({
             </button>
 
             {payNowHref && (
-              <a
-                href={payNowHref}
-                className="w-full inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
-              >
-                Pay Now
-              </a>
+              <div className="space-y-3 pt-2">
+                <a
+                  href={payNowHref}
+                  style={{ 
+                    width: '100%', 
+                    backgroundColor: '#1CA953', 
+                    textAlign: 'center', 
+                    fontWeight: 800, 
+                    padding: '11px 0px', 
+                    color: 'white', 
+                    fontSize: '14px', 
+                    display: 'inline-block', 
+                    textDecoration: 'none', 
+                    borderRadius: '3.229px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  {workshopId === 'master-swar-yoga' ? 'Pay Now (1 Month \u20b91500)' : 'Pay Now (\u20b9145)'}
+                </a>
+                
+                {payNowHref3Month && (
+                  <a
+                    href={payNowHref3Month}
+                    style={{ 
+                      width: '100%', 
+                      backgroundColor: '#1B70E1', 
+                      textAlign: 'center', 
+                      fontWeight: 800, 
+                      padding: '11px 0px', 
+                      color: 'white', 
+                      fontSize: '14px', 
+                      display: 'inline-block', 
+                      textDecoration: 'none', 
+                      borderRadius: '3.229px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    Pay Now (3 Months \u20b93600)
+                  </a>
+                )}
+              </div>
             )}
           </form>
         </div>

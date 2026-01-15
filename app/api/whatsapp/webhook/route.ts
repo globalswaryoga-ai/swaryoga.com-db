@@ -9,6 +9,7 @@ import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
+import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
 // Safe verify of string
 function safeString(s: any): string {
@@ -518,10 +519,13 @@ async function handleWebhookPayload(payload: any) {
             let wasFirstInbound = false;
             if (!lead) {
               console.log(`[WEBHOOK DEBUG] Creating new lead for ${from}`);
+              // Allocate a unique leadNumber for this new lead
+              const { leadNumber } = await allocateNextLeadNumber();
               lead = await Lead.create({
                 phoneNumber: from,
                 source: 'whatsapp',
                 status: 'lead',
+                leadNumber,
                 lastMessageAt: now,
               });
               wasFirstInbound = true;

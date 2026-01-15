@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { apiError, apiSuccess } from '@/lib/api-error';
 import { normalizePhone } from '@/lib/whatsapp';
+import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 import { normalizeQRIncomingMessages } from '@/lib/qrWebhookNormalize';
 
@@ -105,11 +106,13 @@ async function ingestQRPayload(payload: any) {
     let lead = await Lead.findOne({ phoneNumber: normalizedPhone });
     if (!lead) {
         // Auto-create lead for incoming messages if it doesn't exist
+        const { leadNumber } = await allocateNextLeadNumber();
         lead = await Lead.create({
             phoneNumber: normalizedPhone,
             name: `QR Lead ${normalizedPhone}`,
             source: 'whatsapp',
-            status: 'lead'
+            status: 'lead',
+            leadNumber
         });
     }
     

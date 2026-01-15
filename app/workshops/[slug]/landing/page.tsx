@@ -14,6 +14,8 @@ export const dynamic = 'force-dynamic';
 
 // Fee mapping for all workshops
 const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; currency: string }> = {
+  'swar-yoga-basic-program': { minPrice: 145, maxPrice: 145, currency: 'INR' },
+  'master-swar-yoga': { minPrice: 1500, maxPrice: 1500, currency: 'INR' },
   'yogasana-sadhana': { minPrice: 330, maxPrice: 330, currency: 'INR' },
   'swar-yoga-level-1': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
   'swar-yoga-level-2': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
@@ -299,11 +301,17 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
 
   // New canonical registration URL format:
   // /registration/<mode>/<language>/<workshopSlug>
-  // Defaulting to online + hindi (can be made dynamic later)
-  const registerLink = `/registration/online/hindi/${workshop.slug}`;
+  // DEFAULTING TO SIGNUP FIRST (as requested)
+  const registerLink = `/signup?workshop=${workshop.slug}&mode=online&language=hindi`;
+
+  // Special-case: Basic Program PayU link (₹145)
+  const basicProgramPayNowHref = 'https://u.payu.in/kru2VzxJ7TlK';
 
   // Special-case: Master class one-month PayU link (₹1500)
   const masterClassPayNowHref = 'https://u.payu.in/9ItludruJA4x';
+
+  // Special-case: Master class three-month PayU link
+  const masterClass3MonthPayNowHref = 'https://u.payu.in/IIZb7FOuWLpp';
 
   const openForm = (monthLabel: string) => {
     // Keep month context (current/coming soon) but open a single consistent form.
@@ -342,7 +350,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
       <Navigation />
 
       <main className="mt-16 sm:mt-20 bg-white">
-        {/* Sticky modern CTA (does NOT remove any existing buttons) */}
+        {/* Sticky modern CTA (matches the signup flow) */}
         <div className="sticky top-[64px] z-30 border-b border-gray-100 bg-white/80 backdrop-blur">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -350,9 +358,9 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                 <MessageSquareText className="h-5 w-5 text-green-700" />
               </div>
               <div>
-                <div className="font-extrabold text-gray-900 leading-tight">Fill the Form</div>
+                <div className="font-extrabold text-gray-900 leading-tight">Join {workshop.name}</div>
                 <div className="text-xs text-gray-600">
-                  {hasConfirmedDates ? 'Secure your seat & pay now' : 'Current batch or Next batch enquiry'}
+                  Step 1: Signup & Save Lead • Step 2: Payment in Cart
                 </div>
               </div>
             </div>
@@ -368,76 +376,14 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                 href={registerLink}
                 className="rounded-2xl border-2 border-green-700 text-green-800 hover:bg-green-50 font-black px-5 py-3"
               >
-                Register Page
+                Sign Up First
               </Link>
             </div>
           </div>
         </div>
 
-        {/* MODERN VIDEO SECTION: Main + 3 Detail Videos (ADD-ONLY) */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-6">
-          <div className="grid lg:grid-cols-12 gap-6 items-start">
-            {/* Main Video */}
-            <div className="lg:col-span-8">
-              <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-xl">
-                <div className="p-5 sm:p-6 flex items-center justify-between bg-gradient-to-r from-green-50 to-white border-b border-gray-100">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-wider text-gray-500">Main Video</div>
-                    <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">{workshop.name} – Overview</h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveVideoModal(landingData.introVideoUrl)}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-4 py-2 transition-colors"
-                  >
-                    <Play className="w-4 h-4" />
-                    Play
-                  </button>
-                </div>
-                <div className="px-5 sm:px-6 pb-6 pt-6">
-                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg">
-                    <iframe
-                      src={landingData.introVideoUrl}
-                      title="Workshop Intro Video"
-                      className="w-full h-full"
-                      allowFullScreen
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 3 Detail Videos */}
-            <div className="lg:col-span-4">
-              <div className="rounded-3xl border border-gray-200 bg-white shadow-xl p-5 sm:p-6">
-                <div className="text-xs font-black uppercase tracking-wider text-gray-500">Workshop Details</div>
-                <h3 className="text-lg font-extrabold text-gray-900 mb-4">3 Quick Videos</h3>
-                <div className="space-y-3">
-                  {detailVideos.map((v, idx) => (
-                    <button
-                      key={`${v.title}-${idx}`}
-                      type="button"
-                      onClick={() => setActiveVideoModal(v.url)}
-                      className="w-full text-left rounded-2xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-colors p-4 flex items-start gap-3 active:scale-95"
-                    >
-                      <div className="h-10 w-10 rounded-xl bg-green-700 text-white flex items-center justify-center font-black flex-shrink-0 text-sm">
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-gray-900 text-sm line-clamp-1">{v.title}</div>
-                        <div className="text-xs text-gray-500">Tap to play</div>
-                      </div>
-                      <Play className="w-4 h-4 text-green-700 flex-shrink-0" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* HERO SECTION */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
+        {/* 1st: HERO SECTION (Main Image & Info) */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div>
               <h1 className="text-4xl sm:text-5xl font-bold text-green-900 mb-4 leading-tight">
@@ -464,7 +410,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                 href={registerLink}
                 className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
               >
-                Register Now
+                Register & Sign Up
               </Link>
             </div>
 
@@ -486,218 +432,132 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
           </div>
         </section>
 
-        {/* CTA SECTION */}
-        <section className="text-center py-8 bg-green-50">
-          <Link
-            href={registerLink}
-            className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
-          >
-            Register Now
-          </Link>
-        </section>
-
-        {/* PROGRAM INFO BLOCKS */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Duration Block */}
-            <div className="bg-gradient-to-br from-green-100 to-green-50 rounded-lg p-8 flex flex-col items-center justify-center text-center min-h-[200px] shadow-md hover:shadow-lg transition-shadow transform hover:scale-105">
-              <div className="text-5xl font-bold text-green-900 mb-3">⏱️</div>
-              <div className="text-4xl font-bold text-green-900 mb-3">{workshop.duration}</div>
-              <div className="text-lg font-bold text-green-900">Duration</div>
-            </div>
-
-            {/* Mode Block */}
-            <div className="bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg p-8 flex flex-col items-center justify-center text-center min-h-[200px] shadow-md hover:shadow-lg transition-shadow transform hover:scale-105">
-              <div className="text-5xl font-bold text-blue-900 mb-3">💻</div>
-              <div className="text-2xl font-bold text-blue-900 mb-3">
-                {workshop.mode?.join(' / ') || 'Online'}
+        {/* 2nd: BIG VIDEO OVERVIEW */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+          <div className="rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-xl">
+            <div className="p-5 sm:p-6 flex items-center justify-between bg-gradient-to-r from-green-50 to-white border-b border-gray-100">
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider text-gray-500">Workshop Overview</div>
+                <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">{workshop.name} – Big Video</h2>
               </div>
-              <div className="text-lg font-bold text-blue-900">Mode</div>
+              <button
+                type="button"
+                onClick={() => setActiveVideoModal(landingData.introVideoUrl)}
+                className="inline-flex items-center gap-2 rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-4 py-2 transition-colors"
+              >
+                <Play className="w-4 h-4" />
+                Play Full Video
+              </button>
             </div>
-
-            {/* Price Block */}
-            <div className="bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg p-8 flex flex-col items-center justify-center text-center min-h-[200px] shadow-md hover:shadow-lg transition-shadow transform hover:scale-105">
-              <div className="text-5xl font-bold text-purple-900 mb-3">💰</div>
-              <div className="text-2xl font-bold text-purple-900 mb-3">
-                {WORKSHOP_FEES[params.slug]
-                  ? WORKSHOP_FEES[params.slug].minPrice === WORKSHOP_FEES[params.slug].maxPrice
-                    ? `₹${WORKSHOP_FEES[params.slug].minPrice.toLocaleString('en-IN')}`
-                    : `₹${WORKSHOP_FEES[params.slug].minPrice.toLocaleString('en-IN')} - ₹${WORKSHOP_FEES[params.slug].maxPrice.toLocaleString('en-IN')}`
-                  : 'Enquire'}
+            <div className="p-6">
+              <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg">
+                <iframe
+                  src={landingData.introVideoUrl}
+                  title="Workshop Intro Video"
+                  className="w-full h-full"
+                  allowFullScreen
+                />
               </div>
-              <div className="text-lg font-bold text-purple-900">Fees</div>
-              <div className="text-xs text-purple-700 mt-2">({WORKSHOP_FEES[params.slug]?.currency || 'INR'})</div>
-            </div>
-
-            {/* Language Block */}
-            <div className="bg-gradient-to-br from-orange-100 to-orange-50 rounded-lg p-8 flex flex-col items-center justify-center text-center min-h-[200px] shadow-md hover:shadow-lg transition-shadow transform hover:scale-105">
-              <div className="text-5xl font-bold text-orange-900 mb-3">🌐</div>
-              <div className="text-2xl font-bold text-orange-900 mb-3">
-                {workshop.language?.join(' / ') || 'English'}
-              </div>
-              <div className="text-lg font-bold text-orange-900">Language</div>
             </div>
           </div>
         </section>
 
-        {/* SMART BOOK/PAY FORM SECTION (Add-Only) */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <div className="bg-gradient-to-br from-green-50 to-white rounded-3xl border-2 border-green-200 p-8 sm:p-12 shadow-xl">
-            <div className="grid lg:grid-cols-2 gap-8 items-center">
-              {/* Left: Info & Button */}
-              <div>
-                <h2 className="text-3xl sm:text-4xl font-black text-green-900 mb-4">
-                  {hasConfirmedDates ? '💳 Ready to Join?' : '📋 Interested?'}
-                </h2>
-                <p className="text-gray-700 text-lg mb-2 leading-relaxed">
-                  {hasConfirmedDates
-                    ? `This workshop has confirmed dates. Fill the form below and proceed to payment.`
-                    : `Dates coming soon? Fill the form to secure your spot and we'll notify you when registration opens.`}
-                </p>
-                <p className="text-gray-600 text-sm mb-6">
-                  ✓ All data goes directly to our CRM system  
-                  ✓ You'll receive a 6-digit Lead ID  
-                  ✓ Our team will follow up within 24 hours
-                </p>
-                <div className="flex gap-3 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setFormModalOpen(true)}
-                    className="rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-8 py-4 shadow-lg active:scale-95 transition-all text-lg flex items-center gap-2"
-                  >
-                    {hasConfirmedDates ? '💳 Pay Now' : '📝 Book Seat'}
-                  </button>
-                  <Link
-                    href={registerLink}
-                    className="rounded-2xl border-2 border-green-700 text-green-800 hover:bg-green-50 font-black px-8 py-4 transition-all text-lg"
-                  >
-                    Full Registration
-                  </Link>
+        {/* 3rd: SMALL 3 VIDEOS */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+          <div className="text-center mb-8">
+            <h3 className="text-2xl font-extrabold text-gray-900">3 Quick Detail Videos</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {detailVideos.map((v, idx) => (
+              <div
+                key={`${v.title}-${idx}`}
+                className="group relative rounded-3xl border border-gray-200 bg-white shadow-md overflow-hidden hover:shadow-xl transition-all active:scale-[0.98] cursor-pointer"
+                onClick={() => setActiveVideoModal(v.url)}
+              >
+                <div className="aspect-video w-full bg-gray-100 relative">
+                  <iframe
+                    src={v.url}
+                    title={v.title}
+                    className="w-full h-full pointer-events-none"
+                    allowFullScreen
+                  />
+                  <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                    <Play className="w-10 h-10 text-white drop-shadow-lg" fill="white" />
+                  </div>
+                </div>
+                <div className="p-4 bg-white border-t border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-green-700 text-white flex items-center justify-center font-black text-sm">
+                      {idx + 1}
+                    </div>
+                    <div className="font-bold text-gray-900 text-sm">{v.title}</div>
+                  </div>
                 </div>
               </div>
-
-              {/* Right: Form Preview */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-md">
-                <div className="text-xs font-black uppercase tracking-wider text-gray-500 mb-3">Quick Form</div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wide text-gray-700">Name</label>
-                    <div className="mt-1 h-10 bg-gray-100 rounded-lg"></div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wide text-gray-700">Mobile</label>
-                    <div className="mt-1 h-10 bg-gray-100 rounded-lg"></div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wide text-gray-700">Email</label>
-                    <div className="mt-1 h-10 bg-gray-100 rounded-lg"></div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setFormModalOpen(true)}
-                    className="w-full mt-4 rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black py-3 transition-colors"
-                  >
-                    {hasConfirmedDates ? 'Pay Now' : 'Book Seat'}
-                  </button>
-                  <p className="text-xs text-gray-500 text-center pt-2">Click to open full form</p>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </section>
 
         {/* 6-MONTH DATES SECTION */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16 border-t border-gray-100">
           <h2 className="text-3xl sm:text-4xl font-bold text-green-900 mb-8 text-center">
-            📅 Available Dates (Next 6 Months)
+            📅 Next 6 Months Schedule
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {sixMonthBlocks.map((b) => (
               <div
                 key={b.label}
-                className={`rounded-lg px-3 py-4 border-2 font-semibold transition-all text-center cursor-pointer transform hover:scale-105 ${
+                className={`rounded-2xl p-6 border-2 transition-all flex flex-col justify-between ${
                   b.available
-                    ? 'bg-gradient-to-br from-green-100 to-green-50 border-green-400 text-green-900 shadow-md hover:shadow-xl'
-                    : 'bg-white border-gray-300 text-gray-600 hover:border-green-500 hover:bg-green-50'
+                    ? 'bg-gradient-to-br from-green-50 to-white border-green-400 shadow-md hover:shadow-xl'
+                    : 'bg-gray-50 border-gray-200 opacity-60'
                 }`}
               >
-                <div className="text-[11px] font-bold uppercase tracking-wide mb-1">{b.label}</div>
-                <div className={`text-xs mb-2 font-semibold ${b.available ? 'text-green-700' : 'text-gray-500'}`}>
-                  {b.dateText}
-                </div>
-                {!b.available && (
-                  <button
-                    type="button"
-                    onClick={() => setEnquiryModal({ isOpen: true, month: b.label })}
-                    className="w-full mt-2 rounded-md px-2 py-1 bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors active:scale-95"
-                  >
-                    Enquire
-                  </button>
-                )}
-                {b.available && (
-                  <div className="text-[10px] text-green-600 mt-1 font-bold">✓ Open</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <h2 className="text-3xl sm:text-4xl font-bold text-green-900 mb-8 text-center">
-            Program Introduction
-          </h2>
-          <div className="relative w-full aspect-video rounded-lg overflow-hidden shadow-xl">
-            <iframe
-              src={landingData.introVideoUrl}
-              title="Program Introduction"
-              className="w-full h-full"
-              allowFullScreen
-            />
-          </div>
-        </section>
-
-        {/* PROGRAM DETAILS VIDEOS (3 small videos for more details) */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-          <h2 className="text-3xl sm:text-4xl font-bold text-green-900 mb-8 text-center">
-            � More Details (3 Videos)
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {(landingData.detailVideos || landingData.highlightVideos.slice(0, 3)).slice(0, 3).map((v, idx) => (
-              <div
-                key={idx}
-                className="group relative h-48 md:h-56 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all transform hover:scale-[1.02] cursor-pointer"
-                onClick={() => setActiveVideoModal(v.url)}
-              >
-                <iframe
-                  src={v.url}
-                  title={v.title}
-                  className="w-full h-full pointer-events-none"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all flex items-center justify-center">
-                  <div className="bg-white/10 group-hover:bg-white/25 rounded-full p-4 transition-all">
-                    <Play className="w-7 h-7 text-white" fill="white" />
+                <div>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="text-lg font-black text-gray-900">{b.label}</div>
+                    {b.available ? (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-[10px] font-black rounded-lg">LIVE DATE</span>
+                    ) : (
+                      <span className="px-2 py-1 bg-gray-200 text-gray-600 text-[10px] font-black rounded-lg">COMING SOON</span>
+                    )}
+                  </div>
+                  <div className={`text-sm mb-6 ${b.available ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
+                    {b.dateText}
                   </div>
                 </div>
-                <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
-                  <div className="text-white font-bold text-sm line-clamp-1">{v.title}</div>
+                
+                <div className="flex gap-2">
+                  {b.available ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => openForm(b.label)}
+                        className="flex-1 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 text-xs shadow-sm transition-all active:scale-95"
+                      >
+                        📝 Book Seat
+                      </button>
+                      <Link
+                        href={`${registerLink}&month=${b.label.replace(' ', '-')}`}
+                        className="flex-1 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold py-3 text-xs shadow-sm text-center transition-all active:scale-95"
+                      >
+                        ✅ Register
+                      </Link>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEnquiryModal({ isOpen: true, month: b.label })}
+                      className="w-full rounded-xl border-2 border-green-700 text-green-800 font-bold py-3 text-sm hover:bg-green-50 transition-all"
+                    >
+                      Enquire for {b.label}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </section>
-
-        {/* CTA SECTION */}
-        <section className="text-center py-8 bg-green-50">
-          <Link
-            href={registerLink}
-            className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
-          >
-            Register Now
-          </Link>
-        </section>
-
         {/* WHAT YOU WILL LEARN */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
           <h2 className="text-3xl sm:text-4xl font-bold text-green-900 mb-8">
@@ -1068,7 +928,14 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
             hasConfirmedDates
               ? params.slug === 'master-swar-yoga'
                 ? masterClassPayNowHref
+                : params.slug === 'swar-yoga-basic-program'
+                ? basicProgramPayNowHref
                 : registerLink
+              : undefined
+          }
+          payNowHref3Month={
+            params.slug === 'master-swar-yoga' && hasConfirmedDates
+              ? masterClass3MonthPayNowHref
               : undefined
           }
           onClose={() => {

@@ -696,6 +696,48 @@ export default function QRWhatsAppInboxPage() {
       // Skip if this chat returned 404 recently (new lead)
       if (chatId === last404Chat) return;
 
+      // Fallback: Load messages from CRM database (for incoming/outgoing stored messages)
+      const loadMessagesFromCRM = async () => {
+        try {
+          if (!activeLeadId && !activePhone) return [];
+          
+          const params = new URLSearchParams();
+          if (activeLeadId) params.append('leadId', activeLeadId);
+          if (activePhone) params.append('phoneNumber', activePhone);
+          params.append('limit', '200');
+          params.append('order', 'asc');
+          
+          const res = await fetch(`/api/admin/crm/messages?${params.toString()}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (res.ok) {
+            const payload = await res.json();
+            const crmMessages = payload?.data?.messages || [];
+            
+            // Convert CRM messages to display format
+            return crmMessages.map((msg: any) => ({
+              id: msg._id || msg.waMessageId,
+              body: msg.messageContent || '',
+              timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : 0,
+              from: msg.direction === 'inbound' ? msg.phoneNumber : 'Me',
+              to: msg.direction === 'outbound' ? msg.phoneNumber : undefined,
+              isFromMe: msg.direction === 'outbound',
+              type: msg.messageType || 'text',
+              status: msg.status,
+              _crmMessage: true, // Mark as from CRM
+            }));
+          }
+        } catch (err) {
+          console.warn('[CRM Message Load Error]:', err);
+        }
+        return [];
+      };
+
       const loadMessages = async () => {
         try {
           const res = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
@@ -739,15 +781,28 @@ export default function QRWhatsAppInboxPage() {
               }).catch(err => console.warn('Failed to mark thread as read:', err));
             }
           } else if (res.status === 404) {
-            console.warn(`[404] Messages not found for chat: ${chatId}. Stopping poll.`);
-            // ALWAYS mark as 404 to stop polling, even if we had messages before (might be a sync issue)
-            setLast404Chat(chatId);
-            if (messages.length !== 0) {
-              setMessages([]);
+            console.warn(`[404] Messages not found for chat: ${chatId}. Falling back to CRM messages.`);
+            // FALLBACK: Load from CRM database when bridge doesn't have messages
+            const crmMessages = await loadMessagesFromCRM();
+            if (crmMessages.length > 0) {
+              setMessages(crmMessages);
+              setBridgeError(null);
+            } else {
+              setLast404Chat(chatId);
+              if (messages.length !== 0) {
+                setMessages([]);
+              }
             }
           }
         } catch (err) {
-          // ignore
+          console.warn('[Bridge Load Error]:', err);
+          // FALLBACK: Try CRM messages when bridge fails
+          if (messages.length === 0) {
+            const crmMessages = await loadMessagesFromCRM();
+            if (crmMessages.length > 0) {
+              setMessages(crmMessages);
+            }
+          }
         }
       };
 

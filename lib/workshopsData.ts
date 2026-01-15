@@ -531,6 +531,66 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     ],
     finalCTA: 'Join this 21-day transformative yogasana and sadhana program. Master the ancient practices that have guided thousands to health and spiritual growth.'
   },
+  'swar-yoga-basic-program': {
+    heroImage: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=1200',
+    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
+    whatYouWillLearn: [
+      'Understand the science of alternating nostril breathing',
+      'Balance your body, mind, and energy through nasal breathing',
+      'Harness natural breath rhythms for improved consciousness',
+      'Apply practical techniques immediately in daily life',
+      'Enhance vitality, mental clarity, and decision-making abilities'
+    ],
+    highlightVideos: [
+      { title: 'Swar Yoga Level-1 Complete Guide', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Nasal Breathing Techniques', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Real Results from Practitioners', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
+    ],
+    mentorInfo: 'Learn from experienced Swar Yoga teachers who have mastered the ancient science of nasal breathing. They will guide you through each technique with precision and care.',
+    testimonials: [
+      { quote: 'My energy levels increased significantly within days!', name: 'Arjun Kumar', place: 'Hyderabad' },
+      { quote: 'This simple breathing technique changed how I make decisions.', name: 'Deepika Singh', place: 'Mumbai' },
+      { quote: 'I feel more balanced and calm throughout the day.', name: 'Rohan Patel', place: 'Ahmedabad' },
+      { quote: 'The results are natural and lasting!', name: 'Sneha Gupta', place: 'Kolkata' }
+    ],
+    videoTestimonials: [
+      { name: 'Arjun - Corporate Executive', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
+      { name: 'Deepika - Doctor', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
+      { name: 'Rohan - Entrepreneur', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
+      { name: 'Sneha - Student', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+    ],
+    finalCTA: 'Begin your Swar Yoga journey. Unlock ancient secrets for health, wealth, and success through the power of breath.'
+  },
+  'master-swar-yoga': {
+    heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
+    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
+    whatYouWillLearn: [
+      'Complete mastery of Swar Yoga from Level 1 to Level 5',
+      'Deep integration of breathing, wealth, and spiritual wisdom',
+      'Guided 6-month journey with continuous support',
+      'Master life cycles, career timing, and spiritual realization',
+      'Transform your entire existence through the science of Swar'
+    ],
+    highlightVideos: [
+      { title: 'Masterclass Overview', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'Core Swar Techniques', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Journey to Mastery', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
+    ],
+    mentorInfo: 'An intensive apprenticeship with senior Swar Yoga masters. This 6-month program provides deep mentorship and advanced transmissions not available in shorter workshops.',
+    testimonials: [
+      { quote: 'The most comprehensive spiritual training I have ever attended.', name: 'Vikram Reddy', place: 'Vijayawada' },
+      { quote: 'Six months that completely rewired my brain and success patterns.', name: 'Anjali Sharma', place: 'Gurgaon' },
+      { quote: 'A life-changing commitment that pays back every single day.', name: 'Sanjay Gupta', place: 'Surat' },
+      { quote: 'Finally, a systematic path to the highest yogic realizations.', name: 'Meera Singh', place: 'Rishikesh' }
+    ],
+    videoTestimonials: [
+      { name: 'Vikram - Business Head', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
+      { name: 'Anjali - Architect', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
+      { name: 'Sanjay - Tech Lead', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
+      { name: 'Meera - Seeker', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+    ],
+    finalCTA: 'Commit to your ultimate evolution. Join the 6-month Masterclass and master the ancient science of Swar Yoga.'
+  },
   'swar-yoga-level-1': {
     heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
@@ -1040,6 +1100,41 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
       { name: 'Practitioner 4 - Wellness Expert', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
     ],
     finalCTA: 'Master natural healing methods. 30-day residential naturopathy treatment program with credentials and expertise.'
+  },
+  'master-swar-yoga': {
+    heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
+    introVideoUrl: 'https://www.youtube.com/embed/j_H8i50HjYQ',
+    whatYouWillLearn: [
+      'Level 1 to 5 - Complete Master Class Curriculum',
+      'Advanced Swar Yoga & Breath Mastery',
+      'Non-dualistic (Advaita) Philosophy & Realization',
+      'Astavakra Gita & Meditation Mastery',
+      'Hereditary Health & Lifespan Secrets'
+    ],
+    highlightVideos: [
+      { title: 'Master Class Intro', url: 'https://www.youtube.com/embed/j_H8i50HjYQ' },
+      { title: 'Level 1-5 Journey', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
+      { title: 'The Power of Mastery', url: 'https://www.youtube.com/embed/0q2FWUqqqPs' }
+    ],
+    detailVideos: [
+      { title: 'Science of Swar', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
+      { title: 'Meditation Depth', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' },
+      { title: 'Final Realization', url: 'https://www.youtube.com/embed/5nqVXQG9Mvk' }
+    ],
+    mentorInfo: 'The Master Swar Yoga program is mentored by masters with decades of experience in the lineage of absolute self-realization.',
+    testimonials: [
+      { quote: 'The most comprehensive spiritual journey I have ever taken.', name: 'Dr. Ramesh', place: 'Bangalore' },
+      { quote: 'Level 1-5 combined is a life-changing experience.', name: 'Sunita Mani', place: 'Hyderabad' },
+      { quote: 'I finally understood the connection between breath and soul.', name: 'Amitabh', place: 'Mumbai' },
+      { quote: 'The 6-month progression is perfectly designed.', name: 'Kavita', place: 'Delhi' }
+    ],
+    videoTestimonials: [
+      { name: 'Master Student 1', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
+      { name: 'Master Student 2', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
+      { name: 'Master Student 3', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
+      { name: 'Master Student 4', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
+    ],
+    finalCTA: 'Enroll in the 6-Month Master Swar Yoga Program. Complete your journey from Level 1 to Level 5.'
   }
 };
 
