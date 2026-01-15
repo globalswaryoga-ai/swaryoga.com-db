@@ -32,14 +32,14 @@ const HomePage = () => {
     <div className="bg-white">
       <Navigation />
       
-      {/* Under Construction Banner */}
-      <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white py-3 overflow-hidden">
+      {/* New Workshops Announcement Banner */}
+      <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-green-600 text-white py-3 overflow-hidden">
         <div className="flex animate-scroll whitespace-nowrap">
           <span className="inline-block px-8 text-sm sm:text-base font-semibold">
-            ⚠️ Site is under construction - Some features may not work as expected. We appreciate your patience!
+            🎉 New Swar Yoga workshops are now open for booking! Limited seats available - Register today!
           </span>
           <span className="inline-block px-8 text-sm sm:text-base font-semibold">
-            ⚠️ Site is under construction - Some features may not work as expected. We appreciate your patience!
+            🎉 New Swar Yoga workshops are now open for booking! Limited seats available - Register today!
           </span>
         </div>
       </div>
