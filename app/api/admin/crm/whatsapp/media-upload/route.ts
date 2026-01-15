@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[media-upload] Uploading ${file.name} (${file.size} bytes) to S3`);
+    console.log(`[media-upload] Uploading ${file.name} (${file.size} bytes, ${file.type}) to S3`);
 
     // Create new FormData to send to bridge
     const bridgeFormData = new FormData();

@@ -942,6 +942,15 @@ export default function QRWhatsAppInboxPage() {
           const fileId = `${file.name}-${Date.now()}`;
           setUploadProgress(prev => ({ ...prev, [fileId]: 0 }));
 
+          // Determine media type from MIME type
+          const getMimeTypeCategory = (mimeType: string): 'image' | 'video' | 'audio' | 'document' => {
+            if (mimeType.startsWith('image/')) return 'image';
+            if (mimeType.startsWith('video/')) return 'video';
+            if (mimeType.startsWith('audio/')) return 'audio';
+            return 'document';
+          };
+          const mediaType = getMimeTypeCategory(file.type);
+
           // Upload to S3/Server
           const uploadResult = await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -1003,9 +1012,12 @@ export default function QRWhatsAppInboxPage() {
             id: `opt-${Date.now()}-${i}`,
             fromMe: true,
             timestamp: new Date(),
-            type: 'image',
+            type: mediaType, // Now supports 'image', 'video', 'audio', 'document'
             caption: i === 0 ? newMessage : '',
             mediaUrl: mediaUrl,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
             status: 'pending' // Mark as pending until bridge confirms
           };
           setMessages(prev => [...prev, optimisticMessage]);
@@ -1017,7 +1029,10 @@ export default function QRWhatsAppInboxPage() {
               body: JSON.stringify({
                 chatId: chatId,
                 media: mediaUrl,
-                caption: i === 0 ? newMessage : '' // Add text as caption to first image
+                mediaType: mediaType, // Send media type to bridge
+                caption: i === 0 ? newMessage : '', // Add text as caption to first media
+                fileName: file.name,
+                mimeType: file.type
               })
             });
 
@@ -1052,7 +1067,7 @@ export default function QRWhatsAppInboxPage() {
         setMediaPreviews([]);
         setUploadingMedia(false);
         setNewMessage(''); // Caption was sent
-        showToast(`✅ ${pendingMedia.length} image(s) sent successfully`, 'success');
+        showToast(`✅ ${pendingMedia.length} file(s) sent successfully`, 'success');
       } else {
         // 2. Clear Text only if no media
         console.log('[sendMessage] Sending to chat:', chatId, 'message:', newMessage);
@@ -2428,24 +2443,45 @@ export default function QRWhatsAppInboxPage() {
               {/* Media Preview Bar */}
               {mediaPreviews.length > 0 && (
                 <div className="px-4 py-2 flex gap-2 overflow-x-auto bg-slate-50 border-t border-slate-200">
-                  {mediaPreviews.map((preview, idx) => (
-                    <div key={idx} className="relative flex-shrink-0">
-                      <img 
-                        src={preview} 
-                        alt="Preview" 
-                        className="w-16 h-16 object-cover rounded-lg border border-slate-300" 
-                      />
-                      <button 
-                        onClick={() => removePendingMedia(idx)}
-                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm hover:bg-red-600"
-                      >
-                        <X size={12} />
-                      </button>
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-[8px] text-white px-1 py-0.5 truncate rounded-b-lg">
-                        {pendingMedia[idx]?.name}
+                  {mediaPreviews.map((preview, idx) => {
+                    const file = pendingMedia[idx];
+                    const isImage = file?.type.startsWith('image/');
+                    const isVideo = file?.type.startsWith('video/');
+                    const isAudio = file?.type.startsWith('audio/');
+                    
+                    return (
+                      <div key={idx} className="relative flex-shrink-0">
+                        {isImage ? (
+                          <img 
+                            src={preview} 
+                            alt="Preview" 
+                            className="w-16 h-16 object-cover rounded-lg border border-slate-300" 
+                          />
+                        ) : isVideo ? (
+                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-slate-300 flex items-center justify-center">
+                            <span className="text-2xl">🎬</span>
+                          </div>
+                        ) : isAudio ? (
+                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-slate-300 flex items-center justify-center">
+                            <span className="text-2xl">🔊</span>
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-slate-300 flex items-center justify-center">
+                            <span className="text-2xl">📄</span>
+                          </div>
+                        )}
+                        <button 
+                          onClick={() => removePendingMedia(idx)}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm hover:bg-red-600"
+                        >
+                          <X size={12} />
+                        </button>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-[8px] text-white px-1 py-0.5 truncate rounded-b-lg">
+                          {pendingMedia[idx]?.name}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <button 
                     onClick={() => mediaInputRef.current?.click()}
                     className="w-16 h-16 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
