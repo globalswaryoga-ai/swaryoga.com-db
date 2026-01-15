@@ -73,6 +73,7 @@ export async function GET(
       status: lead.status,
       label: lead.label,
       email: lead.email,
+      leadNumber: lead.leadNumber, // Include the 6-digit human-friendly ID
     });
   } catch (error) {
     console.error('[GET /api/admin/crm/leads/by-phone] Error:', error);
