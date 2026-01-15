@@ -142,12 +142,21 @@ function WorkshopsPageInner() {
     language: false,
     currency: false,
   });
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [schedulesByWorkshopId, setSchedulesByWorkshopId] = useState<Record<string, ApiWorkshopSchedule[]>>({});
   const searchParams = useSearchParams();
   const queryString = searchParams?.toString() ?? '';
   const activeWorkshopLabel = selectedWorkshop
     ? workshopCatalog.find((workshop) => workshop.slug === selectedWorkshop)?.name
     : null;
+
+  // Check if user is logged in
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      setIsLoggedIn(!!token);
+    }
+  }, []);
 
   // Filter ONLY basic program and master class
   const filteredWorkshopsList = useMemo(() => {
@@ -272,7 +281,11 @@ function WorkshopsPageInner() {
     'weight-loss',
   ];
 
-  const workshopsForDisplay = sortedWorkshops.filter(w => w.slug === 'swar-yoga-basic-program' || w.slug === 'master-swar-yoga');
+  // Ensure correct order: swar-yoga-basic-program first, master-swar-yoga second
+  const workshopsForDisplay = [
+    sortedWorkshops.find(w => w.slug === 'swar-yoga-basic-program'),
+    sortedWorkshops.find(w => w.slug === 'master-swar-yoga'),
+  ].filter((w): w is WorkshopOverview => w !== undefined);
 
   // Filter workshops based on selected filters
   const filteredWorkshops = workshopsForDisplay.filter((workshop: WorkshopOverview) => {
@@ -788,13 +801,24 @@ function WorkshopsPageInner() {
                         </div>
                       </div>
 
-                      <Link
-                        href={`/workshops/${workshop.slug}/landing`}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-4 py-3 font-bold transition"
-                      >
-                        Learn More
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
+                      <div className="flex gap-3">
+                        <Link
+                          href={`/workshops/${workshop.slug}/landing`}
+                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-4 py-3 font-bold transition"
+                        >
+                          Learn More
+                          <ArrowRight className="w-4 h-4" />
+                        </Link>
+                        {isLoggedIn && (
+                          <Link
+                            href={`/checkout?workshop=${workshop.slug}`}
+                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
+                            title="Pay directly for this workshop"
+                          >
+                            💳 Pay Now
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

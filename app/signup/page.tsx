@@ -320,9 +320,9 @@ function SignUpInner() {
       // Show success popup
       setShowSuccessPopup(true);
 
-      // Redirect after 3 seconds
+      // Redirect after 3 seconds - redirect to workshops page so user can continue paying
       setTimeout(() => {
-        router.push('/cart');
+        router.push(`/workshops?showPayment=${workshop}`);
       }, 3000);
     } catch (err) {
       console.error('Sign-up error:', err);
