@@ -20,7 +20,9 @@ import {
   Plus,
   Image as ImageIcon,
   File as FileIcon,
-  Mic
+  Mic,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 
 export default function QRWhatsAppInboxPage() {
@@ -75,6 +77,16 @@ export default function QRWhatsAppInboxPage() {
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [showNewContactModal, setShowNewContactModal] = useState(false);
   const [newContactName, setNewContactName] = useState('');
+  
+  // Toast notifications
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ type, message });
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 4000);
+  };
   
   // Media pending to be sent
   const [pendingMedia, setPendingMedia] = useState<File[]>([]);
@@ -318,7 +330,16 @@ export default function QRWhatsAppInboxPage() {
         }
       } catch (err) {
         setStatusIfChanged('disconnected');
-        setBridgeErrorIfChanged(err instanceof Error ? err.message : 'Bridge not reachable');
+        const errorMsg = err instanceof Error ? err.message : 'Bridge not reachable';
+        setBridgeErrorIfChanged(errorMsg);
+        
+        // Log detailed error for debugging
+        console.error('[Bridge Connection Error]', {
+          message: errorMsg,
+          timestamp: new Date().toISOString(),
+          bridgeUrl: bridgeUrl,
+          attempt: statusPollDelayRef.current / 15000
+        });
 
         // Backoff up to 60s when failing to reduce UI thrash
         statusPollDelayRef.current = Math.min(statusPollDelayRef.current * 2, 60000);
@@ -882,11 +903,17 @@ export default function QRWhatsAppInboxPage() {
     try {
       let chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
       
-      // If chatId doesn't have @c.us format (synthetic chat), format it as a phone number
+      // Normalize chatId: handle both phone chats (@c.us) and group chats (@g.us)
       if (!chatId.includes('@')) {
-        // Remove non-digits and format as WhatsApp ID
-        const phoneOnly = chatId.replace(/\D/g, '');
-        chatId = phoneOnly + '@c.us';
+        // Check if it's a group ID (long numeric)
+        if (chatId.length > 15 && /^\d+$/.test(chatId)) {
+          // Group ID
+          chatId = chatId + '@g.us';
+        } else {
+          // Phone number - remove non-digits and format
+          const phoneOnly = chatId.replace(/\D/g, '');
+          chatId = phoneOnly + '@c.us';
+        }
       }
 
       // 1. Send Media first if any
@@ -931,23 +958,55 @@ export default function QRWhatsAppInboxPage() {
           });
 
           const uploadData = uploadResult as any;
-          if (!uploadData.url) throw new Error('Upload failed - no URL');
+          if (!uploadData.url) {
+            throw new Error('Upload failed - server returned no URL');
+          }
+          
+          // Validate media URL format
+          const mediaUrl = uploadData.url as string;
+          if (!mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
+            throw new Error('Invalid media URL format - must be HTTPS');
+          }
+          
+          // Add optimistic UI: show message immediately
+          const optimisticMessage = {
+            id: `opt-${Date.now()}-${i}`,
+            fromMe: true,
+            timestamp: new Date(),
+            type: 'image',
+            caption: i === 0 ? newMessage : '',
+            mediaUrl: mediaUrl,
+            status: 'pending' // Mark as pending until bridge confirms
+          };
+          setMessages(prev => [...prev, optimisticMessage]);
 
           // Send media via bridge
-          // Caption only for the first image if there's text? Or caption for each? 
-          // Usually better to send text as separate message or caption for first.
-          const mediaRes = await bridgeFetch('/send', {
-            method: 'POST',
-            body: JSON.stringify({
-              chatId: chatId,
-              media: uploadData.url,
-              caption: i === 0 ? newMessage : '' // Add text as caption to first image
-            })
-          });
+          try {
+            const mediaRes = await bridgeFetch('/send', {
+              method: 'POST',
+              body: JSON.stringify({
+                chatId: chatId,
+                media: mediaUrl,
+                caption: i === 0 ? newMessage : '' // Add text as caption to first image
+              })
+            });
 
-          if (!mediaRes.ok) {
-            const sendError = await parseBridgeError(mediaRes);
-            throw new Error(`Failed to send media: ${sendError}`);
+            if (!mediaRes.ok) {
+              const sendError = await parseBridgeError(mediaRes);
+              // Mark optimistic message as failed
+              setMessages(prev => 
+                prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
+              );
+              throw new Error(`Failed to send image ${i + 1}: ${sendError}`);
+            }
+            
+            // Update optimistic message to sent
+            setMessages(prev => 
+              prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent' } : m)
+            );
+          } catch (sendErr) {
+            console.error(`Media send error for file ${i + 1}:`, sendErr);
+            throw sendErr;
           }
           
           setUploadProgress(prev => {
@@ -963,28 +1022,70 @@ export default function QRWhatsAppInboxPage() {
         setMediaPreviews([]);
         setUploadingMedia(false);
         setNewMessage(''); // Caption was sent
+        showToast(`✅ ${pendingMedia.length} image(s) sent successfully`, 'success');
       } else {
         // 2. Clear Text only if no media
         console.log('[sendMessage] Sending to chat:', chatId, 'message:', newMessage);
+        
+        // Add optimistic UI: show message immediately
+        const optimisticMessage = {
+          id: `opt-${Date.now()}`,
+          fromMe: true,
+          timestamp: new Date(),
+          type: 'text',
+          body: newMessage,
+          status: 'pending'
+        };
+        setMessages(prev => [...prev, optimisticMessage]);
+        
         const res = await bridgeFetch('/send', {
           method: 'POST',
           body: JSON.stringify({ chatId: chatId, message: newMessage })
         });
 
         if (res.ok) {
+          // Update optimistic message to sent
+          setMessages(prev => 
+            prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent' } : m)
+          );
           setNewMessage('');
+          showToast('✅ Message sent', 'success');
         } else {
+          // Mark optimistic message as failed
+          setMessages(prev => 
+            prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
+          );
           const err = await parseBridgeError(res);
           setBridgeError(err);
+          showToast(`❌ Failed to send: ${err}`, 'error');
         }
       }
 
       setLast404Chat(null);
-      // Reload messages
-      const msgRes = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
-      if (msgRes.ok) {
-        const data = await msgRes.json();
-        setMessages(data.messages || []);
+      
+      // Reload messages with fallback
+      try {
+        const msgRes = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
+        if (msgRes.ok) {
+          const data = await msgRes.json();
+          if (data.messages && data.messages.length > 0) {
+            setMessages(data.messages);
+          } else {
+            // If bridge returns empty, try CRM fallback
+            const crmMessages = await loadMessagesFromCRM();
+            if (crmMessages.length > 0) {
+              setMessages(crmMessages);
+            }
+          }
+        } else {
+          // Bridge failed to reload, try CRM fallback
+          console.warn('[Message Reload] Bridge failed, trying CRM fallback');
+          const crmMessages = await loadMessagesFromCRM();
+          if (crmMessages.length > 0) {
+            setMessages(crmMessages);
+            showToast('Messages loaded from database (bridge unavailable)', 'success');
+          }
+        }
         
         // Auto scroll to bottom
         setTimeout(() => {
@@ -1005,11 +1106,27 @@ export default function QRWhatsAppInboxPage() {
             }),
           }).catch(err => console.warn('Failed to mark thread as read:', err));
         }
+      } catch (reloadErr) {
+        console.error('[Message Reload Error]', reloadErr);
+        // Try CRM as last resort
+        try {
+          const crmMessages = await loadMessagesFromCRM();
+          if (crmMessages.length > 0) {
+            setMessages(crmMessages);
+            showToast('Messages loaded from database', 'success');
+          }
+        } catch (crmErr) {
+          console.error('[CRM Fallback Error]', crmErr);
+          showToast('Could not reload messages - check bridge connection', 'error');
+        }
       }
+      
       setBridgeError(null);
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to send message';
       console.error('[sendMessage] Error:', err);
-      setBridgeError(err instanceof Error ? err.message : 'Failed to send message');
+      setBridgeError(errorMsg);
+      showToast(`❌ ${errorMsg}`, 'error');
     } finally {
       setSending(false);
       setUploadingMedia(false);
@@ -2960,6 +3077,20 @@ export default function QRWhatsAppInboxPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 z-[60] ${
+          toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {toast.type === 'success' ? (
+            <CheckCircle size={20} className="flex-shrink-0" />
+          ) : (
+            <AlertCircle size={20} className="flex-shrink-0" />
+          )}
+          <span className="font-medium text-sm">{toast.message}</span>
         </div>
       )}
     </div>
