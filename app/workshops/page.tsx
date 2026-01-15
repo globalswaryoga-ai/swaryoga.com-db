@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { workshopCatalog, WorkshopOverview, workshopDetails } from '@/lib/workshopsData';
+import { getWorkshopPaymentLink } from '@/lib/workshops/workshopPaymentConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -809,15 +810,20 @@ function WorkshopsPageInner() {
                           Learn More
                           <ArrowRight className="w-4 h-4" />
                         </Link>
-                        {isLoggedIn && (
-                          <Link
-                            href={`/checkout?workshop=${workshop.slug}`}
-                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
-                            title="Pay directly for this workshop"
-                          >
-                            💳 Pay Now
-                          </Link>
-                        )}
+                        {isLoggedIn && (() => {
+                          const payLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
+                          return payLink ? (
+                            <a
+                              href={payLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
+                              title="Pay now - opens PayU"
+                            >
+                              💳 Pay Now
+                            </a>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                   </div>
