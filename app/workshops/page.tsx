@@ -364,6 +364,122 @@ function WorkshopsPageInner() {
               </p>
             </div>
 
+
+            {/* Workshop Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {currentWorkshops.map((workshop) => {
+                const schedules = schedulesByWorkshopId[workshop.slug] || [];
+                const nextStartIso = getNextUpcomingStartDateIso(schedules, now);
+                const startingPrice = getStartingPrice(schedules);
+                const currency = (workshop.currency && workshop.currency[0]) || WORKSHOP_FEES[workshop.slug]?.currency || 'INR';
+                const displayPrice =
+                  (typeof startingPrice === 'number' && startingPrice > 0)
+                    ? formatPrice(startingPrice, currency)
+                    : (WORKSHOP_FEES[workshop.slug]
+                      ? formatPrice(WORKSHOP_FEES[workshop.slug].minPrice, WORKSHOP_FEES[workshop.slug].currency)
+                      : null);
+
+                return (
+                  <div
+                    key={workshop.slug}
+                    className="group bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
+                  >
+                    <div className="relative h-48 overflow-hidden">
+                      <Image
+                        src={workshop.image}
+                        alt={workshop.name}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-500"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <span className="inline-flex items-center rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-gray-800">
+                          {workshop.category}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-5 sm:p-6">
+                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 line-clamp-2">
+                        {workshop.name}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                        {workshop.description}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm mb-4">
+                        <div className="rounded-lg bg-gray-50 px-3 py-2">
+                          <div className="text-gray-500 font-semibold">Duration</div>
+                          <div className="text-gray-900 font-bold">{workshop.duration}</div>
+                        </div>
+                        <div className="rounded-lg bg-gray-50 px-3 py-2">
+                          <div className="text-gray-500 font-semibold">Level</div>
+                          <div className="text-gray-900 font-bold">{workshop.level}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 mb-5">
+                        <div className="min-w-0">
+                          <div className="text-xs text-gray-500 font-semibold">Next batch</div>
+                          <div className="text-sm font-bold text-gray-900">
+                            {nextStartIso ? formatDate(nextStartIso) : 'TBA'}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-gray-500 font-semibold">From</div>
+                          <div className="text-sm font-bold text-primary-700">
+                            {displayPrice || '—'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Link
+                        href={`/workshops/${workshop.slug}/landing`}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-4 py-3 font-bold transition"
+                      >
+                        Learn More
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-10 flex items-center justify-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm border transition active:scale-95 ${
+                    currentPage === 1
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
+                  }`}
+                >
+                  Prev
+                </button>
+                <div className="px-3 py-2 text-sm text-gray-600 font-semibold">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className={`px-4 py-2 rounded-lg font-semibold text-sm border transition active:scale-95 ${
+                    currentPage === totalPages
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-primary-400'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+
             {/* Search */}
             <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8 mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="workshop-search">
