@@ -72,6 +72,50 @@ function PaymentSuccessfulInner() {
         if (cancelled) return;
         if (data?.success && data?.order) {
           setOrder(data.order as SafeOrder);
+
+          // Enroll lead in CRM after successful payment
+          if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('user');
+            const user = stored ? JSON.parse(stored) : {};
+            
+            // Extract workshop details
+            const workshopSlug = workshopParams.workshopSlug || 
+              (data.order?.items?.[0]?.productId) || '';
+            const workshopName = workshopParams.workshopName || 
+              (data.order?.items?.[0]?.name) || '';
+
+            if (user.email && user.phone && workshopSlug) {
+              fetch('/api/admin/crm/leads/enroll', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  firstName: user.name ? user.name.split(' ')[0] : 'Customer',
+                  lastName: user.name ? user.name.split(' ').slice(1).join(' ') : '',
+                  email: user.email,
+                  phone: user.phone,
+                  workshopSlug,
+                  workshopName,
+                  amount: data.order?.total || 0,
+                  currency: 'INR',
+                  orderId,
+                  paymentId: data.order?.transactionId || '',
+                  mode: 'online',
+                  language: 'English'
+                }),
+              })
+                .then((res) => res.json())
+                .then((enrollData) => {
+                  if (enrollData.success) {
+                    console.log('✅ Lead enrolled in CRM:', enrollData.lead?.leadNumber);
+                  } else {
+                    console.error('Failed to enroll lead:', enrollData.error);
+                  }
+                })
+                .catch((err) => {
+                  console.error('Error enrolling lead:', err);
+                });
+            }
+          }
         }
       })
       .catch((err) => {
@@ -84,7 +128,7 @@ function PaymentSuccessfulInner() {
     return () => {
       cancelled = true;
     };
-  }, [orderId]);
+  }, [orderId, workshopParams]);
 
   return (
     <>

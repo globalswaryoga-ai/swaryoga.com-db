@@ -744,41 +744,52 @@ export default function QRWhatsAppInboxPage() {
           
           if (res.ok) {
             const data = await res.json();
-            const newMessages = data.messages || [];
+            const bridgeMessages = data.messages || [];
             
-            // Only update if message count or last message changed to prevent flickering
-            setMessages(prev => {
-              if (prev.length === newMessages.length) {
-                const prevLast = prev[prev.length - 1];
-                const newLast = newMessages[newMessages.length - 1];
-                if (prevLast?.id === newLast?.id && prevLast?.body === newLast?.body) {
-                  return prev;
+            // If we got messages from bridge, use them
+            if (bridgeMessages.length > 0) {
+              // Only update if message count or last message changed to prevent flickering
+              setMessages(prev => {
+                if (prev.length === bridgeMessages.length) {
+                  const prevLast = prev[prev.length - 1];
+                  const newLast = bridgeMessages[bridgeMessages.length - 1];
+                  if (prevLast?.id === newLast?.id && prevLast?.body === newLast?.body) {
+                    return prev;
+                  }
                 }
-              }
-              return newMessages;
-            });
-            
-            setBridgeError(null);
-            setLast404Chat(null);
+                return bridgeMessages;
+              });
+              
+              setBridgeError(null);
+              setLast404Chat(null);
 
-            // Auto scroll to bottom
-            setTimeout(() => {
-              if (msgContainerRef.current) {
-                msgContainerRef.current.scrollTop = msgContainerRef.current.scrollHeight;
-              }
-            }, 100);
+              // Auto scroll to bottom
+              setTimeout(() => {
+                if (msgContainerRef.current) {
+                  msgContainerRef.current.scrollTop = msgContainerRef.current.scrollHeight;
+                }
+              }, 100);
 
-            // Mark as read in CRM
-            if (activeLeadId || activePhone) {
-              await fetch('/api/admin/crm/messages', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  action: 'markThreadAsRead', 
-                  leadId: activeLeadId,
-                  phoneNumber: activePhone
-                }),
-              }).catch(err => console.warn('Failed to mark thread as read:', err));
+              // Mark as read in CRM
+              if (activeLeadId || activePhone) {
+                await fetch('/api/admin/crm/messages', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    action: 'markThreadAsRead', 
+                    leadId: activeLeadId,
+                    phoneNumber: activePhone
+                  }),
+                }).catch(err => console.warn('Failed to mark thread as read:', err));
+              }
+            } else {
+              // Bridge returned empty array, try CRM fallback
+              console.log('[loadMessages] Bridge returned no messages, checking CRM...');
+              const crmMessages = await loadMessagesFromCRM();
+              if (crmMessages.length > 0) {
+                setMessages(crmMessages);
+                setBridgeError(null);
+              }
             }
           } else if (res.status === 404) {
             console.warn(`[404] Messages not found for chat: ${chatId}. Falling back to CRM messages.`);
