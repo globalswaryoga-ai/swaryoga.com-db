@@ -42,11 +42,12 @@ export async function POST(req: NextRequest) {
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
 
     // Determine timeout based on endpoint type
-    // Messages polling: 5s (fast)
+    // Messages polling: 12s (can be slow, needs more time)
+    // Status check: 8s
     // Contact/Group details: 3s (timeout quickly, use fallback)
     // Other endpoints: 8s
     let timeoutMs = 8000;
-    if (decodedPath.includes('/messages')) timeoutMs = 5000;
+    if (decodedPath.includes('/messages')) timeoutMs = 12000; // Increased from 5s to 12s
     if (decodedPath.includes('/contact') || decodedPath.includes('/group')) timeoutMs = 3000;
     
     const controller = new AbortController();
@@ -93,7 +94,18 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    const data = await res.json();
+    // Try to parse as JSON, fallback if not valid JSON
+    let data: any;
+    try {
+      data = await res.json();
+    } catch (jsonErr) {
+      console.warn('[QR Bridge Proxy] Response is not JSON, returning as text');
+      const text = await res.text();
+      return NextResponse.json(
+        { data: text, note: 'Response was not JSON' },
+        { status: res.status }
+      );
+    }
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
     console.error('[QR Bridge Proxy] Error:', err);
@@ -119,11 +131,12 @@ export async function GET(req: NextRequest) {
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
     // Determine timeout based on endpoint type
-    // Messages polling: 5s (fast)
+    // Messages polling: 12s (can be slow, needs more time)
+    // Status check: 8s
     // Contact/Group details: 3s (timeout quickly, use fallback)
     // Other endpoints: 8s
     let timeoutMs = 8000;
-    if (path.includes('/messages')) timeoutMs = 5000;
+    if (path.includes('/messages')) timeoutMs = 12000; // Increased from 5s to 12s
     if (path.includes('/contact') || path.includes('/group')) timeoutMs = 3000;
     
     const controller = new AbortController();
@@ -163,7 +176,18 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const data = await res.json();
+    // Try to parse as JSON, fallback if not valid JSON
+    let data: any;
+    try {
+      data = await res.json();
+    } catch (jsonErr) {
+      console.warn('[QR Bridge Proxy] Response is not JSON, returning as text');
+      const text = await res.text();
+      return NextResponse.json(
+        { data: text, note: 'Response was not JSON' },
+        { status: res.status }
+      );
+    }
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
     console.error('[QR Bridge Proxy] Error:', err);

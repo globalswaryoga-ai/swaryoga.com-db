@@ -45,12 +45,25 @@ export async function POST(req: NextRequest) {
     });
 
     if (!uploadRes.ok) {
-      const error = await uploadRes.json();
-      console.error('[media-upload] Bridge error:', error);
+      let errorData: any = { error: 'Failed to upload to S3' };
+      
+      // Try to parse error as JSON, fallback to text if it fails
+      try {
+        errorData = await uploadRes.json();
+      } catch (jsonErr) {
+        const errorText = await uploadRes.text();
+        errorData = {
+          error: 'Bridge returned an error',
+          status: uploadRes.status,
+          details: errorText.substring(0, 200) // Truncate long HTML error pages
+        };
+      }
+      
+      console.error('[media-upload] Bridge error:', errorData);
       return NextResponse.json(
         { 
-          error: error.error || 'Failed to upload to S3',
-          details: error.details || {}
+          error: errorData.error || 'Failed to upload to S3',
+          details: errorData.details || {}
         },
         { status: uploadRes.status }
       );

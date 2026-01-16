@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchParams } from 'next/navigation';
 import { 
@@ -713,6 +713,49 @@ export default function QRWhatsAppInboxPage() {
   // Load messages for selected chat - handle 404 to stop loop
   const [last404Chat, setLast404Chat] = useState<string | null>(null);
 
+  // Fallback: Load messages from CRM database (for incoming/outgoing stored messages)
+  // This is defined at component level so it can be used in multiple places
+  const loadMessagesFromCRM = useCallback(async () => {
+    try {
+      if (!activeLeadId && !activePhone) return [];
+      
+      const params = new URLSearchParams();
+      if (activeLeadId) params.append('leadId', activeLeadId);
+      if (activePhone) params.append('phoneNumber', activePhone);
+      params.append('limit', '200');
+      params.append('order', 'asc');
+      
+      const res = await fetch(`/api/admin/crm/messages?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (res.ok) {
+        const payload = await res.json();
+        const crmMessages = payload?.data?.messages || [];
+        
+        // Convert CRM messages to display format
+        return crmMessages.map((msg: any) => ({
+          id: msg._id || msg.waMessageId,
+          body: msg.messageContent || '',
+          timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : 0,
+          from: msg.direction === 'inbound' ? msg.phoneNumber : 'Me',
+          to: msg.direction === 'outbound' ? msg.phoneNumber : undefined,
+          isFromMe: msg.direction === 'outbound',
+          type: msg.messageType || 'text',
+          status: msg.status,
+          _crmMessage: true, // Mark as from CRM
+        }));
+      }
+    } catch (err) {
+      console.warn('[CRM Message Load Error]:', err);
+    }
+    return [];
+  }, [activeLeadId, activePhone, token]);
+
   useEffect(() => {
     if (selectedChat && status === 'connected') {
       const chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
@@ -725,48 +768,6 @@ export default function QRWhatsAppInboxPage() {
 
       // Skip if this chat returned 404 recently (new lead)
       if (chatId === last404Chat) return;
-
-      // Fallback: Load messages from CRM database (for incoming/outgoing stored messages)
-      const loadMessagesFromCRM = async () => {
-        try {
-          if (!activeLeadId && !activePhone) return [];
-          
-          const params = new URLSearchParams();
-          if (activeLeadId) params.append('leadId', activeLeadId);
-          if (activePhone) params.append('phoneNumber', activePhone);
-          params.append('limit', '200');
-          params.append('order', 'asc');
-          
-          const res = await fetch(`/api/admin/crm/messages?${params.toString()}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          
-          if (res.ok) {
-            const payload = await res.json();
-            const crmMessages = payload?.data?.messages || [];
-            
-            // Convert CRM messages to display format
-            return crmMessages.map((msg: any) => ({
-              id: msg._id || msg.waMessageId,
-              body: msg.messageContent || '',
-              timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : 0,
-              from: msg.direction === 'inbound' ? msg.phoneNumber : 'Me',
-              to: msg.direction === 'outbound' ? msg.phoneNumber : undefined,
-              isFromMe: msg.direction === 'outbound',
-              type: msg.messageType || 'text',
-              status: msg.status,
-              _crmMessage: true, // Mark as from CRM
-            }));
-          }
-        } catch (err) {
-          console.warn('[CRM Message Load Error]:', err);
-        }
-        return [];
-      };
 
       const loadMessages = async () => {
         try {
@@ -862,7 +863,7 @@ export default function QRWhatsAppInboxPage() {
     } else {
       setLast404Chat(null);
     }
-  }, [selectedChat, status, bridgeUrl, last404Chat, messages.length]);
+  }, [selectedChat, status, bridgeUrl, last404Chat, messages.length, loadMessagesFromCRM]);
 
   // Auto-scroll to latest message - only if messages actually changed
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
