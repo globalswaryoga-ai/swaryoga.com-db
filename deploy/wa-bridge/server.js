@@ -70,7 +70,7 @@ let sessionReady = false;
 
 // Initialize WhatsApp client
 function initializeClient() {
-  console.log('Initializing WhatsApp client...');
+  console.log('📱 Initializing WhatsApp client...');
   
   client = new Client({
     authStrategy: new LocalAuth({
@@ -91,13 +91,14 @@ function initializeClient() {
   });
 
   client.on('qr', (qr) => {
-    console.log('New QR code received');
+    console.log('✅ QR code received - converting to Data URL...');
     qrcode.toDataURL(qr, (err, url) => {
       if (err) {
-        console.error('QR generation error:', err);
+        console.error('❌ QR generation error:', err);
         return;
       }
       qrCode = url;
+      console.log(`✅ QR code ready (${qrCode ? qrCode.length : 0} chars)`);
     });
   });
 
@@ -109,28 +110,29 @@ function initializeClient() {
   client.on('ready', () => {
     console.log('✓ WhatsApp client ready');
     sessionReady = true;
+    qrCode = null; // Clear QR when connected
     loadChats();
   });
 
   client.on('disconnected', () => {
-    console.log('⚠ WhatsApp disconnected - attempting to reconnect...');
+    console.log('⚠ WhatsApp disconnected - will attempt auto-reconnect...');
     sessionReady = false;
     qrCode = null;
     // Auto-reconnect after 5 seconds
     setTimeout(() => {
-      console.log('Attempting to reconnect...');
+      console.log('🔄 Attempting to reconnect...');
       try {
         client.initialize().catch(err => {
-          console.error('Reconnection failed:', err);
+          console.error('❌ Reconnection failed:', err.message);
         });
       } catch (err) {
-        console.error('Error during reconnection:', err);
+        console.error('❌ Error during reconnection:', err.message);
       }
     }, 5000);
   });
 
   client.on('message', (msg) => {
-    console.log('New message:', msg.body.substring(0, 50));
+    console.log('📨 New message:', msg.body.substring(0, 50));
     loadChats();
   });
 
@@ -141,22 +143,23 @@ function initializeClient() {
   });
 
   client.on('auth_failure', (err) => {
-    console.error('⚠ WhatsApp authentication failed:', err);
+    console.error('⚠ WhatsApp authentication failed:', err.message);
     sessionReady = false;
     qrCode = null;
     // Keep client alive for QR code generation
   });
 
+  console.log('🚀 Calling client.initialize()...');
   client.initialize().catch((err) => {
-    console.error('Failed to initialize WhatsApp client:', err.message);
+    console.error('❌ Failed to initialize WhatsApp client:', err.message);
     sessionReady = false;
     // Attempt to reinitialize after delay
     setTimeout(() => {
-      console.log('Attempting to reinitialize client...');
+      console.log('🔄 Attempting to reinitialize client...');
       try {
         client.initialize();
       } catch (e) {
-        console.error('Reinitialization error:', e);
+        console.error('❌ Reinitialization error:', e.message);
       }
     }, 5000);
   });
@@ -223,18 +226,46 @@ app.get('/qr', authMiddleware, (req, res) => {
   });
 });
 
-// POST /connect - Reconnect
-app.post('/connect', authMiddleware, (req, res) => {
-  if (sessionReady) {
-    return res.json({
-      message: 'Already connected',
-      status: 'connected'
+// POST /connect - Reconnect (force QR generation if disconnected)
+app.post('/connect', authMiddleware, async (req, res) => {
+  try {
+    if (sessionReady) {
+      return res.json({
+        message: 'Already connected',
+        status: 'connected',
+        hasQr: false
+      });
+    }
+    
+    // If client exists but not ready and no QR yet, reinitialize
+    if (client && !sessionReady && !qrCode) {
+      console.log('🔄 [/connect] Client exists but no QR - reinitializing...');
+      try {
+        await client.destroy().catch(() => {});
+      } catch (e) {
+        console.log('⚠ Could not destroy client:', e.message);
+      }
+      client = null;
+      qrCode = null;
+      initializeClient();
+    } else if (!client) {
+      console.log('🔄 [/connect] No client - initializing...');
+      initializeClient();
+    }
+    
+    res.json({
+      message: 'Initializing connection... QR should appear in ~3-5 seconds',
+      status: 'connecting',
+      hasQr: !!qrCode,
+      note: 'Refresh /status endpoint after 3 seconds to get QR code'
+    });
+  } catch (err) {
+    console.error('[/connect] Error:', err.message);
+    res.status(500).json({
+      error: err.message,
+      status: 'error'
     });
   }
-  res.json({
-    message: 'Initializing connection...',
-    status: 'connecting'
-  });
 });
 
 // POST /disconnect - Disconnect and force QR regeneration
