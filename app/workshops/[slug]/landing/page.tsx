@@ -173,6 +173,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
   const [allSchedules, setAllSchedules] = useState<DbSchedule[]>([]);
   const [enquiryModal, setEnquiryModal] = useState<{ isOpen: boolean; month: string }>({ isOpen: false, month: '' });
   const [formModalOpen, setFormModalOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Reviews (localStorage backed for now)
   const [reviews, setReviews] = useState<LocalReview[]>([]);
@@ -181,6 +182,14 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
     rating: 5,
     review: '',
   });
+
+  // Check if user is logged in
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      setIsLoggedIn(!!token);
+    }
+  }, []);
 
   // Fetch schedules
   useEffect(() => {
@@ -360,24 +369,36 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
               <div>
                 <div className="font-extrabold text-gray-900 leading-tight">Join {workshop.name}</div>
                 <div className="text-xs text-gray-600">
-                  Step 1: Signup & Save Lead • Step 2: Payment in Cart
+                  {isLoggedIn ? 'Proceed to Payment' : 'Step 1: Signup & Save Lead • Step 2: Payment in Cart'}
                 </div>
               </div>
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setFormModalOpen(true)}
-                className="rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-5 py-3 shadow-sm active:scale-[0.99]"
-              >
-                {hasConfirmedDates ? '💳 Pay Now' : '📝 Book Seat'}
-              </button>
-              <Link
-                href={registerLink}
-                className="rounded-2xl border-2 border-green-700 text-green-800 hover:bg-green-50 font-black px-5 py-3"
-              >
-                Sign Up First
-              </Link>
+              {isLoggedIn ? (
+                <button
+                  type="button"
+                  onClick={() => setFormModalOpen(true)}
+                  className="rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-5 py-3 shadow-sm active:scale-[0.99]"
+                >
+                  {hasConfirmedDates ? '💳 Pay Now' : '📝 Book Seat'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setFormModalOpen(true)}
+                    className="rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-5 py-3 shadow-sm active:scale-[0.99]"
+                  >
+                    {hasConfirmedDates ? '💳 Pay Now' : '📝 Book Seat'}
+                  </button>
+                  <Link
+                    href={registerLink}
+                    className="rounded-2xl border-2 border-green-700 text-green-800 hover:bg-green-50 font-black px-5 py-3"
+                  >
+                    Sign Up First
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -406,12 +427,22 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                 </div>
               </div>
 
-              <Link
-                href={registerLink}
-                className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
-              >
-                Register & Sign Up
-              </Link>
+              {isLoggedIn ? (
+                <button
+                  type="button"
+                  onClick={() => setFormModalOpen(true)}
+                  className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
+                >
+                  💳 Pay Now
+                </button>
+              ) : (
+                <Link
+                  href={registerLink}
+                  className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
+                >
+                  Register & Sign Up
+                </Link>
+              )}
             </div>
 
             <div className="relative h-96 sm:h-full rounded-lg overflow-hidden shadow-2xl group">
@@ -530,19 +561,31 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                 <div className="flex gap-2">
                   {b.available ? (
                     <>
-                      <button
-                        type="button"
-                        onClick={() => openForm(b.label)}
-                        className="flex-1 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 text-xs shadow-sm transition-all active:scale-95"
-                      >
-                        📝 Book Seat
-                      </button>
-                      <Link
-                        href={`${registerLink}&month=${b.label.replace(' ', '-')}`}
-                        className="flex-1 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold py-3 text-xs shadow-sm text-center transition-all active:scale-95"
-                      >
-                        ✅ Register
-                      </Link>
+                      {isLoggedIn ? (
+                        <button
+                          type="button"
+                          onClick={() => openForm(b.label)}
+                          className="flex-1 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold py-3 text-xs shadow-sm transition-all active:scale-95"
+                        >
+                          💳 Pay Now
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openForm(b.label)}
+                            className="flex-1 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 text-xs shadow-sm transition-all active:scale-95"
+                          >
+                            📝 Book Seat
+                          </button>
+                          <Link
+                            href={`${registerLink}&month=${b.label.replace(' ', '-')}`}
+                            className="flex-1 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold py-3 text-xs shadow-sm text-center transition-all active:scale-95"
+                          >
+                            ✅ Register
+                          </Link>
+                        </>
+                      )}
                     </>
                   ) : (
                     <button
@@ -575,12 +618,22 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
 
         {/* CTA SECTION */}
         <section className="text-center py-8 bg-green-50">
-          <Link
-            href={registerLink}
-            className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
-          >
-            Register Now
-          </Link>
+          {isLoggedIn ? (
+            <button
+              type="button"
+              onClick={() => setFormModalOpen(true)}
+              className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
+            >
+              💳 Pay Now
+            </button>
+          ) : (
+            <Link
+              href={registerLink}
+              className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
+            >
+              Register Now
+            </Link>
+          )}
         </section>
 
         {/* LEARNING HIGHLIGHTS */}
@@ -682,12 +735,22 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
 
         {/* CTA SECTION */}
         <section className="text-center py-8 bg-green-50">
-          <Link
-            href={registerLink}
-            className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
-          >
-            Register Now
-          </Link>
+          {isLoggedIn ? (
+            <button
+              type="button"
+              onClick={() => setFormModalOpen(true)}
+              className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
+            >
+              💳 Pay Now
+            </button>
+          ) : (
+            <Link
+              href={registerLink}
+              className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
+            >
+              Register Now
+            </Link>
+          )}
         </section>
 
         {/* VIDEO TESTIMONIALS */}
