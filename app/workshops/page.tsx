@@ -145,6 +145,12 @@ function WorkshopsPageInner() {
   });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [schedulesByWorkshopId, setSchedulesByWorkshopId] = useState<Record<string, ApiWorkshopSchedule[]>>({});
+  const [enrollModal, setEnrollModal] = useState<{ isOpen: boolean; workshopSlug: string | null; workshopName: string | null }>({
+    isOpen: false,
+    workshopSlug: null,
+    workshopName: null,
+  });
+  const [enrollForm, setEnrollForm] = useState({ name: '', email: '', phone: '' });
   const searchParams = useSearchParams();
   const queryString = searchParams?.toString() ?? '';
   const activeWorkshopLabel = selectedWorkshop
@@ -311,8 +317,126 @@ function WorkshopsPageInner() {
   const endIndex = startIndex + workshopsPerPage;
   const currentWorkshops = filteredWorkshops.slice(startIndex, endIndex);
 
+  // Handle enrollment form submission
+  const handleEnrollSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!enrollForm.name.trim() || !enrollForm.email.trim() || !enrollForm.phone.trim()) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    if (!enrollModal.workshopSlug) return;
+
+    try {
+      // Save lead to database
+      const response = await fetch('/api/admin/crm/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: enrollForm.name,
+          email: enrollForm.email,
+          phone: enrollForm.phone,
+          workshopName: enrollModal.workshopName,
+          workshopSlug: enrollModal.workshopSlug,
+          source: 'workshop-listing',
+          status: 'lead',
+        }),
+      });
+
+      if (response.ok) {
+        // Redirect to payment page
+        const paymentLink = getWorkshopPaymentLink(enrollModal.workshopSlug, 'online', 'hindi');
+        if (paymentLink) {
+          window.open(paymentLink, '_blank');
+        }
+        setEnrollModal({ isOpen: false, workshopSlug: null, workshopName: null });
+        setEnrollForm({ name: '', email: '', phone: '' });
+      } else {
+        alert('Failed to save enrollment. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('An error occurred. Please try again.');
+    }
+  };
+
   return (
     <>
+      {/* Enrollment Modal for Non-Logged-In Users */}
+      {enrollModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Enroll in {enrollModal.workshopName}
+              </h2>
+              <p className="text-gray-600">Enter your details to proceed with payment</p>
+            </div>
+
+            <form onSubmit={handleEnrollSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={enrollForm.name}
+                  onChange={(e) => setEnrollForm({ ...enrollForm, name: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600"
+                  placeholder="Your full name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={enrollForm.email}
+                  onChange={(e) => setEnrollForm({ ...enrollForm, email: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600"
+                  placeholder="your@email.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={enrollForm.phone}
+                  onChange={(e) => setEnrollForm({ ...enrollForm, phone: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600"
+                  placeholder="+91 XXXXXXXXXX"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEnrollModal({ isOpen: false, workshopSlug: null, workshopName: null })}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors active:scale-95"
+                >
+                  💳 Pay Now
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <Navigation />
       <main>
         {/* Hero Section */}
@@ -810,20 +934,30 @@ function WorkshopsPageInner() {
                           Learn More
                           <ArrowRight className="w-4 h-4" />
                         </Link>
-                        {isLoggedIn && (() => {
-                          const payLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
-                          return payLink ? (
-                            <a
-                              href={payLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
-                              title="Pay now - opens PayU"
-                            >
-                              💳 Pay Now
-                            </a>
-                          ) : null;
-                        })()}
+                        {isLoggedIn ? (
+                          (() => {
+                            const payLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
+                            return payLink ? (
+                              <a
+                                href={payLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
+                                title="Pay now - opens PayU"
+                              >
+                                💳 Pay Now
+                              </a>
+                            ) : null;
+                          })()
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEnrollModal({ isOpen: true, workshopSlug: workshop.slug, workshopName: workshop.name })}
+                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
+                          >
+                            💳 Enroll Now
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
