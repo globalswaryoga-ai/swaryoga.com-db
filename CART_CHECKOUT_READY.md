@@ -110,7 +110,7 @@ import ProductCard from '@/components/ProductCard';
 Already configured in `.env.production`:
 ```
 ✅ CASHFREE_ENV=production
-✅ CASHFREE_CLIENT_ID=7939212dcaae4f3298d227d12b129397
+✅ CASHFREE_CLIENT_ID=YOUR_CLIENT_ID_HERE
 ✅ CASHFREE_CLIENT_SECRET=cfsk_ma_prod_df99a6b39802b5503cb00f70c83ae683_80384991
 ✅ CASHFREE_API_VERSION=2023-08-01
 ```
