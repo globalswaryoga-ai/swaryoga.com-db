@@ -22,7 +22,7 @@ export default function PurchaseModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [subscriptionType, setSubscriptionType] = useState<'one-time' | 'monthly' | 'yearly'>('one-time');
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'payu'>('stripe');
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'cashfree'>('stripe');
 
   const pricing = {
     'one-time': price,
@@ -126,7 +126,7 @@ export default function PurchaseModal({
           <div className="mb-6">
             <p className="text-gray-700 font-semibold mb-3">Payment Method</p>
             <div className="space-y-2">
-              {(['stripe', 'payu'] as const).map((method) => (
+              {(['stripe', 'cashfree'] as const).map((method) => (
                 <label key={method} className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="radio"
@@ -138,7 +138,7 @@ export default function PurchaseModal({
                     className="w-4 h-4"
                   />
                   <p className="font-semibold text-gray-800 capitalize">
-                    {method === 'stripe' ? '💳 Stripe (Card)' : '🏦 PayU (UPI/Card)'}
+                    {method === 'stripe' ? '💳 Stripe (Card)' : '💳 Cashfree (UPI/Card)'}
                   </p>
                 </label>
               ))}

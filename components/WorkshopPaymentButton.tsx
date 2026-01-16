@@ -3,11 +3,11 @@
 /**
  * @fileoverview Workshop Payment Button Component
  * 
- * Displays PayU payment buttons for workshops based on mode and language
+ * Displays Cashfree payment buttons for workshops based on mode and language
  * Uses centralized workshop payment configuration
  * 
  * Features:
- * - Direct PayU payment links
+ * - Secure Cashfree SDK checkout
  * - Multiple languages support
  * - Multiple modes support
  * - Workshop details display
@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import { getWorkshopPaymentLink, getWorkshopDetails, getAvailableModes, getAvailableLanguages } from '@/lib/workshops/workshopPaymentConfig';
-import PayUStaticButton from './PayUStaticButton';
+import CashfreePaymentButton from './CashfreePaymentButton';
 
 interface WorkshopPaymentButtonProps {
   workshopSlug: string;
@@ -26,6 +26,14 @@ interface WorkshopPaymentButtonProps {
   showDetails?: boolean;
   showModeSelector?: boolean;
   showLanguageSelector?: boolean;
+  token?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  city?: string;
+  onPaymentSuccess?: (response: any) => void;
+  onPaymentError?: (error: string) => void;
 }
 
 export default function WorkshopPaymentButton({
@@ -36,6 +44,14 @@ export default function WorkshopPaymentButton({
   showDetails = true,
   showModeSelector = false,
   showLanguageSelector = true,
+  token = '',
+  firstName = '',
+  lastName = '',
+  email = '',
+  phone = '',
+  city = '',
+  onPaymentSuccess,
+  onPaymentError,
 }: WorkshopPaymentButtonProps) {
   const workshop = getWorkshopDetails(workshopSlug);
   const [selectedMode, setSelectedMode] = useState<'online' | 'offline' | 'residential' | 'recorded'>(mode);
@@ -133,18 +149,30 @@ export default function WorkshopPaymentButton({
 
       {/* Payment Button */}
       <div className="flex justify-center pt-4">
-        <PayUStaticButton
-          workshopName={workshop.name}
-          payuLink={paymentLink}
-          mode={selectedMode}
-          language={selectedLanguage}
-          buttonText="Pay Now"
-        />
+        {token && email && phone && firstName && city ? (
+          <CashfreePaymentButton
+            amount={workshop.basePrice}
+            productInfo={`${workshop.name} - ${selectedMode} (${selectedLanguage})`}
+            firstName={firstName}
+            lastName={lastName}
+            email={email}
+            phone={phone}
+            city={city}
+            token={token}
+            onSuccess={onPaymentSuccess}
+            onError={onPaymentError}
+            className="w-full max-w-xs bg-gradient-to-r from-cashfree-600 to-cashfree-700 hover:from-cashfree-700 hover:to-cashfree-800 text-white px-6 py-3 rounded-lg font-bold disabled:opacity-50 transition-all"
+          />
+        ) : (
+          <div className="w-full max-w-xs bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center text-yellow-700">
+            <p className="font-semibold">Please log in to proceed with payment</p>
+          </div>
+        )}
       </div>
 
       {/* Security Message */}
       <p className="text-xs text-center text-gray-600">
-        🔒 Secure payment powered by PayU • No additional charges
+        🔒 Secure payment powered by Cashfree • No additional charges
       </p>
     </div>
   );

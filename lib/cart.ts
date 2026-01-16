@@ -5,12 +5,23 @@ export interface CartItem {
   name: string;
   price: number;
   quantity: number;
-  currency: CartCurrency;
+  currency?: CartCurrency;
   workshop?: string;
   scheduleId?: string;
   seatsTotal?: number;
   mode?: string;
   language?: string;
+  instructor?: string;
+  level?: string;
+  registeredName?: string;
+  registeredEmail?: string;
+  registeredPhone?: string;
+  registeredCity?: string;
+  registeredAt?: string;
+  workshopSlug?: string;
+  image?: string;
+  description?: string;
+  duration?: string;
 }
 
 const CART_STORAGE_KEY = 'swarYogaCart';

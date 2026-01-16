@@ -223,7 +223,8 @@ export const User = mongoose.models.User || mongoose.model('User', userSchema);
 // Order Schema
 const orderSchema = new mongoose.Schema({
   // Optional for guest/one-off purchases (e.g., workshop checkout)
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
+  // Can be either a real ObjectId or a guest-{timestamp} string for anonymous customers
+  userId: { type: String, required: false, index: true },
   items: [
     {
       kind: { type: String, enum: ['workshop', 'product'], required: false },

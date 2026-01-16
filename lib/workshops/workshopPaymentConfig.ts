@@ -21,6 +21,16 @@ export interface WorkshopPaymentConfig {
   schedule: string;
   basePrice: number;
   currency: string;
+  paymentCharges?: {
+    INR?: {
+      percentage: number;
+      description: string;
+    };
+    USD?: {
+      percentage: number;
+      description: string;
+    };
+  };
   paymentLinks: {
     online: {
       english: string;
@@ -46,8 +56,13 @@ export interface WorkshopPaymentConfig {
 
 /**
  * SWAR YOGA BASIC PROGRAM
- * 2 Days Only
+ * 2 Days Only - HINDI ONLINE ONLY
  * Time: 7:00 PM - 8:30 PM
+ * 
+ * Pricing:
+ * - Base Fee: ₹145
+ * - Payment Charges: 2.5% for INR (₹3.63), 5% for USD
+ * - INR Total with charges: ₹148.63
  */
 export const SwarYogaBasicProgram: WorkshopPaymentConfig = {
   slug: 'swar-yoga-basic-program',
@@ -55,8 +70,18 @@ export const SwarYogaBasicProgram: WorkshopPaymentConfig = {
   shortName: 'Swar Yoga Basic',
   duration: '2 days only',
   schedule: '7:00 PM - 8:30 PM',
-  basePrice: 3300,
+  basePrice: 145,
   currency: 'INR',
+  paymentCharges: {
+    INR: {
+      percentage: 2.5,
+      description: '2.5% for INR payments'
+    },
+    USD: {
+      percentage: 5,
+      description: '5% for USD payments'
+    }
+  },
   paymentLinks: {
     online: {
       english: 'https://u.payu.in/example-english-online', // Replace with actual link
@@ -239,6 +264,21 @@ export function getWorkshopPaymentLink(
   }
 
   return link;
+}
+
+/**
+ * Get workshop base price
+ * 
+ * @param workshopSlug - Workshop slug
+ * @returns Base price in INR or 0 if not found
+ */
+export function getWorkshopPrice(workshopSlug: string): number {
+  const workshop = workshopPaymentConfig[workshopSlug];
+  if (!workshop) {
+    console.warn(`Workshop not found for price lookup: ${workshopSlug}`);
+    return 0;
+  }
+  return workshop.basePrice || 0;
 }
 
 /**

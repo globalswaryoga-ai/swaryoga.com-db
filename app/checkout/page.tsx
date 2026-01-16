@@ -14,6 +14,8 @@ export const dynamic = 'force-dynamic';
 
 function CheckoutInner() {
   const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -43,6 +45,21 @@ function CheckoutInner() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartLoaded, setIsCartLoaded] = useState(false);
   const [showPaymentInstructionModal, setShowPaymentInstructionModal] = useState(false);
+
+  // Check authentication on page load
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    
+    if (!token || !user) {
+      // Not logged in - redirect to signin
+      router.push('/signin?redirect=checkout');
+      return;
+    }
+    
+    setIsLoggedIn(true);
+    setCheckingAuth(false);
+  }, [router]);
 
   useEffect(() => {
     const items = getStoredCart();
@@ -319,6 +336,27 @@ function CheckoutInner() {
       <Navigation />
       <main className="min-h-screen pt-20">
         <div className="container py-20">
+          {/* Auth Check Message */}
+          {checkingAuth && (
+            <div className="mb-8 rounded-lg border border-blue-300 bg-blue-50 px-4 py-4 text-blue-800 flex items-center gap-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+              <span>Checking authentication...</span>
+            </div>
+          )}
+
+          {!checkingAuth && !isLoggedIn && (
+            <div className="mb-8 rounded-lg border border-red-300 bg-red-50 px-4 py-4 text-red-800">
+              <p className="font-semibold mb-2">🔒 Sign In Required</p>
+              <p className="mb-4">You must be signed in to proceed with checkout. Please sign in first.</p>
+              <button
+                onClick={() => router.push('/signin?redirect=checkout')}
+                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+              >
+                Go to Sign In
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => router.back()}
             className="mb-6 flex items-center gap-2 text-yoga-600 hover:text-yoga-700 font-semibold transition-colors"
@@ -378,9 +416,9 @@ function CheckoutInner() {
                   )}
                 </div>
 
-                {/* Shipping Information */}
+                {/* Sadhak Information */}
                 <div className="bg-white rounded-lg shadow-md p-8">
-                  <h2 className="text-2xl font-bold mb-6 text-yoga-700">Shipping Information</h2>
+                  <h2 className="text-2xl font-bold mb-6 text-yoga-700">Sadhak Information</h2>
                   
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>

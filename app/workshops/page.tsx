@@ -5,7 +5,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { workshopCatalog, WorkshopOverview, workshopDetails } from '@/lib/workshopsData';
 import { getWorkshopPaymentLink } from '@/lib/workshops/workshopPaymentConfig';
@@ -128,6 +128,7 @@ function formatDate(isoDate: string): string {
 }
 
 function WorkshopsPageInner() {
+  const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
   const workshopsPerPage = 20; // 5 rows of 4 cards
   const [searchTerm, setSearchTerm] = useState('');
@@ -363,80 +364,6 @@ function WorkshopsPageInner() {
 
   return (
     <>
-      {/* Enrollment Modal for Non-Logged-In Users */}
-      {enrollModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Enroll in {enrollModal.workshopName}
-              </h2>
-              <p className="text-gray-600">Enter your details to proceed with payment</p>
-            </div>
-
-            <form onSubmit={handleEnrollSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={enrollForm.name}
-                  onChange={(e) => setEnrollForm({ ...enrollForm, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600"
-                  placeholder="Your full name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={enrollForm.email}
-                  onChange={(e) => setEnrollForm({ ...enrollForm, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600"
-                  placeholder="your@email.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Phone Number *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={enrollForm.phone}
-                  onChange={(e) => setEnrollForm({ ...enrollForm, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600"
-                  placeholder="+91 XXXXXXXXXX"
-                />
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setEnrollModal({ isOpen: false, workshopSlug: null, workshopName: null })}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors active:scale-95"
-                >
-                  💳 Pay Now
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       <Navigation />
       <main>
         {/* Hero Section */}
@@ -927,37 +854,23 @@ function WorkshopsPageInner() {
                       </div>
 
                       <div className="flex gap-3">
+                        {/* Learn More Button - Goes to Landing Page */}
                         <Link
-                          href={`/workshops/${workshop.slug}/landing`}
-                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 hover:bg-primary-700 active:scale-95 text-white px-4 py-3 font-bold transition"
+                          href={`/workshops/${workshop.slug}`}
+                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 py-3 font-bold transition"
                         >
                           Learn More
                           <ArrowRight className="w-4 h-4" />
                         </Link>
-                        {isLoggedIn ? (
-                          (() => {
-                            const payLink = getWorkshopPaymentLink(workshop.slug, 'online', 'hindi');
-                            return payLink ? (
-                              <a
-                                href={payLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
-                                title="Pay now - opens PayU"
-                              >
-                                💳 Pay Now
-                              </a>
-                            ) : null;
-                          })()
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setEnrollModal({ isOpen: true, workshopSlug: workshop.slug, workshopName: workshop.name })}
-                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
-                          >
-                            💳 Enroll Now
-                          </button>
-                        )}
+
+                        {/* Register Now Button - Go to Registration Page */}
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/registration/online/hindi/${workshop.slug}`)}
+                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 active:scale-95 text-white px-4 py-3 font-bold transition"
+                        >
+                          📝 Register Now
+                        </button>
                       </div>
                     </div>
                   </div>

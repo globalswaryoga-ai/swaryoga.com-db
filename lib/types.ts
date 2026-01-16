@@ -118,7 +118,7 @@ export interface WorkshopScheduleData {
 
 // ============ Payment Types ============
 
-export type PaymentMethod = 'payu' | 'nepal_qr' | 'direct';
+export type PaymentMethod = 'payu' | 'cashfree' | 'nepal_qr' | 'direct';
 export type PaymentStatus = 'pending' | 'successful' | 'failed' | 'pending_manual';
 export type OrderStatus = 'confirmed' | 'cancelled' | 'completed';
 

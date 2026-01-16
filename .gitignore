@@ -42,3 +42,4 @@ coverage/
 # NOTE: We commit project docs (README, deployment guides, etc.).
 # Only ignore generated markdown (if any) under known generated folders.
 docs/generated/**/*.md
+.env.production

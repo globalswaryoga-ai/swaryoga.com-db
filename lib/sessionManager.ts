@@ -1,9 +1,9 @@
-// Session Manager - Handles 7-day login persistence
+// Session Manager - Handles 15-day login persistence
 const SESSION_EXPIRY_KEY = 'sessionExpiry';
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
-const SESSION_DURATION_DAYS = 7;
-const SESSION_DURATION_MS = SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+const SESSION_DURATION_DAYS = 15;
+const SESSION_DURATION_MS = SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000; // 15 days in milliseconds
 
 export interface SessionData {
   token: string;
@@ -17,14 +17,16 @@ export interface SessionData {
 }
 
 /**
- * Set session with 7-day expiry
+ * Set session with 15-day expiry
+ * User data and session will persist locally for 15 days
+ * User can logout anytime if they want
  * Call this after successful login
  */
 export const setSession = (sessionData: SessionData): void => {
   if (typeof window === 'undefined') return; // Only run on client
 
   try {
-    // Calculate expiry time (7 days from now)
+    // Calculate expiry time (15 days from now)
     const expiryTime = Date.now() + SESSION_DURATION_MS;
 
     // Store session data
@@ -48,7 +50,7 @@ export const setSession = (sessionData: SessionData): void => {
 
 /**
  * Ensure session has an expiry (some legacy flows set token/user but not sessionExpiry).
- * This makes "stay logged in for next 7 days" consistent across the app.
+ * This makes "stay logged in for next 15 days" consistent across the app.
  */
 export const ensureSessionExpiry = (): void => {
   if (typeof window === 'undefined') return;
@@ -128,7 +130,7 @@ export const getRemainingSessionTime = (): number => {
 };
 
 /**
- * Extend session by 7 more days
+ * Extend session by 15 more days
  * Useful for keeping user logged in if they're active
  */
 export const extendSession = (): void => {

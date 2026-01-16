@@ -59,9 +59,20 @@ export async function GET(request: NextRequest) {
     );
 
     if (paymentStatus === 'completed') {
-      const success = new URL('/payment-successful', url.origin);
+      const success = new URL('/payment-success', url.origin);
       success.searchParams.set('orderId', String(order._id));
+      
+      // Extract customer details from order
+      const shippingAddress = (order as any).shippingAddress || {};
+      const firstName = shippingAddress.firstName || 'Customer';
+      const lastName = shippingAddress.lastName || '';
+      const customerName = `${firstName} ${lastName}`.trim();
+      
+      success.searchParams.set('name', customerName);
       success.searchParams.set('status', 'success');
+      
+      // Try to get lead number from database (will be created by webhook)
+      // For now, we'll pass it if we can find it
       return NextResponse.redirect(success);
     }
 

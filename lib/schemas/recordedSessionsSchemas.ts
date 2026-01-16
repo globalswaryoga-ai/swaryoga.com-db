@@ -81,7 +81,7 @@ export interface IPurchase extends Document {
   purchase_date: Date;
   amount: number;
   currency: 'USD' | 'INR';
-  payment_method: 'stripe' | 'payu' | 'upi' | 'card';
+  payment_method: 'stripe' | 'payu' | 'cashfree' | 'upi' | 'card';
   transaction_id: string; // Unique payment gateway ID
   status: 'completed' | 'pending' | 'failed' | 'refunded';
   subscription_type?: 'one-time' | 'monthly' | 'yearly';
@@ -112,7 +112,7 @@ const purchaseSchema = new Schema<IPurchase>(
     },
     payment_method: {
       type: String,
-      enum: ['stripe', 'payu', 'upi', 'card'],
+      enum: ['stripe', 'payu', 'cashfree', 'upi', 'card'],
       required: true,
     },
     transaction_id: { type: String, required: true, unique: true },

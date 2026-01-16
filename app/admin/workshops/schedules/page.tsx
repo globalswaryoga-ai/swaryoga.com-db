@@ -133,6 +133,7 @@ export default function AdminWorkshopSchedulesPage() {
     const [allSchedules, setAllSchedules] = useState<AdminSchedule[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
 
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<EditForm>(emptyEditForm());
@@ -433,6 +434,8 @@ export default function AdminWorkshopSchedulesPage() {
         }
 
         await loadAllSchedules(adminToken);
+        setSuccess(`✓ Schedule created successfully for ${selectedWorkshopSlug}!`);
+        setTimeout(() => setSuccess(''), 4000);
         cancelCreate();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -496,6 +499,8 @@ export default function AdminWorkshopSchedulesPage() {
         if (!res.ok) throw new Error(json?.error || `Failed to save (status ${res.status})`);
 
         await loadAllSchedules(adminToken);
+        setSuccess('✓ Schedule saved successfully!');
+        setTimeout(() => setSuccess(''), 4000);
         cancelEdit();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -523,6 +528,8 @@ export default function AdminWorkshopSchedulesPage() {
         if (!res.ok) throw new Error(json?.error || 'Failed to update publish status');
 
         await loadAllSchedules(adminToken);
+        setSuccess(`✓ Schedule ${nextStatus === 'published' ? 'published' : 'unpublished'} successfully!`);
+        setTimeout(() => setSuccess(''), 4000);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -590,10 +597,28 @@ export default function AdminWorkshopSchedulesPage() {
 
           <main className="flex-1 overflow-auto p-6">
             {error && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-swar-primary">
-                {error}
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
+                ✗ {error}
               </div>
             )}
+            
+            {success && (
+              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 font-semibold">
+                {success}
+              </div>
+            )}
+
+            {/* Workflow Instructions */}
+            <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <h3 className="font-bold text-blue-900 mb-2">📋 How to Make Schedules Visible to Users:</h3>
+              <ol className="text-sm text-blue-800 space-y-1 ml-4 list-decimal">
+                <li><strong>Add Date:</strong> Click "Add Date" button to create a new workshop schedule</li>
+                <li><strong>Fill Details:</strong> Enter start/end dates, time, fees, seats, and location</li>
+                <li><strong>Save:</strong> Click "Save" to save the schedule (it will be in Draft status)</li>
+                <li><strong>Publish:</strong> Click "Publish" button to make it visible on the registration page</li>
+                <li><strong>Verify:</strong> The schedule will now appear for users on <code className="bg-white px-1 rounded">/registration/online/hindi/[workshop]</code></li>
+              </ol>
+            </div>
 
             <div className="max-w-7xl mx-auto">
               <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">

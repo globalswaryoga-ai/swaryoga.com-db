@@ -89,8 +89,8 @@ function SignInInner() {
 
       // Redirect after success
       setTimeout(() => {
-        // Check if user has life planner access, default to dashboard
-        const redirectTo = redirectPath && redirectPath !== '/' ? redirectPath : '/life-planner/dashboard';
+        // Check if redirectPath is provided, default to workshops page
+        const redirectTo = redirectPath && redirectPath !== '/' ? redirectPath : '/workshops';
         router.push(redirectTo);
       }, 1500);
     } catch (err) {

@@ -15,14 +15,15 @@ import {
 // - Creates a Cashfree order and returns payment_session_id for Cashfree JS checkout
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
   try {
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
     const decoded = token ? verifyToken(token) : null;
 
-    if (!decoded?.userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Allow unauthenticated requests (public checkout)
+    // If authenticated, use userId; otherwise generate placeholder for new customer
+    const userId = decoded?.userId || 'guest-' + Date.now();
 
     const body = (await request.json().catch(() => null)) as any;
     if (!body) {
@@ -44,9 +45,35 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Create internal Order first.
+    // Create order with all fields including Cashfree placeholders
+    // We'll update in place instead of saving twice
+    const cashfreeOrderId = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 9);
+
+    const returnUrl = getCashfreeReturnUrl(request);
+    const notifyUrl = getCashfreeWebhookUrl(request);
+    const customerId = String(userId).slice(-48);
+
+    // Call Cashfree API first (in parallel with DB write)
+    const cfPromise = cashfreeCreateOrder({
+      order_id: cashfreeOrderId,
+      order_amount: Number(amountNum.toFixed(2)),
+      order_currency: currency,
+      customer_details: {
+        customer_id: customerId,
+        customer_name: String(firstName) + (lastName ? ` ${String(lastName)}` : ''),
+        customer_email: String(email),
+        customer_phone: String(phone),
+      },
+      order_note: String(productInfo),
+      order_meta: {
+        return_url: returnUrl,
+        notify_url: notifyUrl,
+      },
+    });
+
+    // Create and save Order in DB (in parallel)
     const order = new Order({
-      userId: decoded.userId,
+      userId: userId,
       items: body.items || [
         {
           name: productInfo,
@@ -58,6 +85,7 @@ export async function POST(request: NextRequest) {
       status: 'pending',
       paymentStatus: 'pending',
       paymentMethod: 'cashfree',
+      cashfreeOrderId: cashfreeOrderId,
       shippingAddress: {
         firstName: String(firstName),
         lastName: lastName ? String(lastName) : '',
@@ -72,40 +100,13 @@ export async function POST(request: NextRequest) {
       clientUserAgent: request.headers.get('user-agent') || undefined,
     });
 
-    await order.save();
-
-    // Use our Mongo order id as Cashfree order_id (must be unique).
-    const cashfreeOrderId = String(order._id);
-
-    const returnUrl = getCashfreeReturnUrl(request);
-    const notifyUrl = getCashfreeWebhookUrl(request);
-
-    // Note: Cashfree expects customer_id to be <= 50 chars in many setups.
-    const customerId = String(decoded.userId).slice(-48);
-
-    const cf = await cashfreeCreateOrder({
-      order_id: cashfreeOrderId,
-      order_amount: Number(amountNum.toFixed(2)),
-      order_currency: currency,
-      customer_details: {
-        customer_id: customerId,
-        customer_name: String(firstName) + (lastName ? ` ${String(lastName)}` : ''),
-        customer_email: String(email),
-        customer_phone: String(phone),
-      },
-      order_note: String(productInfo),
-      order_meta: {
-        // Cashfree will redirect the customer here after payment.
-        // We handle verification + DB update in /api/payments/cashfree/return.
-        return_url: returnUrl,
-        notify_url: notifyUrl,
-      },
-    });
+    // Wait for both operations in parallel
+    const [cf] = await Promise.all([cfPromise, order.save()]);
 
     const paymentSessionId = (cf as any)?.payment_session_id as string | undefined;
 
     if (!paymentSessionId) {
-      // Keep order pending, but mark failure reason so we can investigate.
+      // Update order to mark failure
       await Order.updateOne(
         { _id: order._id },
         {
@@ -113,7 +114,6 @@ export async function POST(request: NextRequest) {
             paymentStatus: 'failed',
             status: 'failed',
             failureReason: 'Cashfree did not return payment_session_id',
-            cashfreeOrderId,
             cashfreeOrderStatus: (cf as any)?.order_status || undefined,
             updatedAt: new Date(),
           },
@@ -123,17 +123,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cashfree session creation failed' }, { status: 502 });
     }
 
+    // Update order with Cashfree details
     await Order.updateOne(
       { _id: order._id },
       {
         $set: {
-          cashfreeOrderId,
           cashfreePaymentSessionId: paymentSessionId,
           cashfreeOrderStatus: (cf as any)?.order_status || undefined,
           updatedAt: new Date(),
         },
       }
     );
+
+    const totalTime = Date.now() - startTime;
+    console.log(`✅ Cashfree initiate completed in ${totalTime}ms`);
 
     return NextResponse.json(
       {
@@ -148,8 +151,9 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
+    const totalTime = Date.now() - startTime;
     const message = error instanceof Error ? error.message : 'Failed to initiate Cashfree payment';
-    console.error('Cashfree initiate error:', message);
+    console.error(`❌ Cashfree initiate error after ${totalTime}ms:`, message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

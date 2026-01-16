@@ -308,13 +308,12 @@ export default function RegisterPage() {
 
             {showPayNow && (
               <div className="mt-6 flex justify-center">
-                <PayUStaticButton
-                  payuLink={payNowLink}
-                  workshopName={workshopInfo?.name || workshopSlug}
-                  mode={selectedMode}
-                  language={selectedLanguageForPayNow}
-                  buttonText="Pay Now"
-                />
+                <button
+                  onClick={() => router.push('/cart')}
+                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-8 rounded-lg transition-all active:scale-95"
+                >
+                  🎓 Enroll Now
+                </button>
               </div>
             )}
           </div>

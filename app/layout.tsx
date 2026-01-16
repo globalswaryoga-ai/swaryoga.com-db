@@ -3,6 +3,7 @@ import Script from 'next/script';
 import './globals.css';
 import WhatsAppWidget from '@/components/WhatsAppWidget';
 import AppInitializer from '@/components/AppInitializer';
+import { CartProvider } from '@/lib/context/CartContext';
 import { Space_Grotesk } from 'next/font/google';
 
 const spaceGrotesk = Space_Grotesk({ 
@@ -99,9 +100,11 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased bg-white text-swar-text overflow-x-hidden">
-        <AppInitializer />
-        {children}
-        <WhatsAppWidget />
+        <CartProvider>
+          <AppInitializer />
+          {children}
+          <WhatsAppWidget />
+        </CartProvider>
       </body>
     </html>
   );

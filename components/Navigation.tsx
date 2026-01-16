@@ -137,7 +137,7 @@ export default function Navigation() {
                     fontFamily: "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto",
                     letterSpacing: "-0.01em",
                     fontWeight: 700,
-                    color: "#2D6A4F"
+                    color: "#000000"
                   }}
                 >
                   Swar Yoga

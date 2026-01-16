@@ -791,7 +791,7 @@ const SalesReportSchema = new mongoose.Schema(
     labels: { type: [String], default: [], index: true },
     paymentMode: {
       type: String,
-      enum: ['payu', 'card', 'bank_transfer', 'cash', 'other'],
+      enum: ['payu', 'cashfree', 'card', 'bank_transfer', 'cash', 'other'],
       index: true,
     },
     saleDate: { type: Date, default: Date.now, index: true },

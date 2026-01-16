@@ -76,6 +76,48 @@ export async function POST(request: NextRequest) {
 
     await order.save();
 
+    // ✅ If payment succeeded, create customer lead automatically
+    if (paymentStatus === 'completed') {
+      try {
+        const shippingAddress = (order as any).shippingAddress || {};
+        const items = (order as any).items || [];
+        
+        // Extract workshop info from order items
+        const workshopName = items[0]?.name || 'Workshop';
+        
+        // Call create-customer-lead endpoint
+        const leadResponse = await fetch(
+          `${process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'http://localhost:3000'}/api/payments/create-customer-lead`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId: order._id.toString(),
+              userId: (order as any).userId,
+              firstName: shippingAddress.firstName || 'Customer',
+              lastName: shippingAddress.lastName || '',
+              email: shippingAddress.email || order.email,
+              phone: shippingAddress.phone || order.phone,
+              workshopName,
+              amount: order.total,
+              paymentMethod: 'cashfree',
+              transactionId: cfStatus,
+              mode: shippingAddress.mode || '',
+              language: shippingAddress.language || '',
+            }),
+          }
+        );
+
+        const leadData = await leadResponse.json().catch(() => null);
+        if (leadData?.success) {
+          console.log(`✅ Customer lead created: ${leadData.leadNumber}`);
+        }
+      } catch (leadError) {
+        console.error('⚠️ Failed to create customer lead:', leadError);
+        // Don't fail webhook if lead creation fails
+      }
+    }
+
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Cashfree webhook failed';

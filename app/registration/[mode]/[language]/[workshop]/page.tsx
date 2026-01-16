@@ -7,8 +7,10 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import PayUStaticButton from '@/components/PayUStaticButton';
 import { findWorkshopBySlug } from '@/lib/workshopsData';
-import { getWorkshopPaymentLink } from '@/lib/workshops/workshopPaymentConfig';
+import { getWorkshopPaymentLink, getWorkshopPrice } from '@/lib/workshops/workshopPaymentConfig';
 import { workshopCatalog } from '@/lib/workshopsData';
+import { useCart } from '@/lib/context/CartContext';
+import { AlertCircle, X } from 'lucide-react';
 
 type ModeParam = 'online' | 'offline' | 'residential' | 'recorded';
 type LanguageParam = 'english' | 'hindi' | 'marathi' | 'nepali';
@@ -76,14 +78,27 @@ export default function RegistrationPage() {
   const params = useParams<{ mode: string; language: string; workshop: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { addToCart } = useCart();
 
   const mode = normalizeMode(params?.mode);
   const language = normalizeLanguage(params?.language);
   const workshopSlug = normalizeWorkshopSlug(params?.workshop);
 
+  // Login modal state
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
   // Month is carried in the query string so we don't have to expand path params.
   // Example: /registration/online/hindi/swar-yoga-level-1?month=2026-01
   const [selectedMonth, setSelectedMonth] = useState('');
+
+  // Check if user is logged in
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    setIsLoggedIn(!!token);
+    setIsLoading(false);
+  }, []);
   const monthOptions = useMemo(() => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -215,6 +230,30 @@ export default function RegistrationPage() {
     loadSchedules(month);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workshopSlug, mode, language, selectedMonth, monthOptions.join('|')]);
+
+  const handleEnroll = async () => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    // Add to cart with price from payment config
+    if (workshop) {
+      const workshopPrice = getWorkshopPrice(workshopSlug) || 2999;
+      addToCart({
+        id: workshopSlug,
+        name: workshop.name,
+        price: workshopPrice,
+        quantity: 1,
+        mode,
+        language,
+        workshopSlug,
+      });
+    }
+
+    // Go to cart
+    router.push('/cart');
+  };
 
   return (
     <>
@@ -413,58 +452,18 @@ export default function RegistrationPage() {
               </div>
 
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-sm text-gray-700 font-semibold mb-1">Pay Now</p>
+                <p className="text-sm text-gray-700 font-semibold mb-1">Enroll Now</p>
                 <p className="text-xs text-gray-500">
-                  This opens PayU in the same tab.
+                  Click to add to cart and checkout.
                 </p>
 
                 <div className="mt-4">
-                  {workshopSlug === 'master-swar-yoga' ? (
-                    <div className="space-y-3">
-                      {masterMonthlyPayLink ? (
-                        <PayUStaticButton
-                          workshopName={workshop?.name || workshopSlug}
-                          payuLink={masterMonthlyPayLink}
-                          mode={mode}
-                          language={language}
-                          className="w-full"
-                          buttonText="Pay Now (Monthly ₹1500)"
-                        />
-                      ) : (
-                        <div className="text-sm text-red-700 font-semibold">
-                          Monthly payment link is not configured for this workshop / mode / language.
-                        </div>
-                      )}
-
-                      {masterThreeMonthPayLink ? (
-                        <PayUStaticButton
-                          workshopName={workshop?.name || workshopSlug}
-                          payuLink={masterThreeMonthPayLink}
-                          mode={mode}
-                          language={language}
-                          className="w-full"
-                          buttonText="Pay Now (3 Months ₹3600)"
-                        />
-                      ) : (
-                        <div className="text-sm text-red-700 font-semibold">
-                          3-month payment link is not configured for this workshop / mode / language.
-                        </div>
-                      )}
-                    </div>
-                  ) : payLink ? (
-                    <PayUStaticButton
-                      workshopName={workshop?.name || workshopSlug}
-                      payuLink={payLink}
-                      mode={mode}
-                      language={language}
-                      className="w-full"
-                      buttonText="Pay Now"
-                    />
-                  ) : (
-                    <div className="text-sm text-red-700 font-semibold">
-                      Payment link is not configured for this workshop / mode / language.
-                    </div>
-                  )}
+                  <button
+                    onClick={handleEnroll}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-3 px-4 rounded-lg transition-all active:scale-95"
+                  >
+                    🎓 Enroll Now
+                  </button>
                 </div>
               </div>
 
@@ -477,6 +476,51 @@ export default function RegistrationPage() {
         </div>
       </main>
       <Footer />
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Sign In Required</h2>
+                <p className="text-sm text-gray-600 mt-1">Please sign in or create an account to enroll</p>
+              </div>
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setShowLoginModal(false);
+                  router.push('/signin');
+                }}
+                className="w-full bg-gradient-to-r from-yoga-600 to-yoga-700 hover:from-yoga-700 hover:to-yoga-800 text-white font-bold py-3 px-4 rounded-lg transition-all"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => {
+                  setShowLoginModal(false);
+                  router.push('/signup');
+                }}
+                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold py-3 px-4 rounded-lg transition-all"
+              >
+                Create Account
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center mt-6">
+              After signing in, you can complete your enrollment and proceed to checkout.
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -33,7 +33,7 @@ const HomePage = () => {
       <Navigation />
       
       {/* New Workshops Announcement Banner */}
-      <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-green-600 text-white py-3 overflow-hidden">
+      <div className="bg-gradient-to-r from-orange-600 via-orange-500 to-orange-600 text-white py-3 overflow-hidden">
         <div className="flex animate-scroll whitespace-nowrap">
           <span className="inline-block px-8 text-sm sm:text-base font-semibold">
             🎉 New Swar Yoga workshops are now open for booking! Limited seats available - Register today!
@@ -76,7 +76,7 @@ const HomePage = () => {
             >
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-serif mb-4 sm:mb-6">
                 <span className="text-white font-light block mb-2">Welcome to</span>
-                <span className="text-swar-accent font-medium">Swar Yoga</span>
+                <span className="text-black font-medium">Swar Yoga</span>
               </h1>
             </div>
 
