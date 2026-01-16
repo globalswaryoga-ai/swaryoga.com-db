@@ -38,9 +38,7 @@ interface CashfreePaymentButtonProps {
 declare global {
   interface Window {
     Cashfree?: {
-      Checkout: new (opts: { paymentSessionId: string; redirectTarget?: string }) => {
-        show: () => Promise<void>;
-      };
+      checkout: (opts: { paymentSessionId: string; redirectTarget?: string }) => Promise<void>;
     };
   }
 }
@@ -163,15 +161,12 @@ export default function CashfreePaymentButton({
 
         console.log('🔒 Opening Cashfree checkout...');
         
-        // Cashfree SDK v3 requires creating a new Checkout instance
+        // Cashfree SDK v3 - checkout is a function, not a constructor
         try {
-          const checkout = new cf.Checkout({
+          await cf.checkout({
             paymentSessionId: paymentData.paymentSessionId,
             redirectTarget: '_self',
           });
-          
-          console.log('✅ Checkout instance created, showing...');
-          await checkout.show();
           console.log('✅ Cashfree checkout opened successfully');
         } catch (checkoutError) {
           console.error('❌ Checkout error:', checkoutError);
