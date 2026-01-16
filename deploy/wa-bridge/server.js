@@ -85,8 +85,27 @@ function initializeClient() {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
-      ]
+        '--disable-gpu',
+        '--disable-sync',
+        '--disable-extensions',
+        '--disable-web-resources',
+        '--disable-speech-api',
+        '--disable-background-networking',
+        '--disable-client-side-phishing-detection',
+        '--disable-popup-blocking',
+        '--disable-device-discovery-notifications',
+        '--disable-default-apps',
+        // Disable X11/D-Bus/document portal features that cause issues on headless systems
+        '--no-first-run',
+        '--use-fake-ui-for-media-stream',
+        '--use-fake-device-for-media-stream'
+      ],
+      protocolTimeout: 180000, // Increase protocol timeout to 180 seconds
+      env: {
+        // Disable D-Bus/document portal
+        DBUS_SYSTEM_BUS_ADDRESS: undefined,
+        DBUS_SESSION_BUS_ADDRESS: undefined
+      }
     }
   });
 
