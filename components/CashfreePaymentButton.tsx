@@ -206,7 +206,7 @@ export default function CashfreePaymentButton({
         className={`${
           className
             ? className
-            : 'w-full bg-gradient-to-r from-yoga-600 to-yoga-700 hover:from-yoga-700 hover:to-yoga-800 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-all transform hover:scale-105 flex items-center justify-center gap-2'
+            : 'w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-all transform hover:scale-105 flex items-center justify-center gap-2'
         } ${loading || !sdkReady ? 'opacity-75 cursor-wait' : ''}`}
       >
         {loading ? (
