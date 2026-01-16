@@ -24,6 +24,7 @@ export interface CartItem {
   image?: string;
   description?: string;
   duration?: string;
+  isRepeatPurchase?: boolean; // Flag for 40% discount on repeat purchases
 }
 
 const CART_STORAGE_KEY = 'swarYogaCart';

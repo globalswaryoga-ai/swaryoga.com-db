@@ -37,7 +37,18 @@ export default function EnhancedCheckoutPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // Calculate subtotal with repeat purchase discount (40% off for repeat purchases)
+  const subtotal = cartItems.reduce((sum, item) => {
+    let itemPrice = item.price;
+    
+    // Apply 40% discount for repeat purchases
+    if (item.isRepeatPurchase) {
+      itemPrice = itemPrice * 0.6; // 40% discount = 60% of original price
+    }
+    
+    return sum + itemPrice * item.quantity;
+  }, 0);
+  
   const tax = parseFloat((subtotal * 0.025).toFixed(2)); // 2.5% Service Charges
   const total = parseFloat((subtotal + tax).toFixed(2));
 
@@ -197,8 +208,22 @@ export default function EnhancedCheckoutPage() {
                   {cartItems.map((item) => (
                     <div key={item.id} className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg hover:border-yoga-400 transition-colors">
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-900">{item.name}</p>
-                        <p className="text-sm text-gray-600">{item.currency} {item.price.toFixed(2)} each</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-gray-900">{item.name}</p>
+                          {item.isRepeatPurchase && (
+                            <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">
+                              40% OFF
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          {item.currency} {item.price.toFixed(2)} each
+                          {item.isRepeatPurchase && (
+                            <span className="ml-2 text-green-600 font-semibold">
+                              → {item.currency} {(item.price * 0.6).toFixed(2)} (repeat)
+                            </span>
+                          )}
+                        </p>
                       </div>
                       
                       <div className="flex items-center gap-3">
@@ -229,7 +254,9 @@ export default function EnhancedCheckoutPage() {
 
                         {/* Subtotal */}
                         <span className="font-bold text-yoga-600 w-24 text-right">
-                          {item.currency} {(item.price * item.quantity).toFixed(2)}
+                          {item.currency} {(
+                            (item.isRepeatPurchase ? item.price * 0.6 : item.price) * item.quantity
+                          ).toFixed(2)}
                         </span>
 
                         {/* Remove Button */}
@@ -352,6 +379,18 @@ export default function EnhancedCheckoutPage() {
                     <span>Shipping</span>
                     <span className="font-semibold text-green-600">Free</span>
                   </div>
+                  
+                  {/* Show repeat purchase discount if applicable */}
+                  {cartItems.some(item => item.isRepeatPurchase) && (
+                    <div className="flex justify-between text-green-600 font-semibold">
+                      <span>🎉 Repeat Purchase Discount (40%)</span>
+                      <span>-₹{(
+                        cartItems
+                          .filter(item => item.isRepeatPurchase)
+                          .reduce((sum, item) => sum + (item.price * 0.4 * item.quantity), 0)
+                      ).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Total */}
