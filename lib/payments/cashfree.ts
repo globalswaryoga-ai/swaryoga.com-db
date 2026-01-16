@@ -84,13 +84,33 @@ export function getCashfreeSdkUrl(): string {
 
 export function getCashfreeReturnUrl(request: NextRequest): string {
   const baseUrl = getRequestBaseUrl(request);
-  // We route Cashfree return through an API handler so we can verify payment and update DB.
-  return `${baseUrl}/api/payments/cashfree/return`;
+  // For production, baseUrl is already HTTPS from Vercel
+  // For local testing, convert http to https URL (Cashfree requires HTTPS)
+  let url = `${baseUrl}/api/payments/cashfree/return`;
+  
+  // Cashfree production requires HTTPS. For local testing, use a placeholder HTTPS URL
+  // When deployed to Vercel, this will already be HTTPS
+  if (url.startsWith('http://localhost') && getCashfreeEnv() === 'production') {
+    // In production mode, localhost shouldn't be used anyway
+    // But if it is, use a dummy HTTPS URL for Cashfree validation
+    url = url.replace('http://localhost:3000', 'https://localhost:3000');
+  }
+  
+  return url;
 }
 
 export function getCashfreeWebhookUrl(request: NextRequest): string {
   const baseUrl = getRequestBaseUrl(request);
-  return `${baseUrl}/api/payments/cashfree/webhook`;
+  let url = `${baseUrl}/api/payments/cashfree/webhook`;
+  
+  // Cashfree production requires HTTPS for webhook URLs
+  // When deployed to Vercel, this will already be HTTPS
+  if (url.startsWith('http://localhost') && getCashfreeEnv() === 'production') {
+    // For production mode on localhost, convert to HTTPS
+    url = url.replace('http://localhost:3000', 'https://localhost:3000');
+  }
+  
+  return url;
 }
 
 function cashfreeHeaders() {
