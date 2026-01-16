@@ -17,6 +17,7 @@ import {
 
 // Clean payment initiation - NO rate limiting - TESTED AND WORKING
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
   try {
     console.log('✅ /api/payments/payu/initiate called - CLEAN ENDPOINT');
     
@@ -101,6 +102,11 @@ export async function POST(request: NextRequest) {
 
     await order.save();
 
+    const totalTime = Date.now() - startTime;
+    if (totalTime > 5000) {
+      console.warn(`⚠️ PayU initiate took ${totalTime}ms (slower than target 5s)`);
+    }
+
     // Return payment form data
     return NextResponse.json({
       success: true,
@@ -121,7 +127,12 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('❌ Payment initiation error:', error);
+    const totalTime = Date.now() - startTime;
+    const message = error instanceof Error ? error.message : 'Failed to initiate payment';
+    if (totalTime > 5000) {
+      console.error(`❌ PayU initiate timeout after ${totalTime}ms`);
+    }
+    console.error('❌ Payment initiation error:', message);
     return NextResponse.json(
       { error: 'Failed to initiate payment' },
       { status: 500 }

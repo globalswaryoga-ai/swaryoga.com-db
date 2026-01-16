@@ -136,8 +136,8 @@ export async function POST(request: NextRequest) {
     );
 
     const totalTime = Date.now() - startTime;
-    if (totalTime > 3000) {
-      console.warn(`⚠️ Cashfree initiate took ${totalTime}ms (slower than expected)`);
+    if (totalTime > 5000) {
+      console.warn(`⚠️ Cashfree initiate took ${totalTime}ms (slower than target 5s)`);
     }
 
     return NextResponse.json(
@@ -155,16 +155,27 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const totalTime = Date.now() - startTime;
     const message = error instanceof Error ? error.message : 'Failed to initiate Cashfree payment';
-    console.error(`❌ Cashfree initiate error after ${totalTime}ms:`, message);
+    if (totalTime > 5000) {
+      console.error(`❌ Cashfree initiate timeout after ${totalTime}ms`);
+    }
+    
+    console.error('❌ Payment initiation error:', message);
     
     // Provide helpful error messages for common issues
     let statusCode = 500;
     let errorResponse = { error: message };
     
-    if (message.includes('authentication') || message.includes('UNAUTHORIZED') || message.includes('401')) {
+    // Check for credential configuration issues
+    if (message.includes('placeholder value detected') || message.includes('not configured')) {
+      statusCode = 500;
+      errorResponse = { 
+        error: 'Payment gateway is not properly configured. Please contact support.',
+        details: 'Server configuration error - Cashfree credentials missing'
+      };
+    } else if (message.includes('authentication') || message.includes('UNAUTHORIZED') || message.includes('401')) {
       statusCode = 401;
       errorResponse = { 
-        error: 'Authentication with payment gateway failed. Check Cashfree credentials.',
+        error: 'Payment authentication failed. Please try again or contact support.',
         details: message 
       };
     } else if (message.includes('INVALID') || message.includes('validation')) {

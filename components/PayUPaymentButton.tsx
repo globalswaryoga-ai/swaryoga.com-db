@@ -117,13 +117,17 @@ export default function PayUPaymentButton({
         throw new Error('Authentication required. Please login to proceed with payment.');
       }
 
-      // Call PayU initiation API endpoint
+      // Call PayU initiation API endpoint with 5 second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const response = await fetch('/api/payments/payu/initiate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
+        signal: controller.signal,
         body: JSON.stringify({
           amount: amount,
           productInfo: `${workshopName} (${currency})`,
@@ -147,7 +151,7 @@ export default function PayUPaymentButton({
           failureUrl: urls.failureUrl,
           cancelUrl: urls.cancelUrl,
         }),
-      });
+      }).finally(() => clearTimeout(timeoutId));
 
       const result = await response.json();
 

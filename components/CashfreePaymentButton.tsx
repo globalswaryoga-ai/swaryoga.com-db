@@ -107,9 +107,9 @@ export default function CashfreePaymentButton({
         throw new Error('Cashfree SDK not loaded. Please refresh and try again.');
       }
 
-      // Step 1: Call our API to initiate payment with 15 second timeout
+      // Step 1: Call our API to initiate payment with 5 second timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',

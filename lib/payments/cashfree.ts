@@ -55,6 +55,9 @@ export interface CashfreeGetOrderResponse {
 function requiredEnv(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`${name} is not configured`);
+  if (v.includes('YOUR_') || v === 'your_') {
+    throw new Error(`${name} is not configured - placeholder value detected. Please set actual credentials.`);
+  }
   return v;
 }
 
@@ -106,9 +109,9 @@ export async function cashfreeCreateOrder(
 ): Promise<CashfreeCreateOrderResponse> {
   const url = `${getCashfreeApiBase()}/orders`;
 
-  // Add 10 second timeout for Cashfree API calls
+  // Add 3.5 second timeout for Cashfree API calls (aggressive timeout for fast response)
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
 
   try {
     const res = await fetch(url, {
@@ -135,9 +138,9 @@ export async function cashfreeCreateOrder(
 export async function cashfreeGetOrder(orderId: string): Promise<CashfreeGetOrderResponse> {
   const url = `${getCashfreeApiBase()}/orders/${encodeURIComponent(orderId)}`;
 
-  // Add 10 second timeout
+  // Add 3.5 second timeout (aggressive timeout for fast response)
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
 
   try {
     const res = await fetch(url, {
