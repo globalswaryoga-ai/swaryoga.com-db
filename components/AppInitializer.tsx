@@ -5,19 +5,10 @@ import { permanentStorage } from '@/lib/permanentStorageManager';
 
 export default function AppInitializer() {
   useEffect(() => {
-    // Clear any old auto-login data for security
-    try {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('userName');
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('userPhone');
-      localStorage.removeItem('userCountryCode');
-      localStorage.removeItem('sessionExpiry');
-    } catch (error) {
-      console.error('Error clearing localStorage:', error);
-    }
-
+    // DISABLED: Auto-logout on every page load was causing user sessions to clear
+    // Users should stay logged in until they manually logout
+    // Only initialize permanent storage without clearing auth tokens
+    
     // Initialize permanent storage with auto-sync
     permanentStorage.initialize();
 
