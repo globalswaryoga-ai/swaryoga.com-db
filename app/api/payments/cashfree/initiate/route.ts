@@ -19,11 +19,22 @@ export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
-    const decoded = token ? verifyToken(token) : null;
+    
+    let decoded = null;
+    if (token) {
+      try {
+        decoded = verifyToken(token);
+        console.log('✅ Token verified for user:', decoded?.userId);
+      } catch (tokenError) {
+        console.warn('⚠️ Invalid token provided:', tokenError instanceof Error ? tokenError.message : 'Unknown error');
+        // Continue without authentication (allow guest checkout)
+      }
+    }
 
     // Allow unauthenticated requests (public checkout)
     // If authenticated, use userId; otherwise generate placeholder for new customer
     const userId = decoded?.userId || 'guest-' + Date.now();
+    console.log('📝 Processing payment for user:', userId);
 
     const body = (await request.json().catch(() => null)) as any;
     if (!body) {
