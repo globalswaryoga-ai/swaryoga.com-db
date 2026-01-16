@@ -1,0 +1,35 @@
+version: '3.9'
+
+services:
+  whatsapp-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    container_name: swaryoga-whatsapp-bridge
+    restart: always
+    ports:
+      - "3333:3333"
+    environment:
+      - NODE_ENV=production
+      - PORT=3333
+      - WHATSAPP_CLIENT_ID=crm-whatsapp-session
+      - WHATSAPP_WEB_BRIDGE_SECRET=swar-bridge-secret-2024
+      - WHATSAPP_WEB_ALLOWED_ORIGINS=https://crm.swaryoga.com,https://swaryoga.com
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+      - PUPPETEER_SKIP_DOWNLOAD=true
+      - CHROME_PATH=/usr/bin/chromium-browser
+      - NEXT_BASE_URL=https://crm.swaryoga.com
+    volumes:
+      - ./services/whatsapp-web/.wwebjs_auth:/app/.wwebjs_auth
+      - ./services/whatsapp-web/logs:/app/logs
+    networks:
+      - swaryoga-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  swaryoga-network:
+    driver: bridge
