@@ -63,3 +63,34 @@ export const clearCart = () => {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(CART_STORAGE_KEY);
 };
+
+export const updateCartItemQuantity = (itemId: string, quantity: number) => {
+  const current = getStoredCart();
+  const itemIndex = current.findIndex((item) => item.id === itemId);
+  
+  if (itemIndex !== -1) {
+    if (quantity <= 0) {
+      // Remove item if quantity is 0 or less
+      current.splice(itemIndex, 1);
+    } else {
+      current[itemIndex].quantity = quantity;
+    }
+    persistCart(current);
+  }
+};
+
+export const removeCartItem = (itemId: string) => {
+  const current = getStoredCart();
+  const filtered = current.filter((item) => item.id !== itemId);
+  persistCart(filtered);
+};
+
+export const updateCartItem = (itemId: string, updates: Partial<CartItem>) => {
+  const current = getStoredCart();
+  const itemIndex = current.findIndex((item) => item.id === itemId);
+  
+  if (itemIndex !== -1) {
+    current[itemIndex] = { ...current[itemIndex], ...updates };
+    persistCart(current);
+  }
+};

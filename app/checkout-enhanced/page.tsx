@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import CashfreePaymentButton from '@/components/CashfreePaymentButton';
-import { CartItem, getStoredCart } from '@/lib/cart';
+import { CartItem, getStoredCart, updateCartItemQuantity, removeCartItem } from '@/lib/cart';
 import { BANK_ACCOUNT_DETAILS, getWhatsAppLink } from '@/lib/bankTransferConfig';
 
 export default function EnhancedCheckoutPage() {
@@ -187,6 +187,64 @@ export default function EnhancedCheckoutPage() {
                     onChange={handleFormChange}
                     className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-yoga-600 focus:outline-none transition-colors"
                   />
+                </div>
+              </div>
+
+              {/* Editable Cart Items */}
+              <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 mt-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">📦 Your Items</h2>
+                <div className="space-y-4">
+                  {cartItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg hover:border-yoga-400 transition-colors">
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-900">{item.name}</p>
+                        <p className="text-sm text-gray-600">{item.currency} {item.price.toFixed(2)} each</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        {/* Quantity Controls */}
+                        <div className="flex items-center border-2 border-gray-300 rounded-lg">
+                          <button
+                            onClick={() => {
+                              if (item.quantity > 1) {
+                                updateCartItemQuantity(item.id, item.quantity - 1);
+                                setCartItems(getStoredCart());
+                              }
+                            }}
+                            className="px-3 py-1 text-gray-600 hover:text-gray-900 transition-colors"
+                          >
+                            −
+                          </button>
+                          <span className="px-4 py-1 font-semibold text-gray-900">{item.quantity}</span>
+                          <button
+                            onClick={() => {
+                              updateCartItemQuantity(item.id, item.quantity + 1);
+                              setCartItems(getStoredCart());
+                            }}
+                            className="px-3 py-1 text-gray-600 hover:text-gray-900 transition-colors"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        {/* Subtotal */}
+                        <span className="font-bold text-yoga-600 w-24 text-right">
+                          {item.currency} {(item.price * item.quantity).toFixed(2)}
+                        </span>
+
+                        {/* Remove Button */}
+                        <button
+                          onClick={() => {
+                            removeCartItem(item.id);
+                            setCartItems(getStoredCart());
+                          }}
+                          className="px-3 py-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
