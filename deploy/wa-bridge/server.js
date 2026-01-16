@@ -690,8 +690,34 @@ app.post('/send', authMiddleware, async (req, res) => {
       }
     } catch (sendErr) {
       console.error('[send] Failed to send message:', sendErr.message);
+      
+      // Check if it's a frame detachment issue
+      if (sendErr.message.includes('detached') || sendErr.message.includes('Frame')) {
+        console.warn('[send] ⚠️ Detected frame/connection issue - triggering reconnect');
+        sessionReady = false;
+        
+        // Try to recover
+        setTimeout(() => {
+          if (!sessionReady && client) {
+            console.log('[send] 🔄 Attempting automatic recovery...');
+            try {
+              client.initialize().catch(() => {
+                console.error('[send] Recovery failed');
+              });
+            } catch (e) {
+              console.error('[send] Recovery error:', e.message);
+            }
+          }
+        }, 2000);
+        
+        return res.status(503).json({ 
+          error: 'Connection interrupted - attempting recovery',
+          details: 'WhatsApp client experienced a connection issue. Please retry in a moment.'
+        });
+      }
+      
       // Return 503 if it's a connection issue, 400 for other errors
-      const statusCode = sendErr.message.includes('disconnect') ? 503 : 400;
+      const statusCode = sendErr.message.includes('disconnect') || sendErr.message.includes('not connected') ? 503 : 400;
       res.status(statusCode).json({ 
         error: sendErr.message,
         details: 'Failed to send message. Please try again.'
@@ -738,7 +764,33 @@ app.post('/send-to-number', authMiddleware, async (req, res) => {
       });
     } catch (sendErr) {
       console.error('[send-to-number] Failed to send message:', sendErr.message);
-      const statusCode = sendErr.message.includes('disconnect') ? 503 : 400;
+      
+      // Check if it's a frame detachment issue
+      if (sendErr.message.includes('detached') || sendErr.message.includes('Frame')) {
+        console.warn('[send-to-number] ⚠️ Detected frame/connection issue - triggering reconnect');
+        sessionReady = false;
+        
+        // Try to recover
+        setTimeout(() => {
+          if (!sessionReady && client) {
+            console.log('[send-to-number] 🔄 Attempting automatic recovery...');
+            try {
+              client.initialize().catch(() => {
+                console.error('[send-to-number] Recovery failed');
+              });
+            } catch (e) {
+              console.error('[send-to-number] Recovery error:', e.message);
+            }
+          }
+        }, 2000);
+        
+        return res.status(503).json({ 
+          error: 'Connection interrupted - attempting recovery',
+          details: 'WhatsApp client experienced a connection issue. Please retry in a moment.'
+        });
+      }
+      
+      const statusCode = sendErr.message.includes('disconnect') || sendErr.message.includes('not connected') ? 503 : 400;
       res.status(statusCode).json({ 
         error: sendErr.message,
         details: 'Failed to send message. Please try again.'
