@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [leadNumber, setLeadNumber] = useState<string>('');
@@ -107,5 +107,24 @@ export default function PaymentSuccessPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function PaymentSuccessFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin h-12 w-12 border-4 border-green-200 border-t-green-600 rounded-full mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading payment status...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={<PaymentSuccessFallback />}>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }
