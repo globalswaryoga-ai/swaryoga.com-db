@@ -25,11 +25,15 @@ const SESSION_DIR = path.join(__dirname, '.wwebjs_auth');
 function getChromePath() {
   const possiblePaths = [
     process.env.CHROME_PATH,
+    // Prefer Google Chrome (more stable for headless on Linux)
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    // macOS
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
     '/opt/homebrew/bin/chromium',
+    // Fallback to Chromium
     '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
     '/snap/bin/chromium'
   ];
   
