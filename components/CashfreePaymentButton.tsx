@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import Script from 'next/script';
 
 /**
  * @fileoverview Cashfree Payment Button Component
  *
  * Uses Cashfree JS SDK v3 for secure payment checkout
  * Features:
- * - Loads Cashfree SDK dynamically
+ * - Loads Cashfree SDK via Next.js Script (handles CSP)
  * - Initiates payment through API endpoint
  * - Handles payment session creation
  * - Uses Cashfree's hosted checkout
@@ -64,37 +65,14 @@ export default function CashfreePaymentButton({
 }: CashfreePaymentButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const sdkLoadedRef = useRef(false);
+  const [sdkReady, setSdkReady] = useState(false);
 
-  // Load Cashfree SDK on mount
+  // SDK is ready when window.Cashfree exists
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // Check if already loading or loaded
-    if (window.Cashfree) {
-      sdkLoadedRef.current = true;
-      return;
+    if (typeof window !== 'undefined' && window.Cashfree) {
+      setSdkReady(true);
+      console.log('✅ Cashfree SDK detected on window');
     }
-
-    const script = document.createElement('script');
-    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      sdkLoadedRef.current = true;
-      console.log('✅ Cashfree SDK loaded successfully');
-    };
-    script.onerror = () => {
-      console.error('❌ Failed to load Cashfree SDK');
-      setError('Failed to load payment gateway. Please refresh and try again.');
-    };
-    document.head.appendChild(script);
-
-    return () => {
-      if (document.head.contains(script)) {
-        document.head.removeChild(script);
-      }
-    };
   }, []);
 
   const handlePayment = async () => {
@@ -105,7 +83,7 @@ export default function CashfreePaymentButton({
 
       console.log('🎯 Initiating Cashfree payment...');
 
-      if (!sdkLoadedRef.current || !window.Cashfree) {
+      if (!window.Cashfree) {
         throw new Error('Cashfree SDK not loaded. Please refresh and try again.');
       }
 
@@ -120,7 +98,6 @@ export default function CashfreePaymentButton({
         'Content-Type': 'application/json',
       };
       
-      // Only add Authorization header if token exists
       if (token && token.trim()) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -156,7 +133,6 @@ export default function CashfreePaymentButton({
           const data = await response.json().catch(() => ({ error: 'Payment initiation failed' }));
           console.error('❌ API Error Response:', data);
           
-          // Provide more detailed error messages
           let errorMessage = data.error || 'Failed to initiate payment';
           
           if (response.status === 401 || response.status === 403) {
@@ -184,7 +160,6 @@ export default function CashfreePaymentButton({
         }
 
         console.log('🔒 Opening Cashfree checkout...');
-        // Trigger checkout
         await cf.checkout({
           paymentSessionId: paymentData.paymentSessionId,
           redirectTarget: '_self',
@@ -206,6 +181,19 @@ export default function CashfreePaymentButton({
 
   return (
     <div className="w-full">
+      <Script 
+        src="https://sdk.cashfree.com/js/v3/cashfree.js"
+        strategy="lazyOnload"
+        onLoad={() => {
+          console.log('✅ Cashfree SDK script loaded');
+          setSdkReady(true);
+        }}
+        onError={() => {
+          console.error('❌ Failed to load Cashfree SDK script');
+          setError('Failed to load payment gateway. Please refresh the page.');
+        }}
+      />
+      
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
           <p className="font-semibold">❌ Payment Error</p>
@@ -214,22 +202,22 @@ export default function CashfreePaymentButton({
       )}
       <button
         onClick={handlePayment}
-        disabled={disabled || loading || !sdkLoadedRef.current}
+        disabled={disabled || loading || !sdkReady}
         className={`${
           className
             ? className
             : 'w-full bg-gradient-to-r from-yoga-600 to-yoga-700 hover:from-yoga-700 hover:to-yoga-800 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-all transform hover:scale-105 flex items-center justify-center gap-2'
-        } ${loading || !sdkLoadedRef.current ? 'opacity-75 cursor-wait' : ''}`}
+        } ${loading || !sdkReady ? 'opacity-75 cursor-wait' : ''}`}
       >
         {loading ? (
           <>
             <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
             Processing Payment...
           </>
-        ) : !sdkLoadedRef.current ? (
+        ) : !sdkReady ? (
           <>
             <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-            Loading Payment...
+            Loading Payment Gateway...
           </>
         ) : (
           <>
