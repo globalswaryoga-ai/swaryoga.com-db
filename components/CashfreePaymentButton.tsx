@@ -103,13 +103,18 @@ export default function CashfreePaymentButton({
       setError('');
       onLoading?.(true);
 
+      console.log('🎯 Initiating Cashfree payment...');
+
       if (!sdkLoadedRef.current || !window.Cashfree) {
         throw new Error('Cashfree SDK not loaded. Please refresh and try again.');
       }
 
-      // Step 1: Call our API to initiate payment with 5 second timeout
+      // Step 1: Call our API to initiate payment with 10 second timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.error('❌ Payment API timeout after 10s');
+      }, 10000);
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -121,6 +126,9 @@ export default function CashfreePaymentButton({
       }
 
       try {
+        console.log('📡 Calling /api/payments/cashfree/initiate...');
+        const startTime = Date.now();
+        
         const response = await fetch('/api/payments/cashfree/initiate', {
           method: 'POST',
           headers,
@@ -141,8 +149,12 @@ export default function CashfreePaymentButton({
           signal: controller.signal,
         });
 
+        const elapsed = Date.now() - startTime;
+        console.log(`⏱️ API response in ${elapsed}ms, status: ${response.status}`);
+
         if (!response.ok) {
           const data = await response.json().catch(() => ({ error: 'Payment initiation failed' }));
+          console.error('❌ API Error Response:', data);
           
           // Provide more detailed error messages
           let errorMessage = data.error || 'Failed to initiate payment';
@@ -159,6 +171,7 @@ export default function CashfreePaymentButton({
         }
 
         const paymentData = await response.json();
+        console.log('✅ Payment session received:', paymentData.paymentSessionId?.substring(0, 20) + '...');
 
         if (!paymentData.success || !paymentData.paymentSessionId) {
           throw new Error(paymentData.error || 'Invalid payment session');
@@ -170,16 +183,19 @@ export default function CashfreePaymentButton({
           throw new Error('Cashfree SDK not loaded');
         }
 
+        console.log('🔒 Opening Cashfree checkout...');
         // Trigger checkout
         await cf.checkout({
           paymentSessionId: paymentData.paymentSessionId,
           redirectTarget: '_self',
         });
+        console.log('✅ Cashfree checkout opened successfully');
       } finally {
         clearTimeout(timeoutId);
       }
     } catch (err: any) {
       const errorMessage = err.message || 'Payment failed. Please try again.';
+      console.error('❌ Payment Error:', errorMessage);
       setError(errorMessage);
       onError?.(errorMessage);
     } finally {

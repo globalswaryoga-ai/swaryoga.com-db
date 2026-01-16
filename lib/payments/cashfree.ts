@@ -129,11 +129,12 @@ export async function cashfreeCreateOrder(
 ): Promise<CashfreeCreateOrderResponse> {
   const url = `${getCashfreeApiBase()}/orders`;
 
-  // Add 3.5 second timeout for Cashfree API calls (aggressive timeout for fast response)
+  // Add 10 second timeout for Cashfree API calls (Cashfree can be slow from India)
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   try {
+    console.log(`📡 Calling Cashfree API: ${url}`);
     const res = await fetch(url, {
       method: 'POST',
       headers: cashfreeHeaders(),
@@ -146,10 +147,18 @@ export async function cashfreeCreateOrder(
 
     if (!res.ok) {
       const msg = (json as any)?.message || (json as any)?.error || text || 'Cashfree create order failed';
+      console.error(`❌ Cashfree API Error (${res.status}):`, msg);
       throw new Error(msg);
     }
 
+    console.log(`✅ Cashfree API Success: order_id=${(json as any)?.order_id}`);
     return json;
+  } catch (error) {
+    if ((error as any)?.name === 'AbortError') {
+      console.error('❌ Cashfree API timeout (10s exceeded)');
+      throw new Error('Cashfree payment gateway timeout. Please try again.');
+    }
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -158,11 +167,12 @@ export async function cashfreeCreateOrder(
 export async function cashfreeGetOrder(orderId: string): Promise<CashfreeGetOrderResponse> {
   const url = `${getCashfreeApiBase()}/orders/${encodeURIComponent(orderId)}`;
 
-  // Add 3.5 second timeout (aggressive timeout for fast response)
+  // Add 10 second timeout for Cashfree API calls
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   try {
+    console.log(`📡 Fetching Cashfree order: ${orderId}`);
     const res = await fetch(url, {
       method: 'GET',
       headers: cashfreeHeaders(),
@@ -174,13 +184,19 @@ export async function cashfreeGetOrder(orderId: string): Promise<CashfreeGetOrde
 
     if (!res.ok) {
       const msg = (json as any)?.message || (json as any)?.error || text || 'Cashfree get order failed';
+      console.error(`❌ Cashfree API Error (${res.status}):`, msg);
       throw new Error(msg);
     }
 
+    console.log(`✅ Cashfree order status: ${(json as any)?.order_status}`);
     return json;
+  } catch (error) {
+    if ((error as any)?.name === 'AbortError') {
+      console.error('❌ Cashfree API timeout (10s exceeded)');
+      throw new Error('Cashfree payment gateway timeout. Please try again.');
+    }
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }
-
-  return json;
 }
