@@ -26,10 +26,56 @@ export default function EnhancedCheckoutPage() {
     zip: '',
   });
 
+  // Detect repeat purchases based on user's purchase history
   useEffect(() => {
-    const items = getStoredCart();
-    setCartItems(items);
-    setIsLoaded(true);
+    const loadCartAndDetectRepeatPurchases = async () => {
+      const items = getStoredCart();
+      
+      try {
+        // Try to fetch user's purchase history
+        const token = localStorage.getItem('authToken');
+        const response = await fetch('/api/user/purchase-history', {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          }
+        });
+
+        if (response.ok) {
+          const { purchasedItems, userId } = await response.json();
+          console.log(`🔍 User ${userId || 'guest'} - Checking ${items.length} items against ${purchasedItems?.length || 0} previous purchases`);
+          
+          // Mark items as repeat purchase if they exist in purchase history
+          const updatedItems = items.map(item => {
+            const isPurchased = purchasedItems?.some((p: any) => 
+              p.name?.toLowerCase() === item.name?.toLowerCase() || 
+              p.id === item.id
+            );
+            
+            if (isPurchased) {
+              console.log(`✅ ${item.name} - REPEAT PURCHASE (40% discount applied)`);
+              return { ...item, isRepeatPurchase: true };
+            } else {
+              console.log(`⭕ ${item.name} - First time purchase (full price)`);
+              return { ...item, isRepeatPurchase: false };
+            }
+          });
+          
+          setCartItems(updatedItems);
+        } else {
+          // Guest user or no auth - don't apply repeat purchase discount
+          console.log('👤 Guest user detected - no repeat purchase discount');
+          setCartItems(items.map(item => ({ ...item, isRepeatPurchase: false })));
+        }
+      } catch (error) {
+        console.error('⚠️ Error detecting repeat purchases:', error);
+        // Fallback: load cart without repeat purchase detection
+        setCartItems(items.map(item => ({ ...item, isRepeatPurchase: false })));
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    loadCartAndDetectRepeatPurchases();
   }, []);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
