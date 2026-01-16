@@ -98,14 +98,12 @@ function initializeClient() {
         // Disable X11/D-Bus/document portal features that cause issues on headless systems
         '--no-first-run',
         '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream'
+        '--use-fake-device-for-media-stream',
+        // Handle D-Bus warnings on EC2/headless
+        '--disable-features=TranslateUI',
+        '--enable-features=NetworkService,NetworkServiceInProcess'
       ],
-      protocolTimeout: 180000, // Increase protocol timeout to 180 seconds
-      env: {
-        // Disable D-Bus/document portal
-        DBUS_SYSTEM_BUS_ADDRESS: undefined,
-        DBUS_SESSION_BUS_ADDRESS: undefined
-      }
+      protocolTimeout: 180000 // Increase protocol timeout to 180 seconds
     }
   });
 
