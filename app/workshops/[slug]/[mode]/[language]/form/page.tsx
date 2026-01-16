@@ -32,16 +32,23 @@ export default function WorkshopRegistrationFormPage() {
 
   // Fetch workshop details
   useEffect(() => {
+    // Prevent duplicate additions with a flag
+    let isMounted = true;
+    
     const fetchWorkshop = async () => {
       try {
         const response = await fetch(`/api/workshops/schedules?workshopSlug=${slug}&mode=${mode}&language=${language}`);
         const data = await response.json();
-        if (data.schedules && data.schedules.length > 0) {
+        if (data.schedules && data.schedules.length > 0 && isMounted) {
           const workshopData = data.schedules[0];
           setWorkshop(workshopData);
           
-          // Auto-add to cart only once - use addToCart with deduplication
+          // Generate unique ID based on workshop + mode + language combination
+          const itemId = `workshop-${workshopData._id}-${mode}-${language}`;
+          
+          // Auto-add to cart only once with proper deduplication
           addToCart({
+            id: itemId,
             kind: 'workshop',
             productId: workshopData._id,
             name: workshopData.workshopName || 'Workshop',
@@ -55,11 +62,18 @@ export default function WorkshopRegistrationFormPage() {
       } catch (error) {
         console.error('Error fetching workshop:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchWorkshop();
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
   }, [slug, mode, language, addToCart]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

@@ -6,6 +6,8 @@ export interface CartItem {
   price: number;
   quantity: number;
   currency?: CartCurrency;
+  kind?: 'workshop' | 'course' | 'other';
+  productId?: string;
   workshop?: string;
   scheduleId?: string;
   seatsTotal?: number;
