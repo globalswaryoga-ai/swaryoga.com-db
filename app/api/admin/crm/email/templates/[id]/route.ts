@@ -71,6 +71,10 @@ export async function PUT(
 }
 
 // DELETE /api/admin/crm/email/templates/[id] - Delete email template
+
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }

@@ -4,6 +4,10 @@ import { WhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }

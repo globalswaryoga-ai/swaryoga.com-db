@@ -6,6 +6,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import {
+
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
   uploadTemplateFileToS3,
   validateTemplateFile,
 } from '@/lib/aws-s3';

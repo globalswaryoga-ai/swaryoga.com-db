@@ -11,6 +11,10 @@ import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 // which can make QR/bridge delivery work for “some numbers” but fail for others.
 // We now delegate sending to the shared helper to keep behavior consistent.
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);

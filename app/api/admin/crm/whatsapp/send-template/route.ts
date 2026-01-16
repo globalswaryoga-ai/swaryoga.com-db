@@ -4,6 +4,10 @@ import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate, sendWhatsAppText } from '@/lib/whatsapp';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 function isHttpUrl(value: unknown): boolean {
   const s = String(value || '').trim();
   if (!s) return false;

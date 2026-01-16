@@ -21,6 +21,10 @@ import mongoose from 'mongoose';
  */
 
 // Predefined roles with default permissions
+
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
 const DEFAULT_ROLES = {
   admin: [
     'view_leads',

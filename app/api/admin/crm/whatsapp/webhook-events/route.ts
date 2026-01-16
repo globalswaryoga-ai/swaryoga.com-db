@@ -3,6 +3,10 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getWhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 function parseLimit(v: string | null, fallback: number) {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;

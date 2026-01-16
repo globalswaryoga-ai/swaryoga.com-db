@@ -9,6 +9,10 @@ import {
 } from '@/lib/crm-handlers';
 import { ChatbotFlow } from '@/lib/schemas/enterpriseSchemas';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 export async function GET(request: NextRequest) {
   try {
     const userId = verifyAdminAccess(request);

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * GET /api/admin/crm/whatsapp/webhook-status
  * Admin-only. Reports whether webhook env vars are set and what callback URL should be configured.

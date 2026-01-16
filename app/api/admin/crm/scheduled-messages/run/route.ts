@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { runDueWhatsAppScheduledJobs } from '@/lib/whatsappScheduler';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 function verifyCronSecret(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
   if (!expected) return false;

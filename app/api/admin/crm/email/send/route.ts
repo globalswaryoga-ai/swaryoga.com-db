@@ -103,6 +103,10 @@ export async function POST(request: NextRequest) {
 }
 
 // Helper function to send bulk emails
+
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
 async function sendBulkEmails(recipients: any[], subject: string, body: string) {
   // TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
   // For now, this is a placeholder

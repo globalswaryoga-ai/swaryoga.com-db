@@ -6,6 +6,10 @@ import { ConsentManager } from '@/lib/consentManager';
 import { sendWhatsAppText } from '@/lib/whatsapp';
 import { Types } from 'mongoose';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 function parseTodosText(input: unknown): Array<{ text: string; dueDate?: string }> {
   const s = typeof input === 'string' ? input : '';
   const lines = s

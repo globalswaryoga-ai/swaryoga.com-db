@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { Lead } from '@/lib/schemas/enterpriseSchemas';
 import { 
+
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
   verifyAdminAccess, 
   toObjectId, 
   isValidObjectId, 

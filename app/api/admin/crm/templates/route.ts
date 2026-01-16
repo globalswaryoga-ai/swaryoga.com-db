@@ -6,6 +6,10 @@ import { User } from '@/lib/db';
 import { deleteTemplateFilesFromS3 } from '@/lib/aws-s3';
 import mongoose from 'mongoose';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * WhatsApp message templates management
  * GET: Fetch templates

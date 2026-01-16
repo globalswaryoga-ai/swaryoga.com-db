@@ -11,6 +11,10 @@ import {
 } from '@/lib/crm-handlers';
 import { LeadFollowUp, Lead } from '@/lib/schemas/enterpriseSchemas';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 export async function GET(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     verifyAdminAccess(request);

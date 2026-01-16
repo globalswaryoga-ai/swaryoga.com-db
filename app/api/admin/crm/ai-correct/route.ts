@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * POST /api/admin/crm/ai-correct
  * AI-powered spelling + grammar correction using Claude API.

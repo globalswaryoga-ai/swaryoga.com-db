@@ -3,6 +3,10 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import axios from 'axios';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * GET /api/admin/crm/whatsapp/groups
  * Fetch all WhatsApp groups from QR bridge

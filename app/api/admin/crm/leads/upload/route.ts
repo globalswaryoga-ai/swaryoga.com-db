@@ -16,6 +16,10 @@ import {
 import { verifyToken } from '@/lib/auth';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * POST: Upload bulk leads from Excel file
  */

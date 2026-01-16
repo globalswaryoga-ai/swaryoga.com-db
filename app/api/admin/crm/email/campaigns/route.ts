@@ -5,6 +5,9 @@ import { connectDB } from '@/lib/db';
 import { getEmailCampaign } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
 
+// Mark as dynamic since this route uses request.headers and request.url
+export const dynamic = 'force-dynamic';
+
 // GET /api/admin/crm/email/campaigns - List all email campaigns
 export async function GET(request: NextRequest) {
   try {

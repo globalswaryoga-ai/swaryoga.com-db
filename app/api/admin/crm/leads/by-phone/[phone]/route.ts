@@ -3,6 +3,10 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * GET /api/admin/crm/leads/by-phone/[phone]
  * Fetch a lead by phone number

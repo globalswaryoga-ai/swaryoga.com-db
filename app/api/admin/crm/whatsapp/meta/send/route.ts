@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { POST as originalPOST } from '../../send/route';
 import crypto from 'crypto';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * Generate SHA256 HMAC for Meta App Secret Proof
  * Required for Apps in "Live" mode

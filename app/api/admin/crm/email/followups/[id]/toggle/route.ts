@@ -6,6 +6,10 @@ import { getFollowUpSequence } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
 
 // POST /api/admin/crm/email/followups/[id]/toggle - Activate/deactivate follow-up sequence
+
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }

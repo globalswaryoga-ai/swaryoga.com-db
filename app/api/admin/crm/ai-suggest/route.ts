@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * POST /api/admin/crm/ai-suggest
  * Get AI-powered suggestions for message composition using Claude API

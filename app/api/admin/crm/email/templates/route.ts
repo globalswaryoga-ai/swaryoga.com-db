@@ -5,6 +5,9 @@ import { connectDB } from '@/lib/db';
 import { getEmailTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { hasPermission } from '@/lib/permissions';
 
+// Mark as dynamic since this route uses request.headers and request.url
+export const dynamic = 'force-dynamic';
+
 // GET /api/admin/crm/email/templates - List all email templates
 export async function GET(request: NextRequest) {
   try {

@@ -4,6 +4,10 @@ import { verifyToken } from '@/lib/auth';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { CANONICAL_LABELS } from '@/lib/crm/labels';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
 }

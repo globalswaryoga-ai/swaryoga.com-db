@@ -9,6 +9,10 @@ import {
 } from '@/lib/crm-handlers';
 import { BroadcastList, BroadcastListMember } from '@/lib/schemas/enterpriseSchemas';
 
+// Mark as dynamic since this route uses request.headers or request.url
+export const dynamic = 'force-dynamic';
+
+
 /**
  * POST /api/admin/crm/broadcast-lists/[id]/bulk-members
  *
