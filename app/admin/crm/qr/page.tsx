@@ -44,6 +44,7 @@ export default function QRWhatsAppInboxPage() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [bridgeUnavailable, setBridgeUnavailable] = useState(false); // Track if bridge is completely down
 
   const isOffline = status !== 'connected';
 
@@ -340,14 +341,23 @@ export default function QRWhatsAppInboxPage() {
       } catch (err) {
         setStatusIfChanged('disconnected');
         const errorMsg = err instanceof Error ? err.message : 'Bridge not reachable';
-        setBridgeErrorIfChanged(errorMsg);
+        
+        // Detect if bridge is completely unreachable (504/timeout)
+        const isBridgeDown = errorMsg.includes('504') || errorMsg.includes('timeout') || errorMsg.includes('unreachable');
+        const helpfulMsg = isBridgeDown 
+          ? 'WhatsApp Bridge is currently unavailable. QR login disabled - you can still view and manage CRM messages.'
+          : errorMsg;
+        
+        setBridgeErrorIfChanged(helpfulMsg);
+        setBridgeUnavailable(isBridgeDown);
         
         // Log detailed error for debugging
         console.error('[Bridge Connection Error]', {
           message: errorMsg,
           timestamp: new Date().toISOString(),
           bridgeUrl: bridgeUrl,
-          attempt: statusPollDelayRef.current / 15000
+          attempt: statusPollDelayRef.current / 15000,
+          isBridgeDown
         });
 
         // Backoff up to 60s when failing to reduce UI thrash
@@ -1853,11 +1863,11 @@ export default function QRWhatsAppInboxPage() {
               {status !== 'connected' && (
                 <button
                   onClick={handleConnect}
-                  disabled={connecting}
+                  disabled={connecting || bridgeUnavailable}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors flex items-center gap-1"
-                  title="Login with QR"
+                  title={bridgeUnavailable ? 'WhatsApp Bridge is unavailable' : 'Login with QR'}
                 >
-                  {connecting ? <RefreshCw className="animate-spin" size={16} /> : '↑'} Login
+                  {connecting ? <RefreshCw className="animate-spin" size={16} /> : '↑'} {bridgeUnavailable ? 'Bridge Down' : 'Login'}
                 </button>
               )}
             </div>
