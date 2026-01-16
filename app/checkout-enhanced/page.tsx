@@ -38,8 +38,8 @@ export default function EnhancedCheckoutPage() {
   };
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const tax = subtotal * 0.025; // 2.5% Service Charges
-  const total = subtotal + tax;
+  const tax = parseFloat((subtotal * 0.025).toFixed(2)); // 2.5% Service Charges
+  const total = parseFloat((subtotal + tax).toFixed(2));
 
   const isFormValid = 
     formData.firstName &&

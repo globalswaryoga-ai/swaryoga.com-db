@@ -40,7 +40,7 @@ export default function WorkshopRegistrationFormPage() {
           const workshopData = data.schedules[0];
           setWorkshop(workshopData);
           
-          // Auto-add to cart
+          // Auto-add to cart only once - use addToCart with deduplication
           addToCart({
             kind: 'workshop',
             productId: workshopData._id,
@@ -60,7 +60,7 @@ export default function WorkshopRegistrationFormPage() {
     };
 
     fetchWorkshop();
-  }, [slug, mode, language]);
+  }, [slug, mode, language, addToCart]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;

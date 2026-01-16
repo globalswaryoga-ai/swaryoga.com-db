@@ -81,8 +81,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const getTotals = () => {
     const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const tax = Math.round(subtotal * 0.025); // 2.5% Service Charges
-    const total = subtotal + tax;
+    // Use toFixed for precise calculation, then convert to number
+    const tax = parseFloat((subtotal * 0.025).toFixed(2)); // 2.5% Service Charges
+    const total = parseFloat((subtotal + tax).toFixed(2));
     return { subtotal, tax, total };
   };
 

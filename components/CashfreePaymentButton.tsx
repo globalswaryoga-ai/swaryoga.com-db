@@ -68,24 +68,31 @@ export default function CashfreePaymentButton({
 
   // Load Cashfree SDK on mount
   useEffect(() => {
-    if (sdkLoadedRef.current || typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return;
+
+    // Check if already loading or loaded
+    if (window.Cashfree) {
+      sdkLoadedRef.current = true;
+      return;
+    }
 
     const script = document.createElement('script');
     script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
     script.async = true;
+    script.defer = true;
     script.onload = () => {
       sdkLoadedRef.current = true;
-      console.log('Cashfree SDK loaded successfully');
+      console.log('✅ Cashfree SDK loaded successfully');
     };
     script.onerror = () => {
-      console.error('Failed to load Cashfree SDK');
+      console.error('❌ Failed to load Cashfree SDK');
       setError('Failed to load payment gateway. Please refresh and try again.');
     };
-    document.body.appendChild(script);
+    document.head.appendChild(script);
 
     return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
+      if (document.head.contains(script)) {
+        document.head.removeChild(script);
       }
     };
   }, []);
