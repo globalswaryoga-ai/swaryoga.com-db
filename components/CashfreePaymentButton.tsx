@@ -143,7 +143,19 @@ export default function CashfreePaymentButton({
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({ error: 'Payment initiation failed' }));
-          throw new Error(data.error || 'Failed to initiate payment');
+          
+          // Provide more detailed error messages
+          let errorMessage = data.error || 'Failed to initiate payment';
+          
+          if (response.status === 401 || response.status === 403) {
+            errorMessage = 'Payment authentication failed. Please try again or contact support.';
+          } else if (response.status === 500) {
+            errorMessage = 'Payment server error. This might be a Cashfree credential issue. Please contact support.';
+          } else if (data.error?.includes('authentication')) {
+            errorMessage = 'Authentication failed with payment gateway. Credentials may need renewal.';
+          }
+          
+          throw new Error(errorMessage);
         }
 
         const paymentData = await response.json();

@@ -156,6 +156,25 @@ export async function POST(request: NextRequest) {
     const totalTime = Date.now() - startTime;
     const message = error instanceof Error ? error.message : 'Failed to initiate Cashfree payment';
     console.error(`❌ Cashfree initiate error after ${totalTime}ms:`, message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    
+    // Provide helpful error messages for common issues
+    let statusCode = 500;
+    let errorResponse = { error: message };
+    
+    if (message.includes('authentication') || message.includes('UNAUTHORIZED') || message.includes('401')) {
+      statusCode = 401;
+      errorResponse = { 
+        error: 'Authentication with payment gateway failed. Check Cashfree credentials.',
+        details: message 
+      };
+    } else if (message.includes('INVALID') || message.includes('validation')) {
+      statusCode = 400;
+      errorResponse = { 
+        error: 'Invalid payment details. Please check your information.',
+        details: message 
+      };
+    }
+    
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
