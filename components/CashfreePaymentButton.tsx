@@ -38,7 +38,9 @@ interface CashfreePaymentButtonProps {
 declare global {
   interface Window {
     Cashfree?: {
-      checkout: (opts: { paymentSessionId: string; redirectTarget?: string }) => Promise<unknown> | unknown;
+      Checkout: new (opts: { paymentSessionId: string; redirectTarget?: string }) => {
+        show: () => Promise<void>;
+      };
     };
   }
 }
@@ -160,11 +162,21 @@ export default function CashfreePaymentButton({
         }
 
         console.log('🔒 Opening Cashfree checkout...');
-        await cf.checkout({
-          paymentSessionId: paymentData.paymentSessionId,
-          redirectTarget: '_self',
-        });
-        console.log('✅ Cashfree checkout opened successfully');
+        
+        // Cashfree SDK v3 requires creating a new Checkout instance
+        try {
+          const checkout = new cf.Checkout({
+            paymentSessionId: paymentData.paymentSessionId,
+            redirectTarget: '_self',
+          });
+          
+          console.log('✅ Checkout instance created, showing...');
+          await checkout.show();
+          console.log('✅ Cashfree checkout opened successfully');
+        } catch (checkoutError) {
+          console.error('❌ Checkout error:', checkoutError);
+          throw new Error(`Failed to open Cashfree checkout: ${checkoutError instanceof Error ? checkoutError.message : 'Unknown error'}`);
+        }
       } finally {
         clearTimeout(timeoutId);
       }
