@@ -106,37 +106,57 @@ export async function cashfreeCreateOrder(
 ): Promise<CashfreeCreateOrderResponse> {
   const url = `${getCashfreeApiBase()}/orders`;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: cashfreeHeaders(),
-    body: JSON.stringify(payload),
-  });
+  // Add 10 second timeout for Cashfree API calls
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-  const text = await res.text();
-  const json = text ? (JSON.parse(text) as CashfreeCreateOrderResponse) : ({} as CashfreeCreateOrderResponse);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: cashfreeHeaders(),
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    const msg = (json as any)?.message || (json as any)?.error || text || 'Cashfree create order failed';
-    throw new Error(msg);
+    const text = await res.text();
+    const json = text ? (JSON.parse(text) as CashfreeCreateOrderResponse) : ({} as CashfreeCreateOrderResponse);
+
+    if (!res.ok) {
+      const msg = (json as any)?.message || (json as any)?.error || text || 'Cashfree create order failed';
+      throw new Error(msg);
+    }
+
+    return json;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return json;
 }
 
 export async function cashfreeGetOrder(orderId: string): Promise<CashfreeGetOrderResponse> {
   const url = `${getCashfreeApiBase()}/orders/${encodeURIComponent(orderId)}`;
 
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: cashfreeHeaders(),
-  });
+  // Add 10 second timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-  const text = await res.text();
-  const json = text ? (JSON.parse(text) as CashfreeGetOrderResponse) : ({} as CashfreeGetOrderResponse);
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: cashfreeHeaders(),
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    const msg = (json as any)?.message || (json as any)?.error || text || 'Cashfree get order failed';
-    throw new Error(msg);
+    const text = await res.text();
+    const json = text ? (JSON.parse(text) as CashfreeGetOrderResponse) : ({} as CashfreeGetOrderResponse);
+
+    if (!res.ok) {
+      const msg = (json as any)?.message || (json as any)?.error || text || 'Cashfree get order failed';
+      throw new Error(msg);
+    }
+
+    return json;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   return json;

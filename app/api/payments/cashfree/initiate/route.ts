@@ -136,7 +136,9 @@ export async function POST(request: NextRequest) {
     );
 
     const totalTime = Date.now() - startTime;
-    console.log(`✅ Cashfree initiate completed in ${totalTime}ms`);
+    if (totalTime > 3000) {
+      console.warn(`⚠️ Cashfree initiate took ${totalTime}ms (slower than expected)`);
+    }
 
     return NextResponse.json(
       {

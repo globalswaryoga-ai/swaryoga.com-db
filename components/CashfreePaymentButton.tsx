@@ -107,9 +107,10 @@ export default function CashfreePaymentButton({
         throw new Error('Cashfree SDK not loaded. Please refresh and try again.');
       }
 
-      console.log('🔵 Starting payment with amount:', amount);
+      // Step 1: Call our API to initiate payment with 15 second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      // Step 1: Call our API to initiate payment
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -119,64 +120,54 @@ export default function CashfreePaymentButton({
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch('/api/payments/cashfree/initiate', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          amount,
-          productInfo,
-          firstName,
-          lastName,
-          email,
-          phone,
-          city,
-          address,
-          state,
-          zip,
-          currency,
-          items: items.length > 0 ? items : undefined,
-        }),
-      });
+      try {
+        const response = await fetch('/api/payments/cashfree/initiate', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            amount,
+            productInfo,
+            firstName,
+            lastName,
+            email,
+            phone,
+            city,
+            address,
+            state,
+            zip,
+            currency,
+            items: items.length > 0 ? items : undefined,
+          }),
+          signal: controller.signal,
+        });
 
-      console.log('🔵 API Response status:', response.status, response.ok);
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({ error: 'Payment initiation failed' }));
+          throw new Error(data.error || 'Failed to initiate payment');
+        }
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({ error: 'Payment initiation failed' }));
-        console.error('🔴 API Error:', data);
-        throw new Error(data.error || 'Failed to initiate payment');
+        const paymentData = await response.json();
+
+        if (!paymentData.success || !paymentData.paymentSessionId) {
+          throw new Error(paymentData.error || 'Invalid payment session');
+        }
+
+        // Step 2: Trigger Cashfree checkout
+        const cf = window.Cashfree;
+        if (!cf) {
+          throw new Error('Cashfree SDK not loaded');
+        }
+
+        // Trigger checkout
+        await cf.checkout({
+          paymentSessionId: paymentData.paymentSessionId,
+          redirectTarget: '_self',
+        });
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      const paymentData = await response.json();
-      console.log('🔵 Payment Data:', { success: paymentData.success, hasSessionId: !!paymentData.paymentSessionId, sessionId: paymentData.paymentSessionId });
-
-      if (!paymentData.success || !paymentData.paymentSessionId) {
-        throw new Error(paymentData.error || 'Invalid payment session');
-      }
-
-      console.log('✅ Payment initiated, session ID:', paymentData.paymentSessionId);
-
-      // Step 2: Initialize Cashfree and start checkout
-      const cf = window.Cashfree;
-      if (!cf) {
-        throw new Error('Cashfree SDK not loaded');
-      }
-
-      console.log('🔵 Triggering Cashfree checkout...');
-
-      // Configure payment
-      const checkoutOptions = {
-        paymentSessionId: paymentData.paymentSessionId,
-        redirectTarget: '_self',
-      };
-
-      console.log('🔵 Checkout options:', checkoutOptions);
-
-      // Trigger checkout
-      const checkoutResult = await cf.checkout(checkoutOptions);
-      console.log('✅ Checkout triggered:', checkoutResult);
     } catch (err: any) {
       const errorMessage = err.message || 'Payment failed. Please try again.';
-      console.error('🔴 Cashfree payment error:', errorMessage, err);
       setError(errorMessage);
       onError?.(errorMessage);
     } finally {
