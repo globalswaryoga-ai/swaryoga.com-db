@@ -52,13 +52,17 @@ export async function GET(request: NextRequest) {
 
     // Multi-user access control:
     // - Super-admin can see all leads and optionally filter by assigned user.
-    // - Other admins see only their own assigned leads.
+    // - Other admins see their own leads.
+    // IMPORTANT: Historical/legacy records may be missing assignedToUserId,
+    // but still belong to the admin via createdByUserId. Broadcast needs
+    // those leads visible for bulk messaging.
     if (superAdmin) {
       if (userIdParam && String(userIdParam).trim()) {
-        filter.assignedToUserId = String(userIdParam).trim();
+        const uid = String(userIdParam).trim();
+        filter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
       }
     } else {
-      filter.assignedToUserId = viewerUserId;
+      filter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 
     if (status) filter.status = status;

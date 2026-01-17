@@ -44,10 +44,11 @@ export async function GET(request: NextRequest) {
     const baseFilter: any = {};
     if (superAdmin) {
       if (userIdParam && String(userIdParam).trim()) {
-        baseFilter.assignedToUserId = String(userIdParam).trim();
+        const uid = String(userIdParam).trim();
+        baseFilter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
       }
     } else {
-      baseFilter.assignedToUserId = viewerUserId;
+      baseFilter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 
     await connectDB();
