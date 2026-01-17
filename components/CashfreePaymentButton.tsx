@@ -69,10 +69,24 @@ export default function CashfreePaymentButton({
 
   // SDK is ready when window.Cashfree exists
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.Cashfree) {
-      setSdkReady(true);
-      console.log('✅ Cashfree SDK detected on window');
-    }
+    const checkSDK = () => {
+      if (typeof window !== 'undefined' && window.Cashfree && typeof window.Cashfree.checkout === 'function') {
+        setSdkReady(true);
+        console.log('✅ Cashfree SDK verified and ready');
+        return true;
+      }
+      return false;
+    };
+
+    if (checkSDK()) return;
+
+    const interval = setInterval(() => {
+      if (checkSDK()) {
+        clearInterval(interval);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handlePayment = async () => {
@@ -198,12 +212,8 @@ export default function CashfreePaymentButton({
         strategy="afterInteractive"
         onLoad={() => {
           console.log('✅ Cashfree SDK script loaded');
-          // Verify the SDK is actually available
           if (window.Cashfree && typeof window.Cashfree.checkout === 'function') {
             setSdkReady(true);
-          } else {
-            console.error('❌ Cashfree SDK loaded but checkout function not available');
-            setError('Payment gateway not fully loaded. Please refresh the page.');
           }
         }}
         onError={() => {
