@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
     const notifyUrl = getCashfreeWebhookUrl(request);
     const customerId = String(userId).slice(-48);
 
+    console.log(`📡 Creating Cashfree order: ${cashfreeOrderId} for ₹${amountNum}`);
+
     // Call Cashfree API first (in parallel with DB write)
     const cfPromise = cashfreeCreateOrder({
       order_id: cashfreeOrderId,
@@ -131,6 +133,7 @@ export async function POST(request: NextRequest) {
         }
       );
 
+      console.error('❌ Cashfree response missing payment_session_id:', cf);
       return NextResponse.json({ error: 'Cashfree session creation failed' }, { status: 502 });
     }
 
@@ -149,6 +152,8 @@ export async function POST(request: NextRequest) {
     const totalTime = Date.now() - startTime;
     if (totalTime > 5000) {
       console.warn(`⚠️ Cashfree initiate took ${totalTime}ms (slower than target 5s)`);
+    } else {
+      console.log(`✅ Cashfree initiate completed in ${totalTime}ms`);
     }
 
     return NextResponse.json(
@@ -183,17 +188,25 @@ export async function POST(request: NextRequest) {
         error: 'Payment gateway is not properly configured. Please contact support.',
         details: 'Server configuration error - Cashfree credentials missing'
       };
+      console.error('🔴 CRITICAL: Cashfree credentials are missing or using placeholder values!');
     } else if (message.includes('authentication') || message.includes('UNAUTHORIZED') || message.includes('401')) {
       statusCode = 401;
       errorResponse = { 
         error: 'Payment authentication failed. Please try again or contact support.',
         details: message 
       };
+      console.error('🔴 Cashfree API authentication failed. Check credentials in .env.local');
     } else if (message.includes('INVALID') || message.includes('validation')) {
       statusCode = 400;
       errorResponse = { 
         error: 'Invalid payment details. Please check your information.',
         details: message 
+      };
+    } else if (message.includes('timeout') || message.includes('TIMEOUT')) {
+      statusCode = 504;
+      errorResponse = {
+        error: 'Payment gateway is taking too long to respond. Please try again.',
+        details: message
       };
     }
     

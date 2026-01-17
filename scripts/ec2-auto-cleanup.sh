@@ -50,6 +50,19 @@ apt-get autoclean 2>/dev/null
 apt-get autoremove -y 2>/dev/null >/dev/null
 log_action "  ✓ Cleaned apt cache and removed unused packages"
 
+# 5b. Clean old snaps (save huge space)
+log_action "Cleaning old snap versions..."
+snap list --all | awk '/disabled/{print $1, $3}' | while read snapname revision; do
+    snap remove "$snapname" --revision="$revision" 2>/dev/null
+done
+log_action "  ✓ Removed disabled snap versions"
+
+# 5c. Clean crash reports
+log_action "Cleaning system crash reports..."
+rm -rf /var/crash/* 2>/dev/null
+rm -rf /var/lib/apport/reports/* 2>/dev/null
+log_action "  ✓ Removed crash reports"
+
 # 6. Clean Docker system (if installed)
 if command -v docker &> /dev/null; then
     log_action "Cleaning Docker..."
