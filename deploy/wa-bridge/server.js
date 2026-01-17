@@ -82,6 +82,7 @@ function initializeClient() {
       clientId: 'swar-yoga-qr',
       dataPath: SESSION_DIR
     }),
+    qrMaxWaitTime: 300000, // 5 minutes to scan QR
     puppeteer: {
       headless: true,
       // Try multiple possible Chrome/Chromium paths
@@ -124,19 +125,7 @@ function initializeClient() {
         return;
       }
       qrCode = url;
-      console.log(`✅ QR code ready (${qrCode ? qrCode.length : 0} chars)`);
-      
-      // Start heartbeat when QR appears to keep connection alive
-      if (!heartbeatInterval) {
-        console.log('💓 Starting connection keep-alive heartbeat...');
-        heartbeatInterval = setInterval(() => {
-          try {
-            if (client && client.pupPage && !sessionReady) {
-              client.pupPage.evaluate(() => document.readyState).catch(() => {});
-            }
-          } catch (err) {}
-        }, 15000); // Ping every 15 seconds
-      }
+      console.log(`✅ QR code ready (${qrCode ? qrCode.length : 0} chars) - SCAN QUICKLY!`);
     });
   });
 
