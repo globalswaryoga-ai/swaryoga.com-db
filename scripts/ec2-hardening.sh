@@ -107,12 +107,11 @@ UsePAM yes
 EOF
 
 # Validate and restart SSH
+echo -e "${YELLOW}Testing and restarting SSH service...${NC}"
 sshd -t
-if systemctl list-unit-files | grep -q sshd.service; then
-  systemctl restart sshd
-else
-  systemctl restart ssh
-fi
+
+# Try both service names and ignore errors to prevent script crash
+systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || service ssh restart 2>/dev/null || service sshd restart 2>/dev/null || echo -e "${RED}⚠ Could not restart SSH automatically. Please restart manually.${NC}"
 
 echo -e "${GREEN}✅ SSH hardened${NC}"
 
