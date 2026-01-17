@@ -37,4 +37,8 @@ docs/generated/**/*.md
 .env.local
 .env.production
 .env.*.local
+.env.vercel
+
+# Vercel CLI token files (never commit)
+production
 
