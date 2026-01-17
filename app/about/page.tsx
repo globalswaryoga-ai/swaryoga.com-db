@@ -5,6 +5,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { Award, Heart, Users, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function About() {
   const values = [
@@ -35,69 +36,59 @@ export default function About() {
   return (
     <>
       <Navigation />
-      
-      {/* NEW: Modern High-Impact About Hero */}
-      <section className="relative pt-32 pb-20 bg-white overflow-hidden">
+
+      {/* About Hero (compact horizontal banner) */}
+      <section className="relative pt-28 pb-10 bg-white overflow-hidden">
         {/* Decorative Background Elements */}
-        <div className="absolute top-0 right-0 w-1/3 h-full bg-swar-primary/5 -skew-x-12 translate-x-1/4 z-0 hidden lg:block" />
-        <div className="absolute top-[10%] left-[5%] w-64 h-64 bg-swar-accent/5 rounded-full blur-3xl z-0" />
+        <div className="absolute top-[6%] left-[6%] w-72 h-72 bg-swar-accent/5 rounded-full blur-3xl z-0" />
+        <div className="absolute -bottom-24 right-0 w-1/2 h-64 bg-swar-primary/5 -skew-x-12 translate-x-1/4 z-0 hidden lg:block" />
 
         <div className="container mx-auto px-4 max-w-7xl relative z-10">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div className="max-w-2xl text-center lg:text-left animate-fade-in-up">
-              <div className="inline-flex items-center gap-2 py-1.5 px-6 rounded-full bg-swar-primary/10 text-swar-primary font-bold text-xs md:text-sm mb-8 tracking-[0.2em] uppercase border border-swar-primary/20">
-                OUR JOURNEY
-              </div>
-              
-              <h1 className="text-6xl md:text-9xl font-black text-swar-text mb-8 tracking-tighter leading-[0.85]">
-                About <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-swar-primary to-swar-accent">
-                  Swar Yoga
-                </span>
-              </h1>
-              
-              <p className="text-2xl md:text-3xl text-swar-text-secondary leading-snug mb-10 font-medium tracking-tight">
-                Discover the transformative power of authentic yoga and sound healing. 
-                We bring <span className="text-swar-primary text-italic">ancient wisdom</span> to modern lives.
-              </p>
+          {/* Horizontal image banner */}
+          <div className="relative w-full h-[210px] sm:h-[240px] md:h-[280px] rounded-3xl overflow-hidden shadow-2xl border border-swar-primary/10">
+            <Image
+              src="/images/sunset-lake-meditation-hero.svg"
+              alt="Sunset lake meditation — calm and centered"
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 1200px"
+              className="object-cover object-center"
+            />
+            {/* Contrast overlays */}
+            <div className="absolute inset-0 bg-gradient-to-r from-swar-primary/65 via-swar-primary/20 to-transparent" />
+            <div className="absolute inset-0 bg-black/10" />
 
-              {/* Achievement Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 py-8 border-y border-gray-100">
-                {achievements.map((item, idx) => (
-                  <div key={idx} className="text-center lg:text-left">
-                    <div className="text-3xl font-black text-swar-primary">{item.number}</div>
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-swar-text-tertiary mt-1">
-                      {item.label}
-                    </div>
-                  </div>
-                ))}
+            {/* Title content */}
+            <div className="absolute inset-0 flex items-end">
+              <div className="p-6 sm:p-8 md:p-10 max-w-3xl">
+                <div className="inline-flex items-center gap-2 py-1.5 px-5 rounded-full bg-white/85 text-swar-primary font-bold text-xs md:text-sm mb-4 tracking-[0.2em] uppercase border border-white/60 backdrop-blur">
+                  OUR JOURNEY
+                </div>
+
+                <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-white tracking-tighter leading-[0.95]">
+                  About{' '}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/80">
+                    Swar Yoga
+                  </span>
+                </h1>
+
+                <p className="mt-3 text-white/90 text-base sm:text-lg md:text-xl leading-snug font-medium max-w-2xl">
+                  Authentic yoga, breath, and sound healing — rooted in tradition, designed for modern life.
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Visual Side */}
-            <div className="relative animate-fade-in-right">
-              <div className="relative z-10 aspect-[4/5] rounded-[3rem] overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.25)] border-8 border-white group">
-                <img 
-                  src="https://images.pexels.com/photos/1134295/pexels-photo-1134295.jpeg"
-                  alt="Nature sky background" 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-swar-primary/40 via-transparent to-transparent opacity-60" />
-              </div>
-              
-              {/* Floating Award Badge */}
-              <div className="absolute -bottom-8 -right-8 z-20 bg-white p-8 rounded-[2.5rem] shadow-2xl border border-swar-primary/10 animate-soft-pulse">
-                <div className="flex items-center gap-5">
-                  <div className="bg-swar-accent text-white p-4 rounded-2xl shadow-lg shadow-swar-accent/20">
-                    <Award size={32} />
-                  </div>
-                  <div>
-                    <div className="text-swar-text font-black text-2xl">25+</div>
-                    <div className="text-swar-text-tertiary text-[10px] font-extrabold uppercase tracking-widest">Years Mastery</div>
-                  </div>
+          {/* Achievement Stats */}
+          <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-8 py-8 border-y border-gray-100">
+            {achievements.map((item, idx) => (
+              <div key={idx} className="text-center sm:text-left">
+                <div className="text-3xl font-black text-swar-primary">{item.number}</div>
+                <div className="text-[10px] font-extrabold uppercase tracking-widest text-swar-text-tertiary mt-1">
+                  {item.label}
                 </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>

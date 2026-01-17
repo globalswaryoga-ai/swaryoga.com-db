@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Phone, MapPin, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import Image from 'next/image';
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -183,24 +184,51 @@ export default function Contact() {
     <>
       <Navigation />
       <main className="min-h-screen bg-white">
-        {/* Hero Section with Background Image */}
-        <section className="relative h-80 sm:h-96 md:h-[500px] px-4 sm:px-6 flex items-center overflow-hidden">
-          <div className="absolute inset-0 z-0">
-            <img
-              src="https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
-              alt="Contact Us - Yoga and Wellness"
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-black/50" />
-          </div>
-          
-          <div className="container mx-auto max-w-4xl text-center relative z-10">
-            <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4 sm:mb-6">
-              Get in <span className="text-green-400">Touch</span>
-            </h1>
-            <p className="text-lg sm:text-xl text-gray-200 leading-relaxed">
-              Have questions? We&apos;d love to hear from you. Reach out anytime!
-            </p>
+        {/* Hero Section — Naturopathy + Yoga */}
+        <section className="relative pt-28 sm:pt-32 pb-16 sm:pb-20 bg-white overflow-hidden">
+          {/* Soft brand shapes */}
+          <div className="absolute top-0 right-0 w-1/3 h-full bg-swar-primary/5 -skew-x-12 translate-x-1/4 z-0 hidden lg:block" />
+          <div className="absolute top-[8%] left-[6%] w-72 h-72 bg-swar-accent/5 rounded-full blur-3xl z-0" />
+
+          <div className="container mx-auto px-4 max-w-7xl relative z-10">
+            <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+              <div className="text-center lg:text-left">
+                <div className="inline-flex items-center gap-2 py-1.5 px-6 rounded-full bg-swar-primary/10 text-swar-primary font-bold text-xs md:text-sm mb-6 tracking-[0.2em] uppercase border border-swar-primary/20">
+                  CONTACT & SUPPORT
+                </div>
+
+                <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-swar-text mb-5 tracking-tighter leading-[1.05]">
+                  Let&apos;s connect for
+                  <span className="block text-transparent bg-clip-text bg-gradient-to-r from-swar-primary to-swar-accent">
+                    Naturopathy & Yoga
+                  </span>
+                </h1>
+
+                <p className="text-lg sm:text-xl text-swar-text-secondary leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                  Questions about workshops, healing programs, or your journey? Share a message and our team will respond within 24 hours.
+                </p>
+              </div>
+
+              <div className="relative">
+                <div className="relative aspect-[4/3] sm:aspect-[16/10] rounded-[2.5rem] overflow-hidden shadow-[0_28px_64px_-18px_rgba(0,0,0,0.25)] border-8 border-white">
+                  <Image
+                    src="/images/sunset-lake-meditation-hero.svg"
+                    alt="Swar Yoga — calm, natural wellness"
+                    fill
+                    priority
+                    sizes="(max-width: 1024px) 92vw, 520px"
+                    className="object-cover object-center"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-swar-primary/55 via-swar-primary/10 to-transparent opacity-90" />
+                  <div className="absolute inset-0 bg-black/10" />
+                </div>
+
+                <div className="absolute -bottom-6 -right-4 sm:-right-6 bg-white/90 backdrop-blur p-5 sm:p-6 rounded-2xl shadow-xl border border-swar-primary/10">
+                  <div className="text-swar-text font-black text-lg leading-none">We&apos;re here to help</div>
+                  <div className="text-swar-text-tertiary text-xs font-extrabold uppercase tracking-widest mt-1">Yoga • Breath • Naturopathy</div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

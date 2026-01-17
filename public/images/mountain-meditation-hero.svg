@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1600" height="600" viewBox="0 0 1600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EAF7F6"/>
+      <stop offset="0.55" stop-color="#F6F2FF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <linearGradient id="mist" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5CA89A" stop-opacity="0.10"/>
+      <stop offset="0.5" stop-color="#8A5AD8" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#5CA89A" stop-opacity="0.10"/>
+    </linearGradient>
+    <linearGradient id="mountain1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B6F66" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#0F2F2C" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="mountain2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3C2D61" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#1B1430" stop-opacity="0.85"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1230 150) rotate(90) scale(160)">
+      <stop offset="0" stop-color="#F7C96A" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#F7C96A" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="1600" height="600" fill="url(#sky)"/>
+
+  <!-- Sun glow -->
+  <circle cx="1230" cy="150" r="160" fill="url(#sun)"/>
+
+  <!-- Mist band -->
+  <path d="M0 260C210 210 410 230 620 265C830 300 1010 320 1225 285C1380 260 1495 248 1600 255V430H0V260Z" fill="url(#mist)" filter="url(#soft)"/>
+
+  <!-- Far mountains -->
+  <path d="M0 420C160 360 260 310 360 300C500 286 610 340 710 360C850 388 980 365 1090 320C1225 265 1370 260 1600 330V600H0V420Z" fill="url(#mountain2)"/>
+
+  <!-- Near mountains -->
+  <path d="M0 520C130 470 240 410 360 402C520 392 640 470 780 500C980 544 1140 505 1300 440C1415 394 1520 388 1600 410V600H0V520Z" fill="url(#mountain1)"/>
+
+  <!-- Subtle snow highlights -->
+  <path d="M365 404C455 392 530 415 600 448C570 420 520 398 460 392C430 389 398 392 365 404Z" fill="#FFFFFF" fill-opacity="0.18"/>
+  <path d="M1305 440C1220 476 1145 505 1050 505C1120 520 1195 508 1265 480C1282 472 1294 456 1305 440Z" fill="#FFFFFF" fill-opacity="0.14"/>
+
+  <!-- Meditation silhouette (simple, original) -->
+  <g transform="translate(785 392)" fill="#0B1F1D" fill-opacity="0.72">
+    <!-- head -->
+    <circle cx="0" cy="-46" r="18"/>
+    <!-- torso -->
+    <path d="M-18 -25C-6 -45 6 -45 18 -25C26 -11 28 12 18 30C10 44 -10 44 -18 30C-28 12 -26 -11 -18 -25Z"/>
+    <!-- legs (lotus) -->
+    <path d="M-88 70C-55 28 -22 10 0 10C22 10 55 28 88 70C64 92 30 102 0 102C-30 102 -64 92 -88 70Z"/>
+    <path d="M-70 74C-40 42 -18 36 0 36C18 36 40 42 70 74C52 88 24 94 0 94C-24 94 -52 88 -70 74Z" fill-opacity="0.55"/>
+  </g>
+
+  <!-- Ground fade -->
+  <rect y="520" width="1600" height="80" fill="#0B1F1D" fill-opacity="0.10"/>
+</svg>

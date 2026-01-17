@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1600" height="600" viewBox="0 0 1600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F7C7A2"/>
+      <stop offset="0.35" stop-color="#F4A98E"/>
+      <stop offset="0.62" stop-color="#C9B3E6"/>
+      <stop offset="1" stop-color="#A9D9D2"/>
+    </linearGradient>
+
+    <linearGradient id="haze" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.10"/>
+    </linearGradient>
+
+    <linearGradient id="mountainBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4C3C72" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#1B1430" stop-opacity="0.75"/>
+    </linearGradient>
+
+    <linearGradient id="mountainFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#255B56" stop-opacity="0.86"/>
+      <stop offset="1" stop-color="#0A2624" stop-opacity="0.92"/>
+    </linearGradient>
+
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7CC7BE" stop-opacity="0.55"/>
+      <stop offset="0.6" stop-color="#4F9E94" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#1E6E67" stop-opacity="0.78"/>
+    </linearGradient>
+
+    <radialGradient id="sun" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(820 145) rotate(90) scale(140)">
+      <stop offset="0" stop-color="#FFD7A5" stop-opacity="0.98"/>
+      <stop offset="0.55" stop-color="#FFB36D" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#FFB36D" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="blur16" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+
+    <filter id="blur8" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+
+    <linearGradient id="dock" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6B4A3C" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#3D251E" stop-opacity="0.92"/>
+    </linearGradient>
+
+    <linearGradient id="reflection" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.24"/>
+      <stop offset="0.7" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- sky -->
+  <rect width="1600" height="600" fill="url(#sky)"/>
+
+  <!-- sun glow -->
+  <circle cx="820" cy="145" r="140" fill="url(#sun)"/>
+
+  <!-- far haze -->
+  <path d="M0 245C220 210 440 220 640 252C860 286 1065 300 1280 266C1420 244 1515 236 1600 242V330H0V245Z" fill="url(#haze)" filter="url(#blur16)"/>
+
+  <!-- back mountains -->
+  <path d="M0 360C150 315 290 265 420 260C580 255 710 320 860 330C1030 342 1185 312 1320 280C1440 250 1530 250 1600 270V600H0V360Z" fill="url(#mountainBack)"/>
+
+  <!-- front mountains + treeline silhouettes -->
+  <path d="M0 430C140 390 260 320 410 318C560 316 690 390 850 410C1040 435 1210 392 1360 340C1465 304 1545 302 1600 322V600H0V430Z" fill="url(#mountainFront)"/>
+
+  <!-- tree bumps (simple) -->
+  <g opacity="0.25" fill="#071A18">
+    <path d="M140 420c14-18 26-18 40 0c-10 6-13 14-20 26c-7-12-10-20-20-26Z"/>
+    <path d="M210 410c18-24 34-24 52 0c-12 7-17 18-26 34c-9-16-14-27-26-34Z"/>
+    <path d="M1320 360c20-26 38-26 58 0c-14 8-19 20-29 38c-10-18-15-30-29-38Z"/>
+    <path d="M1410 350c14-18 26-18 40 0c-10 6-13 14-20 26c-7-12-10-20-20-26Z"/>
+  </g>
+
+  <!-- water -->
+  <path d="M0 345H1600V600H0V345Z" fill="url(#water)"/>
+
+  <!-- gentle ripples -->
+  <g opacity="0.18" stroke="#FFFFFF" stroke-width="2">
+    <path d="M0 420C140 400 260 405 400 420C560 437 690 438 830 420C980 398 1120 395 1280 410C1420 422 1515 424 1600 418"/>
+    <path d="M0 470C170 450 300 456 450 470C610 486 760 488 900 470C1040 452 1180 450 1320 462C1460 476 1545 478 1600 472"/>
+    <path d="M0 520C180 505 330 510 500 520C670 530 820 532 970 520C1120 506 1260 506 1400 515C1510 522 1560 524 1600 522"/>
+  </g>
+
+  <!-- sun reflection -->
+  <path d="M760 260C790 250 820 246 850 260C890 278 915 310 920 350C930 420 900 520 820 600H780C700 520 670 420 680 350C685 310 710 278 760 260Z" fill="url(#reflection)" filter="url(#blur8)"/>
+
+  <!-- dock -->
+  <g transform="translate(520 430)">
+    <path d="M0 80C120 15 270 0 390 24C468 40 520 68 560 92C470 150 360 170 240 162C140 154 60 124 0 80Z" fill="url(#dock)" opacity="0.92"/>
+    <path d="M70 82C160 42 265 32 350 50" stroke="#D9C7BE" stroke-opacity="0.25" stroke-width="4" stroke-linecap="round"/>
+    <path d="M120 112C220 80 320 78 410 98" stroke="#D9C7BE" stroke-opacity="0.22" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- meditation silhouette (original) -->
+  <g transform="translate(820 410)" fill="#0A1F1D" fill-opacity="0.70">
+    <!-- head -->
+    <circle cx="0" cy="-56" r="16"/>
+    <!-- shoulders/torso -->
+    <path d="M-22 -40C-8 -60 8 -60 22 -40C30 -26 30 -3 22 10C12 26 -12 26 -22 10C-30 -3 -30 -26 -22 -40Z"/>
+    <!-- arms to knees -->
+    <path d="M-52 -6C-22 12 -18 20 0 20C18 20 22 12 52 -6C44 20 30 34 0 38C-30 34 -44 20 -52 -6Z" fill-opacity="0.58"/>
+    <!-- legs (lotus) -->
+    <path d="M-92 72C-58 32 -22 12 0 12C22 12 58 32 92 72C66 96 34 106 0 106C-34 106 -66 96 -92 72Z"/>
+    <path d="M-74 76C-42 46 -18 40 0 40C18 40 42 46 74 76C54 92 26 98 0 98C-26 98 -54 92 -74 76Z" fill-opacity="0.55"/>
+  </g>
+
+  <!-- vignette for readability -->
+  <rect width="1600" height="600" fill="#000000" opacity="0.08"/>
+</svg>

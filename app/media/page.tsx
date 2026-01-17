@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { Instagram, Facebook, Twitter, Youtube, Share2, Globe, ArrowRight } from 'lucide-react';
+import Image from 'next/image';
 
 type MediaSidebarItem = {
   _id?: string;
@@ -123,65 +124,60 @@ export default function MediaPage() {
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="animate-fade-in-up order-2 lg:order-1">
               <div className="inline-flex items-center gap-3 py-2 px-6 rounded-2xl bg-gradient-to-r from-swar-primary/10 to-transparent text-swar-primary font-black text-xs mb-8 tracking-[0.25em] uppercase border-l-4 border-swar-primary">
-                GLOBAL VIBRATIONS
+                NATUROPATHY • YOGA • WELLNESS
               </div>
               
-              <h1 className="text-7xl md:text-9xl font-black text-swar-text mb-8 tracking-tighter leading-[0.85]">
-                Social <br /> 
-                <span className="text-transparent bg-clip-text bg-gradient-to-br from-swar-primary via-swar-primary to-swar-accent">
-                  Feed
+              <h1 className="text-5xl sm:text-6xl md:text-7xl font-black text-swar-text mb-6 tracking-tighter leading-[0.9]">
+                Media &
+                <span className="block text-transparent bg-clip-text bg-gradient-to-br from-swar-primary via-swar-primary to-swar-accent">
+                  Updates
                 </span>
               </h1>
               
-              <p className="text-2xl md:text-3xl text-swar-text-secondary max-w-xl leading-snug mb-12 font-medium tracking-tight italic">
-                "Witness the resonance of breath across the digital universe."
+              <p className="text-lg sm:text-xl md:text-2xl text-swar-text-secondary max-w-xl leading-relaxed mb-10 font-medium tracking-tight">
+                Stories, highlights, and programs from our naturopathy and yoga community—grounded, practical, and uplifting.
               </p>
 
-              {/* Engagement Stats */}
-              <div className="flex items-center gap-8 p-8 bg-swar-bg rounded-[2.5rem] border border-swar-primary/5 shadow-sm inline-flex">
-                 <div className="flex -space-x-4">
-                    {[1,2,3,4,5].map(i => (
-                      <div key={i} className="w-14 h-14 rounded-full border-4 border-white overflow-hidden shadow-xl">
-                        <img src={`https://i.pravatar.cc/100?img=${i+30}`} alt="Community" className="w-full h-full object-cover" />
-                      </div>
-                    ))}
-                 </div>
-                 <div className="h-12 w-px bg-swar-primary/10" />
-                 <div>
-                    <div className="text-swar-text font-black text-3xl leading-none">52K+</div>
-                    <div className="text-swar-text-tertiary text-[10px] font-extrabold uppercase tracking-[0.2em] mt-1 text-center">Global Followers</div>
-                 </div>
+              {/* Simple platform chips (no fake follower counts) */}
+              <div className="flex flex-wrap items-center gap-3">
+                {[{ Icon: Instagram, label: 'Instagram' }, { Icon: Facebook, label: 'Facebook' }, { Icon: Youtube, label: 'YouTube' }].map(
+                  ({ Icon, label }) => (
+                    <div
+                      key={label}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-swar-bg border border-swar-primary/10 text-swar-text font-bold"
+                    >
+                      <Icon size={18} className="text-swar-primary" />
+                      <span className="text-sm">{label}</span>
+                    </div>
+                  )
+                )}
               </div>
             </div>
 
-            {/* Visual Feed Preview */}
+            {/* Visual — calm brand imagery */}
             <div className="relative order-1 lg:order-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div className="aspect-square rounded-3xl overflow-hidden shadow-2xl animate-fade-in-up [animation-delay:0.2s]">
-                    <img src="https://images.pexels.com/photos/1134295/pexels-photo-1134295.jpeg" className="w-full h-full object-cover" alt="Nature" />
-                  </div>
-                  <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl animate-fade-in-up [animation-delay:0.4s]">
-                    <img src="https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg" className="w-full h-full object-cover" alt="Yoga" />
-                  </div>
-                </div>
-                <div className="space-y-4 pt-12">
-                  <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl animate-fade-in-up [animation-delay:0.6s]">
-                    <img src="https://images.pexels.com/photos/3759657/pexels-photo-3759657.jpeg" className="w-full h-full object-cover" alt="Meditation" />
-                  </div>
-                  <div className="aspect-square rounded-3xl overflow-hidden shadow-2xl animate-fade-in-up [animation-delay:0.8s]">
-                    <img src="https://images.pexels.com/photos/3823039/pexels-photo-3823039.jpeg" className="w-full h-full object-cover" alt="Breath" />
-                  </div>
-                </div>
+              <div className="relative rounded-[3rem] overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.25)] border-8 border-white aspect-[4/3] sm:aspect-[16/11]">
+                  <Image
+                    src="/images/sunset-lake-meditation-hero.svg"
+                  alt="Swar Yoga media — natural, calm background"
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 92vw, 560px"
+                  className="object-cover object-center"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-swar-primary/55 via-swar-primary/10 to-transparent opacity-90" />
+                <div className="absolute inset-0 bg-black/10" />
               </div>
-              
-              {/* Floating Social Tags */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-4">
-                {[Instagram, Facebook, Youtube].map((Icon, idx) => (
-                  <div key={idx} className="bg-white/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl border border-white/50 animate-bounce" style={{ animationDelay: `${idx * 0.3}s` }}>
-                    <Icon size={32} className="text-swar-primary" />
+
+              {/* Gentle decorative icons */}
+              <div className="absolute -bottom-8 -left-6 bg-white/90 backdrop-blur p-5 rounded-2xl shadow-xl border border-swar-primary/10">
+                <div className="flex items-center gap-3">
+                  <Share2 size={20} className="text-swar-primary" />
+                  <div>
+                    <div className="text-swar-text font-black leading-none">Learn & Share</div>
+                    <div className="text-swar-text-tertiary text-[10px] font-extrabold uppercase tracking-widest mt-1">Natural healing insights</div>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
           </div>
