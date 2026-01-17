@@ -49,8 +49,27 @@ ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
 
-# Allow WhatsApp Bridge (restrict later)
-ufw allow 3333/tcp
+# ---------------------------------------------------------
+# SENSITIVE PORTS - Restricted Access
+# ---------------------------------------------------------
+echo -e "${YELLOW}Whitelisting your Home IP for SSH/Bridge...${NC}"
+echo -e "Please enter your PUBLIC IP address (visit: curl ifconfig.me)"
+read -p "Your IP (leave empty to allow port 22 globally): " USER_IP
+
+if [ ! -z "$USER_IP" ]; then
+  # Allow SSH from this IP only
+  ufw delete allow 22/tcp
+  ufw allow from $USER_IP to any port 22 proto tcp
+  
+  # Allow Bridge (3333) from this IP only
+  ufw allow from $USER_IP to any port 3333 proto tcp
+  echo -e "${GREEN}✓ Whitelisted $USER_IP for SSH and Bridge${NC}"
+else
+  # Fallback to global access if no IP provided
+  ufw allow 22/tcp
+  ufw allow 3333/tcp
+  echo -e "${YELLOW}⚠ Ports 22 and 3333 allowed from ANYWHERE (less secure)${NC}"
+fi
 
 # Enable firewall
 ufw --force enable
@@ -88,7 +107,7 @@ UsePAM yes
 EOF
 
 # Validate and restart SSH
-sshd -t && systemctl restart sshd
+sshd -t && (systemctl restart sshd || systemctl restart ssh)
 
 echo -e "${GREEN}✅ SSH hardened${NC}"
 
