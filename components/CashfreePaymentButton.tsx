@@ -178,14 +178,20 @@ export default function CashfreePaymentButton({
         }
 
         // Step 2: Trigger Cashfree checkout
-        const cf = window.Cashfree;
+        let cf = (window as any).CashfreeInstance || (window as any).Cashfree;
         if (!cf) {
           throw new Error('Cashfree SDK not loaded. Please refresh the page.');
         }
 
+        // If it's the factory function, initialize it
+        if (typeof cf === 'function' && typeof cf.checkout !== 'function') {
+          console.log('🔄 Initializing Cashfree instance in handlePayment...');
+          cf = cf({ mode: 'production' });
+          (window as any).CashfreeInstance = cf;
+        }
+
         if (typeof cf.checkout !== 'function') {
-          console.error('❌ Cashfree.checkout is not a function. SDK object:', cf);
-          console.error('Available properties:', Object.keys(cf || {}));
+          console.error('❌ Cashfree.checkout is still not a function. Object:', cf);
           throw new Error('Cashfree checkout function not available. Please refresh the page and try again.');
         }
 
@@ -240,8 +246,25 @@ export default function CashfreePaymentButton({
           const maxAttempts = 30; // Try for up to 15 seconds (30 × 500ms) - SDK can be slow
           
           const verifySdk = () => {
-            const cfExists = typeof window.Cashfree !== 'undefined';
-            const checkoutExists = typeof window.Cashfree?.checkout === 'function';
+            let cf = (window as any).Cashfree;
+            const cfExists = typeof cf !== 'undefined';
+            
+            // If it's a function without checkout, it's likely the constructor (Cashfree v3)
+            if (cfExists && typeof cf === 'function' && typeof cf.checkout !== 'function') {
+              try {
+                console.log('🔄 Detected Cashfree factory function, initializing...');
+                const instance = cf({ mode: 'production' });
+                if (instance && typeof instance.checkout === 'function') {
+                  (window as any).CashfreeInstance = instance;
+                  cf = instance; // Update local cf to point to instance for the check below
+                  console.log('✅ Cashfree instance initialized successfully');
+                }
+              } catch (e) {
+                console.warn('⚠️ Manual Cashfree initialization failed:', e);
+              }
+            }
+
+            const checkoutExists = typeof cf?.checkout === 'function';
             
             if (cfExists && checkoutExists) {
               setSdkReady(true);
@@ -279,7 +302,13 @@ export default function CashfreePaymentButton({
               lastAttempt.async = true;
               lastAttempt.onload = () => {
                 console.log('✅ Re-injected SDK loaded');
-                if (typeof window.Cashfree?.checkout === 'function') {
+                let cf = (window as any).Cashfree;
+                if (typeof cf === 'function' && typeof cf.checkout !== 'function') {
+                  cf = cf({ mode: 'production' });
+                  (window as any).CashfreeInstance = cf;
+                }
+                
+                if (typeof cf?.checkout === 'function') {
                   setSdkReady(true);
                   console.log('✅ SDK finally ready after re-injection');
                 } else {
@@ -313,7 +342,15 @@ export default function CashfreePaymentButton({
             
             // Verify with same retry logic as primary
             const verifyFallback = () => {
-              if (typeof window.Cashfree?.checkout === 'function') {
+              let cf = (window as any).Cashfree;
+              if (typeof cf === 'function' && typeof cf.checkout !== 'function') {
+                try {
+                  cf = cf({ mode: 'production' });
+                  (window as any).CashfreeInstance = cf;
+                } catch (e) {}
+              }
+
+              if (typeof cf?.checkout === 'function') {
                 setSdkReady(true);
                 console.log('✅ Fallback SDK ready - checkout function verified');
                 return;
