@@ -1,5 +1,11 @@
 // MongoDB Connection and Models
 import mongoose from 'mongoose';
+import { validateSecrets } from './config/secretsValidator';
+
+// Run security validation on boot
+if (process.env.NODE_ENV === 'production') {
+  validateSecrets();
+}
 
 // Primary DB (Website + Life Planner) connection.
 // Backward compatible: if MONGODB_URI_MAIN is not set, fall back to MONGODB_URI.
