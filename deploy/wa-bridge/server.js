@@ -192,7 +192,7 @@ function initializeClient() {
   client.on('auth_failure', (err) => {
     console.error('⚠ WhatsApp authentication failed:', err.message);
     sessionReady = false;
-    qrCode = null;
+    // DO NOT clear qrCode - let it stay available for scanning
     // Keep client alive for QR code generation
   });
 
@@ -204,12 +204,13 @@ function initializeClient() {
       console.error('❌ Failed to initialize WhatsApp client:', err.message);
       console.log('💡 This is normal on low-memory systems. QR may still be available.');
       sessionReady = false;
-      qrCode = null;
+      // DO NOT clear qrCode here - it may be valid, just the page load crashed
+      const hadQr = !!qrCode;
       
       // If we had a QR displayed, don't restart immediately - give user time to scan
-      if (qrCode) {
-        console.log('⏳ QR was showing. Giving 60 seconds for scan...');
-        setTimeout(() => initializeWithRetry(), 60000);
+      if (hadQr) {
+        console.log('⏳ QR was showing. Keeping it alive. Retrying in 30 seconds...');
+        setTimeout(() => initializeWithRetry(), 30000);
       } else {
         // Attempt to reinitialize after 10 seconds
         setTimeout(() => {
