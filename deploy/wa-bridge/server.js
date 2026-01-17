@@ -106,11 +106,19 @@ function initializeClient() {
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
         // Handle D-Bus warnings on EC2/headless
-        '--disable-features=TranslateUI',
+        '--disable-features=TranslateUI,TranslateManager',
         '--enable-features=NetworkService,NetworkServiceInProcess',
-        // Memory & stability fixes
-        '--disable-dev-shm-usage',
-        '--single-process=false'
+        // Memory optimization for low-memory EC2 instances
+        '--memory-pressure-off',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-backgrounding-renderers',
+        // Single process mode
+        '--single-process=false',
+        // Reduce memory pressure
+        '--max-old-space-size=256',
+        '--memory-limit=256'
       ],
       protocolTimeout: 300000, // 5 minute timeout for slow QR scans
       timeout: 60000 // 60 second connection timeout
@@ -119,13 +127,15 @@ function initializeClient() {
 
   client.on('qr', (qr) => {
     console.log('✅ QR code received - converting to Data URL...');
+    console.log('⚠️  QR WILL EXPIRE IN 30 SECONDS - SCAN NOW!');
     qrcode.toDataURL(qr, (err, url) => {
       if (err) {
         console.error('❌ QR generation error:', err);
         return;
       }
       qrCode = url;
-      console.log(`✅ QR code ready (${qrCode ? qrCode.length : 0} chars) - SCAN QUICKLY!`);
+      console.log(`✅ QR code ready (${qrCode ? qrCode.length : 0} chars)`);
+      console.log('📱 OPEN THIS QR IN YOUR WHATSAPP APP IMMEDIATELY!');
     });
   });
 
@@ -187,24 +197,30 @@ function initializeClient() {
   });
 
   console.log('🚀 Calling client.initialize()...');
-  client.initialize().catch((err) => {
-    console.error('❌ Failed to initialize WhatsApp client:', err.message);
-    sessionReady = false;
-    // Stop heartbeat on error
-    if (heartbeatInterval) {
-      clearInterval(heartbeatInterval);
-      heartbeatInterval = null;
-    }
-    // Attempt to reinitialize after delay
-    setTimeout(() => {
-      console.log('🔄 Attempting to reinitialize client...');
-      try {
-        client.initialize();
-      } catch (e) {
-        console.error('❌ Reinitialization error:', e.message);
+  
+  // Wrap with error resilience for low-memory systems
+  const initializeWithRetry = () => {
+    return client.initialize().catch((err) => {
+      console.error('❌ Failed to initialize WhatsApp client:', err.message);
+      console.log('💡 This is normal on low-memory systems. QR may still be available.');
+      sessionReady = false;
+      qrCode = null;
+      
+      // If we had a QR displayed, don't restart immediately - give user time to scan
+      if (qrCode) {
+        console.log('⏳ QR was showing. Giving 60 seconds for scan...');
+        setTimeout(() => initializeWithRetry(), 60000);
+      } else {
+        // Attempt to reinitialize after 10 seconds
+        setTimeout(() => {
+          console.log('🔄 Attempting to reinitialize client...');
+          initializeWithRetry();
+        }, 10000);
       }
-    }, 5000);
-  });
+    });
+  };
+  
+  initializeWithRetry();
 }
 
 async function loadChats() {
