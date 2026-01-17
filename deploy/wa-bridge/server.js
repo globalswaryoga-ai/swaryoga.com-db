@@ -71,6 +71,7 @@ let client = null;
 let qrCode = null;
 let chats = [];
 let sessionReady = false;
+let heartbeatInterval = null; // Keep-alive heartbeat for QR waits
 
 // Initialize WhatsApp client
 function initializeClient() {
@@ -105,9 +106,13 @@ function initializeClient() {
         '--use-fake-device-for-media-stream',
         // Handle D-Bus warnings on EC2/headless
         '--disable-features=TranslateUI',
-        '--enable-features=NetworkService,NetworkServiceInProcess'
+        '--enable-features=NetworkService,NetworkServiceInProcess',
+        // Memory & stability fixes
+        '--disable-dev-shm-usage',
+        '--single-process=false'
       ],
-      protocolTimeout: 180000 // Increase protocol timeout to 180 seconds
+      protocolTimeout: 300000, // 5 minute timeout for slow QR scans
+      timeout: 60000 // 60 second connection timeout
     }
   });
 
@@ -120,12 +125,29 @@ function initializeClient() {
       }
       qrCode = url;
       console.log(`✅ QR code ready (${qrCode ? qrCode.length : 0} chars)`);
+      
+      // Start heartbeat when QR appears to keep connection alive
+      if (!heartbeatInterval) {
+        console.log('💓 Starting connection keep-alive heartbeat...');
+        heartbeatInterval = setInterval(() => {
+          try {
+            if (client && client.pupPage && !sessionReady) {
+              client.pupPage.evaluate(() => document.readyState).catch(() => {});
+            }
+          } catch (err) {}
+        }, 15000); // Ping every 15 seconds
+      }
     });
   });
 
   client.on('authenticated', () => {
     console.log('✓ Authenticated with WhatsApp');
     sessionReady = true;
+    // Stop heartbeat when authenticated
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
   });
 
   client.on('ready', () => {
@@ -139,6 +161,11 @@ function initializeClient() {
     console.log('⚠ WhatsApp disconnected - will attempt auto-reconnect...');
     sessionReady = false;
     qrCode = null;
+    // Stop heartbeat on disconnect
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
     // Auto-reconnect after 5 seconds
     setTimeout(() => {
       console.log('🔄 Attempting to reconnect...');
@@ -174,6 +201,11 @@ function initializeClient() {
   client.initialize().catch((err) => {
     console.error('❌ Failed to initialize WhatsApp client:', err.message);
     sessionReady = false;
+    // Stop heartbeat on error
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
     // Attempt to reinitialize after delay
     setTimeout(() => {
       console.log('🔄 Attempting to reinitialize client...');
