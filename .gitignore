@@ -3,27 +3,16 @@ node_modules
 out/
 .turbo/
 .swc/
+# Documentation files
+*.md
+!README.md
+
+# Environment files
 .env
-.env.local
-.env.local.bak
-.env.local.clean
-.env.*.local
-.env.vercel
-.env.payment
-.env.workshop
-dist
-build
-*.log
-.DS_Store
-.vercel
-.idea
-.vscode
-.env*.local
-*.tsbuildinfo
-/api/
-/server/
-/models/
-/bolt/
+.env.*
+!.env.example
+!.env.*.example
+!.env.*.template
 
 # Local-only / experimental
 lib/payments/payu-v2.ts
@@ -42,4 +31,3 @@ coverage/
 # NOTE: We commit project docs (README, deployment guides, etc.).
 # Only ignore generated markdown (if any) under known generated folders.
 docs/generated/**/*.md
-.env.production
