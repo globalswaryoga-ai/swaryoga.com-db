@@ -84,9 +84,12 @@ export function getCashfreeSdkUrl(): string {
 
 export function getCashfreeReturnUrl(request: NextRequest): string {
   const baseUrl = getRequestBaseUrl(request);
-  // For production, baseUrl is already HTTPS from Vercel
-  // For local testing, convert http to https URL (Cashfree requires HTTPS)
-  let url = `${baseUrl}/api/payments/cashfree/return`;
+  // IMPORTANT: Cashfree will only send the order id back if we include placeholders
+  // in the return_url. Without this, the user may see:
+  //   "Payment Failed – Missing Cashfree order id"
+  // Docs pattern: return_url = https://.../return?order_id={order_id}&order_token={order_token}
+  // We only require order_id, but include order_token for debugging/future verification.
+  let url = `${baseUrl}/api/payments/cashfree/return?order_id={order_id}&order_token={order_token}`;
   
   // Cashfree production requires HTTPS. For local testing, use a placeholder HTTPS URL
   // When deployed to Vercel, this will already be HTTPS

@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
       ok: true,
       service: 'cashfree-webhook',
       hint: 'Send POST webhooks to this endpoint',
-      returnUrl: `${url.origin}/api/payments/cashfree/return`,
+      // NOTE: Configure Cashfree order_meta.return_url with placeholders, e.g.
+      //   https://<domain>/api/payments/cashfree/return?order_id={order_id}&order_token={order_token}
+      returnUrl: `${url.origin}/api/payments/cashfree/return?order_id={order_id}&order_token={order_token}`,
     },
     { status: 200 }
   );
