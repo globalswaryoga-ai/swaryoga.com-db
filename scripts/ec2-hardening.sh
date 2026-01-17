@@ -107,7 +107,12 @@ UsePAM yes
 EOF
 
 # Validate and restart SSH
-sshd -t && (systemctl restart sshd || systemctl restart ssh)
+sshd -t
+if systemctl list-unit-files | grep -q sshd.service; then
+  systemctl restart sshd
+else
+  systemctl restart ssh
+fi
 
 echo -e "${GREEN}✅ SSH hardened${NC}"
 
