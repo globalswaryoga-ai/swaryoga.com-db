@@ -42,3 +42,5 @@ docs/generated/**/*.md
 # Vercel CLI token files (never commit)
 production
 
+.vercel
+.env*.local

@@ -1,4 +1,9 @@
 # Ignore development files
+.env
+.env.*
+.env.local
+.env.local.*
+.env.production
 .env.workshop
 .env.payment
 .git
@@ -9,7 +14,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .DS_Store
-.next/cache
+.next
 .vercel
 index.html
 src/**
@@ -17,6 +22,10 @@ server/**
 # Ignore the legacy Express-style API folder at repo root (Next.js API lives under `app/api/**`).
 api/**
 
-# Don't ignore .env.local - Vercel needs it
-# but set env vars in Vercel dashboard instead
+# Never deploy WhatsApp-web session/cache data
+.wwebjs_auth/
+.wwebjs_cache/
+**/.wwebjs_auth/
+**/.wwebjs_cache/
+
 # Vercel rebuild trigger
