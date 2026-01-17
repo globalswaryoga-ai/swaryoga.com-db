@@ -1,9 +1,17 @@
 #!/bin/bash
 
 # sync-prod-to-vercel.sh
-# Synchronizes essential production environment variables from .env.production to Vercel
+# Synchronizes essential production environment variables to Vercel
+# Reads from .env.local by default
 
-echo "Pulling environment variables from .env.production..."
+# Load environment variables
+if [ -f .env.production ]; then
+    echo "Loading variables from .env.production..."
+    export $(grep -v '^#' .env.production | xargs)
+elif [ -f .env.local ]; then
+    echo "Loading variables from .env.local..."
+    export $(grep -v '^#' .env.local | xargs)
+fi
 
 # Function to add/update Vercel env
 set_vercel_env() {
@@ -23,23 +31,34 @@ set_vercel_env() {
 }
 
 # 1. Bridge Variables (CRITICAL for QR)
-BRIDGE_IP="http://3.109.154.61:3333"
-set_vercel_env "WHATSAPP_BRIDGE_HTTP_URL" "$BRIDGE_IP"
-set_vercel_env "NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL" "$BRIDGE_IP"
-set_vercel_env "WHATSAPP_BRIDGE_SECRET" "swar-bridge-secret-2024"
-set_vercel_env "NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET" "swar-bridge-secret-2024"
-set_vercel_env "WHATSAPP_WEB_BRIDGE_SECRET" "swar-bridge-secret-2024"
+set_vercel_env "WHATSAPP_BRIDGE_HTTP_URL" "$WHATSAPP_BRIDGE_HTTP_URL"
+set_vercel_env "NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL" "$NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL"
+set_vercel_env "WHATSAPP_BRIDGE_SECRET" "$WHATSAPP_BRIDGE_SECRET"
+set_vercel_env "NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET" "$NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET"
+set_vercel_env "WHATSAPP_WEB_BRIDGE_SECRET" "$WHATSAPP_WEB_BRIDGE_SECRET"
 
 # 2. Meta API Variables
-set_vercel_env "WHATSAPP_ACCESS_TOKEN" "EAAZA17SDRZATgBQU6L6BlN4nqTAWP2m1IyfyolhJQhCFhY5FU1bUJtG28mgy1Tt7sTu9b16kuC4aL0bSJIhC9rPJl44p23PACTA9z2AiDHu3PNGicikNZAgwmJWNktHxOebIqk7ZBKcUpbwNFR832ZAD5OvTbI3jZA6mBVMrhcGJqjQf9YACozjyYA5unF6yXbJAZDZD"
-set_vercel_env "WHATSAPP_PHONE_NUMBER_ID" "733788303156745"
-set_vercel_env "META_APP_SECRET" "ce4bf92f6be0c7bace755a216cbf1ef2"
-set_vercel_env "WHATSAPP_WEBHOOK_VERIFY_TOKEN" "SWAR_YOGA_MOHAN_WT_SETUP"
+set_vercel_env "WHATSAPP_ACCESS_TOKEN" "$WHATSAPP_ACCESS_TOKEN"
+set_vercel_env "WHATSAPP_PHONE_NUMBER_ID" "$WHATSAPP_PHONE_NUMBER_ID"
+set_vercel_env "META_APP_SECRET" "$META_APP_SECRET"
+set_vercel_env "WHATSAPP_WEBHOOK_VERIFY_TOKEN" "$WHATSAPP_WEBHOOK_VERIFY_TOKEN"
 
 # 3. Database Variables
-set_vercel_env "MONGODB_URI_MAIN" "mongodb+srv://swarsakshi9_db_user:hZnGhuVUNoew0Gje@swaryogadb.dheqmu1.mongodb.net/swaryogaDB?retryWrites=true&w=majority"
-set_vercel_env "MONGODB_CRM_DB_NAME" "swaryoga_admin_crm"
-set_vercel_env "MONGODB_MAIN_DB_NAME" "swaryogaDB"
+set_vercel_env "MONGODB_URI_MAIN" "$MONGODB_URI_MAIN"
+set_vercel_env "MONGODB_CRM_DB_NAME" "$MONGODB_CRM_DB_NAME"
+set_vercel_env "MONGODB_MAIN_DB_NAME" "$MONGODB_MAIN_DB_NAME"
+
+# 4. AWS Variables
+set_vercel_env "AWS_ACCESS_KEY_ID" "$AWS_ACCESS_KEY_ID"
+set_vercel_env "AWS_SECRET_ACCESS_KEY" "$AWS_SECRET_ACCESS_KEY"
+set_vercel_env "AWS_REGION" "$AWS_REGION"
+set_vercel_env "AWS_S3_BUCKET" "$AWS_S3_BUCKET"
+
+# 5. Cashfree Variables
+set_vercel_env "CASHFREE_CLIENT_ID" "$CASHFREE_CLIENT_ID"
+set_vercel_env "CASHFREE_CLIENT_SECRET" "$CASHFREE_CLIENT_SECRET"
+set_vercel_env "CASHFREE_ENV" "$CASHFREE_ENV"
+set_vercel_env "CASHFREE_API_VERSION" "$CASHFREE_API_VERSION"
 
 echo "✅ Environment variables synced to Vercel."
 echo "🚀 IMPORTANT: You must trigger a new deployment for these changes to take effect."
