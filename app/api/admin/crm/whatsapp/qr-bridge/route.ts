@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// In production (Vercel), use EC2 IP. In development, use localhost.
-const DEFAULT_BRIDGE_URL = process.env.NODE_ENV === 'production' 
-  ? 'http://3.109.154.61:3333'
-  : 'http://localhost:3333';
+// Use EC2 bridge URL by default (works for both dev and prod)
+const DEFAULT_BRIDGE_URL = 'http://3.109.154.61:3333';
 
 // Prefer server-only vars, but also allow NEXT_PUBLIC_* (often configured first in Vercel/env files).
 // This route runs server-side, so either works.
 const BRIDGE_URL =
   process.env.WHATSAPP_BRIDGE_HTTP_URL ||
-  process.env.WHATSAPP_BRIDGE_URL ||
   process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
+  process.env.WHATSAPP_BRIDGE_URL ||
   DEFAULT_BRIDGE_URL;
 
 const BRIDGE_SECRET =

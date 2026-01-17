@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { connectDB, User } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
+import { normalizePhone } from '@/lib/whatsapp';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,9 +30,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Fetch CRM leadNumber (serial 6-digit ID) for this user.
+    // This is the canonical human-friendly ID that should match leads/community.
+    let leadNumber: string | null = null;
+    try {
+      const Lead = getLead();
+      const phoneNumber = user.phone ? normalizePhone(String(user.phone)) : '';
+      const email = user.email ? String(user.email).trim().toLowerCase() : '';
+
+      const lead: any = await Lead.findOne({
+        $or: [
+          ...(phoneNumber ? [{ phoneNumber }] : []),
+          ...(email ? [{ email }] : []),
+        ],
+      })
+        .select({ leadNumber: 1 })
+        .lean();
+
+      if (lead?.leadNumber) {
+        leadNumber = String(lead.leadNumber);
+      }
+    } catch (e) {
+      // Non-fatal: profile should still load even if CRM is unavailable.
+      console.warn('Profile leadNumber lookup failed:', e);
+    }
+
     return NextResponse.json({
       id: user._id,
       profileId: user.profileId,
+      leadNumber,
       name: user.name,
       email: user.email,
       phone: user.phone,
@@ -113,6 +141,8 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       id: user._id,
       profileId: user.profileId,
+      // Keep response shape consistent with GET
+      leadNumber: undefined,
       name: user.name,
       email: user.email,
       phone: user.phone,

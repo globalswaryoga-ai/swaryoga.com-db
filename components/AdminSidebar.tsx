@@ -17,6 +17,35 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
   const token = useAuth();
   const crm = useCRM({ token });
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  // Determine super-admin status from stored admin user info.
+  // This is consistent with other CRM screens and avoids needing to decode JWT in the browser.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userStr = localStorage.getItem('admin_user');
+    let resolvedUserId = localStorage.getItem('adminUser') || '';
+    let legacyPerms: string[] = [];
+    let permissionsV2: any = null;
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        resolvedUserId = (u?.userId as string) || resolvedUserId;
+        legacyPerms = Array.isArray(u?.permissions) ? u.permissions : [];
+        permissionsV2 = u?.permissionsV2 || null;
+      } catch {
+        // ignore
+      }
+    }
+
+    const superAdmin =
+      resolvedUserId === 'admin' ||
+      resolvedUserId === 'admincrm' ||
+      legacyPerms.includes('all') ||
+      permissionsV2?.isSuperAdmin === true;
+
+    setIsSuperAdmin(superAdmin);
+  }, []);
 
   // Fetch unread message count
   useEffect(() => {
@@ -45,109 +74,44 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     }
   };
 
+  // Sidebar menu: CRM-first.
+  // Requirement: show a single "Admin" entry (super-admin only) that links to the admin dashboard.
+  // Individual admin module links are intentionally removed from the sidebar.
   const menuItems = [
-    {
-      icon: Home,
-      label: 'Home',
-      href: '/',
-      color: 'text-red-500'
-    },
-    {
-      icon: LayoutDashboard,
-      label: 'Dashboard',
-      href: '/admin/dashboard',
-      color: 'text-blue-600'
-    },
-    {
-      icon: Users,
-      label: 'Admin Users',
-      href: '/admin/users',
-      color: 'text-purple-600'
-    },
-    {
-      icon: Users,
-      label: 'Signup Data',
-      href: '/admin/signup-data',
-      color: 'text-swar-primary'
-    },
-    {
-      icon: LogIn,
-      label: 'Signin Data',
-      href: '/admin/signin-data',
-      color: 'text-purple-600'
-    },
-    {
-      icon: MessageSquare,
-      label: 'Contact Messages',
-      href: '/admin/contact-messages',
-      color: 'text-orange-600'
-    },
-    {
-      icon: Mail,
-      label: 'Workshop Enquiries',
-      href: '/admin/enquiries',
-      color: 'text-pink-600'
-    },
-    {
-      icon: Calendar,
-      label: 'Workshop Dates',
-      href: '/admin/workshops/schedules',
-      color: 'text-emerald-500'
-    },
-    {
-      icon: Gift,
-      label: 'Send Offers',
-      href: '/admin/offers',
-      color: 'text-red-600'
-    },
-    {
-      icon: Calculator,
-      label: 'Accounting',
-      href: '/admin/accounting',
-      color: 'text-indigo-600'
-    },
-    {
-      icon: Share2,
-      label: 'Social Media',
-      href: '/admin/social-media',
-      color: 'text-emerald-500'
-    },
-    {
-      icon: Share2,
-      label: 'Connect Accounts',
-      href: '/admin/social-media-setup',
-      color: 'text-cyan-500'
-    },
+    ...(isSuperAdmin
+      ? [
+          {
+            icon: LayoutDashboard,
+            label: 'Admin',
+            href: '/admin/dashboard',
+            color: 'text-blue-600',
+          },
+        ]
+      : []),
     {
       icon: MessageSquare,
       label: 'CRM Leads',
       href: '/admin/crm/leads',
-      color: 'text-emerald-600'
+      color: 'text-emerald-600',
     },
     {
       icon: MessageCircle,
       label: 'Meta Inbox',
       href: '/admin/crm/meta',
-      color: 'text-cyan-600'
-    },
-    {
-      icon: MessageCircle,
-      label: 'QR WhatsApp',
-      href: '/admin/crm/qr',
-      color: 'text-emerald-400'
+      color: 'text-cyan-600',
     },
     {
       icon: LayoutDashboard,
       label: 'Meta Setup',
       href: '/admin/crm/whatsapp-meta',
-      color: 'text-indigo-600'
+      color: 'text-indigo-600',
     },
     {
       icon: MessageSquare,
       label: 'Lead Followup',
       href: '/admin/crm/leads-followup',
-      color: 'text-violet-600'
-    }
+      color: 'text-violet-600',
+    },
   ];
 
   // Meta WhatsApp chat should always be visible in CRM sidebar.

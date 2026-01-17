@@ -412,7 +412,7 @@ export default function LeadsPage() {
                 });
               }}
               onClick={(e) => e.stopPropagation()}
-              className="h-4 w-4 accent-emerald-600 cursor-pointer"
+              className="h-4 w-4 accent-[#E8A645] cursor-pointer"
               aria-label={`Select lead ${lead.leadNumber || lead._id}`}
             />
           </div>
@@ -423,9 +423,9 @@ export default function LeadsPage() {
       key: 'leadNumber',
       label: 'Lead ID',
       render: (val: any) => (
-        <div className="border-2 border-emerald-500 rounded-lg px-3 py-2 bg-emerald-50 text-center">
-          <div className="text-xs font-bold text-emerald-700 mb-1">LEAD ID</div>
-          <div className="font-mono font-bold text-emerald-700">{val || '-'}</div>
+        <div className="border-2 border-[#0f3a4d] rounded-lg px-3 py-2 bg-[#F5EBE0] text-center">
+          <div className="text-xs font-bold text-[#0f3a4d] mb-1">LEAD ID</div>
+          <div className="font-mono font-bold text-[#0f3a4d]">{val || '-'}</div>
         </div>
       ),
     },
@@ -433,7 +433,7 @@ export default function LeadsPage() {
       key: 'assignedToUserId',
       label: 'User',
       render: (val: any) => (
-        <div className="bg-emerald-700 text-white rounded-lg px-3 py-2 text-center font-semibold">
+        <div className="bg-[#0f3a4d] text-white rounded-lg px-3 py-2 text-center font-semibold">
           {getAssigneeLabel(val) || 'Unassigned'}
         </div>
       ),
@@ -458,13 +458,13 @@ export default function LeadsPage() {
             labels.map((label: any) => (
               <span
                 key={String(label)}
-                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-300"
+                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#E8A645]/20 text-[#0f3a4d] border border-[#E8A645]"
               >
                 {String(label)}
               </span>
             ))
           ) : (
-            <span className="text-gray-400 text-xs">—</span>
+            <span className="text-[#0f3a4d] text-xs opacity-50">—</span>
           )}
         </div>
       ),
@@ -476,7 +476,7 @@ export default function LeadsPage() {
         <select
           value={String(status || 'lead')}
           onChange={(e) => handleStatusChange(lead._id, e.target.value)}
-          className="px-3 py-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 border border-teal-600 rounded-full text-sm text-white font-semibold focus:outline-none focus:ring-2 focus:ring-teal-400 cursor-pointer hover:from-teal-600 hover:to-cyan-700 transition-all"
+          className="px-3 py-1.5 bg-[#0f3a4d] border border-[#0f3a4d] rounded-full text-sm text-white font-semibold focus:outline-none focus:ring-2 focus:ring-[#E8A645] cursor-pointer hover:bg-[#1a4d5c] transition-all"
         >
           <option value="lead">Lead</option>
           <option value="prospect">Prospect</option>
@@ -502,15 +502,15 @@ export default function LeadsPage() {
         <div className="flex gap-2 items-center relative">
           <button
             onClick={() => router.push(`/admin/crm/leads/${lead._id}`)}
-            className="px-3 py-1.5 bg-teal-100 hover:bg-teal-200 text-teal-700 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-[#F5EBE0] hover:bg-[#E8DFD5] text-[#0f3a4d] rounded-lg text-sm font-medium transition-colors"
             title="View lead details"
           >
             View
           </button>
 
           <button
-            onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}&name=${encodeURIComponent(lead.name || '')}`)}
-            className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+            onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}&name=${encodeURIComponent(lead.name || '')}`)}  
+            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
             title="Open QR WhatsApp"
           >
             <span aria-hidden>🟢</span>
@@ -519,7 +519,7 @@ export default function LeadsPage() {
 
           <button
             onClick={() => router.push(`/admin/crm/leads-followup?leadId=${encodeURIComponent(lead._id)}`)}
-            className="px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors"
             title="Open lead followup"
           >
             Followup
@@ -535,7 +535,7 @@ export default function LeadsPage() {
               params.set('leadId', lead._id);
               router.push(`/admin/crm/broadcast?${params.toString()}`);
             }}
-            className="px-3 py-1.5 bg-violet-100 hover:bg-violet-200 text-violet-800 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-[#F5EBE0] hover:bg-[#E8DFD5] text-[#0f3a4d] rounded-lg text-sm font-medium transition-colors"
             title="Open Broadcast with current filters"
           >
             📢 Broadcast
@@ -624,7 +624,7 @@ export default function LeadsPage() {
   if (!hasMounted) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#FAFAF8] flex">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Page Header - Professional */}
         <div className="flex items-center justify-between">
@@ -632,7 +632,7 @@ export default function LeadsPage() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/admin/crm')}
-                className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-600 hover:text-slate-900"
+                className="p-2 hover:bg-[#E8DFD5] rounded-lg transition-colors text-[#0f3a4d] hover:text-[#0f3a4d]"
                 title="Go to CRM Dashboard"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -641,8 +641,8 @@ export default function LeadsPage() {
                 </svg>
               </button>
               <div>
-                <h1 className="text-4xl font-bold text-slate-900">Lead Management</h1>
-                <p className="text-slate-600 text-lg">Manage and track all customer leads efficiently</p>
+                <h1 className="text-4xl font-bold text-[#0f3a4d]">Lead Management</h1>
+                <p className="text-[#0f3a4d]/70 text-lg">Manage and track all customer leads efficiently</p>
               </div>
             </div>
           </div>
@@ -683,7 +683,7 @@ export default function LeadsPage() {
             )}
             <button
               onClick={() => setBulkImportModalOpen(true)}
-              className="bg-teal-50 hover:bg-teal-100 text-teal-700 px-4 py-2 rounded-lg transition-all font-semibold border border-teal-200"
+              className="bg-[#F5EBE0] hover:bg-[#E8DFD5] text-[#0f3a4d] px-4 py-2 rounded-lg transition-all font-semibold border border-[#E8DFD5]"
             >
               📤 Bulk Upload
             </button>
@@ -699,14 +699,14 @@ export default function LeadsPage() {
                 const queryString = params.toString();
                 router.push(`/admin/crm/broadcast${queryString ? `?${queryString}` : ''}`);
               }}
-              className="bg-purple-50 hover:bg-purple-100 text-purple-700 px-4 py-2 rounded-lg transition-all font-semibold border border-purple-200 flex items-center gap-2"
+              className="bg-[#F5EBE0] hover:bg-[#E8DFD5] text-[#0f3a4d] px-4 py-2 rounded-lg transition-all font-semibold border border-[#E8DFD5] flex items-center gap-2"
               title="Go to broadcast page with current filters applied"
             >
               � To Broadcast
             </button>
             <button
               onClick={modal.open}
-              className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white px-6 py-2 rounded-lg transition-all font-bold shadow-md hover:shadow-lg"
+              className="bg-gradient-to-r from-[#0f3a4d] to-[#0f3a4d] hover:from-[#1a4d5c] hover:to-[#1a4d5c] text-white px-6 py-2 rounded-lg transition-all font-bold shadow-md hover:shadow-lg"
             >
               + Add Lead
             </button>
@@ -714,12 +714,12 @@ export default function LeadsPage() {
         </div>
 
         {/* Filters Section - Professional Card */}
-        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-6">Filters & Search</h2>
+        <div className="bg-[#FAFAF8] border border-[#E8DFD5] rounded-xl p-8 shadow-sm">
+          <h2 className="text-sm font-bold text-[#0f3a4d] uppercase tracking-wider mb-6">Filters & Search</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Status Filter */}
             <div>
-              <label htmlFor="filter-status" className="block text-slate-700 text-sm font-semibold mb-3">Status</label>
+              <label htmlFor="filter-status" className="block text-[#0f3a4d] text-sm font-semibold mb-3">Status</label>
               <select
                 id="filter-status"
                 name="status"
@@ -728,7 +728,7 @@ export default function LeadsPage() {
                   setFilterStatus(e.target.value);
                   setSkip(0);
                 }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400 transition-all"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
               >
                 <option value="">All Status ({total})</option>
                 <option value="lead">Lead ({statusCounts.lead || 0})</option>
@@ -740,7 +740,7 @@ export default function LeadsPage() {
 
             {/* Workshop Filter */}
             <div>
-              <label htmlFor="filter-workshop" className="block text-slate-700 text-sm font-semibold mb-3">Program/Workshop</label>
+              <label htmlFor="filter-workshop" className="block text-[#0f3a4d] text-sm font-semibold mb-3">Program/Workshop</label>
               <select
                 id="filter-workshop"
                 name="workshop"
@@ -749,7 +749,7 @@ export default function LeadsPage() {
                   setFilterWorkshop(e.target.value);
                   setSkip(0);
                 }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400 transition-all"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
               >
                 <option value="">All Programs</option>
                 {workshops.map((workshop) => (
@@ -763,7 +763,7 @@ export default function LeadsPage() {
             {/* User Filter */}
             {isSuperAdmin && (
               <div>
-                <label htmlFor="filter-user" className="block text-slate-700 text-sm font-semibold mb-3">Admin User</label>
+                <label htmlFor="filter-user" className="block text-[#0f3a4d] text-sm font-semibold mb-3">Admin User</label>
                 <select
                   id="filter-user"
                   name="user"
@@ -772,7 +772,7 @@ export default function LeadsPage() {
                     setUserFilter(e.target.value);
                     setSkip(0);
                   }}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400 transition-all"
+                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
                 >
                   <option value="">All Users</option>
                   {userOptions.map((u) => (
@@ -786,7 +786,7 @@ export default function LeadsPage() {
 
             {/* Search Box */}
             <div>
-              <label htmlFor="search-input" className="block text-slate-700 text-sm font-semibold mb-3">Search</label>
+              <label htmlFor="search-input" className="block text-[#0f3a4d] text-sm font-semibold mb-3">Search</label>
               <input
                 id="search-input"
                 name="search"
@@ -797,7 +797,7 @@ export default function LeadsPage() {
                   search.setQuery(e.target.value);
                   setSkip(0);
                 }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400 transition-all"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
               />
             </div>
           </div>
@@ -822,13 +822,13 @@ export default function LeadsPage() {
             </div>
           </div>
         ) : leads.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-sm">
+          <div className="bg-[#FAFAF8] border border-[#E8DFD5] rounded-xl p-12 text-center shadow-sm">
             <div className="text-5xl mb-4">📊</div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">No leads found</h3>
-            <p className="text-slate-600 mb-6">Start by adding a new lead or uploading from a file</p>
+            <h3 className="text-xl font-semibold text-[#0f3a4d] mb-2">No leads found</h3>
+            <p className="text-[#0f3a4d]/70 mb-6">Start by adding a new lead or uploading from a file</p>
             <button
               onClick={modal.open}
-              className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white px-6 py-2 rounded-lg font-semibold transition-all"
+              className="bg-gradient-to-r from-[#0f3a4d] to-[#0f3a4d] hover:from-[#1a4d5c] hover:to-[#1a4d5c] text-white px-6 py-2 rounded-lg font-semibold transition-all"
             >
               + Add Your First Lead
             </button>
@@ -837,9 +837,9 @@ export default function LeadsPage() {
           <>
             {/* Bulk Actions Bar */}
             {selectedLeadIds.size > 0 && (
-              <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="bg-[#F5EBE0] border border-[#E8DFD5] rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="font-semibold text-teal-900">
+                  <div className="font-semibold text-[#0f3a4d]">
                     Selected: {selectedLeadIds.size}
                   </div>
 
@@ -856,7 +856,7 @@ export default function LeadsPage() {
                       setLeadsForBroadcast(selectedLeads);
                       setBroadcastModalOpen(true);
                     }}
-                    className="px-3 py-1.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-200 transition-colors flex items-center gap-1"
+                    className="px-3 py-1.5 bg-[#E8A645]/20 border border-[#E8A645] text-[#0f3a4d] rounded-lg font-semibold hover:bg-[#E8A645]/40 transition-colors flex items-center gap-1"
                   >
                     📢 Add to Broadcast
                   </button>
@@ -932,15 +932,15 @@ export default function LeadsPage() {
             )}
 
             {/* Data Table - Professional Card */}
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-visible">
+            <div className="bg-[#FAFAF8] border border-[#E8DFD5] rounded-xl shadow-sm overflow-visible">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+                    <tr className="bg-gradient-to-r from-[#F5EBE0] to-[#E8DFD5] border-b border-[#E8DFD5]">
                       {columns.map((col) => (
                         <th
                           key={col.key}
-                          className="px-6 py-4 text-left text-sm font-bold text-slate-700 uppercase tracking-wider"
+                          className="px-6 py-4 text-left text-sm font-bold text-[#0f3a4d] uppercase tracking-wider"
                         >
                           {col.key === '_select' ? (
                             <div className="flex items-center gap-2">
@@ -958,7 +958,7 @@ export default function LeadsPage() {
                                 className="h-4 w-4 accent-teal-600 cursor-pointer"
                                 aria-label="Select all leads on this page"
                               />
-                              <span className="text-xs text-slate-600">All</span>
+                              <span className="text-xs text-[#0f3a4d]/70">All</span>
                             </div>
                           ) : (
                             col.label
@@ -971,12 +971,12 @@ export default function LeadsPage() {
                     {leads.map((lead, idx) => (
                       <tr
                         key={lead._id}
-                        className={`border-b border-slate-200 transition-colors relative ${
-                          idx % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50 hover:bg-slate-100'
+                        className={`border-b border-[#E8DFD5] transition-colors relative ${
+                          idx % 2 === 0 ? 'bg-[#FAFAF8] hover:bg-[#F5EBE0]/80' : 'bg-[#F5EBE0]/40 hover:bg-[#F5EBE0]/80'
                         }`}
                       >
                         {columns.map((col) => (
-                          <td key={col.key} className="px-6 py-4 text-sm text-slate-900">
+                          <td key={col.key} className="px-6 py-4 text-sm text-[#0f3a4d]">
                             {col.render ? col.render((lead as any)[col.key], lead) : (lead as any)[col.key]}
                           </td>
                         ))}
@@ -989,21 +989,21 @@ export default function LeadsPage() {
 
             {/* Pagination - Professional */}
             {leads.length > 0 && (
-              <div className="bg-white border border-slate-200 rounded-xl p-6 flex items-center justify-between">
-                <div className="text-slate-600 font-medium">
-                  Showing <span className="font-bold text-slate-900">{skip + 1}</span> to{' '}
-                  <span className="font-bold text-slate-900">{Math.min(skip + limit, total)}</span> of{' '}
-                  <span className="font-bold text-slate-900">{total}</span> leads
+              <div className="bg-[#FAFAF8] border border-[#E8DFD5] rounded-xl p-6 flex items-center justify-between">
+                <div className="text-[#0f3a4d]/70 font-medium">
+                  Showing <span className="font-bold text-[#0f3a4d]">{skip + 1}</span> to{' '}
+                  <span className="font-bold text-[#0f3a4d]">{Math.min(skip + limit, total)}</span> of{' '}
+                  <span className="font-bold text-[#0f3a4d]">{total}</span> leads
                 </div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setSkip(Math.max(0, skip - limit))}
                     disabled={skip === 0}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 rounded-lg font-medium transition-all"
+                    className="px-4 py-2 bg-[#F5EBE0] hover:bg-[#E8DFD5] disabled:opacity-50 disabled:cursor-not-allowed text-[#0f3a4d] rounded-lg font-medium transition-all"
                   >
                     ← Previous
                   </button>
-                  <div className="flex items-center px-4 text-slate-600 font-medium">
+                  <div className="flex items-center px-4 text-[#0f3a4d]/70 font-medium">
                     Page {Math.floor(skip / limit) + 1} of {Math.ceil(total / limit)}
                   </div>
                   <button
@@ -1011,7 +1011,7 @@ export default function LeadsPage() {
                       if (skip + limit < total) setSkip(skip + limit);
                     }}
                     disabled={skip + limit >= total}
-                    className="px-4 py-2 bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+                    className="px-4 py-2 bg-[#0f3a4d] hover:bg-[#1a4d5c] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
                   >
                     Next →
                   </button>
@@ -1035,12 +1035,12 @@ export default function LeadsPage() {
           <div className="space-y-4">
             {/* Admin User Assignment - visible to all admins */}
             <div>
-              <label className="block text-slate-700 text-sm mb-2 font-semibold">Assign to Admin User (Optional)</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Assign to Admin User (Optional)</label>
               <select
                 name="assignedToUserId"
                 value={form.values.assignedToUserId || ''}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
               >
                 <option value="">(Default: current admin)</option>
                 {isSuperAdmin && userOptions.length > 0 ? (
@@ -1053,34 +1053,34 @@ export default function LeadsPage() {
                   <option value="" disabled>Loading users...</option>
                 )}
               </select>
-              <p className="text-slate-600 text-xs mt-1">This controls which admin user can see/manage this lead.</p>
+              <p className="text-[#0f3a4d]/70 text-xs mt-1">This controls which admin user can see/manage this lead.</p>
             </div>
             <div>
-              <label className="block text-slate-700 text-sm mb-2 font-semibold">Name *</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Name *</label>
               <input
                 type="text"
                 required
                 name="name"
                 value={form.values.name}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 placeholder="Lead name"
               />
             </div>
             <div>
-              <label className="block text-slate-700 text-sm mb-2 font-semibold">Email *</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Email *</label>
               <input
                 type="email"
                 required
                 name="email"
                 value={form.values.email}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 placeholder="email@example.com"
               />
             </div>
             <div>
-              <label className="block text-slate-700 text-sm mb-2 font-semibold">Phone Number *</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Phone Number *</label>
               <input
                 type="tel"
                 required
@@ -1091,17 +1091,17 @@ export default function LeadsPage() {
                   const normalized = normalizePhoneForMeta(e.target.value);
                   if (normalized) form.setFieldValue('phoneNumber', normalized);
                 }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 placeholder="+919876543210"
               />
             </div>
             <div>
-              <label className="block text-slate-700 text-sm mb-2 font-semibold">Source</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Source</label>
               <select
                 name="source"
                 value={form.values.source}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
               >
                 <option value="website">Website</option>
                 <option value="referral">Referral</option>
@@ -1110,12 +1110,12 @@ export default function LeadsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-slate-700 text-sm mb-2 font-semibold">Status</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Status</label>
               <select
                 name="status"
                 value={form.values.status}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
               >
                 <option value="lead">Lead</option>
                 <option value="prospect">Prospect</option>
@@ -1124,13 +1124,13 @@ export default function LeadsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-slate-700 text-sm mb-2 font-semibold">Workshop/Program (Optional)</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Workshop/Program (Optional)</label>
               <input
                 type="text"
                 name="workshopName"
                 value={form.values.workshopName || ''}
                 onChange={form.handleChange}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2 text-slate-900 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 placeholder="e.g., Yoga Retreat 2025, Advanced Pranayama"
               />
             </div>

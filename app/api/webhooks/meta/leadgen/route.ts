@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 import { connectDB } from '@/lib/db';
-import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -72,6 +72,7 @@ function buildLeadName(fieldData: any[]): string {
  */
 async function upsertLeadFromMeta(leadgenData: any) {
   try {
+    const Lead = getLead();
     const fieldData = leadgenData.field_data || [];
 
     const leadgenId = leadgenData.id;
@@ -106,13 +107,20 @@ async function upsertLeadFromMeta(leadgenData: any) {
       existingLead.metadata = existingLead.metadata || {};
       existingLead.metadata.metaLeadgenId = metaLeadgenId;
       existingLead.source = 'meta_leadgen';
+
+      // Ensure leadNumber exists (legacy/older leads)
+      if (!existingLead.leadNumber) {
+        const { leadNumber } = await allocateNextLeadNumber();
+        existingLead.leadNumber = leadNumber;
+      }
+
       await existingLead.save();
       console.log(`Updated existing lead: ${existingLead._id}`);
       return { success: true, leadId: existingLead._id, action: 'updated' };
     }
 
     // Create new lead
-    const leadNumber = await allocateNextLeadNumber();
+    const { leadNumber } = await allocateNextLeadNumber();
     const newLead = await Lead.create({
       leadNumber,
       phoneNumber: phone || undefined,

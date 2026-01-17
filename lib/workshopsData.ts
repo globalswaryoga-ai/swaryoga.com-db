@@ -561,36 +561,6 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
     ],
     finalCTA: 'Begin your Swar Yoga journey. Unlock ancient secrets for health, wealth, and success through the power of breath.'
   },
-  'master-swar-yoga': {
-    heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',
-    whatYouWillLearn: [
-      'Complete mastery of Swar Yoga from Level 1 to Level 5',
-      'Deep integration of breathing, wealth, and spiritual wisdom',
-      'Guided 6-month journey with continuous support',
-      'Master life cycles, career timing, and spiritual realization',
-      'Transform your entire existence through the science of Swar'
-    ],
-    highlightVideos: [
-      { title: 'Masterclass Overview', url: 'https://www.youtube.com/embed/_sVjfPam0SM' },
-      { title: 'Core Swar Techniques', url: 'https://www.youtube.com/embed/fxA5CjzgHQA' },
-      { title: 'Journey to Mastery', url: 'https://www.youtube.com/embed/_EWOgcAc8GA' }
-    ],
-    mentorInfo: 'An intensive apprenticeship with senior Swar Yoga masters. This 6-month program provides deep mentorship and advanced transmissions not available in shorter workshops.',
-    testimonials: [
-      { quote: 'The most comprehensive spiritual training I have ever attended.', name: 'Vikram Reddy', place: 'Vijayawada' },
-      { quote: 'Six months that completely rewired my brain and success patterns.', name: 'Anjali Sharma', place: 'Gurgaon' },
-      { quote: 'A life-changing commitment that pays back every single day.', name: 'Sanjay Gupta', place: 'Surat' },
-      { quote: 'Finally, a systematic path to the highest yogic realizations.', name: 'Meera Singh', place: 'Rishikesh' }
-    ],
-    videoTestimonials: [
-      { name: 'Vikram - Business Head', url: 'https://www.youtube.com/embed/T3qQdIj7f0Y' },
-      { name: 'Anjali - Architect', url: 'https://www.youtube.com/embed/cklZSXAWA5U' },
-      { name: 'Sanjay - Tech Lead', url: 'https://www.youtube.com/embed/y90cV_3OMrQ' },
-      { name: 'Meera - Seeker', url: 'https://www.youtube.com/embed/8HWaFGJz6Yw' }
-    ],
-    finalCTA: 'Commit to your ultimate evolution. Join the 6-month Masterclass and master the ancient science of Swar Yoga.'
-  },
   'swar-yoga-level-1': {
     heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
     introVideoUrl: 'https://www.youtube.com/embed/luSaTlBXssM',

@@ -176,7 +176,9 @@ export interface RequestLog {
 
 export interface UserData {
   _id?: string;
-  profileId?: number;
+  profileId?: string;
+  // Serial CRM Lead ID (preferred human-friendly ID)
+  leadNumber?: string;
   name: string;
   email: string;
   phone: string;
@@ -194,7 +196,8 @@ export interface UserData {
 
 export interface UserProfile {
   id: string;
-  profileId: number;
+  profileId: string;
+  leadNumber?: string;
   name: string;
   email: string;
   phone: string;

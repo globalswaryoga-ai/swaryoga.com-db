@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/user/purchase-history
  * 
@@ -55,21 +57,29 @@ export async function GET(request: NextRequest) {
     }
 
     // Connect to database
-    await connectDB();
+    const conn = await connectDB();
+    const db = conn.db;
 
-    // Get Order model from main database
-    const db = require('@/lib/db').getMainDB?.() || 
-               (await require('@/lib/db').connectDB()).db;
-    
-    // Query completed orders for this user
-    const Order = db?.collection('orders') || 
-                  require('@/lib/schemas/mainSchemas').getOrder?.();
+    if (!db) {
+      return NextResponse.json(
+        {
+          success: false,
+          purchasedItems: [],
+          error: 'Database connection is not ready'
+        },
+        { status: 500 }
+      );
+    }
+
+    const ordersCollection = db.collection('orders');
 
     // Fetch user's completed orders
-    const userOrders = await Order.find({
+    const userOrders = await ordersCollection
+      .find({
       userId: decoded.userId,
       paymentStatus: 'completed' // Only completed payments
-    }).toArray();
+      })
+      .toArray();
 
     // Extract workshop/item IDs from orders
     const purchasedItems = userOrders.flatMap((order: any) => 

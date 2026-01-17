@@ -4,8 +4,20 @@ import { verifyToken } from '@/lib/auth';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId } from '@/lib/crm-handlers';
 
-const BRIDGE_URL = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
-const BRIDGE_SECRET = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+// Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
+// so prefer server-only env vars and only fall back to NEXT_PUBLIC_* if needed.
+const DEFAULT_BRIDGE_URL = 'http://3.109.154.61:3333';
+const BRIDGE_URL =
+  process.env.WHATSAPP_BRIDGE_HTTP_URL ||
+  process.env.WHATSAPP_BRIDGE_URL ||
+  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL ||
+  DEFAULT_BRIDGE_URL;
+
+const BRIDGE_SECRET =
+  process.env.WHATSAPP_BRIDGE_SECRET ||
+  process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
+  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
+  'swar-bridge-secret-2024';
 
 export async function POST(req: NextRequest) {
   try {

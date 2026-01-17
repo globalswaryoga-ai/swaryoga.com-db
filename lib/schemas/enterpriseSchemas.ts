@@ -68,7 +68,21 @@ const LeadSchema = new mongoose.Schema(
     labels: { type: [String], default: [] },
     source: {
       type: String,
-      enum: ['website', 'import', 'api', 'manual', 'whatsapp', 'referral', 'social', 'event'],
+      // Keep this list permissive enough for all ingestion points (website forms, payments, Meta leadgen, etc.)
+      enum: [
+        'website',
+        'website-form',
+        'website-signup',
+        'import',
+        'api',
+        'manual',
+        'whatsapp',
+        'workshop_payment',
+        'meta_leadgen',
+        'referral',
+        'social',
+        'event',
+      ],
       default: 'manual',
       index: true,
     },

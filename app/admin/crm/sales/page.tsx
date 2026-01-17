@@ -98,7 +98,9 @@ export default function SalesPage() {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [daily, setDaily] = useState<SalesAggRow[]>([]);
+  const [weekly, setWeekly] = useState<SalesAggRow[]>([]);
   const [monthly, setMonthly] = useState<SalesAggRow[]>([]);
+  const [yearly, setYearly] = useState<SalesAggRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'summary' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('list');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -252,8 +254,12 @@ export default function SalesPage() {
         });
       } else if (view === 'daily') {
         setDaily(Array.isArray((result as any)?.daily) ? (result as any).daily : []);
-      } else if (view === 'monthly' || view === 'weekly' || view === 'yearly') {
+      } else if (view === 'weekly') {
+        setWeekly(Array.isArray((result as any)?.weekly) ? (result as any).weekly : []);
+      } else if (view === 'monthly') {
         setMonthly(Array.isArray((result as any)?.monthly) ? (result as any).monthly : []);
+      } else if (view === 'yearly') {
+        setYearly(Array.isArray((result as any)?.yearly) ? (result as any).yearly : []);
       } else {
         setSales((result as any)?.sales || []);
       }
@@ -548,7 +554,7 @@ export default function SalesPage() {
       key: 'customerId',
       label: 'Customer ID',
       render: (_: any, sale: SaleRecord) => (
-        <div className="font-mono text-xs text-slate-700 break-words">{sale.customerId || '-'}</div>
+        <div className="font-mono text-xs text-[#0f3a4d] break-words">{sale.customerId || '-'}</div>
       ),
     },
     {
@@ -556,7 +562,7 @@ export default function SalesPage() {
       label: 'Customer & Contact',
       render: (name: string, sale: SaleRecord) => (
         <div className="space-y-1">
-          <div className="font-semibold text-slate-900 break-words">{name || 'N/A'}</div>
+          <div className="font-semibold text-[#0f3a4d] break-words">{name || 'N/A'}</div>
           <div className="text-xs text-slate-600 break-words">{sale.customerPhone || 'N/A'}</div>
         </div>
       )
@@ -578,20 +584,20 @@ export default function SalesPage() {
       label: 'Label',
       render: (_: any, sale: SaleRecord) => {
         const labels = Array.isArray(sale.labels) ? sale.labels : [];
-        if (!labels.length) return <span className="text-slate-500">-</span>;
+        if (!labels.length) return <span className="text-[#0f3a4d]/60">-</span>;
         return (
           <div className="flex flex-wrap gap-1">
             {labels.slice(0, 4).map((l) => (
               <span
                 key={l}
-                className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200"
+                className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[#F5EBE0]/60 text-[#0f3a4d] border border-[#E8DFD5]"
                 title={l}
               >
                 {l}
               </span>
             ))}
             {labels.length > 4 && (
-              <span className="text-xs text-slate-500">+{labels.length - 4}</span>
+              <span className="text-xs text-[#0f3a4d]/60">+{labels.length - 4}</span>
             )}
           </div>
         );
@@ -624,7 +630,7 @@ export default function SalesPage() {
           {/* RPT Button */}
           <button
             onClick={() => router.push(`/admin/crm/sales/${sale._id}`)}
-            className="px-3 py-1.5 bg-violet-100 hover:bg-violet-200 text-violet-700 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors"
             title="Receipt (A4 PDF)"
           >
             RPT
@@ -649,7 +655,7 @@ export default function SalesPage() {
 
               router.push(`/admin/crm/qr?${params.toString()}`);
             }}
-            className="px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors"
             title="QR WhatsApp"
           >
             WhatsApp
@@ -658,7 +664,7 @@ export default function SalesPage() {
           {/* Edit Button */}
           <button
             onClick={() => openEdit(sale)}
-            className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-[#F5EBE0] hover:bg-[#E8DFD5] text-[#0f3a4d] rounded-lg text-sm font-medium transition-colors"
             title="Edit sale"
           >
             Edit
@@ -667,7 +673,7 @@ export default function SalesPage() {
           {/* View Button */}
           <button
             onClick={() => router.push(`/admin/crm/sales/${sale._id}`)}
-            className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors"
             title="View sale details"
           >
             View
@@ -702,7 +708,7 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 p-8">
+    <div className="min-h-screen bg-[#FAFAF8] p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Page Header - Professional */}
         <div className="flex items-center justify-between">
@@ -710,7 +716,7 @@ export default function SalesPage() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/admin/crm')}
-                className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-600 hover:text-slate-900"
+                className="p-2 hover:bg-[#E8DFD5] rounded-lg transition-colors text-slate-600 hover:text-[#0f3a4d]"
                 title="Go to CRM Dashboard"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -719,7 +725,7 @@ export default function SalesPage() {
                 </svg>
               </button>
               <div>
-                <h1 className="text-4xl font-bold text-slate-900">Sales Management</h1>
+                <h1 className="text-4xl font-bold text-[#0f3a4d]">Sales Management</h1>
                 <p className="text-slate-600 text-lg">Track revenue, transactions, and workshop sales</p>
               </div>
             </div>
@@ -739,7 +745,7 @@ export default function SalesPage() {
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-2 rounded-lg transition-all font-bold shadow-md hover:shadow-lg"
+              className="bg-gradient-to-r from-[#0f3a4d] to-[#0f3a4d] hover:from-emerald-600 hover:to-teal-700 text-white px-6 py-2 rounded-lg transition-all font-bold shadow-md hover:shadow-lg"
             >
               + Record Sale
             </button>
@@ -755,15 +761,15 @@ export default function SalesPage() {
         )}
 
         {/* View Selector - Professional Tabs */}
-        <div className="flex gap-2 flex-wrap bg-white border border-slate-200 rounded-xl p-2 w-fit">
+        <div className="flex gap-2 flex-wrap bg-white border border-[#E8DFD5] rounded-xl p-2 w-fit">
           {(['list', 'summary', 'yearly', 'monthly', 'weekly', 'daily'] as const).map((v) => (
             <button
               key={v}
               onClick={() => setView(v)}
               className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
                 view === v
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-gradient-to-r from-[#0f3a4d] to-[#0f3a4d] text-white shadow-md'
+                  : 'bg-[#F5EBE0]/60 text-[#0f3a4d] hover:bg-[#E8DFD5]'
               }`}
             >
               {v === 'list' && '📋 List'}
@@ -778,20 +784,20 @@ export default function SalesPage() {
 
         {/* Bulk actions (header) */}
         {view === 'list' && selectedSaleIds.size > 0 && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="bg-[#F5EBE0] border border-[#E8DFD5] rounded-xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="font-semibold text-emerald-900">Selected: {selectedSaleIds.size}</div>
+              <div className="font-semibold text-[#0f3a4d]">Selected: {selectedSaleIds.size}</div>
 
               <button
                 onClick={clearSaleSelection}
-                className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-100 transition-colors"
+                className="px-3 py-1.5 bg-white border border-[#E8DFD5] text-[#0f3a4d] rounded-lg font-semibold hover:bg-[#E8A645] hover:text-white transition-colors"
               >
                 Clear
               </button>
 
               <button
                 onClick={() => toggleSelectAllOnPage()}
-                className="px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 rounded-lg font-semibold hover:bg-emerald-100 transition-colors"
+                className="px-3 py-1.5 bg-white border border-[#E8DFD5] text-[#0f3a4d] rounded-lg font-semibold hover:bg-[#E8A645]/20 transition-colors"
                 title="Select/deselect all on this page"
               >
                 Actions All
@@ -813,51 +819,51 @@ export default function SalesPage() {
               </button>
             </div>
 
-            <div className="text-sm text-emerald-900/70">
+            <div className="text-sm text-[#0f3a4d]/70">
               Tip: select 2+ sales to auto-open actions.
             </div>
           </div>
         )}
 
         {/* Filters - Professional Card */}
-        <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-6">Filters</h2>
+        <div className="bg-white border border-[#E8DFD5] rounded-xl p-8 shadow-sm">
+          <h2 className="text-sm font-bold text-[#0f3a4d] uppercase tracking-wider mb-6">Filters</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-3">Program/Workshop</label>
+              <label className="block text-[#0f3a4d] text-sm font-semibold mb-3">Program/Workshop</label>
               <input
                 type="text"
                 value={draftFilters.workshop}
                 onChange={(e) => setDraftFilters((p) => ({ ...p, workshop: e.target.value }))}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
+                className="w-full bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium placeholder-slate-500 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
                 placeholder="Search workshop"
               />
             </div>
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-3">Date Range From</label>
+              <label className="block text-[#0f3a4d] text-sm font-semibold mb-3">Date Range From</label>
               <input
                 type="date"
                 value={draftFilters.batchFrom}
                 onChange={(e) => setDraftFilters((p) => ({ ...p, batchFrom: e.target.value }))}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
+                className="w-full bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
               />
             </div>
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-3">Date Range To</label>
+              <label className="block text-[#0f3a4d] text-sm font-semibold mb-3">Date Range To</label>
               <input
                 type="date"
                 value={draftFilters.batchTo}
                 onChange={(e) => setDraftFilters((p) => ({ ...p, batchTo: e.target.value }))}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
+                className="w-full bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
               />
             </div>
             <div>
-              <label className="block text-slate-700 text-sm font-semibold mb-3">Reported By (User ID)</label>
+              <label className="block text-[#0f3a4d] text-sm font-semibold mb-3">Reported By (User ID)</label>
               <input
                 type="text"
                 value={draftFilters.reportedByUserId}
                 onChange={(e) => setDraftFilters((p) => ({ ...p, reportedByUserId: e.target.value }))}
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-2.5 text-slate-900 font-medium placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-400 transition-all"
+                className="w-full bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg px-4 py-2.5 text-[#0f3a4d] font-medium placeholder-slate-500 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645] transition-all"
                 placeholder="Admin user ID"
               />
             </div>
@@ -865,13 +871,13 @@ export default function SalesPage() {
           <div className="mt-8 flex gap-3">
             <button
               onClick={applyFilters}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg"
+              className="bg-gradient-to-r from-[#0f3a4d] to-[#0f3a4d] hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg"
             >
               ✓ Apply Filters
             </button>
             <button
               onClick={clearFilters}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-8 py-2.5 rounded-lg font-semibold transition-all border border-slate-300"
+              className="bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] px-8 py-2.5 rounded-lg font-semibold transition-all border border-[#E8DFD5]"
             >
               ✕ Clear
             </button>
@@ -904,22 +910,22 @@ export default function SalesPage() {
                   icon="📈"
                   color="teal"
                 />
-                <div className="bg-slate-800/50 border border-purple-500/20 rounded-xl p-6">
-                  <div className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-300 via-purple-200 to-cyan-200 font-extrabold mb-4 text-sm">
+                <div className="bg-[#F5EBE0] border border-[#E8DFD5] rounded-xl p-6">
+                  <div className="text-[#0f3a4d] font-extrabold mb-4 text-sm">
                     Summary
                   </div>
                   <div className="space-y-2">
-                    <div className="flex justify-between text-slate-200 text-xs">
-                      <span className="text-slate-300">Max Sale</span>
-                      <span className="font-bold text-emerald-200">₹{Number(summary.maxSale || 0).toLocaleString()}</span>
+                    <div className="flex justify-between text-[#0f3a4d] text-xs">
+                      <span className="text-[#0f3a4d]/80">Max Sale</span>
+                      <span className="font-bold text-[#E8A645]">₹{Number(summary.maxSale || 0).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-slate-200 text-xs">
-                      <span className="text-slate-300">Min Sale</span>
-                      <span className="font-bold text-amber-200">₹{Number(summary.minSale || 0).toLocaleString()}</span>
+                    <div className="flex justify-between text-[#0f3a4d] text-xs">
+                      <span className="text-[#0f3a4d]/80">Min Sale</span>
+                      <span className="font-bold text-[#E8A645]">₹{Number(summary.minSale || 0).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-slate-200 text-xs">
-                      <span className="text-slate-300">Target Achieved</span>
-                      <span className="font-bold text-cyan-200">{Number(summary.targetAchieved || 0)}</span>
+                    <div className="flex justify-between text-[#0f3a4d] text-xs">
+                      <span className="text-[#0f3a4d]/80">Target Achieved</span>
+                      <span className="font-bold text-[#0f3a4d]">{Number(summary.targetAchieved || 0)}</span>
                     </div>
                   </div>
                 </div>
@@ -948,25 +954,25 @@ export default function SalesPage() {
               />
             )}
 
-            {/* Weekly View (reuses aggregation table for now) */}
+            {/* Weekly View */}
             {view === 'weekly' && (
               <DataTable
                 columns={aggColumns}
-                data={monthly}
+                data={weekly}
                 loading={crm.loading}
-                empty={monthly.length === 0}
+                empty={weekly.length === 0}
                 striped
                 hover
               />
             )}
 
-            {/* Yearly View (reuses aggregation table for now) */}
+            {/* Yearly View */}
             {view === 'yearly' && (
               <DataTable
                 columns={aggColumns}
-                data={monthly}
+                data={yearly}
                 loading={crm.loading}
-                empty={monthly.length === 0}
+                empty={yearly.length === 0}
                 striped
                 hover
               />
@@ -999,7 +1005,7 @@ export default function SalesPage() {
         >
           <div className="space-y-4">
             <div>
-              <label className="block text-purple-200 text-sm mb-2">Customer ID *</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Customer ID *</label>
               <input
                 type="text"
                 required
@@ -1010,7 +1016,7 @@ export default function SalesPage() {
                     customerId: e.target.value,
                   })
                 }
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 placeholder="Enter customer id / phone / email"
               />
               <div className="mt-2 flex items-center gap-2">
@@ -1018,12 +1024,12 @@ export default function SalesPage() {
                   type="button"
                   onClick={lookupCustomer}
                   disabled={lookupBusy}
-                  className="px-3 py-1.5 rounded-lg bg-purple-600/40 text-white text-sm hover:bg-purple-600/60 disabled:opacity-60"
+                  className="px-3 py-1.5 rounded-lg bg-[#E8A645] text-white text-sm hover:bg-[#d4941e] disabled:opacity-60 font-medium"
                 >
                   {lookupBusy ? 'Loading...' : 'Load Customer'}
                 </button>
                 {lookupMsg && (
-                  <span className={lookupMsg.toLowerCase().includes('loaded') ? 'text-green-200 text-xs' : 'text-purple-200 text-xs'}>
+                  <span className={lookupMsg.toLowerCase().includes('loaded') ? 'text-emerald-600 text-xs font-medium' : 'text-[#0f3a4d] text-xs'}>
                     {lookupMsg}
                   </span>
                 )}
@@ -1032,17 +1038,17 @@ export default function SalesPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Name</label>
+                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Name</label>
                 <input
                   type="text"
                   value={formData.customerName}
                   onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                   placeholder="Customer name"
                 />
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Mobile</label>
+                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Mobile</label>
                 <input
                   type="text"
                   value={formData.customerPhone}
@@ -1051,16 +1057,16 @@ export default function SalesPage() {
                     const normalized = normalizePhoneForMeta(e.target.value);
                     if (normalized) setFormData({ ...formData, customerPhone: normalized });
                   }}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                   placeholder="Phone number"
                 />
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Workshop Name</label>
+                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Workshop Name</label>
                 <select
                   value={formData.workshopName}
                   onChange={(e) => setFormData({ ...formData, workshopName: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 >
                   <option value="">(select)</option>
                   {workshopOptions.map((w) => (
@@ -1071,32 +1077,32 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Batch Date</label>
+                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Batch Date</label>
                 <input
                   type="date"
                   value={toDateInputValue(formData.batchDate)}
                   onChange={(e) => setFormData({ ...formData, batchDate: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-purple-200 text-sm mb-2">Amount (₹) *</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Amount (₹) *</label>
               <input
                 type="number"
                 required
                 value={formData.saleAmount}
                 onChange={(e) => setFormData({ ...formData, saleAmount: Number(e.target.value) })}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] placeholder-[#0f3a4d]/50 focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 placeholder="5000"
               />
             </div>
             <div>
-              <label className="block text-purple-200 text-sm mb-2">Payment Mode</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Payment Mode</label>
               <select
                 value={formData.paymentMode}
                 onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
               >
                 <option value="payu">PayU</option>
                 <option value="card">Card</option>
@@ -1112,20 +1118,20 @@ export default function SalesPage() {
                 type="checkbox"
                 checked={Boolean(formData.targetAchieved)}
                 onChange={(e) => setFormData({ ...formData, targetAchieved: e.target.checked })}
-                className="h-4 w-4"
+                className="h-4 w-4 rounded border-[#E8DFD5]"
               />
-              <label htmlFor="targetAchieved" className="text-purple-200 text-sm">
+              <label htmlFor="targetAchieved" className="text-[#0f3a4d] text-sm font-medium">
                 Target achieved
               </label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Status</label>
+                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Status</label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 >
                   {SALE_STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
@@ -1135,11 +1141,11 @@ export default function SalesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-purple-200 text-sm mb-2">Label</label>
+                <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Label</label>
                 <select
                   value={formData.labelsText}
                   onChange={(e) => setFormData({ ...formData, labelsText: e.target.value })}
-                  className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                  className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
                 >
                   <option value="">(select)</option>
                   {labelOptions.map((l) => (
@@ -1152,11 +1158,11 @@ export default function SalesPage() {
             </div>
 
             <div>
-              <label className="block text-purple-200 text-sm mb-2">Admin User (Reported by)</label>
+              <label className="block text-[#0f3a4d] text-sm mb-2 font-semibold">Admin User (Reported by)</label>
               <select
                 value={formData.reportedByUserId}
                 onChange={(e) => setFormData({ ...formData, reportedByUserId: e.target.value })}
-                className="w-full bg-slate-700/50 border border-purple-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-white border border-[#E8DFD5] rounded-lg px-4 py-2 text-[#0f3a4d] focus:outline-none focus:border-[#E8A645] focus:ring-1 focus:ring-[#E8A645]"
               >
                 <option value="">(use logged-in admin)</option>
                 {ADMIN_USERID_OPTIONS.map((u) => (

@@ -897,9 +897,28 @@ app.post('/media/upload', authenticate, upload.single('file'), async (req, res) 
 
   try {
     const data = await s3.upload(params).promise();
+
+    // Return a signed URL so the CRM + bridge can access the object even when the bucket
+    // has Block Public Access enabled (common for new AWS accounts).
+    const signedTtlSeconds = Number.parseInt(String(process.env.AWS_S3_SIGNED_URL_TTL_SECONDS || '3600'), 10);
+    const expires = Number.isFinite(signedTtlSeconds) && signedTtlSeconds > 0 ? signedTtlSeconds : 3600;
+    let signedUrl = null;
+    try {
+      signedUrl = s3.getSignedUrl('getObject', {
+        Bucket: params.Bucket,
+        Key: fileKey,
+        Expires: expires,
+      });
+    } catch (e) {
+      console.warn('S3 Signed URL Error:', e.message);
+    }
+
     res.json({
       success: true,
-      url: data.Location,
+      // Primary: signed URL (works for private objects)
+      url: signedUrl || data.Location,
+      // Secondary: raw S3 location (may be blocked by bucket policy)
+      publicUrl: data.Location,
       key: fileKey,
       size: req.file.size,
       mimetype: req.file.mimetype

@@ -7,7 +7,7 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { ArrowLeft } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { CartItem, getStoredCart } from '@/lib/cart';
+import { CartItem, getStoredCart, type CartCurrency } from '@/lib/cart';
 import PaymentInstructionModal from '@/components/PaymentInstructionModal';
 
 export const dynamic = 'force-dynamic';
@@ -39,8 +39,8 @@ function CheckoutInner() {
   const supportedCurrencies = ['INR', 'USD', 'NPR'] as const;
   const normalizedQueryCurrency = (searchParams.get('currency') || '').toUpperCase();
   const isSupportedQueryCurrency = supportedCurrencies.includes(normalizedQueryCurrency as typeof supportedCurrencies[number]);
-  const [selectedCurrency, setSelectedCurrency] = useState<CartItem['currency']>(
-    isSupportedQueryCurrency ? (normalizedQueryCurrency as CartItem['currency']) : 'INR'
+  const [selectedCurrency, setSelectedCurrency] = useState<CartCurrency>(
+    isSupportedQueryCurrency ? (normalizedQueryCurrency as CartCurrency) : 'INR'
   );
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartLoaded, setIsCartLoaded] = useState(false);
@@ -70,25 +70,27 @@ function CheckoutInner() {
     // Avoid capturing `selectedCurrency` in the effect closure.
     // If the currently-selected currency isn't present in the stored cart, switch to the first cart item's currency.
     setSelectedCurrency((prevCurrency) =>
-      items.some((item) => item.currency === prevCurrency) ? prevCurrency : items[0].currency
+      items.some((item) => (item.currency ?? 'INR') === prevCurrency)
+        ? prevCurrency
+        : ((items[0]?.currency ?? 'INR') as CartCurrency)
     );
   }, []);
 
   useEffect(() => {
     if (!cartItems.length || !isSupportedQueryCurrency) return;
-    if (cartItems.some((item) => item.currency === normalizedQueryCurrency) && selectedCurrency !== normalizedQueryCurrency) {
-      setSelectedCurrency(normalizedQueryCurrency as CartItem['currency']);
+    if (cartItems.some((item) => (item.currency ?? 'INR') === normalizedQueryCurrency) && selectedCurrency !== normalizedQueryCurrency) {
+      setSelectedCurrency(normalizedQueryCurrency as CartCurrency);
     }
   }, [cartItems, normalizedQueryCurrency, isSupportedQueryCurrency, selectedCurrency]);
 
-  const summaryItems = cartItems.filter((item) => item.currency === selectedCurrency);
+  const summaryItems = cartItems.filter((item) => (item.currency ?? 'INR') === selectedCurrency);
   const summarySubtotal = summaryItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const summaryTax = Number((summarySubtotal * 0.08).toFixed(2));
   const summaryTotal = Number((summarySubtotal + summaryTax).toFixed(2));
   const summaryQuantity = summaryItems.reduce((sum, item) => sum + item.quantity, 0);
-  const availableCurrencies = Array.from(new Set(cartItems.map((item) => item.currency)));
+  const availableCurrencies = Array.from(new Set(cartItems.map((item) => (item.currency ?? 'INR') as CartCurrency)));
   const currencyOverview = availableCurrencies.map((code) => {
-    const items = cartItems.filter((item) => item.currency === code);
+    const items = cartItems.filter((item) => (item.currency ?? 'INR') === code);
     const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const quantity = items.reduce((sum, item) => sum + item.quantity, 0);
     return { code, total, quantity };
@@ -297,7 +299,7 @@ function CheckoutInner() {
     }
   };
 
-  const getCurrencySymbol = (curr: string) => {
+  const getCurrencySymbol = (curr: CartCurrency) => {
     switch(curr) {
       case 'INR': return '₹';
       case 'USD': return '$';
@@ -546,7 +548,7 @@ function CheckoutInner() {
                             <button
                               key={code}
                               type="button"
-                              onClick={() => setSelectedCurrency(code as CartItem['currency'])}
+                              onClick={() => setSelectedCurrency(code as CartCurrency)}
                               className={`rounded-full border px-6 py-3 text-sm font-bold transition ${
                                 isActive
                                   ? 'bg-yoga-600 text-white border-yoga-600 shadow-md scale-105'

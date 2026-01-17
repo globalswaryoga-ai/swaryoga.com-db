@@ -5,6 +5,10 @@ import { normalizePhone } from '@/lib/whatsapp';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
+function escapeRegexLiteral(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Public website endpoint:
 // - creates/updates a CRM Lead (so it appears in /admin/crm/leads)
 // - returns a permanent 6-digit leadNumber
@@ -46,6 +50,24 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const Lead = getLead();
 
+    // Optional warning: duplicate name exists in CRM (public endpoint: do not return PII).
+    let warning: any = null;
+    try {
+      if (name) {
+        const safe = escapeRegexLiteral(name);
+        const total = await Lead.countDocuments({ name: { $regex: `^\\s*${safe}\\s*$`, $options: 'i' } });
+        if (total > 1) {
+          warning = {
+            code: 'NAME_DUPLICATE',
+            message: 'Same name already exists. Please confirm mobile/email is correct before proceeding.',
+            count: total,
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     // Find by phone first (primary). If not found, fall back to email.
     const existing = await Lead.findOne({
       $or: [{ phoneNumber }, ...(emailRaw ? [{ email: emailRaw.toLowerCase() }] : [])],
@@ -81,6 +103,7 @@ export async function POST(request: NextRequest) {
         leadNumber: existing.leadNumber,
         leadId: String(existing._id),
         updated: true,
+        ...(warning ? { warning } : {}),
       });
     }
 
@@ -113,6 +136,7 @@ export async function POST(request: NextRequest) {
         leadNumber,
         leadId: String(lead._id),
         created: true,
+        ...(warning ? { warning } : {}),
       },
       201
     );

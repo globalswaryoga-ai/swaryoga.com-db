@@ -35,14 +35,6 @@ interface CashfreePaymentButtonProps {
   disabled?: boolean;
 }
 
-declare global {
-  interface Window {
-    Cashfree?: {
-      checkout: (opts: { paymentSessionId: string; redirectTarget?: string }) => Promise<void>;
-    };
-  }
-}
-
 export default function CashfreePaymentButton({
   amount,
   productInfo,

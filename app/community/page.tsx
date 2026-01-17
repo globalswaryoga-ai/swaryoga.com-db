@@ -223,6 +223,16 @@ function CommunityPageContent() {
 
       // Success: Handle both new join and rejoin cases
       alert('✅ ' + (result.message || 'Successfully joined!'));
+
+      // If backend warns about duplicate name, show a confirmation popup.
+      if (result?.warning?.code === 'NAME_DUPLICATE') {
+        // confirm() is simple but effective for now.
+        // If user cancels, we do not block the join (because membership is already created).
+        // It acts as a warning to double-check details.
+        const count = typeof result?.warning?.count === 'number' ? result.warning.count : undefined;
+        confirm(`${result?.warning?.message || 'Name already exists.'}${count ? `\n\nFound ${count} users with same name.` : ''}`);
+      }
+
       const serverUserId = result?.data?.userId || result?.data?.member?.userId || result?.data?.leadNumber;
       localStorage.setItem('community_user', JSON.stringify({
         name: joinFormData.name,

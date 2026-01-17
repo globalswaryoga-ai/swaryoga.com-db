@@ -90,16 +90,16 @@ export function StatCard({
   className?: string;
 }) {
   const colorClasses = {
-    purple: 'from-purple-900/35 via-fuchsia-900/15 to-slate-950/40 border-purple-500/50',
-    blue: 'from-blue-900/35 via-cyan-900/15 to-slate-950/40 border-blue-500/50',
-    green: 'from-emerald-900/35 via-green-900/15 to-slate-950/40 border-emerald-500/50',
-    red: 'from-rose-900/35 via-red-900/15 to-slate-950/40 border-rose-500/50',
-    yellow: 'from-amber-900/35 via-yellow-900/15 to-slate-950/40 border-amber-500/50',
-    teal: 'from-teal-900/35 via-cyan-900/15 to-slate-950/40 border-teal-400/50',
-    orange: 'from-orange-900/35 via-amber-900/15 to-slate-950/40 border-orange-400/50',
-    pink: 'from-pink-900/35 via-fuchsia-900/15 to-slate-950/40 border-pink-400/50',
-    indigo: 'from-indigo-900/35 via-violet-900/15 to-slate-950/40 border-indigo-400/50',
-    slate: 'from-slate-900/50 via-slate-800/30 to-slate-950/40 border-slate-600/40',
+    purple: 'from-[#0f3a4d]/30 via-[#E8A645]/10 to-[#F5EBE0]/20 border-[#E8A645]/50',
+    blue: 'from-[#0f3a4d]/35 via-[#E8A645]/15 to-[#F5EBE0]/25 border-[#E8A645]/50',
+    green: 'from-[#0f3a4d]/30 via-[#E8A645]/10 to-[#F5EBE0]/20 border-emerald-500/50',
+    red: 'from-[#0f3a4d]/30 via-rose-900/15 to-[#F5EBE0]/20 border-rose-500/50',
+    yellow: 'from-[#0f3a4d]/30 via-amber-900/15 to-[#F5EBE0]/20 border-amber-500/50',
+    teal: 'from-[#0f3a4d]/35 via-[#E8A645]/10 to-[#F5EBE0]/20 border-[#E8A645]/50',
+    orange: 'from-[#0f3a4d]/30 via-[#E8A645]/15 to-[#F5EBE0]/25 border-[#E8A645]/60',
+    pink: 'from-[#0f3a4d]/30 via-pink-900/15 to-[#F5EBE0]/20 border-pink-400/50',
+    indigo: 'from-[#0f3a4d]/35 via-[#E8A645]/10 to-[#F5EBE0]/25 border-[#E8A645]/50',
+    slate: 'from-[#F5EBE0]/60 via-[#E8DFD5]/40 to-[#F5EBE0]/50 border-[#E8DFD5]/60',
   };
 
   const trendColor = {
@@ -117,7 +117,7 @@ export function StatCard({
       `}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-slate-200/80 text-sm font-semibold tracking-wide">{label}</h3>
+        <h3 className="text-[#0f3a4d] text-sm font-semibold tracking-wide">{label}</h3>
         {icon && (
           <div className="text-2xl drop-shadow" aria-hidden>
             {icon}
@@ -126,8 +126,8 @@ export function StatCard({
       </div>
 
       <div className="space-y-1">
-        <p className="text-3xl font-extrabold text-white drop-shadow-sm">{value}</p>
-        {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+        <p className="text-3xl font-extrabold text-[#0f3a4d] drop-shadow-sm">{value}</p>
+        {subtitle && <p className="text-xs text-[#0f3a4d]/70">{subtitle}</p>}
       </div>
 
       {trend && (

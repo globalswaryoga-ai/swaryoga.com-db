@@ -8,7 +8,7 @@ import { useCart } from '@/lib/context/CartContext';
 export default function WorkshopRegistrationFormPage() {
   const params = useParams();
   const router = useRouter();
-  const { cart, addToCart, getTotals } = useCart();
+  const { items: cart, addToCart, getTotals } = useCart();
   
   const slug = params.slug as string;
   const mode = params.mode as string;

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization') || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
     
-    let decoded = null;
+    let decoded: ReturnType<typeof verifyToken> = null;
     if (token) {
       try {
         decoded = verifyToken(token);
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
     
     // Provide helpful error messages for common issues
     let statusCode = 500;
-    let errorResponse = { error: message };
+    let errorResponse: { error: string; details?: string } = { error: message };
     
     // Check for credential configuration issues
     if (message.includes('placeholder value detected') || message.includes('not configured')) {

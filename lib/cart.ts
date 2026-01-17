@@ -6,6 +6,16 @@ export interface CartItem {
   price: number;
   quantity: number;
   currency?: CartCurrency;
+  /**
+   * Backward-compat: older cart items stored some fields under a `metadata` object.
+   * Prefer the top-level fields (registeredName, level, instructor, etc.) going forward.
+   */
+  metadata?: {
+    registeredName?: string;
+    level?: string;
+    instructor?: string;
+    [key: string]: unknown;
+  };
   kind?: 'workshop' | 'course' | 'other';
   productId?: string;
   workshop?: string;

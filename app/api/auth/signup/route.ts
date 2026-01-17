@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, User } from '@/lib/db';
-import { Lead } from '@/lib/schemas/enterpriseSchemas';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { normalizePhone } from '@/lib/whatsapp';
 import { generateToken } from '@/lib/auth';
@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
   // If we can map the user to a CRM leadNumber, return it in the signup response.
   // This supports a single human-friendly identifier (e.g. "006999") across modules.
   let leadNumber: string | null = null;
+  let leadNameDuplicateWarning: { code: string; message: string } | null = null;
 
       // ALSO: create/update CRM lead (Option A)
       // This makes every website signup visible in CRM leads immediately.
@@ -121,6 +122,7 @@ export async function POST(request: NextRequest) {
         const cleanedPhone = normalizePhone(phone || '');
         const cleanedEmail = String(email || '').trim().toLowerCase();
         const cleanedName = String(name || '').trim();
+        const Lead = getLead();
         const meta = {
           formType: 'website-signup',
           userId: user._id.toString(),
@@ -182,6 +184,22 @@ export async function POST(request: NextRequest) {
 
             leadNumber = String((newLead as any).leadNumber || allocatedLeadNumber || '') || null;
           }
+
+          // Optional warning: same name exists in CRM. Public response must not leak PII.
+          try {
+            if (cleanedName) {
+              const safe = cleanedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const total = await Lead.countDocuments({ name: { $regex: `^\\s*${safe}\\s*$`, $options: 'i' } });
+              if (total > 1) {
+                leadNameDuplicateWarning = {
+                  code: 'NAME_DUPLICATE',
+                  message: 'Same name already exists. Please confirm mobile/email is correct.',
+                };
+              }
+            }
+          } catch {
+            // ignore warning lookup failures
+          }
         }
       } catch (crmLeadError) {
         // Non-fatal: signup should still succeed even if CRM write fails.
@@ -203,6 +221,7 @@ export async function POST(request: NextRequest) {
       return apiSuccess({
         message: 'User registered successfully',
         token,
+        ...(leadNameDuplicateWarning ? { warning: leadNameDuplicateWarning } : {}),
         user: {
           id: user._id,
           profileId: user.profileId,

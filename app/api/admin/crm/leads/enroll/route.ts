@@ -99,57 +99,73 @@ export async function POST(request: NextRequest) {
 
     if (lead) {
       // Update existing lead with workshop enrollment
-      if (!lead.workshopName || lead.workshopName !== workshopName) {
-        lead.workshopName = workshopName;
+      // Ensure leadNumber exists
+      if (!lead.leadNumber) {
+        const { leadNumber } = await allocateNextLeadNumber();
+        lead.leadNumber = leadNumber;
       }
-      if (!lead.workshopSlug || lead.workshopSlug !== workshopSlug) {
-        lead.workshopSlug = workshopSlug;
-      }
-      if (amount && !lead.enrollmentAmount) {
-        lead.enrollmentAmount = amount;
-        lead.enrollmentCurrency = currency;
-      }
-      if (!lead.enrollmentDate) {
-        lead.enrollmentDate = new Date();
-      }
-      if (orderId && !lead.orderId) {
-        lead.orderId = orderId;
-      }
-      if (paymentId && !lead.paymentId) {
-        lead.paymentId = paymentId;
-      }
-      if (mode && !lead.enrollmentMode) {
-        lead.enrollmentMode = mode;
-      }
-      if (language && !lead.enrollmentLanguage) {
-        lead.enrollmentLanguage = language;
-      }
-      if (!lead.status) {
-        lead.status = 'enrolled';
-      }
+
+      // Keep basic identity info up to date
+      if (!lead.name) lead.name = fullName;
+      if (!lead.email) lead.email = email;
+      lead.phoneNumber = phoneNumber;
+
+      // Use schema-supported fields for workshop/payment context
+      lead.workshopName = workshopName || lead.workshopName;
+
+      lead.sales = lead.sales || {};
+      lead.sales.stage = 'enrolled';
+      if (!lead.sales.enrolledAt) lead.sales.enrolledAt = new Date();
+      lead.sales.workshop = lead.sales.workshop || {};
+      lead.sales.workshop.slug = workshopSlug || lead.sales.workshop.slug;
+      lead.sales.workshop.mode = mode || lead.sales.workshop.mode;
+      lead.sales.workshop.language = language || lead.sales.workshop.language;
+
+      lead.sales.payment = lead.sales.payment || {};
+      lead.sales.payment.status = 'paid';
+      lead.sales.payment.currency = currency || lead.sales.payment.currency;
+      if (amount) lead.sales.payment.amount = amount;
+      if (orderId) lead.sales.payment.orderId = orderId;
+      if (paymentId) lead.sales.payment.transactionId = paymentId;
+      lead.sales.payment.provider = lead.sales.payment.provider || 'payment_gateway';
+      if (!lead.sales.payment.paidAt) lead.sales.payment.paidAt = new Date();
+
+      lead.inSales = true;
+      lead.status = 'customer';
 
       console.log(`[Enroll] Updating existing lead: ${lead._id} (${phoneNumber})`);
     } else {
       // Create new lead with auto-allocated leadNumber
-      const leadNumber = await allocateNextLeadNumber();
+      const { leadNumber } = await allocateNextLeadNumber();
 
       lead = new Lead({
         name: fullName,
         email,
         phoneNumber,
         leadNumber,
-        workshopSlug,
         workshopName,
-        enrollmentAmount: amount,
-        enrollmentCurrency: currency,
-        enrollmentDate: new Date(),
-        enrollmentMode: mode,
-        enrollmentLanguage: language,
-        orderId,
-        paymentId,
-        status: 'enrolled',
+        status: 'customer',
         source: 'workshop_payment',
         labels: ['workshop_participant', workshopSlug],
+        inSales: true,
+        sales: {
+          stage: 'enrolled',
+          enrolledAt: new Date(),
+          workshop: {
+            slug: workshopSlug,
+            mode,
+            language,
+          },
+          payment: {
+            status: 'paid',
+            currency,
+            amount,
+            provider: 'payment_gateway',
+            orderId: orderId || undefined,
+            transactionId: paymentId || undefined,
+            paidAt: new Date(),
+          },
+        },
         // Set default assignment to sales team (can be updated later)
         assignedToUserId: 'sales-team',
         createdAt: new Date(),
@@ -171,11 +187,11 @@ export async function POST(request: NextRequest) {
           name: lead.name,
           email: lead.email,
           phoneNumber: lead.phoneNumber,
-          workshopSlug: lead.workshopSlug,
+          workshopSlug: (lead as any)?.sales?.workshop?.slug,
           workshopName: lead.workshopName,
-          enrollmentAmount: lead.enrollmentAmount,
-          enrollmentCurrency: lead.enrollmentCurrency,
-          enrollmentDate: lead.enrollmentDate,
+          enrollmentAmount: (lead as any)?.sales?.payment?.amount,
+          enrollmentCurrency: (lead as any)?.sales?.payment?.currency,
+          enrollmentDate: (lead as any)?.sales?.enrolledAt,
           status: lead.status,
         },
         isNew,

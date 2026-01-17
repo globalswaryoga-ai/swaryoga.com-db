@@ -7,12 +7,48 @@ const rateLimitMap = new Map();
 
 export function middleware(request: NextRequest) {
   // 1. Rate Limiting Check
-  const ip = request.ip || '127.0.0.1';
+  // IMPORTANT: On Vercel/Edge, request.ip can be undefined.
+  // If we fall back to a constant like 127.0.0.1, all users share the same bucket
+  // and will get rate-limited quickly. Prefer forwarded headers.
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  const ip =
+    (forwardedFor ? forwardedFor.split(',')[0]?.trim() : '') ||
+    request.headers.get('x-real-ip') ||
+    request.headers.get('cf-connecting-ip') ||
+    request.ip ||
+    'unknown';
   const now = Date.now();
   const windowMs = 60 * 1000; // 1 minute window
-  const limit = 30; // 30 requests per minute per IP for APIs
+  const path = request.nextUrl.pathname;
 
-  const userData = rateLimitMap.get(ip) || { count: 0, startTime: now };
+  // Default: conservative limit for most APIs.
+  // NOTE: Some admin/CRM pages (WhatsApp QR inbox) poll endpoints frequently
+  // and can exceed 30 req/min during normal usage. Use path-based buckets
+  // with higher limits for authenticated admin traffic.
+  const hasAuthHeader = Boolean(request.headers.get('authorization'));
+  let limit = 30; // 30 requests per minute per IP for general APIs
+  let bucket = 'api';
+
+  // WhatsApp QR bridge + WhatsApp admin APIs are chat-like and poll frequently.
+  if (path.startsWith('/api/admin/crm/whatsapp/')) {
+    bucket = 'crm_whatsapp';
+    limit = hasAuthHeader ? 600 : 60;
+  } else if (path.startsWith('/api/admin/crm/messages')) {
+    // CRM messages thread API can be hit by polling/refresh.
+    bucket = 'crm_messages';
+    limit = hasAuthHeader ? 240 : 60;
+  } else if (path.startsWith('/api/admin/crm/')) {
+    // Other CRM admin endpoints may be used heavily from dashboards.
+    bucket = 'crm_admin';
+    limit = hasAuthHeader ? 180 : 60;
+  } else if (path.startsWith('/api/auth/')) {
+    // Keep auth endpoints tighter; they also have per-route rate limiting.
+    bucket = 'auth';
+    limit = 30;
+  }
+
+  const key = `${ip}:${bucket}`;
+  const userData = rateLimitMap.get(key) || { count: 0, startTime: now };
   
   // Reset window if expired
   if (now - userData.startTime > windowMs) {
@@ -22,14 +58,21 @@ export function middleware(request: NextRequest) {
     userData.count++;
   }
   
-  rateLimitMap.set(ip, userData);
+  rateLimitMap.set(key, userData);
 
   if (userData.count > limit) {
+    const retryAfter = Math.max(1, Math.ceil((windowMs - (now - userData.startTime)) / 1000));
     return new NextResponse(
       JSON.stringify({ error: 'Too many requests. Please try again later.' }),
       { 
         status: 429, 
-        headers: { 'Content-Type': 'application/json' } 
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(retryAfter),
+          'RateLimit-Limit': String(limit),
+          'RateLimit-Remaining': '0',
+          'X-RateLimit-Bucket': bucket,
+        } 
       }
     );
   }

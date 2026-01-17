@@ -58,6 +58,8 @@ export default function QRWhatsAppInboxPage() {
   const [lastStatusCode, setLastStatusCode] = useState<number | null>(null);
   const [lastQrCode, setLastQrCode] = useState<number | null>(null);
   const [lastStatusData, setLastStatusData] = useState<any>(null);
+  const [lastHealthCode, setLastHealthCode] = useState<number | null>(null);
+  const [lastHealthData, setLastHealthData] = useState<any>(null);
 
   const [loggingInNewNumber, setLoggingInNewNumber] = useState(false);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
@@ -92,6 +94,12 @@ export default function QRWhatsAppInboxPage() {
   // Media pending to be sent
   const [pendingMedia, setPendingMedia] = useState<File[]>([]);
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
+
+  // Inbound media cache (bridge returns base64 via /messages/media/:msgId)
+  const [messageMediaCache, setMessageMediaCache] = useState<
+    Record<string, { dataUrl: string; mimetype: string; filename?: string }>
+  >({});
+  const [messageMediaLoading, setMessageMediaLoading] = useState<Record<string, boolean>>({});
   
   // New Lead Modal
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
@@ -193,6 +201,8 @@ export default function QRWhatsAppInboxPage() {
         
         const res = await fetch(url.toString(), {
           method: 'GET',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          cache: 'no-store',
           signal: controller.signal
         });
         return res;
@@ -208,8 +218,10 @@ export default function QRWhatsAppInboxPage() {
       const res = await fetch(proxyUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
+        cache: 'no-store',
         body: JSON.stringify(proxyPayload),
         signal: controller.signal
       });
@@ -237,6 +249,70 @@ export default function QRWhatsAppInboxPage() {
       return `HTTP ${res.status}`;
     }
   };
+
+  const loadMediaForMessage = useCallback(
+    async (msg: any) => {
+      const msgId = String(msg?.id || '');
+      if (!msgId) return;
+      if (messageMediaCache[msgId]?.dataUrl) return;
+      if (messageMediaLoading[msgId]) return;
+
+      setMessageMediaLoading((prev) => ({ ...prev, [msgId]: true }));
+      try {
+        const res = await bridgeFetch(`/messages/media/${encodeURIComponent(msgId)}`, { method: 'GET' }, 12_000);
+        if (!res.ok) {
+          const err = await parseBridgeError(res);
+          throw new Error(err);
+        }
+        const data = await res.json();
+        const mimetype = String(data?.mimetype || 'application/octet-stream');
+        const b64 = String(data?.data || '');
+        if (!b64) {
+          throw new Error('Media payload missing');
+        }
+        const dataUrl = `data:${mimetype};base64,${b64}`;
+
+        setMessageMediaCache((prev) => ({
+          ...prev,
+          [msgId]: {
+            dataUrl,
+            mimetype,
+            filename: typeof data?.filename === 'string' ? data.filename : undefined,
+          },
+        }));
+      } catch (e) {
+        console.warn('[media] failed to load message media:', msgId, e);
+        showToast('❌ Failed to load media. Please try again.', 'error');
+      } finally {
+        setMessageMediaLoading((prev) => {
+          const next = { ...prev };
+          delete next[msgId];
+          return next;
+        });
+      }
+    },
+    [bridgeFetch, messageMediaCache, messageMediaLoading]
+  );
+
+  const refreshBridgeHealth = useCallback(async () => {
+    try {
+      const res = await bridgeFetch('/health', { method: 'GET' }, 8_000);
+      setLastHealthCode(res.status);
+      if (!res.ok) {
+        return;
+      }
+      const data = await res.json();
+      setLastHealthData(data);
+    } catch (e) {
+      console.warn('[health] failed:', e);
+    }
+  }, [bridgeFetch]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    if (!showDiagnostics) return;
+    refreshBridgeHealth();
+  }, [isSuperAdmin, showDiagnostics, refreshBridgeHealth]);
 
   const normalizeBridgeStatus = (raw: any): 'connected' | 'qr' | 'disconnected' | 'loading' => {
     const s = String(raw || '').toLowerCase();
@@ -396,6 +472,27 @@ export default function QRWhatsAppInboxPage() {
       setCurrentUserName(null);
     }
   }, []);
+
+  // Auto-load image media when possible (do not auto-load large videos/docs)
+  useEffect(() => {
+    if (!messages || messages.length === 0) return;
+
+    const candidates = messages
+      .filter((m: any) => {
+        const id = String(m?.id || '');
+        if (!id) return false;
+        if (!m?.hasMedia) return false;
+        if (messageMediaCache[id]?.dataUrl) return false;
+        const t = String(m?.type || '').toLowerCase();
+        const mt = String(m?.mimetype || m?.mimeType || '').toLowerCase();
+        return t === 'image' || mt.startsWith('image/');
+      })
+      .slice(0, 2);
+
+    candidates.forEach((m: any) => {
+      loadMediaForMessage(m);
+    });
+  }, [messages, messageMediaCache, loadMediaForMessage]);
 
   // Fetch user list for assignment
   useEffect(() => {
@@ -1024,7 +1121,7 @@ export default function QRWhatsAppInboxPage() {
             fromMe: true,
             timestamp: new Date(),
             type: mediaType, // Now supports 'image', 'video', 'audio', 'document'
-            caption: i === 0 ? newMessage : '',
+            body: i === 0 ? newMessage : '',
             mediaUrl: mediaUrl,
             fileName: file.name,
             fileSize: file.size,
@@ -1033,18 +1130,21 @@ export default function QRWhatsAppInboxPage() {
           };
           setMessages(prev => [...prev, optimisticMessage]);
 
-          // Send media via bridge
+          // Send media via server API (adds admin attribution + logs in DB)
           try {
-            const mediaRes = await bridgeFetch('/send', {
+            const normalizedType = mediaType === 'audio' ? 'document' : mediaType;
+            const mediaRes = await fetch('/api/admin/crm/whatsapp/qr/send', {
               method: 'POST',
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                'Content-Type': 'application/json',
+              },
               body: JSON.stringify({
-                chatId: chatId,
-                media: mediaUrl,
-                mediaType: mediaType, // Send media type to bridge
-                caption: i === 0 ? newMessage : '', // Add text as caption to first media
-                fileName: file.name,
-                mimeType: file.type
-              })
+                to: chatId,
+                type: normalizedType,
+                url: mediaUrl,
+                caption: i === 0 ? newMessage : '',
+              }),
             });
 
             if (!mediaRes.ok) {
@@ -1055,10 +1155,27 @@ export default function QRWhatsAppInboxPage() {
               );
               throw new Error(`Failed to send image ${i + 1}: ${sendError}`);
             }
-            
-            // Update optimistic message to sent
-            setMessages(prev => 
-              prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent' } : m)
+
+            // Best effort: update optimistic message to sent + replace id with server messageId
+            let serverMessageId: string | null = null;
+            try {
+              const sentData = await mediaRes.json();
+              if (typeof sentData?.messageId === 'string' && sentData.messageId) {
+                serverMessageId = sentData.messageId;
+              }
+            } catch {
+              // ignore
+            }
+
+            setMessages(prev =>
+              prev.map(m => {
+                if (m.id !== optimisticMessage.id) return m;
+                return {
+                  ...m,
+                  status: 'sent',
+                  ...(serverMessageId ? { id: serverMessageId } : {}),
+                };
+              })
             );
           } catch (sendErr) {
             console.error(`Media send error for file ${i + 1}:`, sendErr);
@@ -1094,9 +1211,13 @@ export default function QRWhatsAppInboxPage() {
         };
         setMessages(prev => [...prev, optimisticMessage]);
         
-        const res = await bridgeFetch('/send', {
+        const res = await fetch('/api/admin/crm/whatsapp/qr/send', {
           method: 'POST',
-          body: JSON.stringify({ chatId: chatId, message: newMessage })
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ to: chatId, message: newMessage, type: 'text' })
         });
 
         if (res.ok) {
@@ -1767,10 +1888,10 @@ export default function QRWhatsAppInboxPage() {
   };
 
   const statusPill = {
-    connected: 'bg-emerald-100 text-emerald-800',
-    qr: 'bg-amber-100 text-amber-800',
-    disconnected: 'bg-slate-200 text-slate-700',
-    loading: 'bg-sky-100 text-sky-800'
+    connected: 'bg-[#E8A645] text-white',
+    qr: 'bg-[#E8A645] text-white',
+    disconnected: 'bg-[#E8DFD5] text-[#0f3a4d]',
+    loading: 'bg-[#0f3a4d] text-white'
   }[status];
 
   const statusText = {
@@ -1808,11 +1929,11 @@ export default function QRWhatsAppInboxPage() {
   };
 
   return (
-    <div className="flex h-screen bg-[#f0f2f5]">
+    <div className="flex h-screen bg-[#FAFAF8]">
       {/* Left Sidebar - Chats (Hidden on mobile, shown on larger screens) */}
-      <div className="hidden md:flex md:w-80 bg-white border-r border-slate-200 flex-col">
+      <div className="hidden md:flex md:w-80 bg-[#FAFAF8] border-r border-[#E8DFD5] flex-col">
         {/* Header */}
-        <div className="bg-white border-b border-slate-200 p-3 space-y-3">
+        <div className="bg-[#FAFAF8] border-b border-[#E8DFD5] p-3 space-y-3">
           {/* Top Row: Profile & Status on Left, Buttons on Right */}
           <div className="flex items-center justify-between gap-3">
             {/* Left: Profile & Status */}
@@ -1824,22 +1945,22 @@ export default function QRWhatsAppInboxPage() {
                   className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#E8A645] to-[#0f3a4d] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                   {getInitials(userProfile?.name || 'WhatsApp')}
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-bold text-slate-900 truncate">{userProfile?.name || 'WhatsApp'}</div>
+                <div className="text-sm font-bold text-[#0f3a4d] truncate">{userProfile?.name || 'WhatsApp'}</div>
                 <div className={`inline-flex items-center gap-1.5 mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${statusPill}`}>
                   <span
                     className={`inline-block w-2 h-2 rounded-full ${
                       status === 'connected'
-                        ? 'bg-emerald-600'
+                        ? 'bg-[#0f3a4d]'
                         : status === 'qr'
-                          ? 'bg-amber-600 animate-pulse'
+                          ? 'bg-[#E8A645] animate-pulse'
                           : status === 'loading'
-                            ? 'bg-sky-600 animate-pulse'
-                            : 'bg-slate-500'
+                            ? 'bg-[#0f3a4d] animate-pulse'
+                            : 'bg-[#F5EBE0]0'
                     }`}
                   />
                   {statusText}
@@ -1852,7 +1973,7 @@ export default function QRWhatsAppInboxPage() {
               {/* New Button - Add Contact */}
               <button
                 onClick={() => setShowNewContactModal(true)}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0f3a4d] text-white hover:bg-[#0f3a4d] transition-colors flex items-center gap-1"
                 title="Add new contact"
               >
                 <Plus size={16} />
@@ -1864,7 +1985,7 @@ export default function QRWhatsAppInboxPage() {
                 <button
                   onClick={handleConnect}
                   disabled={connecting || bridgeUnavailable}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0f3a4d] text-white hover:bg-[#1a4d66] disabled:opacity-60 transition-colors flex items-center gap-1"
                   title={bridgeUnavailable ? 'WhatsApp Bridge is unavailable' : 'Login with QR'}
                 >
                   {connecting ? <RefreshCw className="animate-spin" size={16} /> : '↑'} {bridgeUnavailable ? 'Bridge Down' : 'Login'}
@@ -1898,7 +2019,7 @@ export default function QRWhatsAppInboxPage() {
               </div>
               <button
                 onClick={handleClearOfflineCache}
-                className="mt-2 w-full py-1 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700"
+                className="mt-2 w-full py-1 bg-[#E8A645] text-white text-xs font-bold rounded hover:bg-amber-700"
               >
                 Clear Offline Cache
               </button>
@@ -1916,6 +2037,14 @@ export default function QRWhatsAppInboxPage() {
                 <div>Status: <span className="opacity-70">{lastStatusData?.status || '—'}</span></div>
                 <div>HasQr: <span className="opacity-70">{lastStatusData?.hasQr ? '✓' : '✗'}</span></div>
                 <div>Secret set: <span className="opacity-70">{bridgeSecret ? '✓' : '✗'}</span></div>
+                <div>Last /health: <span className={lastHealthCode ? 'opacity-70' : 'text-red-700'}>{lastHealthCode || '—'}</span></div>
+                {lastHealthData && (
+                  <>
+                    <div>S3 configured: <span className="opacity-70">{lastHealthData?.s3Configured ? '✓' : '✗'}</span></div>
+                    <div>S3 bucket: <span className="opacity-70">{lastHealthData?.s3Bucket || '—'}</span></div>
+                    <div>Free disk bytes: <span className="opacity-70">{String(lastHealthData?.freeDiskBytes ?? '—')}</span></div>
+                  </>
+                )}
               </div>
               <button
                 onClick={() => setShowDiagnostics(!showDiagnostics)}
@@ -1923,19 +2052,27 @@ export default function QRWhatsAppInboxPage() {
               >
                 {showDiagnostics ? 'Hide' : 'Show'} details
               </button>
+              {showDiagnostics && (
+                <button
+                  onClick={refreshBridgeHealth}
+                  className="mt-1 ml-3 text-blue-600 hover:underline text-[9px]"
+                >
+                  Refresh /health
+                </button>
+              )}
             </div>
           )}
         </div>
 
         {/* Search */}
-        <div className="p-3 border-b border-slate-100 bg-white space-y-3">
+        <div className="p-3 border-b border-slate-100 bg-[#FAFAF8] space-y-3">
           <div className="flex gap-2">
             <input
               type="text"
               placeholder="Search or start a new chat"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-4 py-2 bg-slate-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-600"
+              className="flex-1 px-4 py-2 bg-[#F5EBE0]/60 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#E8A645]"
             />
             <button
               onClick={() => setShowNewLeadModal(true)}
@@ -1992,7 +2129,7 @@ export default function QRWhatsAppInboxPage() {
                     (typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized) ===
                       (typeof chat.id === 'string' ? chat.id : chat.id._serialized)
                       ? 'bg-green-50 border-l-4 border-l-green-500'
-                      : 'hover:bg-slate-50'
+                      : 'hover:bg-[#F5EBE0]'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -2029,7 +2166,7 @@ export default function QRWhatsAppInboxPage() {
                     <div className="flex-1 min-w-0">
                       {/* Name + Date on same line */}
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-slate-900 truncate text-sm">
+                        <p className="font-semibold text-[#0f3a4d] truncate text-sm">
                           {chat.displayName || chat.name || 'Unknown'}
                         </p>
                         {/* Today's Date */}
@@ -2043,14 +2180,14 @@ export default function QRWhatsAppInboxPage() {
                       
                       {/* Phone number - second line (show if displayName is set and name is phone) */}
                       {chat.displayName && (
-                        <p className="text-[11px] text-slate-500 truncate">
+                        <p className="text-[11px] text-[#0f3a4d]/60 truncate">
                           📱 {String(chat.name).replace(/\D/g, '').slice(-10)}
                         </p>
                       )}
                       
                       {/* Phone number - second line (show if no displayName and name is all digits) */}
                       {!chat.displayName && /^\d+$/.test(String(chat.name)) && (
-                        <p className="text-[11px] text-slate-500 truncate">
+                        <p className="text-[11px] text-[#0f3a4d]/60 truncate">
                           📱 {chat.name}
                         </p>
                       )}
@@ -2072,7 +2209,7 @@ export default function QRWhatsAppInboxPage() {
                               chat.leadStatus?.toUpperCase() === 'PROSPECT' ? 'bg-blue-100 text-blue-700 border-blue-300' :
                               chat.leadStatus?.toUpperCase() === 'CUSTOMER' ? 'bg-purple-100 text-purple-700 border-purple-300' :
                               chat.leadStatus?.toUpperCase() === 'INACTIVE' ? 'bg-gray-100 text-gray-700 border-gray-300' :
-                              'bg-slate-100 text-slate-700 border-slate-300'
+                              'bg-[#F5EBE0]/60 text-[#0f3a4d] border-[#E8DFD5]'
                             }`}>
                               {String(chat.leadStatus).charAt(0).toUpperCase() + String(chat.leadStatus).slice(1).toLowerCase()}
                             </span>
@@ -2095,7 +2232,7 @@ export default function QRWhatsAppInboxPage() {
                       
                       {/* Bottom line: Show last message or other info if no lead details */}
                       {!(chat.leadId || chat.leadStatus || chat.leadLabel) && (
-                        <p className="text-[11px] text-slate-500 truncate">
+                        <p className="text-[11px] text-[#0f3a4d]/60 truncate">
                           {chat.isGroup && chat.memberCount ? (
                             `Group · ${chat.memberCount} members`
                           ) : (
@@ -2134,7 +2271,7 @@ export default function QRWhatsAppInboxPage() {
             <button
               onClick={handleNewNumber}
               disabled={loggingInNewNumber || disconnecting || connecting}
-              className="px-2 py-1 rounded text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60 transition-colors flex items-center gap-1"
+              className="px-2 py-1 rounded text-xs font-bold bg-[#0f3a4d] text-white hover:bg-[#0f3a4d] disabled:opacity-60 transition-colors flex items-center gap-1"
               title="Scan new QR code"
             >
               <span>{loggingInNewNumber ? '⟳' : '📱'}</span> QR
@@ -2157,7 +2294,7 @@ export default function QRWhatsAppInboxPage() {
         {selectedChat ? (
           <>
             {/* Chat Header */}
-            <div className="border-b border-slate-200 p-3 bg-[#f0f2f5] flex items-center justify-between">
+            <div className="border-b border-[#E8DFD5] p-3 bg-[#FAFAF8] flex items-center justify-between">
               <div className="flex items-center gap-4 flex-1">
                 {selectedChat.isGroup ? (
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
@@ -2182,13 +2319,13 @@ export default function QRWhatsAppInboxPage() {
                   }
                 }}>
                   {/* Name (top line) */}
-                  <h2 className="text-sm font-bold text-slate-900 truncate hover:text-blue-600 transition-colors">
+                  <h2 className="text-sm font-bold text-[#0f3a4d] truncate hover:text-blue-600 transition-colors">
                     {activeName || selectedChat.name}
                   </h2>
                   
                   {/* Phone Number (subtitle) */}
                   {activePhone && (
-                    <p className="text-[11px] text-slate-600 truncate">
+                    <p className="text-[11px] text-[#0f3a4d]/70 truncate">
                       📱 {activePhone}
                     </p>
                   )}
@@ -2210,7 +2347,7 @@ export default function QRWhatsAppInboxPage() {
                           activeStatus === 'PROSPECT' ? 'bg-blue-100 text-blue-700 border-blue-300' :
                           activeStatus === 'CUSTOMER' ? 'bg-purple-100 text-purple-700 border-purple-300' :
                           activeStatus === 'INACTIVE' ? 'bg-gray-100 text-gray-700 border-gray-300' :
-                          'bg-slate-100 text-slate-700 border-slate-300'
+                          'bg-[#F5EBE0]/60 text-[#0f3a4d] border-[#E8DFD5]'
                         }`}>
                           {activeStatus}
                         </span>
@@ -2231,7 +2368,7 @@ export default function QRWhatsAppInboxPage() {
                   
                   {/* Status/Online Indicator */}
                   {activeLeadId && (
-                    <p className="text-[11px] text-slate-500 mt-1">
+                    <p className="text-[11px] text-[#0f3a4d]/60 mt-1">
                       {selectedChat?.isOnline ? (
                         <>✅ online</>
                       ) : selectedChat?.lastSeen ? (
@@ -2242,12 +2379,12 @@ export default function QRWhatsAppInboxPage() {
                     </p>
                   )}
                   {!activeLeadId && !selectedChat.isGroup && !activePhone && (
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-[#0f3a4d]/60">
                       {status === 'connected' ? 'online' : 'offline'}
                     </p>
                   )}
                   {!activeLeadId && selectedChat.isGroup && selectedChat.memberCount && (
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-[11px] text-[#0f3a4d]/60">
                       Group · {selectedChat.memberCount} members
                     </p>
                   )}
@@ -2257,7 +2394,7 @@ export default function QRWhatsAppInboxPage() {
               {/* Right: Close Button Only */}
               <button
                 onClick={() => setSelectedChat(null)}
-                className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
+                className="text-[#0f3a4d]/60 hover:text-[#0f3a4d] text-2xl leading-none"
                 aria-label="Close chat"
               >
                 <X size={24} />
@@ -2281,21 +2418,36 @@ export default function QRWhatsAppInboxPage() {
                       if (ack === 3) return '✓✓'; // Blue tick (same visual, we'll color it blue)
                     };
 
-                    const ackColor = msg.ack === 3 ? 'text-blue-500' : 'text-slate-500';
+                    const ackColor = msg.ack === 3 ? 'text-blue-500' : 'text-[#0f3a4d]/60';
                     const ackDisplay = renderAckStatus(msg.ack);
 
-                    // Check if message has media
-                    const hasMedia = msg.hasMedia || msg.mediaUrl;
-                    const mediaUrl = msg.mediaUrl;
-                    const isImage = mediaUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl);
-                    const isVideo = mediaUrl && /\.(mp4|mov|avi|mkv|webm)$/i.test(mediaUrl);
-                    const isPDF = mediaUrl && /\.pdf$/i.test(mediaUrl);
+                    // Media handling:
+                    // - Bridge message list provides `hasMedia` but not the bytes/URL.
+                    // - We lazily fetch base64 via `/messages/media/:msgId` and cache it.
+                    const msgId = String(msg?.id || '');
+                    const cachedMedia = msgId ? messageMediaCache[msgId] : undefined;
+                    const resolvedMediaUrl = msg.mediaUrl || cachedMedia?.dataUrl;
+                    const mediaMime = String(msg.mimeType || msg.mimetype || cachedMedia?.mimetype || '');
+                    const wantsMediaLoad = Boolean(msg.hasMedia) && !resolvedMediaUrl;
+
+                    const isImage = Boolean(
+                      resolvedMediaUrl &&
+                        (mediaMime.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(resolvedMediaUrl))
+                    );
+                    const isVideo = Boolean(
+                      resolvedMediaUrl &&
+                        (mediaMime.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm)$/i.test(resolvedMediaUrl))
+                    );
+                    const isPDF = Boolean(
+                      resolvedMediaUrl &&
+                        (mediaMime === 'application/pdf' || /\.pdf$/i.test(resolvedMediaUrl))
+                    );
 
                     return (
                       <div key={idx} className={`flex flex-col gap-1 ${msg.fromMe ? 'items-end' : 'items-start'}`}>
                         {/* Sender Name */}
                         {currentUserName && (
-                          <div className="text-[10px] font-bold text-slate-600 px-2">
+                          <div className="text-[10px] font-bold text-[#0f3a4d]/70 px-2">
                             {msg.fromMe ? `👨‍💼 ${currentUserName}` : '👤 Customer'}
                           </div>
                         )}
@@ -2305,23 +2457,34 @@ export default function QRWhatsAppInboxPage() {
                           <div
                             className={`max-w-xs rounded-2xl px-4 py-2 text-base leading-tight shadow-sm font-sans ${
                               msg.fromMe
-                                ? 'bg-[#d9fdd3] text-slate-900 rounded-tr-none'
-                                : 'bg-white text-slate-900 border border-slate-100 rounded-tl-none'
+                                ? 'bg-[#d9fdd3] text-[#0f3a4d] rounded-tr-none'
+                                : 'bg-[#FAFAF8] text-[#0f3a4d] border border-slate-100 rounded-tl-none'
                             }`}
                             style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif" }}
                           >
 
                         {/* Media Content */}
-                        {hasMedia && mediaUrl ? (
+                        {wantsMediaLoad ? (
+                          <div className="space-y-2">
+                            <div className="text-sm text-[#0f3a4d]/70">📎 Media message</div>
+                            <button
+                              onClick={() => loadMediaForMessage(msg)}
+                              className="px-3 py-2 rounded-lg bg-[#0f3a4d] text-white text-xs font-bold hover:bg-[#1a4d66] disabled:opacity-60"
+                              disabled={Boolean(messageMediaLoading[msgId])}
+                            >
+                              {messageMediaLoading[msgId] ? 'Loading…' : 'Load media'}
+                            </button>
+                          </div>
+                        ) : resolvedMediaUrl ? (
                           <div className="space-y-2">
                             {isImage && (
-                              <div className="relative bg-slate-100 rounded-lg overflow-hidden">
+                              <div className="relative bg-[#F5EBE0]/60 rounded-lg overflow-hidden">
                                 <img
-                                  src={mediaUrl}
+                                  src={resolvedMediaUrl}
                                   alt="image"
                                   className="w-full h-auto max-w-xs object-cover rounded-lg"
                                   onError={(e) => {
-                                    console.error('[image] Load error:', mediaUrl);
+                                    console.error('[image] Load error:', resolvedMediaUrl);
                                     (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23e2e8f0%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-family=%22sans-serif%22 font-size=%2214%22 fill=%22%2364748b%22%3E📷 Failed to load%3C/text%3E%3C/svg%3E';
                                   }}
                                 />
@@ -2329,14 +2492,29 @@ export default function QRWhatsAppInboxPage() {
                             )}
 
                             {isVideo && (
-                              <div className="relative bg-slate-900 rounded-lg overflow-hidden">
+                              <div className="relative bg-[#0f3a4d] rounded-lg overflow-hidden">
                                 <video
-                                  src={mediaUrl}
+                                  src={resolvedMediaUrl}
                                   controls
                                   className="w-full h-auto max-w-xs object-cover rounded-lg"
                                 >
                                   Your browser does not support the video tag.
                                 </video>
+                              </div>
+                            )}
+
+                            {!isImage && !isVideo && (
+                              <div className="space-y-2">
+                                <div className="text-sm text-[#0f3a4d]/70">📎 Attachment</div>
+                                <a
+                                  href={resolvedMediaUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  download={cachedMedia?.filename || undefined}
+                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F5EBE0] border border-[#E8DFD5] text-xs font-bold text-[#0f3a4d] hover:bg-[#E8DFD5]"
+                                >
+                                  {isPDF ? 'Open PDF' : 'Open / Download'}
+                                </a>
                               </div>
                             )}
 
@@ -2364,13 +2542,13 @@ export default function QRWhatsAppInboxPage() {
             </div>
 
             {/* Message Input Area */}
-            <div className="border-t border-slate-200 bg-[#f0f2f5]/50 flex flex-col">
+            <div className="border-t border-[#E8DFD5] bg-[#FAFAF8]/50 flex flex-col">
               {/* Toolbar */}
-              <div className="flex items-center gap-1 px-3 py-1 border-b border-slate-100 bg-white/80">
+              <div className="flex items-center gap-1 px-3 py-1 border-b border-slate-100 bg-[#FAFAF8]/80">
                 <button
                   onClick={() => setShowMediaMenu(!showMediaMenu)}
                   className={`p-2 rounded-lg transition-colors flex-shrink-0 relative ${
-                    showMediaMenu ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                    showMediaMenu ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-[#F5EBE0]/60 text-[#0f3a4d]/60'
                   }`}
                   title="Attach media"
                 >
@@ -2380,7 +2558,7 @@ export default function QRWhatsAppInboxPage() {
                 <button
                   onClick={() => setShowQuickReplies(!showQuickReplies)}
                   className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                    showQuickReplies ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                    showQuickReplies ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-[#F5EBE0]/60 text-[#0f3a4d]/60'
                   }`}
                   title="Quick replies"
                 >
@@ -2390,7 +2568,7 @@ export default function QRWhatsAppInboxPage() {
                 <button
                   onClick={() => setShowTemplates(!showTemplates)}
                   className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                    showTemplates ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                    showTemplates ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-[#F5EBE0]/60 text-[#0f3a4d]/60'
                   }`}
                   title="Message templates"
                 >
@@ -2400,7 +2578,7 @@ export default function QRWhatsAppInboxPage() {
                 <button
                   onClick={() => setShowSchedulePanel(!showSchedulePanel)}
                   className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                    showSchedulePanel ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                    showSchedulePanel ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-[#F5EBE0]/60 text-[#0f3a4d]/60'
                   }`}
                   title="Schedule or delay message"
                 >
@@ -2410,7 +2588,7 @@ export default function QRWhatsAppInboxPage() {
                 <button
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                   className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                    showEmojiPicker ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-500'
+                    showEmojiPicker ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-[#F5EBE0]/60 text-[#0f3a4d]/60'
                   }`}
                   title="Emoji picker"
                 >
@@ -2419,24 +2597,24 @@ export default function QRWhatsAppInboxPage() {
 
                 {/* Media Dropdown Menu */}
                 {showMediaMenu && (
-                  <div className="absolute bottom-28 left-4 bg-white rounded-xl shadow-2xl border border-slate-200 min-w-[200px] z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+                  <div className="absolute bottom-28 left-4 bg-[#FAFAF8] rounded-xl shadow-2xl border border-[#E8DFD5] min-w-[200px] z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <button
                       onClick={() => { mediaInputRef.current?.click(); setShowMediaMenu(false); }}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-emerald-50 transition-colors border-b border-slate-50"
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#0f3a4d] hover:bg-[#F5EBE0] transition-colors border-b border-slate-50"
                     >
                       <ImageIcon className="text-emerald-500" size={18} />
                       Photos & Videos
                     </button>
                     <button
                       onClick={() => { mediaInputRef.current?.click(); setShowMediaMenu(false); }}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-emerald-50 transition-colors border-b border-slate-50"
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#0f3a4d] hover:bg-[#F5EBE0] transition-colors border-b border-slate-50"
                     >
                       <FileIcon className="text-blue-500" size={18} />
                       Document
                     </button>
                     <button
                       onClick={() => { mediaInputRef.current?.click(); setShowMediaMenu(false); }}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-slate-700 hover:bg-emerald-50 transition-colors"
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[#0f3a4d] hover:bg-[#F5EBE0] transition-colors"
                     >
                       <Mic className="text-orange-500" size={18} />
                       Audio
@@ -2457,7 +2635,7 @@ export default function QRWhatsAppInboxPage() {
 
               {/* Media Preview Bar */}
               {mediaPreviews.length > 0 && (
-                <div className="px-4 py-2 flex gap-2 overflow-x-auto bg-slate-50 border-t border-slate-200">
+                <div className="px-4 py-2 flex gap-2 overflow-x-auto bg-[#F5EBE0] border-t border-[#E8DFD5]">
                   {mediaPreviews.map((preview, idx) => {
                     const file = pendingMedia[idx];
                     const isImage = file?.type.startsWith('image/');
@@ -2470,18 +2648,18 @@ export default function QRWhatsAppInboxPage() {
                           <img 
                             src={preview} 
                             alt="Preview" 
-                            className="w-16 h-16 object-cover rounded-lg border border-slate-300" 
+                            className="w-16 h-16 object-cover rounded-lg border border-[#E8DFD5]" 
                           />
                         ) : isVideo ? (
-                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-slate-300 flex items-center justify-center">
+                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-[#E8DFD5] flex items-center justify-center">
                             <span className="text-2xl">🎬</span>
                           </div>
                         ) : isAudio ? (
-                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-slate-300 flex items-center justify-center">
+                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-[#E8DFD5] flex items-center justify-center">
                             <span className="text-2xl">🔊</span>
                           </div>
                         ) : (
-                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-slate-300 flex items-center justify-center">
+                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-[#E8DFD5] flex items-center justify-center">
                             <span className="text-2xl">📄</span>
                           </div>
                         )}
@@ -2499,7 +2677,7 @@ export default function QRWhatsAppInboxPage() {
                   })}
                   <button 
                     onClick={() => mediaInputRef.current?.click()}
-                    className="w-16 h-16 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
+                    className="w-16 h-16 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#E8DFD5] text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
                   >
                     <Plus size={20} />
                     <span className="text-[10px] font-medium">Add</span>
@@ -2525,14 +2703,14 @@ export default function QRWhatsAppInboxPage() {
                     }
                   }}
                   placeholder={pendingMedia.length > 0 ? "Add a caption..." : "Type a message... (Enter to send)"}
-                  className="flex-1 w-full px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
+                  className="flex-1 w-full px-4 py-2.5 bg-[#FAFAF8] border border-[#E8DFD5] rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-[#E8A645]/30 focus:border-[#E8A645] resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
                   rows={1}
                 />
 
                 <button
                   onClick={handleScheduledSend}
                   disabled={sending || (!newMessage.trim() && pendingMedia.length === 0) || status !== 'connected' || uploadingMedia}
-                  className="flex-shrink-0 w-11 h-11 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95"
+                  className="flex-shrink-0 w-11 h-11 rounded-full bg-[#0f3a4d] hover:bg-[#1a4d66] disabled:bg-slate-300 disabled:cursor-not-allowed text-white shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95"
                 >
                   {sending || uploadingMedia ? (
                     <RefreshCw className="w-5 h-5 animate-spin" />
@@ -2549,13 +2727,13 @@ export default function QRWhatsAppInboxPage() {
                   {uploadingMedia && Object.keys(uploadProgress).length > 0 && (
                     <div className="space-y-1 py-2 border-t border-slate-100">
                       {Object.entries(uploadProgress).map(([fileId, progress]) => (
-                        <div key={fileId} className="text-[10px] text-slate-500">
+                        <div key={fileId} className="text-[10px] text-[#0f3a4d]/60">
                           <div className="flex justify-between mb-1">
                             <span className="truncate max-w-[150px]">{fileId.split('-')[0]}</span>
                             <span>{Math.round(progress)}%</span>
                           </div>
-                          <div className="w-full bg-slate-100 rounded-full h-1">
-                            <div className="bg-emerald-500 h-1 rounded-full" style={{ width: `${progress}%` }} />
+                          <div className="w-full bg-[#F5EBE0]/60 rounded-full h-1">
+                            <div className="bg-[#F5EBE0]0 h-1 rounded-full" style={{ width: `${progress}%` }} />
                           </div>
                         </div>
                       ))}
@@ -2564,12 +2742,12 @@ export default function QRWhatsAppInboxPage() {
 
                   {/* Emoji Picker Grid */}
                   {showEmojiPicker && (
-                    <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 bg-white p-2 rounded-xl border border-slate-200 max-h-40 overflow-y-auto shadow-inner my-1 animate-in zoom-in-95 duration-200">
+                    <div className="grid grid-cols-8 sm:grid-cols-10 gap-1 bg-[#FAFAF8] p-2 rounded-xl border border-[#E8DFD5] max-h-40 overflow-y-auto shadow-inner my-1 animate-in zoom-in-95 duration-200">
                       {['😊', '😂', '🥰', '😍', '🎉', '🎊', '🔥', '👍', '❤️', '😢', '😡', '🤔', '👏', '🙌', '💪', '🚀', '⭐', '✨', '💯', '🎈', '🎁', '🌟', '💝', '😎', '🤗', '😘', '😌', '😴', '😷', '�', '�', '�', '🙌', '�'].map((emoji, idx) => (
                         <button
                           key={idx}
                           onClick={() => { setNewMessage(prev => prev + emoji); setShowEmojiPicker(false); }}
-                          className="p-1.5 hover:bg-slate-100 rounded text-xl transition-colors hover:scale-125 duration-100"
+                          className="p-1.5 hover:bg-[#F5EBE0]/60 rounded text-xl transition-colors hover:scale-125 duration-100"
                         >
                           {emoji}
                         </button>
@@ -2583,8 +2761,8 @@ export default function QRWhatsAppInboxPage() {
         ) : (
           <div className="flex-1 flex items-center justify-center bg-[#efeae2]">
             <div className="text-center">
-              <div className="text-2xl font-bold text-slate-800 mb-2">WhatsApp Web</div>
-              <p className="text-sm text-slate-600">
+              <div className="text-2xl font-bold text-[#0f3a4d] mb-2">WhatsApp Web</div>
+              <p className="text-sm text-[#0f3a4d]/70">
                 {status === 'connected'
                   ? 'Select a chat on the left to start messaging.'
                   : 'Click “Login (QR)” to connect, then scan the QR with your phone.'}
@@ -2596,13 +2774,13 @@ export default function QRWhatsAppInboxPage() {
 
       {/* Contact Details Side Panel */}
       {showContactPanel && contactDetails && (
-        <div className="fixed right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200 shadow-lg z-40 flex flex-col">
+        <div className="fixed right-0 top-0 bottom-0 w-96 bg-[#FAFAF8] border-l border-[#E8DFD5] shadow-lg z-40 flex flex-col">
           {/* Header */}
-          <div className="border-b border-slate-200 p-4 flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-900">Contact Details</h3>
+          <div className="border-b border-[#E8DFD5] p-4 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-[#0f3a4d]">Contact Details</h3>
             <button
               onClick={() => setShowContactPanel(false)}
-              className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
+              className="text-[#0f3a4d]/60 hover:text-[#0f3a4d] text-2xl leading-none"
               aria-label="Close"
             >
               <X size={24} />
@@ -2625,41 +2803,41 @@ export default function QRWhatsAppInboxPage() {
                 </div>
               )}
               <div className="text-center">
-                <h2 className="text-lg font-bold text-slate-900">{contactDetails.name}</h2>
-                <p className="text-sm text-slate-500">{contactDetails.number}</p>
+                <h2 className="text-lg font-bold text-[#0f3a4d]">{contactDetails.name}</h2>
+                <p className="text-sm text-[#0f3a4d]/60">{contactDetails.number}</p>
               </div>
             </div>
 
             {/* Status & Stats */}
             <div className="p-4 border-b border-slate-100 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Status</span>
+                <span className="text-sm text-[#0f3a4d]/70">Status</span>
                 <span className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500" />
-                  <span className="text-sm font-medium text-slate-900">Online</span>
+                  <span className="text-sm font-medium text-[#0f3a4d]">Online</span>
                 </span>
               </div>
               {contactDetails.lastSeen && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Last Seen</span>
-                  <span className="text-sm font-medium text-slate-900">
+                  <span className="text-sm text-[#0f3a4d]/70">Last Seen</span>
+                  <span className="text-sm font-medium text-[#0f3a4d]">
                     {new Date(contactDetails.lastSeen * 1000).toLocaleString()}
                   </span>
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Messages</span>
-                <span className="text-sm font-medium text-slate-900">{contactDetails.unreadCount || 0} unread</span>
+                <span className="text-sm text-[#0f3a4d]/70">Messages</span>
+                <span className="text-sm font-medium text-[#0f3a4d]">{contactDetails.unreadCount || 0} unread</span>
               </div>
             </div>
 
             {/* Last Message */}
             {contactDetails.lastMessage && (
               <div className="p-4 border-b border-slate-100">
-                <p className="text-xs text-slate-600 mb-2 font-semibold">LAST MESSAGE</p>
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <p className="text-sm text-slate-900 break-words">{contactDetails.lastMessage.body}</p>
-                  <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-[#0f3a4d]/70 mb-2 font-semibold">LAST MESSAGE</p>
+                <div className="bg-[#F5EBE0] p-3 rounded-lg border border-[#E8DFD5]">
+                  <p className="text-sm text-[#0f3a4d] break-words">{contactDetails.lastMessage.body}</p>
+                  <p className="text-xs text-[#0f3a4d]/60 mt-1">
                     {new Date(contactDetails.lastMessage.timestamp * 1000).toLocaleString()}
                   </p>
                 </div>
@@ -2668,10 +2846,10 @@ export default function QRWhatsAppInboxPage() {
 
             {/* Actions */}
             <div className="p-4 space-y-2">
-              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-900 font-medium transition-colors text-sm">
+              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] font-medium transition-colors text-sm">
                 📞 Call
               </button>
-              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-900 font-medium transition-colors text-sm">
+              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] font-medium transition-colors text-sm">
                 🔔 Mute Notifications
               </button>
               <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-900 font-medium transition-colors text-sm">
@@ -2684,13 +2862,13 @@ export default function QRWhatsAppInboxPage() {
 
       {/* Group Settings Side Panel */}
       {showGroupPanel && groupDetails && (
-        <div className="fixed right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200 shadow-lg z-40 flex flex-col">
+        <div className="fixed right-0 top-0 bottom-0 w-96 bg-[#FAFAF8] border-l border-[#E8DFD5] shadow-lg z-40 flex flex-col">
           {/* Header */}
-          <div className="border-b border-slate-200 p-4 flex items-center justify-between">
-            <h3 className="text-lg font-bold text-slate-900">Group Settings</h3>
+          <div className="border-b border-[#E8DFD5] p-4 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-[#0f3a4d]">Group Settings</h3>
             <button
               onClick={() => setShowGroupPanel(false)}
-              className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
+              className="text-[#0f3a4d]/60 hover:text-[#0f3a4d] text-2xl leading-none"
               aria-label="Close"
             >
               <X size={24} />
@@ -2717,7 +2895,7 @@ export default function QRWhatsAppInboxPage() {
                   <div className="flex flex-col gap-2 px-4">
                     <input
                       type="text"
-                      className="w-full px-3 py-1.5 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-slate-800 font-medium"
+                      className="w-full px-3 py-1.5 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-[#0f3a4d] font-medium"
                       value={editGroupName}
                       onChange={(e) => setEditGroupName(e.target.value)}
                       placeholder="Group Name"
@@ -2736,7 +2914,7 @@ export default function QRWhatsAppInboxPage() {
                           setIsEditingGroupName(false);
                           setEditGroupName(groupDetails.name);
                         }}
-                        className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300"
+                        className="px-3 py-1 bg-[#E8DFD5] text-[#0f3a4d] text-xs font-bold rounded hover:bg-slate-300"
                       >
                         Cancel
                       </button>
@@ -2744,14 +2922,14 @@ export default function QRWhatsAppInboxPage() {
                   </div>
                 ) : (
                   <div className="group relative px-4">
-                    <h2 className="text-lg font-bold text-slate-900 pr-6">{groupDetails.name}</h2>
+                    <h2 className="text-lg font-bold text-[#0f3a4d] pr-6">{groupDetails.name}</h2>
                     <button
                       onClick={() => setIsEditingGroupName(true)}
                       className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-purple-600 transition-opacity"
                     >
                       <MoreVertical size={16} />
                     </button>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-[#0f3a4d]/60">
                       {groupDetails.participants?.length || 0} participants
                     </p>
                   </div>
@@ -2762,7 +2940,7 @@ export default function QRWhatsAppInboxPage() {
             {/* Group Description */}
             <div className="p-4 border-b border-slate-100">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-slate-600 font-semibold uppercase tracking-wider">Group Description</p>
+                <p className="text-xs text-[#0f3a4d]/70 font-semibold uppercase tracking-wider">Group Description</p>
                 {!isEditingGroupDesc && (
                   <button
                     onClick={() => setIsEditingGroupDesc(true)}
@@ -2776,7 +2954,7 @@ export default function QRWhatsAppInboxPage() {
               {isEditingGroupDesc ? (
                 <div className="space-y-2">
                   <textarea
-                    className="w-full px-3 py-2 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm text-slate-800 h-24 resize-none"
+                    className="w-full px-3 py-2 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 outline-none text-sm text-[#0f3a4d] h-24 resize-none"
                     value={editGroupDesc}
                     onChange={(e) => setEditGroupDesc(e.target.value)}
                     placeholder="Description"
@@ -2795,15 +2973,15 @@ export default function QRWhatsAppInboxPage() {
                         setIsEditingGroupDesc(false);
                         setEditGroupDesc(groupDetails.description || '');
                       }}
-                      className="px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300"
+                      className="px-3 py-1.5 bg-[#E8DFD5] text-[#0f3a4d] text-xs font-bold rounded hover:bg-slate-300"
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <p className="text-sm text-slate-900 break-words whitespace-pre-wrap">
+                <div className="bg-[#F5EBE0] p-3 rounded-lg border border-[#E8DFD5]">
+                  <p className="text-sm text-[#0f3a4d] break-words whitespace-pre-wrap">
                     {groupDetails.description || <span className="text-slate-400 italic">No description set</span>}
                   </p>
                 </div>
@@ -2812,12 +2990,12 @@ export default function QRWhatsAppInboxPage() {
 
             {/* Admin Controls */}
             <div className="p-4 border-b border-slate-100 bg-purple-50/50">
-              <p className="text-xs text-slate-600 mb-3 font-semibold uppercase tracking-wider">Group Permissions</p>
+              <p className="text-xs text-[#0f3a4d]/70 mb-3 font-semibold uppercase tracking-wider">Group Permissions</p>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-700">Send Messages</span>
+                  <span className="text-sm text-[#0f3a4d]">Send Messages</span>
                   <select
-                    className="text-xs border border-slate-300 rounded px-2 py-1 bg-white"
+                    className="text-xs border border-[#E8DFD5] rounded px-2 py-1 bg-[#FAFAF8]"
                     value={groupDetails.isReadOnly ? 'admins' : 'all'}
                     onChange={(e) => updateGroupSettings({ settings: { onlyAdminsCanSendMessages: e.target.value === 'admins' } })}
                     disabled={isUpdatingGroup}
@@ -2827,9 +3005,9 @@ export default function QRWhatsAppInboxPage() {
                   </select>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-700">Edit Group Info</span>
+                  <span className="text-sm text-[#0f3a4d]">Edit Group Info</span>
                   <select
-                    className="text-xs border border-slate-300 rounded px-2 py-1 bg-white"
+                    className="text-xs border border-[#E8DFD5] rounded px-2 py-1 bg-[#FAFAF8]"
                     value={groupDetails.infoAdminsOnly ? 'admins' : 'all'}
                     onChange={(e) => updateGroupSettings({ settings: { onlyAdminsCanEditInfo: e.target.value === 'admins' } })}
                     disabled={isUpdatingGroup}
@@ -2844,9 +3022,9 @@ export default function QRWhatsAppInboxPage() {
             {/* Invite Link */}
             {groupDetails.inviteCode && (
               <div className="p-4 border-b border-slate-100">
-                <p className="text-xs text-slate-600 mb-2 font-semibold">INVITE LINK</p>
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <p className="text-xs text-slate-700 break-all mb-2 font-mono">
+                <p className="text-xs text-[#0f3a4d]/70 mb-2 font-semibold">INVITE LINK</p>
+                <div className="bg-[#F5EBE0] p-3 rounded-lg border border-[#E8DFD5]">
+                  <p className="text-xs text-[#0f3a4d] break-all mb-2 font-mono">
                     https://chat.whatsapp.com/{groupDetails.inviteCode}
                   </p>
                   <button
@@ -2854,7 +3032,7 @@ export default function QRWhatsAppInboxPage() {
                       navigator.clipboard.writeText(`https://chat.whatsapp.com/${groupDetails.inviteCode}`);
                       alert('Invite link copied to clipboard!');
                     }}
-                    className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded transition-colors"
+                    className="w-full px-3 py-2 bg-[#0f3a4d] hover:bg-[#1a4d66] text-white text-sm font-medium rounded transition-colors"
                   >
                     📋 Copy Link
                   </button>
@@ -2866,16 +3044,16 @@ export default function QRWhatsAppInboxPage() {
             <div className="p-4 border-b border-slate-100 space-y-3">
               {groupDetails.createdAt && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Created</span>
-                  <span className="text-sm font-medium text-slate-900">
+                  <span className="text-sm text-[#0f3a4d]/70">Created</span>
+                  <span className="text-sm font-medium text-[#0f3a4d]">
                     {new Date(groupDetails.createdAt).toLocaleDateString()}
                   </span>
                 </div>
               )}
               {groupDetails.owner && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Owner</span>
-                  <span className="text-sm font-medium text-slate-900 truncate ml-2">
+                  <span className="text-sm text-[#0f3a4d]/70">Owner</span>
+                  <span className="text-sm font-medium text-[#0f3a4d] truncate ml-2">
                     {groupDetails.owner.replace('@c.us', '')}
                   </span>
                 </div>
@@ -2885,16 +3063,16 @@ export default function QRWhatsAppInboxPage() {
             {/* Participants */}
             {groupDetails.participants && groupDetails.participants.length > 0 && (
               <div className="p-4 border-b border-slate-100">
-                <p className="text-xs text-slate-600 mb-2 font-semibold">
+                <p className="text-xs text-[#0f3a4d]/70 mb-2 font-semibold">
                   PARTICIPANTS ({groupDetails.participants.length})
                 </p>
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {groupDetails.participants.slice(0, 20).map((participant: any, idx: number) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-slate-50"
+                      className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[#F5EBE0]"
                     >
-                      <span className="text-sm text-slate-700 truncate">
+                      <span className="text-sm text-[#0f3a4d] truncate">
                         {participant.id.replace('@c.us', '')}
                       </span>
                       {(participant.isAdmin || participant.isSuperAdmin) && (
@@ -2905,7 +3083,7 @@ export default function QRWhatsAppInboxPage() {
                     </div>
                   ))}
                   {groupDetails.participants.length > 20 && (
-                    <p className="text-xs text-slate-500 text-center py-2">
+                    <p className="text-xs text-[#0f3a4d]/60 text-center py-2">
                       + {groupDetails.participants.length - 20} more
                     </p>
                   )}
@@ -2915,7 +3093,7 @@ export default function QRWhatsAppInboxPage() {
 
             {/* Actions */}
             <div className="p-4 space-y-2">
-              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-900 font-medium transition-colors text-sm">
+              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] font-medium transition-colors text-sm">
                 🔔 Mute Group
               </button>
               <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-900 font-medium transition-colors text-sm">
@@ -2929,15 +3107,15 @@ export default function QRWhatsAppInboxPage() {
       {/* QR Modal */}
       {showQRModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden">
-            <div className="bg-white p-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="bg-[#FAFAF8] rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden">
+            <div className="bg-[#FAFAF8] p-4 border-b border-[#E8DFD5] flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Login to WhatsApp</h3>
-                <p className="text-sm text-slate-500">Scan the QR code with WhatsApp on your phone</p>
+                <h3 className="text-lg font-bold text-[#0f3a4d]">Login to WhatsApp</h3>
+                <p className="text-sm text-[#0f3a4d]/60">Scan the QR code with WhatsApp on your phone</p>
               </div>
               <button
                 onClick={() => setShowQRModal(false)}
-                className="text-slate-500 hover:text-slate-800 text-2xl leading-none"
+                className="text-[#0f3a4d]/60 hover:text-[#0f3a4d] text-2xl leading-none"
                 aria-label="Close"
               >
                 <X size={24} />
@@ -2946,7 +3124,7 @@ export default function QRWhatsAppInboxPage() {
 
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="order-2 md:order-1">
-                <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
+                <ol className="space-y-3 text-sm text-[#0f3a4d] list-decimal list-inside">
                   <li>Open WhatsApp on your phone.</li>
                   <li>Tap <span className="font-bold">Menu</span> (⋮) or <span className="font-bold">Settings</span>.</li>
                   <li>Tap <span className="font-bold">Linked devices</span>.</li>
@@ -2957,14 +3135,14 @@ export default function QRWhatsAppInboxPage() {
                 <div className="mt-5 flex gap-3">
                   <button
                     onClick={refreshQr}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg font-bold transition-all"
+                    className="flex-1 bg-[#0f3a4d] hover:bg-[#1a4d66] text-white py-2.5 rounded-lg font-bold transition-all"
                   >
                     Refresh QR
                   </button>
                   <button
                     onClick={handleDisconnect}
                     disabled={disconnecting}
-                    className="flex-1 bg-slate-900 hover:bg-black disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all"
+                    className="flex-1 bg-[#0f3a4d] hover:bg-black disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all"
                     title="Logout by disconnecting the current session"
                   >
                     {disconnecting ? 'Logging out…' : 'Logout'}
@@ -2973,11 +3151,11 @@ export default function QRWhatsAppInboxPage() {
               </div>
 
               <div className="order-1 md:order-2">
-                <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-center min-h-[320px]">
+                <div className="bg-[#FAFAF8] rounded-xl border border-[#E8DFD5] p-4 flex items-center justify-center min-h-[320px]">
                   {qr ? (
                     <img src={qr} alt="QR Code" className="w-72 h-72 object-contain" />
                   ) : (
-                    <div className="w-72 h-72 flex flex-col items-center justify-center text-slate-500">
+                    <div className="w-72 h-72 flex flex-col items-center justify-center text-[#0f3a4d]/60">
                       <div className="text-5xl mb-3">⏳</div>
                       <div className="text-sm font-bold">Generating QR…</div>
                       <div className="text-xs mt-1">Click “Refresh QR” if it takes too long</div>
@@ -2993,7 +3171,7 @@ export default function QRWhatsAppInboxPage() {
       {/* New Lead Modal */}
       {showNewLeadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl animate-in">
+          <div className="bg-[#FAFAF8] rounded-lg p-6 w-full max-w-md shadow-xl animate-in">
             <h2 className="text-lg font-bold mb-4 text-black">Create New Lead</h2>
             
             <div className="space-y-4">
@@ -3003,7 +3181,7 @@ export default function QRWhatsAppInboxPage() {
                 <select
                   value={newLeadForm.assignedToUserId}
                   onChange={(e) => setNewLeadForm({ ...newLeadForm, assignedToUserId: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-black focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                  className="w-full px-4 py-2.5 bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg text-black focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
                 >
                   <option value="">(Default: current admin)</option>
                   {isSuperAdmin && userOptions.length > 0 ? (
@@ -3016,7 +3194,7 @@ export default function QRWhatsAppInboxPage() {
                     <option value="" disabled>Loading users...</option>
                   )}
                 </select>
-                <p className="text-slate-600 text-xs mt-1">This controls which admin user can see/manage this lead.</p>
+                <p className="text-[#0f3a4d]/70 text-xs mt-1">This controls which admin user can see/manage this lead.</p>
               </div>
 
               <div>
@@ -3027,7 +3205,7 @@ export default function QRWhatsAppInboxPage() {
                   placeholder="Lead name"
                   value={newLeadForm.name}
                   onChange={(e) => setNewLeadForm({ ...newLeadForm, name: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-black placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                  className="w-full px-4 py-2.5 bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg text-black placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
                 />
               </div>
 
@@ -3039,7 +3217,7 @@ export default function QRWhatsAppInboxPage() {
                   placeholder="email@example.com"
                   value={newLeadForm.email}
                   onChange={(e) => setNewLeadForm({ ...newLeadForm, email: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-black placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                  className="w-full px-4 py-2.5 bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg text-black placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
                 />
               </div>
 
@@ -3051,7 +3229,7 @@ export default function QRWhatsAppInboxPage() {
                   placeholder="+919876543210"
                   value={newLeadForm.phone}
                   onChange={(e) => setNewLeadForm({ ...newLeadForm, phone: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-black placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                  className="w-full px-4 py-2.5 bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg text-black placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
                   autoFocus
                 />
               </div>
@@ -3061,7 +3239,7 @@ export default function QRWhatsAppInboxPage() {
                 <select
                   value={newLeadForm.source}
                   onChange={(e) => setNewLeadForm({ ...newLeadForm, source: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-black focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                  className="w-full px-4 py-2.5 bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg text-black focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
                 >
                   <option value="qr-whatsapp">QR WhatsApp</option>
                   <option value="website">Website</option>
@@ -3076,7 +3254,7 @@ export default function QRWhatsAppInboxPage() {
                 <select
                   value={newLeadForm.status}
                   onChange={(e) => setNewLeadForm({ ...newLeadForm, status: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-black focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                  className="w-full px-4 py-2.5 bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg text-black focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
                 >
                   <option value="lead">Lead</option>
                   <option value="prospect">Prospect</option>
@@ -3092,7 +3270,7 @@ export default function QRWhatsAppInboxPage() {
                   placeholder="e.g., Yoga Retreat 2025, Advanced Pranayama"
                   value={newLeadForm.workshopName || ''}
                   onChange={(e) => setNewLeadForm({ ...newLeadForm, workshopName: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-black placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
+                  className="w-full px-4 py-2.5 bg-[#F5EBE0] border border-[#E8DFD5] rounded-lg text-black placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-400"
                 />
               </div>
             </div>
@@ -3103,14 +3281,14 @@ export default function QRWhatsAppInboxPage() {
                   setShowNewLeadModal(false);
                   setNewLeadForm({ name: '', email: '', phone: '', source: 'qr-whatsapp', status: 'lead', workshopName: '', assignedToUserId: '' });
                 }}
-                className="flex-1 px-4 py-2.5 bg-white hover:bg-slate-50 text-black rounded-lg font-bold transition-colors border border-slate-300"
+                className="flex-1 px-4 py-2.5 bg-[#FAFAF8] hover:bg-[#F5EBE0] text-black rounded-lg font-bold transition-colors border border-[#E8DFD5]"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateNewLead}
                 disabled={!newLeadForm.name.trim() || !newLeadForm.email.trim() || !newLeadForm.phone.trim() || creatingLead}
-                className="flex-1 px-4 py-2.5 bg-black hover:bg-slate-900 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors"
+                className="flex-1 px-4 py-2.5 bg-black hover:bg-[#0f3a4d] disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors"
               >
                 {creatingLead ? '⏳ Creating...' : '✅ Create Lead'}
               </button>
@@ -3122,8 +3300,8 @@ export default function QRWhatsAppInboxPage() {
       {/* New Contact Modal */}
       {showNewContactModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl animate-in">
-            <h2 className="text-lg font-bold mb-4 text-slate-900">Add New Contact</h2>
+          <div className="bg-[#FAFAF8] rounded-lg p-6 w-full max-w-md shadow-xl animate-in">
+            <h2 className="text-lg font-bold mb-4 text-[#0f3a4d]">Add New Contact</h2>
             
             <input
               type="text"
@@ -3135,7 +3313,7 @@ export default function QRWhatsAppInboxPage() {
                   handleAddNewContact();
                 }
               }}
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-[#E8DFD5] rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-[#E8A645] focus:border-transparent"
               autoFocus
             />
             
@@ -3145,14 +3323,14 @@ export default function QRWhatsAppInboxPage() {
                   setShowNewContactModal(false);
                   setNewContactName('');
                 }}
-                className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-lg font-bold transition-colors"
+                className="flex-1 px-4 py-2.5 bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] rounded-lg font-bold transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddNewContact}
                 disabled={!newContactName.trim()}
-                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors"
+                className="flex-1 px-4 py-2.5 bg-[#0f3a4d] hover:bg-[#1a4d66] disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors"
               >
                 Add
               </button>
@@ -3164,7 +3342,7 @@ export default function QRWhatsAppInboxPage() {
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 z-[60] ${
-          toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+          toast.type === 'success' ? 'bg-[#F5EBE0]0 text-white' : 'bg-red-500 text-white'
         }`}>
           {toast.type === 'success' ? (
             <CheckCircle size={20} className="flex-shrink-0" />

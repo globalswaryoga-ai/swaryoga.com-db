@@ -87,9 +87,10 @@ export function getCashfreeReturnUrl(request: NextRequest): string {
   // IMPORTANT: Cashfree will only send the order id back if we include placeholders
   // in the return_url. Without this, the user may see:
   //   "Payment Failed – Missing Cashfree order id"
-  // Docs pattern: return_url = https://.../return?order_id={order_id}&order_token={order_token}
-  // We only require order_id, but include order_token for debugging/future verification.
-  let url = `${baseUrl}/api/payments/cashfree/return?order_id={order_id}&order_token={order_token}`;
+  // NOTE: Cashfree no longer supports `order_token` in return_url placeholders.
+  // Keep it minimal and stable.
+  // Pattern: return_url = https://.../return?order_id={order_id}
+  let url = `${baseUrl}/api/payments/cashfree/return?order_id={order_id}`;
   
   // Cashfree production requires HTTPS. For local testing, use a placeholder HTTPS URL
   // When deployed to Vercel, this will already be HTTPS

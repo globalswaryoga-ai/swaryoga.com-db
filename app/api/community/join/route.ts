@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, CommunityMember } from '@/lib/db';
 import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
+
+function escapeRegexLiteral(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,6 +44,28 @@ export async function POST(request: NextRequest) {
       leadUserId = await getOrCreateLeadIdForPhone(cleanMobile, name, email);
     } catch (err: any) {
       return NextResponse.json({ error: err.message || 'Lead allocation failed' }, { status: 500 });
+    }
+
+    // Optional warning: same name already exists in CRM (helps prevent accidental duplicates)
+    // NOTE: This is a public endpoint, so we must NOT return other people's phone/email.
+    let warning: any = null;
+    try {
+      const Lead = getLead();
+      const cleanName = String(name || '').trim();
+      if (cleanName) {
+        const safe = escapeRegexLiteral(cleanName);
+        const total = await Lead.countDocuments({ name: { $regex: `^\\s*${safe}\\s*$`, $options: 'i' } });
+        if (total > 1) {
+          warning = {
+            code: 'NAME_DUPLICATE',
+            message: 'Same name already exists. Please confirm mobile/email is correct before proceeding.',
+            count: total,
+          };
+        }
+      }
+    } catch (e) {
+      // Non-fatal warning only
+      console.warn('Name-duplicate warning lookup failed:', e);
     }
 
     // Check if already a member by userId
@@ -80,6 +107,7 @@ export async function POST(request: NextRequest) {
         {
           success: true,
           message: message,
+          ...(warning ? { warning } : {}),
           data: {
             memberId: existingMember._id,
             userId: existingMember.userId,
@@ -149,6 +177,7 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         message,
+        ...(warning ? { warning } : {}),
         data: {
           memberId: newMember._id,
           userId: newMember.userId,

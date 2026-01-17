@@ -52,6 +52,7 @@ interface Order {
 interface UserData {
   id: string;
   profileId?: string;
+  leadNumber?: string;
   name: string;
   email: string;
   phone?: string;
@@ -105,6 +106,7 @@ export default function UserProfile() {
     return {
       id,
       profileId: typeof parsed?.profileId === 'string' ? parsed.profileId : undefined,
+      leadNumber: typeof parsed?.leadNumber === 'string' ? parsed.leadNumber : undefined,
       name,
       email,
       phone: typeof parsed?.phone === 'string' ? parsed.phone : undefined,
@@ -953,7 +955,7 @@ export default function UserProfile() {
                   </div>
 
                   <h2 className="text-2xl font-bold text-swar-text">{user.name}</h2>
-                  <p className="text-swar-primary font-medium mt-1">ID: {user.profileId || user.id?.slice(-6) || 'N/A'}</p>
+                  <p className="text-swar-primary font-medium mt-1">ID: {user.leadNumber || user.profileId || user.id?.slice(-6) || 'N/A'}</p>
                   <p className="text-sm text-swar-text-secondary mt-1">{user.profession || 'Member'}</p>
                   <p className="text-xs text-swar-text-secondary mt-2 break-all">{user.email}</p>
                   
@@ -1029,11 +1031,11 @@ export default function UserProfile() {
                   </h3>
 
                   <div className="grid md:grid-cols-2 gap-6">
-                    {/* Profile ID */}
+                    {/* Swar ID (serial leadNumber) */}
                     <div className="bg-swar-bg p-4 rounded-lg">
-                      <label className="text-sm font-medium text-swar-text-secondary">Profile ID</label>
-                      <p className="text-lg font-mono font-bold text-swar-primary mt-2">{user.profileId || user.id?.slice(-6) || 'N/A'}</p>
-                      <p className="text-xs text-swar-text-secondary mt-1">6-digit unique identifier</p>
+                      <label className="text-sm font-medium text-swar-text-secondary">Swar ID</label>
+                      <p className="text-lg font-mono font-bold text-swar-primary mt-2">{user.leadNumber || user.profileId || user.id?.slice(-6) || 'N/A'}</p>
+                      <p className="text-xs text-swar-text-secondary mt-1">6-digit serial ID (same as CRM Lead ID)</p>
                     </div>
 
                     {/* User ID */}
