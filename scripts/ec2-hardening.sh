@@ -196,11 +196,11 @@ echo -e "${GREEN}✅ Unnecessary services disabled${NC}"
 # 7. File system hardening
 echo -e "${YELLOW}[7/8] Hardening file system...${NC}"
 
-# Mount /tmp with noexec, nodev, nosuid
-mount -o remount,noexec,nodev,nosuid /tmp
+# Mount /tmp with noexec, nodev, nosuid (try remount first, then fresh mount as tmpfs)
+mount -o remount,noexec,nodev,nosuid /tmp 2>/dev/null || mount -t tmpfs -o rw,nosuid,nodev,noexec,relatime,size=1G tmpfs /tmp || echo -e "${YELLOW}⚠ Could not harden /tmp immediately. It will be hardened on next reboot via fstab.${NC}"
 
 # Make permanent in /etc/fstab
-if ! grep -q "noexec,nodev,nosuid" /etc/fstab; then
+if ! grep -q "tmpfs /tmp" /etc/fstab; then
   echo "tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime,size=1G 0 0" >> /etc/fstab
 fi
 
