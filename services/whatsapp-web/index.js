@@ -891,7 +891,8 @@ app.post('/media/upload', authenticate, upload.single('file'), async (req, res) 
     Key: fileKey,
     Body: req.file.buffer,
     ContentType: req.file.mimetype,
-    ACL: 'public-read' // Make publicly accessible
+    // Removed ACL: 'public-read' because many new buckets have Block Public Access enabled.
+    // Use bucket policies or pre-signed URLs instead.
   };
 
   try {
