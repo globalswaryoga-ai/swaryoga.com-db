@@ -159,6 +159,11 @@ export default function CashfreePaymentButton({
           throw new Error('Cashfree SDK not loaded');
         }
 
+        if (typeof cf.checkout !== 'function') {
+          console.error('❌ Cashfree.checkout is not a function. Available:', Object.keys(cf));
+          throw new Error('Cashfree checkout function not available. Try refreshing the page.');
+        }
+
         console.log('🔒 Opening Cashfree checkout...');
         
         // Cashfree SDK v3 - checkout is a function, not a constructor
@@ -190,10 +195,16 @@ export default function CashfreePaymentButton({
     <div className="w-full">
       <Script 
         src="https://sdk.cashfree.com/js/v3/cashfree.js"
-        strategy="lazyOnload"
+        strategy="afterInteractive"
         onLoad={() => {
           console.log('✅ Cashfree SDK script loaded');
-          setSdkReady(true);
+          // Verify the SDK is actually available
+          if (window.Cashfree && typeof window.Cashfree.checkout === 'function') {
+            setSdkReady(true);
+          } else {
+            console.error('❌ Cashfree SDK loaded but checkout function not available');
+            setError('Payment gateway not fully loaded. Please refresh the page.');
+          }
         }}
         onError={() => {
           console.error('❌ Failed to load Cashfree SDK script');
