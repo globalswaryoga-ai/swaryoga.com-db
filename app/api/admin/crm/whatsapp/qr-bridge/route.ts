@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Use EC2 bridge URL by default (works for both dev and prod)
-const DEFAULT_BRIDGE_URL = 'http://3.109.154.61:3333';
+const DEFAULT_BRIDGE_URL = 'http://52.91.198.23:3333';
 
 // Prefer server-only vars, but also allow NEXT_PUBLIC_* (often configured first in Vercel/env files).
 // This route runs server-side, so either works.
