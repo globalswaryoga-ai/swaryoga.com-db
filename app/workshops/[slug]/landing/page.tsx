@@ -706,7 +706,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                         onClick={() => setEnquiryModal({ isOpen: true, month: b.label })}
                         className="w-full rounded-xl border-2 border-green-700 text-green-800 font-bold py-3 text-sm hover:bg-green-50 transition-all"
                       >
-                        Enquire for {b.label}
+                        📝 Book Your Seat
                       </button>
                     )}
                   </div>

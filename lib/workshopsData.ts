@@ -34,7 +34,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/0q2FWUqqqPs',
     duration: '6 months',
     level: 'Masterclass',
-    category: 'Training',
+    category: 'Health',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR']
@@ -259,7 +259,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/XQ6MYL_rKgE',
     duration: '90 days',
     level: 'Advanced',
-    category: 'Training',
+    category: 'Trainings',
     mode: ['Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -273,7 +273,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/7qTSVzR6gIc',
     duration: '15 days',
     level: 'Advanced',
-    category: 'Training',
+    category: 'Trainings',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -287,7 +287,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/mTVVNGMBx0Q',
     duration: '45 days',
     level: 'Intermediate',
-    category: 'Training',
+    category: 'Trainings',
     mode: ['Online', 'Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -301,8 +301,36 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/nGNnVhEhjPg',
     duration: '7 days',
     level: 'All Levels',
-    category: 'Training',
+    category: 'Health',
     mode: ['Residential'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'businessman-swar-yoga': {
+    name: 'Businessman Swar Yoga',
+    slug: 'businessman-swar-yoga',
+    image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800',
+    description: 'Swar Yoga techniques for business success, wealth creation, and entrepreneurial growth.',
+    detailedDescription: 'Master advanced Swar Yoga techniques specifically designed for business professionals and entrepreneurs. Learn how to use nasal breathing cycles to enhance business decision-making, improve negotiation skills, and attract prosperity. This program combines ancient yogic wisdom with modern business principles to accelerate wealth creation and business growth.',
+    videoUrl: 'https://www.youtube.com/embed/9_OLxmZzcNQ',
+    duration: '21 days',
+    level: 'Intermediate',
+    category: 'Wealth',
+    mode: ['Online'],
+    language: ['Hindi', 'English', 'Marathi'],
+    currency: ['INR', 'NPR', 'USD']
+  },
+  'garbh-sanskara': {
+    name: '9 Month Garbh Sanskara Sadhana Program',
+    slug: 'garbh-sanskara',
+    image: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&q=80&w=800',
+    description: 'Complete 9-month program for spiritual development during pregnancy.',
+    detailedDescription: 'A comprehensive 9-month Garbh Sanskara (fetal education) program designed to facilitate optimal spiritual and physical development during pregnancy. This ancient practice combines specific yoga practices, meditation, chanting, and lifestyle guidelines to nurture the developing baby and prepare the mother for childbirth. Experience profound connection with your baby and lay the foundation for the child\'s holistic development.',
+    videoUrl: 'https://www.youtube.com/embed/y90cV_3OMrQ',
+    duration: '9 months',
+    level: 'All Levels',
+    category: 'Marriage',
+    mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
   }

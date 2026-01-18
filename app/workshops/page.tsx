@@ -67,6 +67,7 @@ type ApiWorkshopSchedule = {
   slots: number;
   duration?: string;
   price: number;
+  currency?: string;
 };
 
 type ApiWorkshopItem = {
@@ -80,20 +81,35 @@ type ApiWorkshopsListResponse = {
   data: ApiWorkshopItem[];
 };
 
-function toDateSafe(isoDate: string | undefined | null): Date | null {
+function toDateOnlyIso(isoDate: string | undefined | null): string | null {
   if (!isoDate) return null;
-  const d = new Date(`${isoDate}T00:00:00Z`);
+  // Accept either YYYY-MM-DD or full ISO timestamps (YYYY-MM-DDTHH:mm:ss.sssZ)
+  const m = String(isoDate).match(/^\d{4}-\d{2}-\d{2}/);
+  return m ? m[0] : null;
+}
+
+function toDateSafe(isoDate: string | undefined | null): Date | null {
+  const dateOnly = toDateOnlyIso(isoDate);
+  if (!dateOnly) return null;
+  const d = new Date(`${dateOnly}T00:00:00Z`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function getNextUpcomingStartDateIso(schedules: ApiWorkshopSchedule[] | undefined, now: Date): string | null {
+function getNextUpcomingSchedule(schedules: ApiWorkshopSchedule[] | undefined, now: Date): ApiWorkshopSchedule | null {
   if (!schedules || schedules.length === 0) return null;
+  const todayIso = now.toISOString().slice(0, 10);
   const upcoming = schedules
-    .map((s) => ({ s, d: toDateSafe(s.startDate) }))
-    .filter((x): x is { s: ApiWorkshopSchedule; d: Date } => !!x.d)
-    .filter((x) => x.d.getTime() >= now.getTime())
-    .sort((a, b) => a.d.getTime() - b.d.getTime());
-  return upcoming.length ? upcoming[0].s.startDate : null;
+    .map((s) => ({ s, startDateOnly: toDateOnlyIso(s.startDate) }))
+    .filter((x): x is { s: ApiWorkshopSchedule; startDateOnly: string } => !!x.startDateOnly)
+    // Compare using date-only semantics so a schedule starting today still counts as upcoming.
+    .filter((x) => x.startDateOnly >= todayIso)
+    .sort((a, b) => a.startDateOnly.localeCompare(b.startDateOnly));
+  return upcoming.length ? upcoming[0].s : null;
+}
+
+function getNextUpcomingStartDateIso(schedules: ApiWorkshopSchedule[] | undefined, now: Date): string | null {
+  const next = getNextUpcomingSchedule(schedules, now);
+  return next ? toDateOnlyIso(next.startDate) : null;
 }
 
 function getStartingPrice(schedules: ApiWorkshopSchedule[] | undefined): number | null {
@@ -114,9 +130,10 @@ function formatPrice(amount: number, currency: string | null): string {
 }
 
 function formatDate(isoDate: string): string {
-  if (!isoDate) return 'TBA';
+  const dateOnly = toDateOnlyIso(isoDate);
+  if (!dateOnly) return 'TBA';
   try {
-    const date = new Date(isoDate + 'T00:00:00Z');
+    const date = new Date(dateOnly + 'T00:00:00Z');
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
@@ -213,6 +230,7 @@ function WorkshopsPageInner() {
                   location: s.location || null,
                   slots: typeof s.seatsTotal === 'number' ? s.seatsTotal : 0,
                   price: s.price,
+                  currency: s.currency,
                 });
               });
             }
@@ -788,9 +806,11 @@ function WorkshopsPageInner() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
               {currentWorkshops.map((workshop) => {
                 const schedules = schedulesByWorkshopId[workshop.slug] || [];
-                const nextStartIso = getNextUpcomingStartDateIso(schedules, now);
+                const nextSchedule = getNextUpcomingSchedule(schedules, now);
+                const nextStartIso = nextSchedule ? toDateOnlyIso(nextSchedule.startDate) : null;
                 const startingPrice = getStartingPrice(schedules);
-                const currency = (workshop.currency && workshop.currency[0]) || WORKSHOP_FEES[workshop.slug]?.currency || 'INR';
+                const scheduleCurrency = (nextSchedule?.currency || schedules.find((s) => !!s.currency)?.currency || null) as string | null;
+                const currency = scheduleCurrency || (workshop.currency && workshop.currency[0]) || WORKSHOP_FEES[workshop.slug]?.currency || 'INR';
                 const displayPrice =
                   (typeof startingPrice === 'number' && startingPrice > 0)
                     ? formatPrice(startingPrice, currency)
@@ -844,6 +864,14 @@ function WorkshopsPageInner() {
                           <div className="text-sm font-bold text-gray-900">
                             {nextStartIso ? formatDate(nextStartIso) : 'TBA'}
                           </div>
+                          {nextSchedule ? (
+                            <div className="mt-1 text-xs text-gray-600 font-semibold truncate">
+                              {nextSchedule.time ? `${nextSchedule.time}` : null}
+                              {typeof nextSchedule.slots === 'number' && nextSchedule.slots > 0 ? (
+                                <span className="ml-2 text-gray-500 font-semibold">• Seats: {nextSchedule.slots}</span>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-gray-500 font-semibold">From</div>
