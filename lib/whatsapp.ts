@@ -162,18 +162,18 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
   }
 
   const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
+  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || '').trim();
 
   if (bridgeUrl && bridgeSecret) {
     try {
-      const res = await fetch(`${bridgeUrl}/api/messages/send`, {
+      const res = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-bridge-secret': bridgeSecret,
         },
         body: JSON.stringify({
-          phone: to,
+          chatId: `${to}@${to.includes('@') ? '' : 'c.us'}`,
           message: body,
         }),
         cache: 'no-store',
@@ -185,7 +185,7 @@ export async function sendWhatsAppText(toRaw: string, body: string): Promise<Wha
         return { waMessageId: data?.messageId || 'bridge-queued', raw: { ...data, provider: 'whatsapp_web_bridge' } };
       }
 
-      throw new Error(data?.error || 'Bridge send failed');
+      throw new Error(data?.error || data?.message || 'Bridge send failed');
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       throw new Error(`WhatsApp sending failed: Meta Cloud API not configured and Web Bridge unavailable (${errMsg})`);
@@ -203,17 +203,21 @@ export async function sendWhatsAppPresence(toRaw: string, type: 'composing' | 'r
   
   const to = normalizePhone(toRaw);
   const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
+  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || '').trim();
 
   if (bridgeUrl && bridgeSecret) {
     try {
-      await fetch(`${bridgeUrl}/api/messages/presence`, {
+      await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-bridge-secret': bridgeSecret,
         },
-        body: JSON.stringify({ phone: to, type }),
+        body: JSON.stringify({ 
+          chatId: `${to}@${to.includes('@') ? '' : 'c.us'}`, 
+          type,
+          isPresence: true 
+        }),
       });
     } catch (err) {
       console.warn('[WHATSAPP] Presence update failed:', err);
@@ -288,24 +292,22 @@ export async function sendWhatsAppMedia(
   }
 
   const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
+  const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || '').trim();
 
   if (bridgeUrl && bridgeSecret) {
     try {
-      // Note: Legacy bridge might use a different body or endpoint for media.
-      // We send it to the same endpoint with extended fields.
-      const res = await fetch(`${bridgeUrl}/api/messages/send`, {
+      // Send media via Web Bridge
+      const res = await fetch(`${bridgeUrl}/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-bridge-secret': bridgeSecret,
         },
         body: JSON.stringify({
-          phone: to,
-          message: caption || `Sent ${mediaType}`,
-          mediaUrl,
-          mediaType,
-          isMedia: true
+          chatId: `${to}@${to.includes('@') ? '' : 'c.us'}`,
+          media: mediaUrl,
+          message: caption || null,
+          mediaType: mediaType
         }),
         cache: 'no-store',
       });
@@ -316,7 +318,7 @@ export async function sendWhatsAppMedia(
         return { waMessageId: data?.messageId || 'bridge-queued', raw: { ...data, provider: 'whatsapp_web_bridge' } };
       }
 
-      throw new Error(data?.error || 'Bridge send failed');
+      throw new Error(data?.error || data?.message || 'Bridge send failed');
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       throw new Error(`WhatsApp media sending failed: Meta Cloud API error and Web Bridge unavailable (${errMsg})`);
