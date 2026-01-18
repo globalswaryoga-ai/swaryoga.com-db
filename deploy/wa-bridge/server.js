@@ -652,9 +652,10 @@ app.post('/send', authMiddleware, async (req, res) => {
       }
     } catch (sendErr) {
       console.error('[send] Failed to send message:', sendErr.message);
+      console.error('[send] Error stack:', sendErr.stack);
       
       // Check if it's a frame detachment issue
-      if (sendErr.message.includes('detached') || sendErr.message.includes('Frame')) {
+      if (sendErr.message.includes('detached') || sendErr.message.includes('Frame') || sendErr.message.includes('markedUnread')) {
         console.warn('[send] ⚠️ Detected frame/connection issue - triggering reconnect');
         sessionReady = false;
         
