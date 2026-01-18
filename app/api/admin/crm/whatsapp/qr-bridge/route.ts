@@ -129,11 +129,13 @@ export async function GET(req: NextRequest) {
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 
     // Determine timeout based on endpoint type
+    // Media downloads: 30s (can be large files)
     // Messages polling: 12s (can be slow, needs more time)
     // Status check: 8s
     // Contact/Group details: 3s (timeout quickly, use fallback)
     // Other endpoints: 8s
     let timeoutMs = 8000;
+    if (path.includes('/media')) timeoutMs = 30000; // Long timeout for media downloads
     if (path.includes('/messages')) timeoutMs = 12000; // Increased from 5s to 12s
     if (path.includes('/contact') || path.includes('/group')) timeoutMs = 3000;
     
@@ -164,7 +166,7 @@ export async function GET(req: NextRequest) {
     }
     clearTimeout(timeout);
 
-    // Check if response is successful before parsing as JSON
+    // Check if response is successful before parsing
     if (!res.ok) {
       const errorText = await res.text();
       console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
@@ -172,6 +174,22 @@ export async function GET(req: NextRequest) {
         { error: `Bridge error: ${res.status}`, details: errorText.substring(0, 100) },
         { status: res.status }
       );
+    }
+
+    // Check if this is media (binary) content
+    const contentType = res.headers.get('content-type') || '';
+    if (path.includes('/media') && !contentType.includes('application/json')) {
+      // This is binary media - pass through directly
+      console.log(`[QR Bridge Proxy] Proxying binary media (${contentType})`);
+      const buffer = await res.arrayBuffer();
+      return new NextResponse(buffer, {
+        status: res.status,
+        headers: {
+          'Content-Type': contentType || 'application/octet-stream',
+          'Cache-Control': 'public, max-age=86400',
+          'Content-Length': buffer.byteLength.toString()
+        }
+      });
     }
 
     // Try to parse as JSON, fallback if not valid JSON
