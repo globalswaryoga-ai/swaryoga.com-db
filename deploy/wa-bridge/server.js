@@ -136,14 +136,45 @@ function initializeClient() {
   });
 
   console.log('🚀 Calling client.initialize()...');
+  
+  // Add timeout to prevent hanging indefinitely
+  const initTimeout = setTimeout(() => {
+    console.error('❌ Initialization timeout - no ready event after 60s');
+    if (client) {
+      try {
+        client.destroy();
+      } catch (e) {}
+    }
+    client = null;
+    sessionReady = false;
+    console.log('⏳ Restarting client...');
+    setTimeout(() => initializeClient(), 5000);
+  }, 60000); // 60 second timeout
+
+  // Clear timeout on ready
+  const originalOn = client.on.bind(client);
+  client.on = function(event, handler) {
+    if (event === 'ready') {
+      const wrappedHandler = () => {
+        clearTimeout(initTimeout);
+        handler();
+      };
+      return originalOn(event, wrappedHandler);
+    }
+    return originalOn(event, handler);
+  };
+
   client.initialize().catch((err) => {
+    clearTimeout(initTimeout);
     console.error('❌ Initialization error:', err.message);
+    console.error('❌ Stack:', err.stack);
     // If it's a lock error, wait 30s before exiting to prevent PM2 spam
     if (err.message.includes('already running')) {
        console.log('⏳ Lock detected, waiting 30s before exit...');
        setTimeout(() => process.exit(1), 30000);
     } else {
-       setTimeout(() => process.exit(1), 5000);
+       console.log('⏳ Restarting after error...');
+       setTimeout(() => initializeClient(), 5000);
     }
   });
 }
