@@ -1101,7 +1101,7 @@ export const workshopLandingPages: Record<string, WorkshopLandingData> = {
   },
   'master-swar-yoga': {
     heroImage: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&q=80&w=1200',
-    introVideoUrl: 'https://www.youtube.com/embed/j_H8i50HjYQ',
+    introVideoUrl: 'https://www.youtube.com/embed/_sVjfPam0SM',
     whatYouWillLearn: [
       'Level 1 to 5 - Complete Master Class Curriculum',
       'Advanced Swar Yoga & Breath Mastery',
