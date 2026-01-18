@@ -10,7 +10,7 @@ import { Trash2, ShoppingCart, ArrowRight } from 'lucide-react';
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, removeItem, getTotals } = useCart();
+  const { items, removeItem, getTotals, updateQuantity } = useCart();
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -98,10 +98,37 @@ export default function CartPage() {
                           </div>
                         </div>
 
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-2 border-2 border-gray-300 rounded-lg bg-gray-50">
+                          <button
+                            onClick={() => item.quantity > 1 && updateQuantity(item.id, item.quantity - 1)}
+                            className="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors font-semibold text-lg"
+                          >
+                            −
+                          </button>
+                          <span className="px-4 py-2 font-semibold text-gray-900 min-w-12 text-center">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            className="px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-colors font-semibold text-lg"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        {/* Subtotal */}
+                        <div className="text-right mt-1">
+                          <div className="text-xs text-gray-600">Subtotal</div>
+                          <div className="text-lg font-bold text-yoga-700">
+                            ₹{(item.price * item.quantity).toLocaleString('en-IN')}
+                          </div>
+                        </div>
+
                         {/* Remove Button */}
                         <button
                           onClick={() => removeItem(item.id)}
-                          className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors"
+                          className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors mt-2"
                         >
                           <Trash2 className="w-4 h-4" />
                           <span className="text-sm font-medium">Remove</span>
@@ -132,7 +159,7 @@ export default function CartPage() {
                 {/* Summary Items */}
                 <div className="space-y-4 mb-6 pb-6 border-b">
                   <div className="flex justify-between text-gray-700">
-                    <span>Subtotal ({items.length} items)</span>
+                    <span>Subtotal ({items.reduce((sum, item) => sum + item.quantity, 0)} items)</span>
                     <span className="font-semibold">₹{subtotal.toLocaleString('en-IN')}</span>
                   </div>
 

@@ -93,9 +93,12 @@ const displayBatchLabel = (batch: unknown) => {
   return BATCH_OPTIONS.find((b) => b.key === key)?.label || String(batch || '').trim() || '—';
 };
 
-const CATEGORY_ORDER = ['Health', 'Wealth', 'Married', 'Youth', 'Trainings'] as const;
+const CATEGORY_ORDER = ['Health', 'Wealth', 'Marriage', 'Training', 'Youth & Children'] as const;
 
-const getCategoryHeading = (category: string) => (category === 'Youth' ? 'Youth/Children' : category);
+const getCategoryHeading = (category: string) => {
+  if (category === 'Youth' || category === 'Youth & Children') return 'Youth/Children';
+  return category;
+};
 
 const formatDate = (iso: string) => {
   const ms = Date.parse(iso);

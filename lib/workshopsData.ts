@@ -259,7 +259,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/XQ6MYL_rKgE',
     duration: '90 days',
     level: 'Advanced',
-    category: 'Trainings',
+    category: 'Training',
     mode: ['Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -273,7 +273,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/7qTSVzR6gIc',
     duration: '15 days',
     level: 'Advanced',
-    category: 'Trainings',
+    category: 'Training',
     mode: ['Online'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']
@@ -287,7 +287,7 @@ const WORKSHOP_METADATA: Record<string, Omit<WorkshopOverview, 'id'>> = {
     videoUrl: 'https://www.youtube.com/embed/mTVVNGMBx0Q',
     duration: '45 days',
     level: 'Intermediate',
-    category: 'Trainings',
+    category: 'Training',
     mode: ['Online', 'Residential'],
     language: ['Hindi', 'English', 'Marathi'],
     currency: ['INR', 'NPR', 'USD']

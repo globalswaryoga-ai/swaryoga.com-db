@@ -39,9 +39,12 @@ const MODE_LABELS: Array<{ key: ModeKey; label: string }> = [
   { key: 'recorded', label: 'Recorded' },
 ];
 
-const CATEGORY_ORDER = ['Health', 'Wealth', 'Married', 'Youth', 'Trainings'] as const;
+const CATEGORY_ORDER = ['Health', 'Wealth', 'Marriage', 'Training', 'Youth & Children'] as const;
 
-const getCategoryHeading = (category: string) => (category === 'Youth' ? 'Youth/Children' : category);
+const getCategoryHeading = (category: string) => {
+  if (category === 'Youth' || category === 'Youth & Children') return 'Youth/Children';
+  return category;
+};
 
 const formatDate = (iso: string) => {
   const ms = Date.parse(iso);
@@ -64,13 +67,29 @@ const addMonths = (d: Date, months: number) => {
   return copy;
 };
 
+const normalizeModeKey = (v: unknown): ModeKey | '' => {
+  const key = String(v ?? '').trim().toLowerCase();
+  if (key === 'online') return 'online';
+  if (key === 'offline') return 'offline';
+  if (key === 'residential') return 'residential';
+  if (key === 'recorded') return 'recorded';
+  return '';
+};
+
+const normalizeLanguageKey = (v: unknown): LanguageKey | '' => {
+  const key = String(v ?? '').trim().toLowerCase();
+  if (key === 'hindi') return 'Hindi';
+  if (key === 'english') return 'English';
+  if (key === 'marathi') return 'Marathi';
+  return '';
+};
+
 function RegisterNowDashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [selectedMode, setSelectedMode] = useState<ModeKey>('online');
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageKey>('Hindi');
-  const [modePopupOpen, setModePopupOpen] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('Health');
   const [selectedWorkshopSlug, setSelectedWorkshopSlug] = useState<string | null>(null);
@@ -119,25 +138,49 @@ function RegisterNowDashboardPageInner() {
       searchParams?.get('slug')?.trim() ||
       searchParams?.get('id')?.trim() ||
       '';
-    if (!slug) return;
 
-    const found = workshopCatalog.find((w) => w.slug === slug);
-    if (!found) return;
+    const modeParam = searchParams?.get('mode')?.trim();
+    const languageParam = (searchParams?.get('language') || searchParams?.get('lang'))?.trim();
+    const scheduleIdParam = (searchParams?.get('scheduleId') || searchParams?.get('schedule'))?.trim();
 
-    setSelectedWorkshopSlug(found.slug);
-    if (found.category) setSelectedCategory(found.category);
+    if (slug) {
+      const found = workshopCatalog.find((w) => w.slug === slug);
+      if (found) {
+        setSelectedWorkshopSlug(found.slug);
+        if (found.category) setSelectedCategory(found.category);
+      }
+    }
+
+    const normalizedMode = normalizeModeKey(modeParam);
+    if (normalizedMode) setSelectedMode(normalizedMode);
+
+    const normalizedLanguage = normalizeLanguageKey(languageParam);
+    if (normalizedLanguage) setSelectedLanguage(normalizedLanguage);
+
+    if (scheduleIdParam) setSelectedScheduleId(scheduleIdParam);
   }, [searchParams]);
+
+  const categoryOptions = useMemo(() => {
+    const unique = new Set<string>();
+    for (const w of workshopCatalog) unique.add(w.category || 'Health');
+
+    const preferred = CATEGORY_ORDER.filter((c) => unique.has(c));
+    const remainder = Array.from(unique)
+      .filter((c) => !preferred.includes(c as any))
+      .sort((a, b) => a.localeCompare(b));
+    return [...preferred, ...remainder];
+  }, []);
 
   const grouped = useMemo(() => {
     const map: Record<string, typeof workshopCatalog> = {};
-    for (const c of CATEGORY_ORDER) map[c] = [];
+    for (const c of categoryOptions) map[c] = [];
     for (const w of workshopCatalog) {
       const c = w.category || 'Health';
       if (!map[c]) map[c] = [];
       map[c].push(w);
     }
     return map;
-  }, []);
+  }, [categoryOptions]);
 
   const rows = useMemo(() => {
     const list = grouped[selectedCategory] || [];
@@ -277,341 +320,233 @@ function RegisterNowDashboardPageInner() {
       <Navigation />
       <main className="min-h-screen pt-20 bg-swar-bg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-            {/* Sidebar */}
-            <aside className="rounded-xl border border-orange-100 bg-orange-50 p-4 sm:p-5 shadow-sm h-fit">
-              <h2 className="text-lg font-extrabold text-swar-text mb-4">Register Now</h2>
+          {/* Filters (Row 1) */}
+          <section className="rounded-xl border border-swar-border bg-white shadow-sm p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <div>
+                <h1 className="text-xl sm:text-2xl font-extrabold text-swar-text">Register Now</h1>
+                <p className="mt-1 text-sm text-swar-text-secondary">Select filters and view the next 6 months schedule.</p>
+              </div>
+              <div className="text-xs text-swar-text-secondary">
+                Mode: <span className="font-semibold text-swar-text">{selectedModeLabel}</span> • Language:{' '}
+                <span className="font-semibold text-swar-text">{selectedLanguage}</span>
+              </div>
+            </div>
 
-              <div className="mb-5">
-                <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">Language</p>
-                <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-2">
-                  {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
-                    <button
-                      key={lang}
-                      type="button"
-                        onClick={() => {
-                          setSelectedLanguage(lang);
-                          // New requirement: when user clicks language, open mode popup.
-                          setModePopupOpen(true);
-                        }}
-                      className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
-                        selectedLanguage === lang
-                          ? 'bg-swar-primary text-white'
-                          : 'bg-white text-black hover:bg-orange-100'
-                      }`}
-                    >
-                      {lang}
-                    </button>
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-1">Category</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setSelectedCategory(next);
+                    // If the currently selected workshop isn't in this category, clear it.
+                    if (selectedWorkshopSlug && !(grouped[next] || []).some((w) => w.slug === selectedWorkshopSlug)) {
+                      setSelectedWorkshopSlug(null);
+                    }
+                  }}
+                  className="w-full rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold"
+                >
+                  {categoryOptions.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {getCategoryHeading(cat)}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">Our Workshops</p>
-                <div className="grid grid-cols-2 gap-2 sm:block sm:space-y-1">
-                  {CATEGORY_ORDER.map((cat) => {
-                    const heading = getCategoryHeading(cat);
-                    const active = selectedCategory === cat;
-                    return (
+                <label className="block text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-1">Workshop</label>
+                <select
+                  value={selectedWorkshopSlug || ''}
+                  onChange={(e) => setSelectedWorkshopSlug(e.target.value || null)}
+                  className="w-full rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold"
+                >
+                  <option value="">Select a workshop</option>
+                  {rows.map((w) => (
+                    <option key={w.slug} value={w.slug}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-1">Mode</label>
+                <select
+                  value={selectedMode}
+                  onChange={(e) => onSelectMode(e.target.value as ModeKey)}
+                  className="w-full rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold"
+                >
+                  {MODE_LABELS.map((m) => (
+                    <option key={m.key} value={m.key}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-1">Language</label>
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value as LanguageKey)}
+                  className="w-full rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold"
+                >
+                  {(['Hindi', 'English', 'Marathi'] as LanguageKey[]).map((lang) => (
+                    <option key={lang} value={lang}>
+                      {lang}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </section>
+
+          {/* Body: schedule + status */}
+          <div className="mt-6">
+            <section className="rounded-xl border border-swar-border bg-white shadow-sm p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-extrabold text-swar-text">
+                    {selectedWorkshop ? selectedWorkshop.name : 'Select a workshop'}
+                  </h2>
+                  <p className="mt-1 text-sm text-swar-text-secondary">Next 6 months dates</p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {sixMonthBlocks.map((b) => (
+                  <div
+                    key={b.label}
+                    className={`rounded-lg px-3 py-3 border text-sm font-semibold transition-all ${
+                      b.available
+                        ? 'bg-swar-primary-light border-green-200 text-swar-text'
+                        : 'bg-white border-swar-border text-swar-text-secondary hover:border-swar-primary hover:bg-swar-primary/5'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-wide">{b.label}</div>
+                    <div className="mt-1 mb-2">{b.dateText}</div>
+                    {selectedWorkshopSlug && (
                       <button
-                        key={cat}
                         type="button"
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition-colors ${
-                          active ? 'bg-white text-orange-700 border border-orange-200' : 'text-swar-text hover:bg-orange-100'
-                        }`}
+                        onClick={() => setBookSeatModal({ isOpen: true, month: b.label })}
+                        className="w-full mt-2 rounded-md px-2 py-1 bg-swar-primary text-white text-xs font-bold hover:bg-swar-primary/90 transition-colors active:scale-95"
                       >
-                        {heading}
+                        Book your seat
                       </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </aside>
-
-            {/* Main */}
-            <section className="rounded-xl border border-swar-border bg-white shadow-sm overflow-hidden">
-              {/* Header with mode buttons */}
-              <div className="border-b border-swar-border bg-white px-4 sm:px-6 py-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <h1 className="text-xl sm:text-2xl font-extrabold text-swar-text">Select Mode</h1>
-                  <div className="flex flex-wrap gap-2">
-                    {MODE_LABELS.map((m) => {
-                      const active = selectedMode === m.key;
-                      return (
-                        <button
-                          key={m.key}
-                          type="button"
-                          onClick={() => onSelectMode(m.key)}
-                          className={`rounded-lg px-4 py-2 text-sm font-bold transition-all ${
-                            active
-                              ? 'bg-swar-primary text-white shadow-sm'
-                              : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      );
-                    })}
+                    )}
                   </div>
-                </div>
+                ))}
               </div>
 
-              <div className="p-4 sm:p-6">
-                {/* Workshop dashboard rows */}
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-extrabold text-swar-text">{getCategoryHeading(selectedCategory)}</h2>
-                    <p className="text-sm text-swar-text-secondary">Default: Online + Hindi. Mode: {selectedModeLabel}. Language: {selectedLanguage}.</p>
-                  </div>
-                </div>
-
-                {/* Mobile/tablet: cards */}
-                <div className="md:hidden space-y-3">
-                  {rows.map((w) => {
-                    const schedule = allSchedules
-                      .filter((s) => s.workshopSlug === w.slug)
-                      .filter((s) => s.mode === selectedMode)
-                      .sort((a, b) => {
-                        const ams = a.startDate ? Date.parse(String(a.startDate)) : NaN;
-                        const bms = b.startDate ? Date.parse(String(b.startDate)) : NaN;
-                        if (Number.isNaN(ams) && Number.isNaN(bms)) return 0;
-                        if (Number.isNaN(ams)) return 1;
-                        if (Number.isNaN(bms)) return -1;
-                        return ams - bms;
-                      })[0] || null;
-
-                    const active = selectedWorkshopSlug === w.slug;
-                    const feeText = schedule
-                      ? `₹${Number(schedule.price).toLocaleString('en-IN')} ${String(schedule.currency).toUpperCase()}`
-                      : 'TBD';
-
-                    return (
-                      <div
-                        key={w.slug}
-                        className={`rounded-xl border p-4 shadow-sm ${
-                          active ? 'border-primary-200 bg-primary-50' : 'border-swar-border bg-white'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-base font-extrabold text-swar-text leading-tight">{w.name}</div>
-                            <div className="mt-1 text-sm text-swar-text">Duration: {w.duration}</div>
-                            <div className="mt-1 text-sm font-semibold text-swar-text">Fees: {feeText}</div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedWorkshopSlug(w.slug)}
-                            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-extrabold transition-colors ${
-                              active ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
-                            }`}
-                          >
-                            {active ? 'Selected' : 'Select'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {rows.length === 0 && (
-                    <div className="rounded-xl border border-swar-border bg-white px-4 py-6 text-center text-swar-text-secondary">
-                      No workshops found.
-                    </div>
-                  )}
-                </div>
-
-                {/* Desktop: table */}
-                <div className="hidden md:block overflow-x-auto rounded-xl border border-swar-border">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-swar-bg">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-bold text-swar-text">Workshop</th>
-                        <th className="px-4 py-3 text-left font-bold text-swar-text">Duration</th>
-                        <th className="px-4 py-3 text-left font-bold text-swar-text">Fees</th>
-                        <th className="px-4 py-3 text-left font-bold text-swar-text">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {rows.map((w) => {
-                        const schedule = allSchedules
-                          .filter((s) => s.workshopSlug === w.slug)
-                          .filter((s) => s.mode === selectedMode)
-                          .sort((a, b) => {
-                            const ams = a.startDate ? Date.parse(String(a.startDate)) : NaN;
-                            const bms = b.startDate ? Date.parse(String(b.startDate)) : NaN;
-                            if (Number.isNaN(ams) && Number.isNaN(bms)) return 0;
-                            if (Number.isNaN(ams)) return 1;
-                            if (Number.isNaN(bms)) return -1;
-                            return ams - bms;
-                          })[0] || null;
-                        const active = selectedWorkshopSlug === w.slug;
-                        const feeText = schedule ? `₹${Number(schedule.price).toLocaleString('en-IN')} ${String(schedule.currency).toUpperCase()}` : 'TBD';
+              {/* Batch / Time Dropdown - Below Month Boxes */}
+              <div className="mt-4 max-w-sm">
+                <label className="block text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-1">
+                  Batch / Time
+                </label>
+                <select
+                  value={selectedScheduleId}
+                  onChange={(e) => setSelectedScheduleId(e.target.value)}
+                  disabled={!selectedWorkshopSlug || schedulesFor.length === 0}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm font-semibold ${
+                    !selectedWorkshopSlug || schedulesFor.length === 0
+                      ? 'border-gray-200 bg-gray-100 text-gray-400'
+                      : 'border-swar-border bg-white'
+                  }`}
+                >
+                  {(!selectedWorkshopSlug || schedulesFor.length === 0) && <option value="">Select workshop first</option>}
+                  {selectedWorkshopSlug && schedulesFor.length > 0 && (
+                    <>
+                      {schedulesFor.map((s) => {
+                        const start = s.startDate ? formatDate(String(s.startDate)) : 'Anytime';
+                        const batch = String(s.batch || '').trim();
+                        const time = String(s.time || '').trim() || [s.startTime, s.endTime].filter(Boolean).join(' - ');
+                        const price = Number(s.price || 0);
+                        const currency = String(s.currency || 'INR').toUpperCase();
+                        const label = `${start}${batch ? ` • ${batch}` : ''}${time ? ` • ${time}` : ''} • ₹${price.toLocaleString('en-IN')} ${currency}`;
                         return (
-                          <tr key={w.slug} className={active ? 'bg-primary-50' : 'bg-white'}>
-                            <td className="px-4 py-3 font-semibold text-swar-text whitespace-nowrap">{w.name}</td>
-                            <td className="px-4 py-3 text-swar-text whitespace-nowrap">{w.duration}</td>
-                            <td className="px-4 py-3 text-swar-text whitespace-nowrap">{feeText}</td>
-                            <td className="px-4 py-3">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedWorkshopSlug(w.slug)}
-                                className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                                  active ? 'bg-swar-primary text-white' : 'bg-swar-primary-light text-swar-text hover:bg-swar-primary-light'
-                                }`}
-                              >
-                                {active ? 'Selected' : 'Select'}
-                              </button>
-                            </td>
-                          </tr>
+                          <option key={s.id} value={s.id}>
+                            {label}
+                          </option>
                         );
                       })}
-                      {rows.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-6 text-center text-swar-text-secondary">
-                            No workshops found.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                    </>
+                  )}
+                </select>
+              </div>
 
-                {/* Dates + Pay Now */}
-                <div className="mt-6 rounded-xl border border-swar-border bg-swar-bg p-4 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                      <h3 className="text-base sm:text-lg font-extrabold text-swar-text">
-                        {selectedWorkshop ? selectedWorkshop.name : 'Select a workshop to see dates'}
-                      </h3>
-                      <p className="text-sm text-swar-text-secondary">Next 6 months dates</p>
-                    </div>
+              {!selectedWorkshopSlug && (
+                <p className="mt-4 text-xs text-swar-text-secondary">Choose a workshop from the dropdown to unlock Pay Now.</p>
+              )}
+
+              {selectedWorkshopSlug && !selectedSchedule && (
+                <p className="mt-4 text-xs text-red-600 font-semibold">No schedule found for selected filters.</p>
+              )}
+
+              {(schedulesLoading || schedulesError) && (
+                <p className={`mt-4 text-xs ${schedulesError ? 'text-red-600' : 'text-swar-text-secondary'}`}>
+                  {schedulesLoading ? 'Loading schedules…' : schedulesError}
+                </p>
+              )}
+            </section>
+
+            {/* Selected Workshop Details - Below in a Row */}
+            <div className="mt-6 rounded-xl border border-swar-border bg-swar-bg shadow-sm p-4 sm:p-6">
+              <h3 className="text-base font-extrabold text-swar-text mb-4">Selected Workshop Details</h3>
+
+              {!selectedWorkshop ? (
+                <p className="text-sm text-swar-text-secondary">Select a workshop to see details and enroll.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="rounded-lg bg-white border border-swar-border p-4">
+                    <p className="text-sm font-extrabold text-swar-text">{selectedWorkshop.name}</p>
+                    <p className="mt-1 text-xs text-swar-text-secondary">
+                      {selectedWorkshop.duration} • {selectedModeLabel} • {selectedLanguage}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-white border border-swar-border p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-swar-text-secondary">Next schedule</p>
+                    {selectedSchedule ? (
+                      <div className="mt-2 text-sm font-semibold text-swar-text">
+                        <div>{selectedSchedule.startDate ? formatDate(String(selectedSchedule.startDate)) : 'Anytime'}</div>
+                        <div className="mt-1 text-xs text-swar-text-secondary">
+                          {[String(selectedSchedule.batch || '').trim(), formatScheduleTime(selectedSchedule), String(selectedSchedule.location || '').trim()]
+                            .filter(Boolean)
+                            .join(' • ')}
+                        </div>
+                        <div className="mt-2 text-sm font-extrabold text-swar-text">
+                          ₹{Number(selectedSchedule.price || 0).toLocaleString('en-IN')} {String(selectedSchedule.currency || 'INR').toUpperCase()}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm font-semibold text-red-600">No schedule found.</div>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg bg-white border border-swar-border p-4">
+                    <p className="text-sm text-swar-text font-semibold">Enroll Now</p>
+                    <p className="mt-1 text-xs text-swar-text-secondary">Click to add to cart and checkout.</p>
                     <button
                       type="button"
                       disabled={payDisabled}
                       onClick={onPayNow}
-                      className={`rounded-lg px-5 py-3 text-sm font-extrabold transition-all ${
+                      className={`mt-3 w-full rounded-lg px-4 py-3 text-sm font-extrabold transition-all ${
                         payDisabled
                           ? 'bg-gray-300 text-swar-text-secondary cursor-not-allowed'
-                          : 'bg-swar-primary text-white hover:bg-swar-primary hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]'
+                          : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white active:scale-95'
                       }`}
                     >
-                      Pay Now
+                      🎓 Enroll Now
                     </button>
                   </div>
-
-                  {selectedWorkshopSlug && schedulesFor.length > 1 && (
-                    <div className="mt-4">
-                      <label className="block text-xs font-bold uppercase tracking-wide text-swar-text-secondary mb-2">
-                        Choose batch / time
-                      </label>
-                      <select
-                        value={selectedScheduleId}
-                        onChange={(e) => setSelectedScheduleId(e.target.value)}
-                        className="w-full max-w-xl rounded-lg border border-swar-border bg-white px-3 py-2 text-sm font-semibold"
-                      >
-                        {schedulesFor.map((s) => {
-                          const start = s.startDate ? formatDate(String(s.startDate)) : 'Anytime';
-                          const batch = String(s.batch || '').trim();
-                          const time = String(s.time || '').trim() || [s.startTime, s.endTime].filter(Boolean).join(' - ');
-                          const price = Number(s.price || 0);
-                          const currency = String(s.currency || 'INR').toUpperCase();
-                          const label = `${start}${batch ? ` • ${batch}` : ''}${time ? ` • ${time}` : ''} • ₹${price.toLocaleString('en-IN')} ${currency}`;
-                          return (
-                            <option key={s.id} value={s.id}>
-                              {label}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {sixMonthBlocks.map((b) => (
-                      <div
-                        key={b.label}
-                        className={`rounded-lg px-3 py-3 border text-sm font-semibold transition-all ${
-                          b.available
-                            ? 'bg-swar-primary-light border-green-200 text-swar-text'
-                            : 'bg-white border-swar-border text-swar-text-secondary hover:border-swar-primary hover:bg-swar-primary/5'
-                        }`}
-                      >
-                        <div className="text-[11px] font-bold uppercase tracking-wide">{b.label}</div>
-                        <div className="mt-1 mb-2">{b.dateText}</div>
-                        {!b.available && selectedWorkshopSlug && (
-                          <button
-                            type="button"
-                            onClick={() => setBookSeatModal({ isOpen: true, month: b.label })}
-                            className="w-full mt-2 rounded-md px-2 py-1 bg-swar-primary text-white text-xs font-bold hover:bg-swar-primary/90 transition-colors active:scale-95"
-                          >
-                            Book Seat
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {!selectedWorkshopSlug && (
-                    <p className="mt-4 text-xs text-swar-text-secondary">Choose a workshop from the table above to unlock Pay Now.</p>
-                  )}
-
-                  {selectedWorkshopSlug && !selectedSchedule && (
-                    <p className="mt-4 text-xs text-red-600 font-semibold">
-                      No schedule found for selected mode. Please change mode.
-                    </p>
-                  )}
-
-                  {(schedulesLoading || schedulesError) && (
-                    <p className={`mt-4 text-xs ${schedulesError ? 'text-red-600' : 'text-swar-text-secondary'}`}>
-                      {schedulesLoading ? 'Loading schedules…' : schedulesError}
-                    </p>
-                  )}
                 </div>
-              </div>
-            </section>
-          </div>
-        </div>
-
-        {/* Mode popup overlay (opens when user clicks language) */}
-        {modePopupOpen && (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4" role="dialog" aria-modal="true">
-            <div className="w-full max-w-xl rounded-xl bg-white shadow-2xl border border-swar-border overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-swar-border">
-                <h3 className="text-lg font-extrabold text-swar-text">Select Mode</h3>
-                <button
-                  type="button"
-                  onClick={() => setModePopupOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-bold bg-swar-primary-light hover:bg-swar-primary-light"
-                  aria-label="Close mode popup"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="p-5 space-y-2">
-                {MODE_LABELS.map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => {
-                      setSelectedMode(m.key);
-                      setModePopupOpen(false);
-                    }}
-                    className={`w-full rounded-lg px-4 py-3 text-left font-extrabold transition-colors ${
-                      selectedMode === m.key
-                        ? 'bg-swar-primary text-white'
-                        : 'bg-swar-bg text-swar-text hover:bg-swar-primary-light'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-              <div className="px-5 pb-5">
-                <p className="text-xs text-swar-text-secondary">Language selected: {selectedLanguage}. Choose the mode to continue.</p>
-              </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
 
         {/* Book Seat Modal */}
         {bookSeatModal.isOpen && selectedWorkshop && (
