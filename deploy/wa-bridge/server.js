@@ -64,6 +64,60 @@ let client = null;
 let qrCode = null;
 let chats = [];
 let sessionReady = false;
+let isRecovering = false;
+let crashCount = 0;
+let lastCrashTime = 0;
+
+// Message queue system to prevent browser overload
+let messageQueue = [];
+let isProcessingQueue = false;
+
+async function processMessageQueue() {
+  if (isProcessingQueue || messageQueue.length === 0 || !sessionReady || !client) {
+    return;
+  }
+  
+  isProcessingQueue = true;
+  
+  while (messageQueue.length > 0 && sessionReady && client) {
+    const msg = messageQueue.shift();
+    
+    try {
+      console.log(`[queue] Processing: sending to ${msg.chatId}, message length: ${msg.message.length}`);
+      
+      let chat = chats.find(c => c.id._serialized === msg.chatId);
+      
+      if (chat) {
+        if (msg.media) {
+          const { MessageMedia } = require('whatsapp-web.js');
+          const mediaData = await MessageMedia.fromUrl(msg.media);
+          await chat.sendMessage(mediaData, { caption: msg.message });
+        } else {
+          await chat.sendMessage(msg.message);
+        }
+        console.log(`[queue] ✅ Sent successfully`);
+      } else {
+        // Try direct send
+        if (msg.media) {
+          const { MessageMedia } = require('whatsapp-web.js');
+          const mediaData = await MessageMedia.fromUrl(msg.media);
+          await client.sendMessage(msg.chatId, mediaData, { caption: msg.message });
+        } else {
+          await client.sendMessage(msg.chatId, msg.message);
+        }
+        console.log(`[queue] ✅ Sent directly`);
+      }
+      
+      // Delay between messages to avoid overwhelming the browser
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (err) {
+      console.error(`[queue] ❌ Failed: ${err.message}`);
+      // Don't retry on failure, just skip
+    }
+  }
+  
+  isProcessingQueue = false;
+}
 
 // Initialize WhatsApp client
 function initializeClient() {
@@ -84,7 +138,19 @@ function initializeClient() {
   if (client) {
     try {
       client.destroy();
+      client = null;
     } catch (e) {}
+  }
+  
+  // Handle too many crashes
+  const now = Date.now();
+  if (crashCount > 3 && (now - lastCrashTime) < 60000) {
+    console.error('❌ Too many crashes in short time - waiting 30s before retry');
+    setTimeout(() => {
+      crashCount = 0;
+      initializeClient();
+    }, 30000);
+    return;
   }
 
   client = new Client({
@@ -125,13 +191,18 @@ function initializeClient() {
     console.log('✓ WhatsApp client ready');
     sessionReady = true;
     qrCode = null;
+    crashCount = 0; // Reset crash counter on successful connection
     loadChats();
+    startHeartbeat();
   });
 
   client.on('disconnected', () => {
     console.log('⚠ WhatsApp disconnected');
     sessionReady = false;
     qrCode = null;
+    lastCrashTime = Date.now();
+    crashCount++;
+    console.log(`Crash count: ${crashCount}, last crash: ${new Date(lastCrashTime).toISOString()}`);
     // Don't exit immediately, let it attempt reconnect
   });
 
@@ -197,7 +268,9 @@ app.get('/status', authMiddleware, (req, res) => {
     hasQr: !!qrCode,
     sessionReady,
     qr: qrCode || null,
-    chatCount: chats.length
+    chatCount: chats.length,
+    queueSize: messageQueue.length,
+    isProcessingQueue: isProcessingQueue
   });
 });
 
@@ -589,7 +662,7 @@ app.post('/media/upload', authMiddleware, upload.single('file'), async (req, res
   }
 });
 
-// POST /send - Send message
+// POST /send - Send message via queue
 app.post('/send', authMiddleware, async (req, res) => {
   try {
     const { chatId, message, to, media, caption } = req.body;
@@ -602,53 +675,7 @@ app.post('/send', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Missing chatId or to parameter' });
     }
     
-    console.log(`[send] Sending ${media ? 'media' : 'text'} message to ${targetChatId}`);
-    if (media) {
-      console.log(`[send] Media URL: ${media}`);
-    }
-    if (messageText) {
-      console.log(`[send] Message: "${messageText.substring(0, 50)}..."`);
-    }
-    
-    // Try to find chat in loaded chats
-    let chat = chats.find(c => c.id._serialized === targetChatId);
-    if (!chat) {
-      console.warn(`[send] Chat not found in loaded chats. Will try to send to number directly. Available chats: ${chats.length}`);
-      
-      // Try to send to the number directly
-      if (!client || !sessionReady) {
-        console.error('[send] Client not ready');
-        return res.status(503).json({ error: 'WhatsApp client not connected' });
-      }
-      
-      try {
-        const { MessageMedia } = require('whatsapp-web.js');
-        
-        if (media) {
-          // Download media from URL and send
-          console.log(`[send] Downloading media from: ${media}`);
-          const mediaData = await MessageMedia.fromUrl(media);
-          const sentMessage = await client.sendMessage(targetChatId, mediaData, { caption: messageText });
-          console.log(`[send] Media message sent successfully: ${sentMessage.id._serialized}`);
-        } else if (messageText) {
-          const sentMessage = await client.sendMessage(targetChatId, messageText);
-          console.log(`[send] Text message sent successfully: ${sentMessage.id._serialized}`);
-        } else {
-          return res.status(400).json({ error: 'No message or media provided' });
-        }
-        
-        return res.json({ 
-          success: true, 
-          message: 'Message sent'
-        });
-      } catch (sendErr) {
-        console.error('[send] Failed to send via client:', sendErr.message);
-        return res.status(400).json({ 
-          error: sendErr.message,
-          details: 'Failed to send message. Chat may not exist.'
-        });
-      }
-    }
+    console.log(`[send] Queuing ${media ? 'media' : 'text'} message to ${targetChatId}`);
     
     // Check if client is ready
     if (!client || !sessionReady) {
@@ -656,71 +683,28 @@ app.post('/send', authMiddleware, async (req, res) => {
       return res.status(503).json({ error: 'WhatsApp client not connected' });
     }
     
-    // Send the message with error handling
-    try {
-      if (media) {
-        // Send media message
-        const { MessageMedia } = require('whatsapp-web.js');
-        
-        console.log(`[send] Downloading media from: ${media}`);
-        const mediaData = await MessageMedia.fromUrl(media);
-        const sentMessage = await chat.sendMessage(mediaData, { caption: messageText });
-        console.log(`[send] Media message sent successfully: ${sentMessage.id._serialized}`);
-        
-        res.json({ 
-          success: true, 
-          message: 'Media message sent',
-          messageId: sentMessage.id._serialized
-        });
-      } else if (messageText) {
-        // Send text message
-        const sentMessage = await chat.sendMessage(messageText);
-        console.log(`[send] Text message sent successfully: ${sentMessage.id._serialized}`);
-        
-        res.json({ 
-          success: true, 
-          message: 'Message sent',
-          messageId: sentMessage.id._serialized
-        });
-      } else {
-        return res.status(400).json({ error: 'No message or media provided' });
-      }
-    } catch (sendErr) {
-      console.error('[send] Failed to send message:', sendErr.message);
-      console.error('[send] Error stack:', sendErr.stack);
-      
-      // Check if it's a frame detachment issue
-      if (sendErr.message.includes('detached') || sendErr.message.includes('Frame') || sendErr.message.includes('markedUnread')) {
-        console.warn('[send] ⚠️ Detected frame/connection issue - triggering reconnect');
-        sessionReady = false;
-        
-        // Try to recover
-        setTimeout(() => {
-          if (!sessionReady && client) {
-            console.log('[send] 🔄 Attempting automatic recovery...');
-            try {
-              client.initialize().catch(() => {
-                console.error('[send] Recovery failed');
-              });
-            } catch (e) {
-              console.error('[send] Recovery error:', e.message);
-            }
-          }
-        }, 2000);
-        
-        return res.status(503).json({ 
-          error: 'Connection interrupted - attempting recovery',
-          details: 'WhatsApp client experienced a connection issue. Please retry in a moment.'
-        });
-      }
-      
-      // Return 503 if it's a connection issue, 400 for other errors
-      const statusCode = sendErr.message.includes('disconnect') || sendErr.message.includes('not connected') ? 503 : 400;
-      res.status(statusCode).json({ 
-        error: sendErr.message,
-        details: 'Failed to send message. Please try again.'
-      });
+    // Add to queue instead of sending immediately
+    messageQueue.push({
+      chatId: targetChatId,
+      message: messageText,
+      media: media || null,
+      timestamp: Date.now()
+    });
+    
+    console.log(`[send] ✅ Message queued. Queue size: ${messageQueue.length}`);
+    
+    // Return success immediately - will be processed asynchronously
+    res.json({ 
+      success: true, 
+      message: 'Message queued for delivery',
+      queueSize: messageQueue.length
+    });
+    
+    // Try to process queue immediately if there's space
+    if (!isProcessingQueue && messageQueue.length <= 5) {
+      processMessageQueue().catch(e => console.error('[send] Queue error:', e.message));
     }
+    
   } catch (err) {
     console.error('[send] Unexpected error:', err.message);
     res.status(500).json({ error: err.message });
@@ -876,6 +860,46 @@ app.get('/media', authMiddleware, async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ ok: true, port: PORT });
 });
+
+// Heartbeat mechanism - periodically check if client is alive
+let heartbeatInterval = null;
+
+function startHeartbeat() {
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  
+  heartbeatInterval = setInterval(() => {
+    if (!sessionReady || !client) return;
+    
+    // Process message queue
+    processMessageQueue().catch(e => console.error('Queue processing error:', e.message));
+    
+    // Try a simple operation to verify connection
+    client.getState().then(state => {
+      console.log(`💓 Heartbeat OK - state: ${state}, queue: ${messageQueue.length}`);
+    }).catch(err => {
+      console.warn(`⚠️ Heartbeat failed: ${err.message}`);
+      if (err.message.includes('detached') || err.message.includes('not connected')) {
+        console.log('Triggering reconnect...');
+        sessionReady = false;
+        if (client) {
+          try {
+            client.initialize();
+          } catch (e) {
+            console.error('Reconnect failed:', e.message);
+          }
+        }
+      }
+    });
+  }, 10000); // Check every 10 seconds (was 30s)
+}
+
+// Stop heartbeat
+function stopHeartbeat() {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+}
 
 // Start server - bind to all interfaces (0.0.0.0) so ngrok can reach it
 const server = app.listen(PORT, '0.0.0.0', () => {
