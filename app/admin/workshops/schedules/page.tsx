@@ -11,6 +11,8 @@ type LanguageKey = 'Hindi' | 'English' | 'Marathi';
 
 type ScheduleStatus = 'draft' | 'published';
 
+type BatchKey = 'early-morning' | 'morning' | 'afternoon' | 'evening' | 'late-night';
+
 type AdminSchedule = {
   id: string;
   workshopSlug: string;
@@ -56,6 +58,40 @@ const MODE_LABELS: Array<{ key: ModeKey; label: string }> = [
   { key: 'residential', label: 'Residential' },
   { key: 'recorded', label: 'Recorded' },
 ];
+
+const BATCH_OPTIONS: Array<{ key: BatchKey; label: string }> = [
+  { key: 'early-morning', label: 'Early morning' },
+  { key: 'morning', label: 'Morning' },
+  { key: 'afternoon', label: 'Afternoon' },
+  { key: 'evening', label: 'Evening' },
+  { key: 'late-night', label: 'Late night' },
+];
+
+const normalizeKey = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
+const normalizeLanguageLabel = (v: unknown): LanguageKey | '' => {
+  const k = normalizeKey(v);
+  if (k === 'hindi') return 'Hindi';
+  if (k === 'english') return 'English';
+  if (k === 'marathi') return 'Marathi';
+  return '';
+};
+
+const normalizeBatchKey = (v: unknown): BatchKey | '' => {
+  const k = normalizeKey(v).replace(/[_\s]+/g, '-');
+  if (k === 'early-morning') return 'early-morning';
+  if (k === 'morning') return 'morning';
+  if (k === 'afternoon') return 'afternoon';
+  if (k === 'evening') return 'evening';
+  if (k === 'late-night') return 'late-night';
+  return '';
+};
+
+const displayBatchLabel = (batch: unknown) => {
+  const key = normalizeBatchKey(batch);
+  if (!key) return String(batch || '').trim() || '—';
+  return BATCH_OPTIONS.find((b) => b.key === key)?.label || String(batch || '').trim() || '—';
+};
 
 const CATEGORY_ORDER = ['Health', 'Wealth', 'Married', 'Youth', 'Trainings'] as const;
 
@@ -211,7 +247,9 @@ export default function AdminWorkshopSchedulesPage() {
       return allSchedules
         .filter((s) => s.workshopSlug === selectedWorkshopSlug)
         .filter((s) => s.mode === selectedMode)
-        .filter((s) => s.language === selectedLanguage)
+        // Existing DB records may have language stored in different casing (e.g. "hindi" vs "Hindi").
+        // Match case-insensitively so admin always sees what was saved.
+        .filter((s) => normalizeKey(s.language) === normalizeKey(selectedLanguage))
         .slice()
         .sort((a, b) => {
           const ams = a.startDate ? Date.parse(String(a.startDate)) : NaN;
@@ -342,12 +380,15 @@ export default function AdminWorkshopSchedulesPage() {
       const d = String(today.getDate()).padStart(2, '0');
 
       setCreating(true);
+      // Adding a schedule while "Published Only" is selected can confuse users because
+      // a newly saved schedule starts as Draft.
+      setStatusFilter('all');
       setCreateForm({
         startDate: `${y}-${m}-${d}`,
         endDate: '',
         registrationCloseDate: '',
-        batch: 'morning',
-        time: '6:00 AM - 8:00 AM',
+        batch: 'evening',
+        time: '7:00 PM - 8:30 PM',
         startTime: '',
         endTime: '',
         seatsTotal: '60',
@@ -384,7 +425,7 @@ export default function AdminWorkshopSchedulesPage() {
           workshopName,
           mode: selectedMode,
           language: createForm.language,
-          batch: createForm.batch?.trim() || 'morning',
+          batch: createForm.batch?.trim() || 'evening',
           startDate: fromInputDate(createForm.startDate),
           endDate: fromInputDate(createForm.endDate),
           registrationCloseDate: fromInputDate(createForm.registrationCloseDate),
@@ -394,7 +435,8 @@ export default function AdminWorkshopSchedulesPage() {
           seatsTotal: createForm.seatsTotal === '' ? undefined : Number(createForm.seatsTotal),
           price: createForm.price === '' ? undefined : Number(createForm.price),
           location: createForm.location,
-          status: 'published' as const,
+          // Save creates a Draft (then Publish makes it visible on public pages).
+          status: 'draft' as const,
         };
 
         const currencies = createForm.allCurrencies
@@ -434,7 +476,7 @@ export default function AdminWorkshopSchedulesPage() {
         }
 
         await loadAllSchedules(adminToken);
-        setSuccess(`✓ Schedule created successfully for ${selectedWorkshopSlug}!`);
+        setSuccess(`✓ Schedule saved (Draft). Click Publish to show on the main site.`);
         setTimeout(() => setSuccess(''), 4000);
         cancelCreate();
       } catch (e) {
@@ -903,13 +945,17 @@ export default function AdminWorkshopSchedulesPage() {
                                       />
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
-                                      <input
-                                        type="text"
-                                        value={createForm.batch}
+                                      <select
+                                        value={normalizeBatchKey(createForm.batch) || 'evening'}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, batch: e.target.value }))}
-                                        className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                        placeholder="morning"
-                                      />
+                                        className="w-36 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                      >
+                                        {BATCH_OPTIONS.map((b) => (
+                                          <option key={b.key} value={b.key}>
+                                            {b.label}
+                                          </option>
+                                        ))}
+                                      </select>
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap">
                                       <select
@@ -928,7 +974,7 @@ export default function AdminWorkshopSchedulesPage() {
                                         value={createForm.time}
                                         onChange={(e) => setCreateForm((p) => ({ ...p, time: e.target.value }))}
                                         className="w-44 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                        placeholder="6:00 AM - 8:00 AM"
+                                        placeholder="7:00 PM - 8:30 PM"
                                       />
                                     </td>
                                     <td className="px-4 py-3 whitespace-nowrap font-semibold">
@@ -1052,15 +1098,19 @@ export default function AdminWorkshopSchedulesPage() {
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
                                           {editing ? (
-                                            <input
-                                              type="text"
-                                              value={editForm.batch}
+                                            <select
+                                              value={normalizeBatchKey(editForm.batch) || normalizeBatchKey(s.batch) || 'evening'}
                                               onChange={(e) => setEditForm((p) => ({ ...p, batch: e.target.value }))}
-                                              className="w-28 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                              placeholder="morning"
-                                            />
+                                              className="w-36 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
+                                            >
+                                              {BATCH_OPTIONS.map((b) => (
+                                                <option key={b.key} value={b.key}>
+                                                  {b.label}
+                                                </option>
+                                              ))}
+                                            </select>
                                           ) : (
-                                            s.batch || '—'
+                                            displayBatchLabel(s.batch)
                                           )}
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
@@ -1085,7 +1135,7 @@ export default function AdminWorkshopSchedulesPage() {
                                               value={editForm.time}
                                               onChange={(e) => setEditForm((p) => ({ ...p, time: e.target.value }))}
                                               className="w-44 rounded-lg border border-swar-border bg-white px-2 py-1 text-sm font-semibold"
-                                              placeholder="6:00 AM - 8:00 AM"
+                                              placeholder="7:00 PM - 8:30 PM"
                                             />
                                           ) : (
                                             timeText || '—'

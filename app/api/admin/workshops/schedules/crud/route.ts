@@ -15,6 +15,27 @@ const toDateOrUndefined = (value: unknown): Date | undefined => {
 const normalizeMode = (value: unknown) => String(value || '').trim().toLowerCase();
 const normalizeSlug = (value: unknown) => String(value || '').trim();
 
+const normalizeLanguage = (value: unknown) => {
+  const k = String(value ?? '').trim().toLowerCase();
+  if (k === 'hindi') return 'Hindi';
+  if (k === 'english') return 'English';
+  if (k === 'marathi') return 'Marathi';
+  return String(value || 'Hindi');
+};
+
+const normalizeBatch = (value: unknown) => {
+  const k = String(value ?? '').trim().toLowerCase().replace(/[_\s]+/g, '-');
+  // Canonical keys expected by UI
+  if (k === 'early-morning') return 'early-morning';
+  if (k === 'morning') return 'morning';
+  if (k === 'afternoon') return 'afternoon';
+  if (k === 'evening') return 'evening';
+  if (k === 'late-night' || k === 'latenight') return 'late-night';
+  // Back-compat values
+  if (k === 'earlymorning') return 'early-morning';
+  return k || 'morning';
+};
+
 export async function POST(request: NextRequest) {
   try {
     if (!isAdminAuthorized(request)) {
@@ -33,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     const currency = String(body.currency || 'INR').toUpperCase();
-    const batch = String(body.batch || 'morning').toLowerCase();
+    const batch = normalizeBatch(body.batch || 'morning');
 
     const id = String(
       body.id ||
@@ -55,7 +76,7 @@ export async function POST(request: NextRequest) {
       workshopSlug,
       workshopName: String(body.workshopName || body.workshop_name || ''),
       mode,
-      language: String(body.language || 'Hindi'),
+      language: normalizeLanguage(body.language || 'Hindi'),
       batch,
       startDate: toDateOrUndefined(body.startDate),
       endDate: toDateOrUndefined(body.endDate),
@@ -132,6 +153,10 @@ export async function PUT(request: NextRequest) {
         nextUpdates.registrationCloseDate = toDateOrUndefined(value);
       } else if (key === 'slots') {
         nextUpdates.seatsTotal = Number(value);
+      } else if (key === 'language') {
+        nextUpdates.language = normalizeLanguage(value);
+      } else if (key === 'batch') {
+        nextUpdates.batch = normalizeBatch(value);
       } else {
         nextUpdates[key] = value;
       }
