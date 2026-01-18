@@ -74,20 +74,75 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     }
   };
 
-  // Sidebar menu: CRM-first.
-  // Requirement: show a single "Admin" entry (super-admin only) that links to the admin dashboard.
-  // Individual admin module links are intentionally removed from the sidebar.
-  const menuItems = [
-    ...(isSuperAdmin
-      ? [
-          {
-            icon: LayoutDashboard,
-            label: 'Admin',
-            href: '/admin/dashboard',
-            color: 'text-blue-600',
-          },
-        ]
-      : []),
+  // Sidebar menu
+  // - CRM links should be available for CRM users.
+  // - Super-admin should also see the full legacy admin modules (Signup/Signin/Messages/etc).
+  const adminModuleItems = isSuperAdmin
+    ? [
+        {
+          icon: LayoutDashboard,
+          label: 'Dashboard',
+          href: '/admin/dashboard',
+          color: 'text-blue-600',
+        },
+        {
+          icon: Users,
+          label: 'Signup Data',
+          href: '/admin/signup-data',
+          color: 'text-green-600',
+        },
+        {
+          icon: LogIn,
+          label: 'Signin Data',
+          href: '/admin/signin-data',
+          color: 'text-purple-600',
+        },
+        {
+          icon: MessageSquare,
+          label: 'Contact Messages',
+          href: '/admin/contact-messages',
+          color: 'text-orange-600',
+        },
+        {
+          icon: Calendar,
+          label: 'Workshop Schedules',
+          href: '/admin/workshops/schedules',
+          color: 'text-teal-600',
+        },
+        {
+          icon: Share2,
+          label: 'Social Media',
+          href: '/admin/social-media',
+          color: 'text-sky-600',
+        },
+        {
+          icon: Share2,
+          label: 'Social Setup',
+          href: '/admin/social-media-setup',
+          color: 'text-indigo-600',
+        },
+        {
+          icon: Calculator,
+          label: 'Accounting',
+          href: '/admin/accounting',
+          color: 'text-amber-600',
+        },
+        {
+          icon: Gift,
+          label: 'Offers',
+          href: '/admin/offers',
+          color: 'text-pink-600',
+        },
+        {
+          icon: Users,
+          label: 'Users',
+          href: '/admin/users',
+          color: 'text-rose-600',
+        },
+      ]
+    : [];
+
+  const crmItems = [
     {
       icon: MessageSquare,
       label: 'CRM Leads',
@@ -113,6 +168,8 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       color: 'text-violet-600',
     },
   ];
+
+  const menuItems = [...adminModuleItems, ...crmItems];
 
   // Meta WhatsApp chat should always be visible in CRM sidebar.
   // Even if Cloud sending isn't enabled, the screen can show setup/status guidance.

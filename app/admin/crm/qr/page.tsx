@@ -52,6 +52,9 @@ export default function QRWhatsAppInboxPage() {
   const statusPollDelayRef = useRef<number>(15000);
   const lastBridgeErrorRef = useRef<string | null>(null);
   const lastStatusRef = useRef<string>('loading');
+  const statusRef = useRef<string>('loading');
+  const showQRModalRef = useRef<boolean>(false);
+  const statusPollTimeoutRef = useRef<number | null>(null);
 
   // Diagnostics for troubleshooting (admin-only, hidden by default)
   const [showDiagnostics, setShowDiagnostics] = useState(false);
@@ -184,7 +187,7 @@ export default function QRWhatsAppInboxPage() {
     }
   };
 
-  const bridgeFetch = async (path: string, init: RequestInit = {}, timeoutMs = 20_000) => {
+  const bridgeFetch = useCallback(async (path: string, init: RequestInit = {}, timeoutMs = 20_000) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -239,7 +242,12 @@ export default function QRWhatsAppInboxPage() {
     } finally {
       clearTimeout(timeout);
     }
-  };
+  }, [token]);
+
+  // Keep refs in sync so polling logic doesn't depend on reactive state.
+  useEffect(() => {
+    showQRModalRef.current = showQRModal;
+  }, [showQRModal]);
 
   const parseBridgeError = async (res: Response) => {
     try {
@@ -362,18 +370,24 @@ export default function QRWhatsAppInboxPage() {
     const setStatusIfChanged = (s: string) => {
       if (lastStatusRef.current === s) return;
       lastStatusRef.current = s;
+      statusRef.current = s;
       setStatus(s);
     };
 
     const scheduleNext = () => {
       if (cancelled) return;
-      window.setTimeout(checkStatus, statusPollDelayRef.current);
+      if (statusPollTimeoutRef.current) {
+        window.clearTimeout(statusPollTimeoutRef.current);
+      }
+      statusPollTimeoutRef.current = window.setTimeout(checkStatus, statusPollDelayRef.current);
     };
 
     const checkStatus = async () => {
+      if (cancelled) return;
       try {
         const res = await bridgeFetch('/status', { method: 'GET' }, 8_000);
         if (!res.ok) {
+          setLastStatusCode(res.status);
           if (res.status === 404) {
             console.error('[404] WhatsApp Bridge /status endpoint not found.');
             setBridgeErrorIfChanged('Bridge service not responding (404). Make sure the WhatsApp bridge is running.');
@@ -397,20 +411,20 @@ export default function QRWhatsAppInboxPage() {
         statusPollDelayRef.current = 15000;
         
         const newStatus = normalizeBridgeStatus(data.status);
-        const statusChanged = status !== newStatus;
         setStatusIfChanged(newStatus);
 
         // Always set QR if it's in the response (regardless of status change)
         if (typeof data.qr === 'string' && data.qr.length > 0) {
           setQr(data.qr);
-          // Auto-open modal if status changed to qr/disconnected or if we just got a QR
-          if (statusChanged && (newStatus === 'qr' || newStatus === 'disconnected')) {
+          // If we have a QR, make sure the modal is visible (even if status didn't change).
+          if (newStatus !== 'connected' && !showQRModalRef.current) {
             setShowQRModal(true);
           }
         }
         // If hasQr flag is set but no QR data yet, just show the modal
         else if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
-          if (statusChanged) {
+          // Don't require a status change; if the bridge indicates QR flow, show the modal.
+          if (newStatus !== 'connected' && !showQRModalRef.current) {
             setShowQRModal(true);
           }
         }
@@ -446,8 +460,12 @@ export default function QRWhatsAppInboxPage() {
     checkStatus();
     return () => {
       cancelled = true;
+      if (statusPollTimeoutRef.current) {
+        window.clearTimeout(statusPollTimeoutRef.current);
+        statusPollTimeoutRef.current = null;
+      }
     };
-  }, [bridgeUrl, status]);
+  }, [bridgeFetch, bridgeUrl]);
 
   // Load admin user permissions and user list
   useEffect(() => {

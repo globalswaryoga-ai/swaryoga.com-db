@@ -856,7 +856,7 @@ function WorkshopsPageInner() {
                       <div className="flex gap-3">
                         {/* Learn More Button - Goes to Landing Page */}
                         <Link
-                          href={`/workshops/${workshop.slug}`}
+                          href={`/workshops/${workshop.slug}/landing`}
                           className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 py-3 font-bold transition"
                         >
                           Learn More

@@ -20,6 +20,30 @@ export default function CRMDashboard() {
   const [stats, setStats] = useState<CRMStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    // Keep access rules consistent with `/admin/dashboard`.
+    // Super admin: userId === 'admin' OR permissions includes 'all'.
+    try {
+      const userStr = localStorage.getItem('admin_user');
+      const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
+
+      if (!userStr) {
+        setIsSuperAdmin(fallbackUserId === 'admin');
+        return;
+      }
+
+      const u = JSON.parse(userStr);
+      const userId = (u?.userId as string) || fallbackUserId;
+      const permissions: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
+      setIsSuperAdmin(userId === 'admin' || permissions.includes('all'));
+    } catch {
+      // If parsing fails, fall back to the plain userId.
+      const fallbackUserId = localStorage.getItem('adminUser') || localStorage.getItem('adminUserId') || '';
+      setIsSuperAdmin(fallbackUserId === 'admin');
+    }
+  }, []);
 
   useEffect(() => {
     // Don't attempt fetch if token isn't loaded yet
@@ -116,18 +140,36 @@ export default function CRMDashboard() {
               CRM Dashboard
             </h1>
           </div>
-          <button
-            onClick={() => {
-              localStorage.removeItem('adminToken');
-              localStorage.removeItem('adminUser');
-              localStorage.removeItem('admin_token');
-              localStorage.removeItem('admin_user');
-              router.push('/admin/login');
-            }}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-3">
+            {isSuperAdmin ? (
+              <Link
+                href="/admin/dashboard"
+                className="px-4 py-2 bg-slate-700/60 hover:bg-slate-700 text-white rounded-lg transition-colors border border-slate-600"
+                title="Go to Admin Dashboard"
+              >
+                Admin Dashboard
+              </Link>
+            ) : (
+              <span
+                className="px-4 py-2 bg-slate-800/40 text-slate-400 rounded-lg border border-slate-700 cursor-not-allowed"
+                title="Admin Dashboard is available for Super Admin only"
+              >
+                Admin Dashboard
+              </span>
+            )}
+            <button
+              onClick={() => {
+                localStorage.removeItem('adminToken');
+                localStorage.removeItem('adminUser');
+                localStorage.removeItem('admin_token');
+                localStorage.removeItem('admin_user');
+                router.push('/admin/login');
+              }}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </nav>
 

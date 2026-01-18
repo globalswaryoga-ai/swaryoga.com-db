@@ -11,6 +11,8 @@ import { connectDB, WorkshopSchedule } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -33,7 +35,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (language) {
-      query.language = language;
+      // Stored language values may be title-cased (e.g., "Hindi") while URL params are
+      // typically lower-cased (e.g., "hindi"). Match case-insensitively.
+      query.language = { $regex: new RegExp(`^${escapeRegExp(language)}$`, 'i') };
     }
 
     const docs = await WorkshopSchedule.find(query)

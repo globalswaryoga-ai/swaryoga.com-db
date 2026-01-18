@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { notFound } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
@@ -63,6 +63,47 @@ function pickDetailVideos(landingData: LandingPageData): Array<{ title: string; 
   return (landingData.highlightVideos || []).slice(0, 3);
 }
 
+function normalizeYouTubeEmbedUrl(raw: string): string {
+  const url = String(raw || '').trim();
+  if (!url) return url;
+
+  // Common cases:
+  // - https://www.youtube.com/watch?v=VIDEO -> https://www.youtube.com/embed/VIDEO
+  // - https://youtu.be/VIDEO -> https://www.youtube.com/embed/VIDEO
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '');
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      if (u.pathname === '/watch') {
+        const id = u.searchParams.get('v');
+        if (id) return `https://www.youtube.com/embed/${id}`;
+      }
+      return url;
+    }
+    if (host === 'youtu.be') {
+      const id = u.pathname.replace('/', '').trim();
+      if (id) return `https://www.youtube.com/embed/${id}`;
+      return url;
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+function dedupeByUrl<T extends { url: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of items) {
+    const normalized = normalizeYouTubeEmbedUrl(item.url);
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push({ ...item, url: normalized });
+  }
+  return out;
+}
+
 type DbSchedule = {
   id: string;
   workshopSlug: string;
@@ -113,6 +154,7 @@ const VideoModal: React.FC<VideoModalProps> = ({ videoUrl, onClose }) => {
             src={videoUrl}
             title="Workshop Video"
             className="w-full h-full rounded-lg"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           />
         </div>
@@ -174,6 +216,17 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
   const [enquiryModal, setEnquiryModal] = useState<{ isOpen: boolean; month: string }>({ isOpen: false, month: '' });
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const isFeaturedLanding = params.slug === 'swar-yoga-basic-program' || params.slug === 'master-swar-yoga';
+  // Featured landings are simplified, but we still want Reviews (stars + add review)
+  // visible for both Master and Basic.
+  const showReviews =
+    !isFeaturedLanding ||
+    params.slug === 'master-swar-yoga' ||
+    params.slug === 'swar-yoga-basic-program';
+
+  const videoTestimonialsScrollerRef = useRef<HTMLDivElement | null>(null);
+  const [pauseVideoAutoScroll, setPauseVideoAutoScroll] = useState(false);
 
   // Reviews (localStorage backed for now)
   const [reviews, setReviews] = useState<LocalReview[]>([]);
@@ -301,9 +354,49 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
     finalCTA: `Join ${workshop.name} and transform your life. Enroll now for this extraordinary opportunity.`
   };
 
-  const detailVideos = useMemo(() => pickDetailVideos(landingData), [landingData]);
+  const detailVideos = useMemo(() => dedupeByUrl(pickDetailVideos(landingData)), [landingData]);
+  const videoTestimonials = useMemo(() => dedupeByUrl(landingData.videoTestimonials || []), [landingData]);
 
-  // Detect if workshop has ANY confirmed dates (at least one schedule with startDate)
+  // Auto-scroll video testimonials for featured landings.
+  // Keeps UI modern (like a carousel), but still scrollable manually.
+  useEffect(() => {
+    if (!isFeaturedLanding) return;
+    if (typeof window === 'undefined') return;
+    if (pauseVideoAutoScroll) return;
+
+    const el = videoTestimonialsScrollerRef.current;
+    if (!el) return;
+
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (prefersReducedMotion) return;
+
+    // If content doesn't overflow, nothing to scroll.
+    const canScroll = el.scrollWidth > el.clientWidth + 4;
+    if (!canScroll) return;
+
+    let raf = 0;
+    let last = 0;
+    const speedPxPerSec = 28; // gentle, readable
+
+    const tick = (t: number) => {
+      if (!last) last = t;
+      const dt = (t - last) / 1000;
+      last = t;
+
+      // Advance; loop back smoothly.
+      const next = el.scrollLeft + speedPxPerSec * dt;
+      const max = el.scrollWidth - el.clientWidth;
+      el.scrollLeft = next >= max ? 0 : next;
+
+      raf = window.requestAnimationFrame(tick);
+    };
+
+    raf = window.requestAnimationFrame(tick);
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, [isFeaturedLanding, pauseVideoAutoScroll, videoTestimonials.length]);
+
   const hasConfirmedDates = useMemo(() => {
     return schedulesFor.length > 0 && schedulesFor.some((s) => s.startDate);
   }, [schedulesFor]);
@@ -312,6 +405,11 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
   // /registration/<mode>/<language>/<workshopSlug>
   // DEFAULTING TO SIGNUP FIRST (as requested)
   const registerLink = `/signup?workshop=${workshop.slug}&mode=online&language=hindi`;
+
+  // For featured landings, route directly to the modern unified registration dashboard.
+  const registerNowLink = isFeaturedLanding ? `/registernow?workshop=${encodeURIComponent(workshop.slug)}` : registerLink;
+
+  const bottomCtaHref = isFeaturedLanding ? registerNowLink : registerLink;
 
   // Special-case: Basic Program PayU link (₹145)
   const basicProgramPayNowHref = 'https://u.payu.in/kru2VzxJ7TlK';
@@ -359,31 +457,23 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
       <Navigation />
 
       <main className="mt-16 sm:mt-20 bg-white">
-        {/* Sticky modern CTA (matches the signup flow) */}
-        <div className="sticky top-[64px] z-30 border-b border-gray-100 bg-white/80 backdrop-blur">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-green-50 border border-green-200 flex items-center justify-center">
-                <MessageSquareText className="h-5 w-5 text-green-700" />
-              </div>
-              <div>
-                <div className="font-extrabold text-gray-900 leading-tight">Join {workshop.name}</div>
-                <div className="text-xs text-gray-600">
-                  {isLoggedIn ? 'Proceed to Payment' : 'Step 1: Signup & Save Lead • Step 2: Payment in Cart'}
+        {/* Sticky modern CTA (non-featured only) */}
+        {!isFeaturedLanding && (
+          <div className="sticky top-[64px] z-30 border-b border-gray-100 bg-white/80 backdrop-blur">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-green-50 border border-green-200 flex items-center justify-center">
+                  <MessageSquareText className="h-5 w-5 text-green-700" />
+                </div>
+                <div>
+                  <div className="font-extrabold text-gray-900 leading-tight">Join {workshop.name}</div>
+                  <div className="text-xs text-gray-600">
+                    {isLoggedIn ? 'Proceed to Payment' : 'Step 1: Signup & Save Lead • Step 2: Payment in Cart'}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex gap-2">
-              {isLoggedIn ? (
-                <button
-                  type="button"
-                  onClick={() => setFormModalOpen(true)}
-                  className="rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-5 py-3 shadow-sm active:scale-[0.99]"
-                >
-                  {hasConfirmedDates ? '💳 Pay Now' : '📝 Book Seat'}
-                </button>
-              ) : (
-                <>
+              <div className="flex gap-2">
+                {isLoggedIn ? (
                   <button
                     type="button"
                     onClick={() => setFormModalOpen(true)}
@@ -391,17 +481,27 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                   >
                     {hasConfirmedDates ? '💳 Pay Now' : '📝 Book Seat'}
                   </button>
-                  <Link
-                    href={registerLink}
-                    className="rounded-2xl border-2 border-green-700 text-green-800 hover:bg-green-50 font-black px-5 py-3"
-                  >
-                    Sign Up First
-                  </Link>
-                </>
-              )}
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setFormModalOpen(true)}
+                      className="rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-5 py-3 shadow-sm active:scale-[0.99]"
+                    >
+                      {hasConfirmedDates ? '💳 Pay Now' : '📝 Book Seat'}
+                    </button>
+                    <Link
+                      href={registerLink}
+                      className="rounded-2xl border-2 border-green-700 text-green-800 hover:bg-green-50 font-black px-5 py-3"
+                    >
+                      Sign Up First
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* 1st: HERO SECTION (Main Image & Info) */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
@@ -427,7 +527,14 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                 </div>
               </div>
 
-              {isLoggedIn ? (
+              {isFeaturedLanding ? (
+                <Link
+                  href={registerNowLink}
+                  className="blink-btn inline-flex items-center justify-center bg-green-700 hover:bg-green-800 text-white px-10 py-4 rounded-2xl transition-all font-black text-lg shadow-lg"
+                >
+                  Register Now
+                </Link>
+              ) : isLoggedIn ? (
                 <button
                   type="button"
                   onClick={() => setFormModalOpen(true)}
@@ -471,21 +578,24 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                 <div className="text-xs font-black uppercase tracking-wider text-gray-500">Workshop Overview</div>
                 <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">{workshop.name} – Big Video</h2>
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveVideoModal(landingData.introVideoUrl)}
-                className="inline-flex items-center gap-2 rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-4 py-2 transition-colors"
-              >
-                <Play className="w-4 h-4" />
-                Play Full Video
-              </button>
+              {!isFeaturedLanding && (
+                <button
+                  type="button"
+                  onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(landingData.introVideoUrl))}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-green-700 hover:bg-green-800 text-white font-black px-4 py-2 transition-colors"
+                >
+                  <Play className="w-4 h-4" />
+                  Play Full Video
+                </button>
+              )}
             </div>
             <div className="p-6">
               <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg">
                 <iframe
-                  src={landingData.introVideoUrl}
+                  src={normalizeYouTubeEmbedUrl(landingData.introVideoUrl)}
                   title="Workshop Intro Video"
                   className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
                 />
               </div>
@@ -496,20 +606,22 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
         {/* 3rd: SMALL 3 VIDEOS */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
           <div className="text-center mb-8">
-            <h3 className="text-2xl font-extrabold text-gray-900">3 Quick Detail Videos</h3>
+            <h3 className="text-2xl font-extrabold text-gray-900">Workshop Videos</h3>
+            <p className="mt-2 text-sm text-gray-600">3 short videos to understand the workshop quickly.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {detailVideos.map((v, idx) => (
               <div
                 key={`${v.title}-${idx}`}
                 className="group relative rounded-3xl border border-gray-200 bg-white shadow-md overflow-hidden hover:shadow-xl transition-all active:scale-[0.98] cursor-pointer"
-                onClick={() => setActiveVideoModal(v.url)}
+                onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(v.url))}
               >
                 <div className="aspect-video w-full bg-gray-100 relative">
                   <iframe
-                    src={v.url}
+                    src={normalizeYouTubeEmbedUrl(v.url)}
                     title={v.title}
                     className="w-full h-full pointer-events-none"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                   />
                   <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all flex items-center justify-center">
@@ -553,53 +665,60 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
                       <span className="px-2 py-1 bg-gray-200 text-gray-600 text-[10px] font-black rounded-lg">COMING SOON</span>
                     )}
                   </div>
-                  <div className={`text-sm mb-6 ${b.available ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
+                  <div className={`text-sm ${!isFeaturedLanding ? 'mb-6' : 'mb-0'} ${b.available ? 'text-green-700 font-bold' : 'text-gray-500'}`}>
                     {b.dateText}
                   </div>
                 </div>
-                
-                <div className="flex gap-2">
-                  {b.available ? (
-                    <>
-                      {isLoggedIn ? (
-                        <button
-                          type="button"
-                          onClick={() => openForm(b.label)}
-                          className="flex-1 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold py-3 text-xs shadow-sm transition-all active:scale-95"
-                        >
-                          💳 Pay Now
-                        </button>
-                      ) : (
-                        <>
+
+                {!isFeaturedLanding && (
+                  <div className="flex gap-2">
+                    {b.available ? (
+                      <>
+                        {isLoggedIn ? (
                           <button
                             type="button"
                             onClick={() => openForm(b.label)}
-                            className="flex-1 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 text-xs shadow-sm transition-all active:scale-95"
+                            className="flex-1 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold py-3 text-xs shadow-sm transition-all active:scale-95"
                           >
-                            📝 Book Seat
+                            💳 Pay Now
                           </button>
-                          <Link
-                            href={`${registerLink}&month=${b.label.replace(' ', '-')}`}
-                            className="flex-1 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold py-3 text-xs shadow-sm text-center transition-all active:scale-95"
-                          >
-                            ✅ Register
-                          </Link>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setEnquiryModal({ isOpen: true, month: b.label })}
-                      className="w-full rounded-xl border-2 border-green-700 text-green-800 font-bold py-3 text-sm hover:bg-green-50 transition-all"
-                    >
-                      Enquire for {b.label}
-                    </button>
-                  )}
-                </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openForm(b.label)}
+                              className="flex-1 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 text-xs shadow-sm transition-all active:scale-95"
+                            >
+                              📝 Book Seat
+                            </button>
+                            <Link
+                              href={`${registerLink}&month=${b.label.replace(' ', '-')}`}
+                              className="flex-1 rounded-xl bg-green-700 hover:bg-green-800 text-white font-bold py-3 text-xs shadow-sm text-center transition-all active:scale-95"
+                            >
+                              ✅ Register
+                            </Link>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEnquiryModal({ isOpen: true, month: b.label })}
+                        className="w-full rounded-xl border-2 border-green-700 text-green-800 font-bold py-3 text-sm hover:bg-green-50 transition-all"
+                      >
+                        Enquire for {b.label}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
+          {isFeaturedLanding && (
+            <div className="mt-6 text-center">
+              <p className="text-xs text-gray-500">Dates shown here are synced from the Admin workshop schedules.</p>
+            </div>
+          )}
         </section>
         {/* WHAT YOU WILL LEARN */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
@@ -617,6 +736,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
         </section>
 
         {/* CTA SECTION */}
+        {!isFeaturedLanding && (
         <section className="text-center py-8 bg-green-50">
           {isLoggedIn ? (
             <button
@@ -635,8 +755,10 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
             </Link>
           )}
         </section>
+        )}
 
         {/* LEARNING HIGHLIGHTS */}
+        {!isFeaturedLanding && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
           <h2 className="text-3xl sm:text-4xl font-bold text-green-900 mb-8">
             Learning Highlights
@@ -646,12 +768,13 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
               <div
                 key={idx}
                 className="relative h-64 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer group"
-                onClick={() => setActiveVideoModal(video.url)}
+                onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(video.url))}
               >
                 <iframe
-                  src={video.url}
+                  src={normalizeYouTubeEmbedUrl(video.url)}
                   title={video.title}
                   className="w-full h-full pointer-events-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
                   <div className="bg-white/0 group-hover:bg-white/20 rounded-full p-4 transition-all">
@@ -662,6 +785,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
             ))}
           </div>
         </section>
+        )}
 
         {/* MENTOR INFO */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
@@ -696,91 +820,87 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
           </div>
         </section>
 
-        {/* SCROLLING TESTIMONIALS MARQUEE (ADD-ONLY) */}
-        <section className="max-w-full bg-gradient-to-r from-green-50 via-white to-green-50 py-12 overflow-hidden">
-          <div className="mx-auto px-4">
-            <style>{`
-              @keyframes scroll-left {
-                0% { transform: translateX(100%); }
-                100% { transform: translateX(-100%); }
-              }
-              .marquee {
-                display: flex;
-                gap: 2rem;
-                animation: scroll-left 60s linear infinite;
-              }
-              .marquee:hover {
-                animation-play-state: paused;
-              }
-              .marquee-item {
-                flex: 0 0 auto;
-                min-width: 280px;
-              }
-            `}</style>
-            <div className="marquee">
-              {[...landingData.testimonials, ...landingData.testimonials].map((t, idx) => (
-                <div key={`marquee-${idx}`} className="marquee-item">
-                  <div className="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm hover:shadow-md transition-shadow h-full">
-                    <p className="text-gray-700 text-sm italic line-clamp-2 mb-3">"{t.quote}"</p>
-                    <div className="border-t border-gray-100 pt-3">
-                      <p className="text-green-700 font-bold text-sm">{t.name}</p>
-                      <p className="text-gray-500 text-xs">{t.place}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* CTA SECTION */}
-        <section className="text-center py-8 bg-green-50">
-          {isLoggedIn ? (
-            <button
-              type="button"
-              onClick={() => setFormModalOpen(true)}
-              className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
-            >
-              💳 Pay Now
-            </button>
-          ) : (
-            <Link
-              href={registerLink}
-              className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg"
-            >
-              Register Now
-            </Link>
-          )}
-        </section>
-
         {/* VIDEO TESTIMONIALS */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
           <h2 className="text-3xl sm:text-4xl font-bold text-green-900 mb-8">
             Video Testimonials
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {landingData.videoTestimonials.map((testimonial, idx) => (
+          {isFeaturedLanding ? (
+            <div className="relative">
               <div
-                key={idx}
-                className="relative h-64 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer group"
-                onClick={() => setActiveVideoModal(testimonial.url)}
+                ref={videoTestimonialsScrollerRef}
+                className="flex gap-6 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth snap-x snap-mandatory"
+                onMouseEnter={() => setPauseVideoAutoScroll(true)}
+                onMouseLeave={() => setPauseVideoAutoScroll(false)}
+                onTouchStart={() => setPauseVideoAutoScroll(true)}
+                onTouchEnd={() => setPauseVideoAutoScroll(false)}
               >
-                <iframe
-                  src={testimonial.url}
-                  title={testimonial.name}
-                  className="w-full h-full pointer-events-none"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
-                  <div className="bg-white/0 group-hover:bg-white/20 rounded-full p-4 transition-all">
-                    <Play className="w-8 h-8 text-white" fill="white" />
+                {videoTestimonials.map((testimonial, idx) => (
+                  <div
+                    key={`${testimonial.url}-${idx}`}
+                    className="snap-start shrink-0 w-[86%] sm:w-[48%] lg:w-[32%]"
+                  >
+                    <div
+                      className="group relative rounded-3xl border border-gray-200 bg-white shadow-md overflow-hidden hover:shadow-xl transition-all active:scale-[0.99] cursor-pointer"
+                      onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(testimonial.url))}
+                    >
+                      <div className="aspect-video w-full bg-gray-100 relative">
+                        <iframe
+                          src={normalizeYouTubeEmbedUrl(testimonial.url)}
+                          title={testimonial.name}
+                          className="w-full h-full pointer-events-none"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                          <Play className="w-10 h-10 text-white drop-shadow-lg" fill="white" />
+                        </div>
+                      </div>
+                      <div className="p-4 bg-white border-t border-gray-100">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-bold text-gray-900 text-sm truncate" title={testimonial.name}>{testimonial.name}</div>
+                            <div className="mt-1 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Testimonial</div>
+                          </div>
+                          <div className="shrink-0 h-8 w-8 rounded-lg bg-green-700 text-white flex items-center justify-center font-black text-sm">
+                            {idx + 1}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-gray-500">Auto-scrolling (pause on hover). You can also scroll left/right.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {videoTestimonials.map((testimonial, idx) => (
+                <div
+                  key={idx}
+                  className="relative h-64 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow cursor-pointer group"
+                  onClick={() => setActiveVideoModal(normalizeYouTubeEmbedUrl(testimonial.url))}
+                >
+                  <iframe
+                    src={normalizeYouTubeEmbedUrl(testimonial.url)}
+                    title={testimonial.name}
+                    className="w-full h-full pointer-events-none"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                    <div className="bg-white/0 group-hover:bg-white/20 rounded-full p-4 transition-all">
+                      <Play className="w-8 h-8 text-white" fill="white" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* REVIEWS (Stars + written reviews) */}
+        {showReviews && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
           <h2 className="text-3xl sm:text-4xl font-bold text-green-900 mb-8">⭐ Reviews</h2>
 
@@ -869,6 +989,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
             </div>
           </div>
         </section>
+        )}
 
         {/* MASTER CLASS LEVELS SECTION - Only for master-swar-yoga */}
         {params.slug === 'master-swar-yoga' && (
@@ -945,6 +1066,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
         )}
 
         {/* FINAL CTA */}
+        {!isFeaturedLanding && (
         <section className="bg-green-50 py-16 sm:py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-green-900 mb-6">
@@ -961,11 +1083,12 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
             </Link>
           </div>
         </section>
+        )}
 
-        {/* FIXED BOTTOM BUTTON */}
+        {/* FIXED BOTTOM BUTTON (Always visible) */}
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
           <Link
-            href={registerLink}
+            href={bottomCtaHref}
             className="blink-btn inline-flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-8 py-4 rounded-lg transition-all font-bold text-lg shadow-lg"
           >
             Register Now
@@ -979,7 +1102,7 @@ export default function WorkshopLandingPage({ params }: { params: { slug: string
       )}
 
       {/* ENQUIRY MODAL */}
-      {(enquiryModal.isOpen || formModalOpen) && (
+      {!isFeaturedLanding && (enquiryModal.isOpen || formModalOpen) && (
         <EnquiryFormModal
           workshopId={workshop.slug}
           workshopName={workshop.name}
