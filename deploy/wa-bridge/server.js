@@ -18,36 +18,6 @@ const upload = multer({
   }
 });
 
-// Session data directory
-const SESSION_DIR = path.join(__dirname, '.wwebjs_auth');
-
-// Helper: Find Chrome executable
-function getChromePath() {
-  const possiblePaths = [
-    process.env.CHROME_PATH,
-    // Prefer Google Chrome (more stable for headless on Linux)
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    // macOS
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Chromium.app/Contents/MacOS/Chromium',
-    '/opt/homebrew/bin/chromium',
-    // Fallback to Chromium
-    '/usr/bin/chromium-browser',
-    '/snap/bin/chromium'
-  ];
-  
-  for (const p of possiblePaths) {
-    if (p && fs.existsSync(p)) {
-      console.log(`✓ Using Chrome at: ${p}`);
-      return p;
-    }
-  }
-  
-  console.warn('⚠ No Chrome/Chromium found. Puppeteer will attempt to download one.');
-  return undefined;
-}
-
 // Middleware
 app.use(cors({
   origin: '*',
@@ -66,162 +36,116 @@ const authMiddleware = (req, res, next) => {
   next();
 };
 
+// Session data directory - use /tmp for fresh start on each run
+const SESSION_DIR = process.env.SESSION_DIR || '/tmp/.wwebjs_auth';
+const CLIENT_ID = process.env.CLIENT_ID || 'swar-bridge-session';
+
+// Helper: Find Chrome executable
+function getChromePath() {
+  const possiblePaths = [
+    process.env.CHROME_PATH,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium-browser',
+    '/snap/bin/chromium'
+  ];
+  
+  for (const p of possiblePaths) {
+    if (p && fs.existsSync(p)) {
+      console.log(`✓ Using Chrome at: ${p}`);
+      return p;
+    }
+  }
+  return undefined;
+}
+
 // Global state
 let client = null;
 let qrCode = null;
 let chats = [];
 let sessionReady = false;
-let heartbeatInterval = null; // Keep-alive heartbeat for QR waits
 
 // Initialize WhatsApp client
 function initializeClient() {
-  console.log('📱 Initializing WhatsApp client...');
+  console.log(`📱 Initializing WhatsApp client (ID: ${CLIENT_ID})...`);
+  console.log(`📂 Session Dir: ${SESSION_DIR}`);
   
+  // Remove lock file if it exists
+  const lockPath = path.join(SESSION_DIR, `session-${CLIENT_ID}`, '.puppeteer-lock');
+  try {
+    if (fs.existsSync(lockPath)) {
+      fs.unlinkSync(lockPath);
+      console.log('🔓 Removed stale lock file');
+    }
+  } catch (e) {
+    console.log('Note: Could not remove lock file:', e.message);
+  }
+  
+  if (client) {
+    try {
+      client.destroy();
+    } catch (e) {}
+  }
+
   client = new Client({
     authStrategy: new LocalAuth({
-      clientId: 'swar-yoga-qr',
+      clientId: CLIENT_ID,
       dataPath: SESSION_DIR
     }),
-    qrMaxWaitTime: 300000, // 5 minutes to scan QR
     puppeteer: {
       headless: true,
-      // Try multiple possible Chrome/Chromium paths
       executablePath: getChromePath(),
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--disable-sync',
-        '--disable-extensions',
-        '--disable-web-resources',
-        '--disable-speech-api',
-        '--disable-background-networking',
-        '--disable-client-side-phishing-detection',
-        '--disable-popup-blocking',
-        '--disable-device-discovery-notifications',
-        '--disable-default-apps',
-        // Disable X11/D-Bus/document portal features that cause issues on headless systems
         '--no-first-run',
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream',
-        // Handle D-Bus warnings on EC2/headless
-        '--disable-features=TranslateUI,TranslateManager',
-        '--enable-features=NetworkService,NetworkServiceInProcess',
-        // Memory optimization for low-memory EC2 instances
-        '--memory-pressure-off',
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-backgrounding-renderers',
-        // Single process mode
-        '--single-process=false',
-        // Reduce memory pressure
-        '--max-old-space-size=256',
-        '--memory-limit=256'
+        '--no-zygote',
+        // Removed --single-process to avoid potential issues
       ],
-      protocolTimeout: 300000, // 5 minute timeout for slow QR scans
-      timeout: 60000 // 60 second connection timeout
+      // Increase timeouts for initialization
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false
     }
   });
 
   client.on('qr', (qr) => {
-    console.log('✅ QR code received - converting to Data URL...');
-    console.log('⚠️  QR WILL EXPIRE IN 30 SECONDS - SCAN NOW!');
+    console.log('✅ QR code received');
     qrcode.toDataURL(qr, (err, url) => {
-      if (err) {
-        console.error('❌ QR generation error:', err);
-        return;
+      if (!err) {
+        qrCode = url;
+        console.log(`✅ QR set (len: ${qrCode.length})`);
       }
-      qrCode = url;
-      console.log(`✅ QR code ready (${qrCode ? qrCode.length : 0} chars)`);
-      console.log('📱 OPEN THIS QR IN YOUR WHATSAPP APP IMMEDIATELY!');
     });
-  });
-
-  client.on('authenticated', () => {
-    console.log('✓ Authenticated with WhatsApp');
-    sessionReady = true;
-    // Stop heartbeat when authenticated
-    if (heartbeatInterval) {
-      clearInterval(heartbeatInterval);
-      heartbeatInterval = null;
-    }
   });
 
   client.on('ready', () => {
     console.log('✓ WhatsApp client ready');
     sessionReady = true;
-    qrCode = null; // Clear QR when connected
+    qrCode = null;
     loadChats();
   });
 
   client.on('disconnected', () => {
-    console.log('⚠ WhatsApp disconnected - will attempt auto-reconnect...');
+    console.log('⚠ WhatsApp disconnected');
     sessionReady = false;
     qrCode = null;
-    // Stop heartbeat on disconnect
-    if (heartbeatInterval) {
-      clearInterval(heartbeatInterval);
-      heartbeatInterval = null;
-    }
-    // Auto-reconnect after 5 seconds
-    setTimeout(() => {
-      console.log('🔄 Attempting to reconnect...');
-      try {
-        client.initialize().catch(err => {
-          console.error('❌ Reconnection failed:', err.message);
-        });
-      } catch (err) {
-        console.error('❌ Error during reconnection:', err.message);
-      }
-    }, 5000);
-  });
-
-  client.on('message', (msg) => {
-    console.log('📨 New message:', msg.body.substring(0, 50));
-    loadChats();
-  });
-
-  client.on('error', (err) => {
-    console.error('⚠ WhatsApp client error:', err.message);
-    sessionReady = false;
-    // Don't disconnect on error - keep trying
-  });
-
-  client.on('auth_failure', (err) => {
-    console.error('⚠ WhatsApp authentication failed:', err.message);
-    sessionReady = false;
-    // DO NOT clear qrCode - let it stay available for scanning
-    // Keep client alive for QR code generation
+    // Don't exit immediately, let it attempt reconnect
   });
 
   console.log('🚀 Calling client.initialize()...');
-  
-  // Wrap with error resilience for low-memory systems
-  const initializeWithRetry = () => {
-    return client.initialize().catch((err) => {
-      console.error('❌ Failed to initialize WhatsApp client:', err.message);
-      console.log('💡 This is normal on low-memory systems. QR may still be available.');
-      sessionReady = false;
-      // DO NOT clear qrCode here - it may be valid, just the page load crashed
-      const hadQr = !!qrCode;
-      
-      // If we had a QR displayed, don't restart immediately - give user time to scan
-      if (hadQr) {
-        console.log('⏳ QR was showing. Keeping it alive. Retrying in 30 seconds...');
-        setTimeout(() => initializeWithRetry(), 30000);
-      } else {
-        // Attempt to reinitialize after 10 seconds
-        setTimeout(() => {
-          console.log('🔄 Attempting to reinitialize client...');
-          initializeWithRetry();
-        }, 10000);
-      }
-    });
-  };
-  
-  initializeWithRetry();
+  client.initialize().catch((err) => {
+    console.error('❌ Initialization error:', err.message);
+    // If it's a lock error, wait 30s before exiting to prevent PM2 spam
+    if (err.message.includes('already running')) {
+       console.log('⏳ Lock detected, waiting 30s before exit...');
+       setTimeout(() => process.exit(1), 30000);
+    } else {
+       setTimeout(() => process.exit(1), 5000);
+    }
+  });
 }
 
 async function loadChats() {
