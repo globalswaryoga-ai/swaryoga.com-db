@@ -6,7 +6,7 @@ import { getViewerUserId } from '@/lib/crm-handlers';
 
 // Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
 // so prefer server-only env vars and only fall back to NEXT_PUBLIC_* if needed.
-const DEFAULT_BRIDGE_URL = 'http://3.109.154.61:3333';
+const DEFAULT_BRIDGE_URL = 'http://52.91.198.23:3333';
 const BRIDGE_URL =
   process.env.WHATSAPP_BRIDGE_HTTP_URL ||
   process.env.WHATSAPP_BRIDGE_URL ||
