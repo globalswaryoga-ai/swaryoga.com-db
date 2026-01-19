@@ -741,42 +741,68 @@ export default function QRWhatsAppInboxPage() {
       const loadChats = async () => {
         try {
           const res = await bridgeFetch('/chats', { method: 'GET' }, 12_000);
-          if (res.ok) {
-            const data = await res.json();
-            const newChats = data.chats || [];
-            
-            setChats((prevChats) => {
-              const prevChatsMap = new Map(
-                prevChats.map((chat) => [
-                  typeof chat.id === 'string' ? chat.id : chat.id?._serialized,
-                  chat
-                ])
-              );
-              
-              // Only update if something actually changed to prevent flickering
-              let changed = false;
-              const merged = newChats.map((newChat: any) => {
-                const chatId = typeof newChat.id === 'string' ? newChat.id : newChat.id?._serialized;
-                const existingChat = prevChatsMap.get(chatId);
-                
-                // Preserve lead data if it exists
-                if (existingChat && (existingChat.leadId || existingChat.displayName)) {
-                  return {
-                    ...newChat,
-                    displayName: existingChat.displayName || newChat.displayName,
-                    leadId: existingChat.leadId,
-                    leadStatus: existingChat.leadStatus,
-                    leadLabel: existingChat.leadLabel,
-                  };
-                }
-                return newChat;
-              });
+          
+          // Handle 404: /chats endpoint not available on bridge
+          if (res.status === 404) {
+            console.warn('[loadChats] /chats endpoint not found (404) - bridge may be outdated');
+            console.warn('[loadChats] Falling back to cached chats');
+            // Load from cache if available
+            const cached = localStorage.getItem(CHAT_CACHE_KEY);
+            if (cached) {
+              try {
+                const cachedChats = JSON.parse(cached);
+                setChats(cachedChats);
+              } catch (e) {
+                console.warn('[cache] Failed to parse cached chats:', e);
+              }
+            }
+            setBridgeError('⚠️ Chat endpoint unavailable - please restart WhatsApp bridge service');
+            return;
+          }
 
-              // Simple length/ID check for change
-              if (merged.length !== prevChats.length) changed = true;
+          // Handle other error statuses
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error(`[loadChats] Bridge error ${res.status}: ${errorText.substring(0, 100)}`);
+            setBridgeError(`Bridge error: ${res.status}`);
+            return;
+          }
+
+          const data = await res.json();
+          const newChats = data.chats || [];
+            
+          setChats((prevChats) => {
+            const prevChatsMap = new Map(
+              prevChats.map((chat) => [
+                typeof chat.id === 'string' ? chat.id : chat.id?._serialized,
+                chat
+              ])
+            );
               
-              return merged;
+            // Only update if something actually changed to prevent flickering
+            let changed = false;
+            const merged = newChats.map((newChat: any) => {
+              const chatId = typeof newChat.id === 'string' ? newChat.id : newChat.id?._serialized;
+              const existingChat = prevChatsMap.get(chatId);
+                
+              // Preserve lead data if it exists
+              if (existingChat && (existingChat.leadId || existingChat.displayName)) {
+                return {
+                  ...newChat,
+                  displayName: existingChat.displayName || newChat.displayName,
+                  leadId: existingChat.leadId,
+                  leadStatus: existingChat.leadStatus,
+                  leadLabel: existingChat.leadLabel,
+                };
+              }
+              return newChat;
             });
+
+            // Simple length/ID check for change
+            if (merged.length !== prevChats.length) changed = true;
+              
+            return merged;
+          });
 
             // Persist chats to cache (best-effort)
             try {
@@ -786,9 +812,9 @@ export default function QRWhatsAppInboxPage() {
             }
             
             setBridgeError(null);
-          }
         } catch (err) {
           console.error('[loadChats] Exception:', err);
+          setBridgeError(`Network error: ${err instanceof Error ? err.message : 'Unknown error'}`);
         }
       };
 
@@ -1351,15 +1377,23 @@ export default function QRWhatsAppInboxPage() {
 
         // Mark as read in CRM
         if (activeLeadId || activePhone) {
-          await fetch('/api/admin/crm/messages', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              action: 'markThreadAsRead', 
-              leadId: activeLeadId,
-              phoneNumber: activePhone
-            }),
-          }).catch(err => console.warn('Failed to mark thread as read:', err));
+          try {
+            const markReadRes = await fetch('/api/admin/crm/messages', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                action: 'markThreadAsRead', 
+                ...(activeLeadId && { leadId: activeLeadId }),
+                ...(activePhone && { phoneNumber: activePhone })
+              }),
+            });
+            if (!markReadRes.ok) {
+              const errorData = await markReadRes.json().catch(() => ({}));
+              console.warn('[Mark As Read] API error:', markReadRes.status, errorData.error);
+            }
+          } catch (err) {
+            console.warn('[Mark As Read] Failed:', err instanceof Error ? err.message : String(err));
+          }
         }
       } catch (reloadErr) {
         console.error('[Message Reload Error]', reloadErr);
