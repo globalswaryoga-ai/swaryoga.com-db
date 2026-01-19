@@ -109,6 +109,7 @@ export default function MetaInboxPage() {
   const [messageLimit, setMessageLimit] = useState(5);
   const [searchQuery, setSearchQuery] = useState('');
   const [composerText, setComposerText] = useState('');
+  const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'video' | 'document' } | null>(null);
   const [sending, setSending] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true); // Added for sidebar toggle
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false); // Added for attachment popup
@@ -437,10 +438,10 @@ export default function MetaInboxPage() {
       const data = await res.json();
       
       if (data.url) {
-        // Append URL to composer with a newline
-        setComposerText(prev => {
-           const prefix = prev ? prev + '\n' : '';
-           return prefix + data.url;
+        // Store media separately for sending as media, not as text URL
+        setAttachedMedia({
+          url: data.url,
+          type: uploadType
         });
       }
     } catch (err) {
@@ -567,7 +568,10 @@ export default function MetaInboxPage() {
   };
 
   const handleSendMessage = async () => {
-    if (!selected || !composerText.trim() || sending) return;
+    if (!selected) return;
+    // Allow sending media-only or text-only messages
+    if (!composerText.trim() && !attachedMedia) return;
+    if (sending) return;
 
     setSending(true);
     try {
@@ -579,12 +583,17 @@ export default function MetaInboxPage() {
         body: {
           leadId,
           phoneNumber,
-          messageContent: composerText,
+          messageContent: composerText.trim() || `[${attachedMedia?.type || 'media'}]`,
+          media: attachedMedia ? {
+            kind: attachedMedia.type,
+            url: attachedMedia.url,
+          } : undefined,
           // When rendered from /admin/crm/qr we want QR provider pipeline.
           provider: providerScope,
         },
       });
       setComposerText('');
+      setAttachedMedia(null);
       // Refresh messages and conversations
       await Promise.all([
         loadMessages(leadId || phoneNumber),
@@ -592,6 +601,7 @@ export default function MetaInboxPage() {
       ]);
     } catch (err) {
       console.error('Failed to send message:', err);
+      alert('Failed to send message');
     } finally {
       setSending(false);
     }
@@ -1617,6 +1627,40 @@ export default function MetaInboxPage() {
                         accept={uploadType === 'image' ? "image/*" : uploadType === 'video' ? "video/*" : "*"}
                       />
 
+                      {/* Media Preview */}
+                      {attachedMedia && (
+                        <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200 mb-2">
+                          <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                            {attachedMedia.type === 'image' && (
+                              <img src={attachedMedia.url} alt="attached" className="w-full h-full object-cover" />
+                            )}
+                            {attachedMedia.type === 'video' && (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-100 to-rose-200">
+                                <i className="ph-fill ph-video-camera text-2xl text-rose-600"></i>
+                              </div>
+                            )}
+                            {attachedMedia.type === 'document' && (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
+                                <i className="ph-fill ph-file-text text-2xl text-blue-600"></i>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                              {attachedMedia.type} attached
+                            </p>
+                            <p className="text-xs text-slate-500 truncate mt-1">{attachedMedia.url.split('/').pop()}</p>
+                          </div>
+                          <button
+                            onClick={() => setAttachedMedia(null)}
+                            className="h-8 w-8 rounded-lg hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors flex-shrink-0"
+                            title="Remove"
+                          >
+                            <i className="ph-bold ph-x text-lg"></i>
+                          </button>
+                        </div>
+                      )}
+
                       <textarea 
                           className="w-full px-5 py-3 bg-transparent border-none focus:ring-0 resize-none max-h-40 min-h-[52px] placeholder:text-slate-400 font-medium text-slate-700 text-[15px]" 
                           placeholder="Type your message..."
@@ -1634,7 +1678,7 @@ export default function MetaInboxPage() {
 
                   <button 
                     onClick={handleSendMessage}
-                    disabled={!composerText.trim() || sending}
+                    disabled={(!composerText.trim() && !attachedMedia) || sending}
                     className="bg-green-700 hover:bg-green-800 text-white h-12 px-6 rounded-2xl font-[900] text-sm shadow-[0_8px_25px_rgba(34,197,94,0.25)] hover:shadow-[0_12px_30px_rgba(34,197,94,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:transform-none flex items-center gap-2 mb-1"
                   >
                     {sending ? <LoadingSpinner size="sm" /> : <i className="ph-bold ph-paper-plane-right text-lg"></i>}
