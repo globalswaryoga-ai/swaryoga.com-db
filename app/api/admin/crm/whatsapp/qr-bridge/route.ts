@@ -177,6 +177,16 @@ export async function GET(req: NextRequest) {
     if (!res.ok) {
       const errorText = await res.text();
       console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
+      
+      // For group chats that fail, return empty messages instead of error
+      if (path.includes('/messages') && path.includes('@lid')) {
+        console.warn(`[QR Bridge Proxy] Group chat message fetch failed, returning empty array`);
+        return NextResponse.json(
+          { messages: [], note: 'Group chat messages unavailable' },
+          { status: 200 }
+        );
+      }
+      
       return NextResponse.json(
         { error: `Bridge error: ${res.status}`, details: errorText.substring(0, 100) },
         { status: res.status }

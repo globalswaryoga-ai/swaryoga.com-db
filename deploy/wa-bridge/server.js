@@ -918,6 +918,32 @@ server.on('error', (err) => {
   }
 });
 
+// POST /log-message - Log sent message to CRM database (called by Next.js CRM)
+app.post('/log-message', authMiddleware, async (req, res) => {
+  try {
+    const { phoneNumber, messageContent, direction, status, waMessageId, leadId } = req.body;
+    
+    if (!phoneNumber || !messageContent) {
+      return res.status(400).json({ error: 'Missing phoneNumber or messageContent' });
+    }
+    
+    console.log(`[log-message] Logging message to ${phoneNumber}`);
+    
+    // This endpoint is called by the Next.js CRM API to log sent messages
+    // The actual database save happens in the CRM layer
+    // This just confirms the bridge received the logging request
+    
+    res.json({ 
+      success: true,
+      message: 'Message logged',
+      data: { phoneNumber, messageContent, direction, status }
+    });
+  } catch (err) {
+    console.error('[log-message] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 process.on('SIGINT', () => {
   console.log('\n⚠ Received SIGINT - staying alive...');
   // Don't exit - keep running

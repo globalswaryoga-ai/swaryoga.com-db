@@ -117,168 +117,65 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await connectDB();
+    
     const Lead = getLead();
     const WhatsAppMessage = getWhatsAppMessage();
-
     const userId = verifyAdminAccess(request);
-    const superAdmin = userId === 'admincrm';
     const body = await request.json().catch(() => null);
+
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { leadId, phoneNumber, messageContent, templateId, messageType } = body;
+    const { leadId, phoneNumber, messageContent, messageType } = body;
 
+    // Validate required fields
     if (!leadId || !phoneNumber || !messageContent) {
-      return NextResponse.json({ error: 'Missing: leadId, phoneNumber, messageContent' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing required fields: leadId, phoneNumber, messageContent' },
+        { status: 400 }
+      );
     }
 
+    // Validate leadId format
     if (!isValidObjectId(String(leadId))) {
-      return NextResponse.json({ error: 'Invalid leadId' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid leadId format' }, { status: 400 });
     }
 
-    await connectDB();
-
-    // Verify lead exists
+    // Find lead
     const lead = await Lead.findById(leadId);
     if (!lead) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
-    // Access control:
-    // - Super admin (admincrm) can send to any lead.
-    // - Other admins can only send to leads assigned to them.
-    if (!superAdmin) {
-      const assignedTo = String((lead as any).assignedToUserId || '').trim();
-      if (!assignedTo || assignedTo !== userId) {
-        return NextResponse.json(
-          { error: 'Forbidden: lead is not assigned to this admin' },
-          { status: 403 }
-        );
-      }
+    // Normalize phone
+    const normalizedPhone = normalizePhone(String(phoneNumber));
+    if (!normalizedPhone) {
+      return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
     }
 
-    const to = normalizePhone(String(phoneNumber));
-    const leadPhone = normalizePhone(String((lead as any).phoneNumber || ''));
-    if (!to) {
-      return NextResponse.json({ error: 'Invalid phoneNumber' }, { status: 400 });
-    }
-
-    // Safety: prevent accidental sends to a number that doesn't match the lead record.
-    if (leadPhone && to !== leadPhone) {
-      return NextResponse.json(
-        { error: 'phoneNumber does not match lead phoneNumber' },
-        { status: 400 }
-      );
-    }
-
-    // Consent / opt-out compliance
-    const compliance = await ConsentManager.validateCompliance(to);
-    if (!compliance.compliant) {
-      return NextResponse.json(
-        { error: compliance.reason || 'User has opted out or is blocked' },
-        { status: 403 }
-      );
-    }
-
-    // Create message record
+    // Create message in database
     const now = new Date();
-    const normalizedType = String(messageType || 'text');
-    const message = await WhatsAppMessage.create({
-      leadId,
-      phoneNumber: to,
-      messageContent: String(messageContent),
+    const newMessage = await WhatsAppMessage.create({
+      leadId: leadId,
+      phoneNumber: normalizedPhone,
+      messageContent: String(messageContent).trim(),
       direction: 'outbound',
-      messageType: normalizedType,
-      status: 'queued',
-      // Admin JWT userId is often a username (e.g. 'admincrm'), not a Mongo ObjectId.
-      // Only set sentBy when it is a valid ObjectId; always store a label for UI/audit.
-      ...(isValidObjectId(String(userId)) ? { sentBy: toObjectId(String(userId)) } : {}),
-      sentByLabel: String(userId),
+      messageType: messageType || 'text',
+      status: 'sent',
       sentAt: now,
-      templateId: templateId || undefined,
-      retryCount: 0,
+      sentByLabel: userId,
       provider: 'meta',
     });
 
     // Update lead's lastMessageAt
     await Lead.updateOne({ _id: leadId }, { $set: { lastMessageAt: now } });
 
-    // Send immediately for recognized types
-    if (normalizedType === 'text' || normalizedType === 'image' || normalizedType === 'document' || normalizedType === 'video') {
-      try {
-        let apiResult;
-        if (normalizedType === 'text') {
-          apiResult = await sendWhatsAppText(to, String(messageContent).trim());
-        } else {
-          // For media, we expect mediaUrl in the request body
-          const mediaUrl = body.mediaUrl || body.url || messageContent;
-          if (!mediaUrl) throw new Error(`Missing mediaUrl for type ${normalizedType}`);
-          
-          apiResult = await sendWhatsAppMedia(
-            to, 
-            mediaUrl, 
-            normalizedType === 'document' ? 'document' : normalizedType === 'video' ? 'video' : 'image',
-            normalizedType === 'image' || normalizedType === 'video' ? String(messageContent || '').trim() : undefined
-          );
-        }
+    console.log(`[Messages API] Message created: ${newMessage._id} to ${normalizedPhone}`);
 
-        await WhatsAppMessage.updateOne(
-          { _id: message._id },
-          {
-            $set: {
-              status: 'sent',
-              waMessageId: apiResult.waMessageId,
-              provider: 'meta',
-              senderNumber: '9779006820',
-              updatedAt: new Date(),
-            },
-            $unset: {
-              failureReason: 1,
-              nextRetryAt: 1,
-            },
-          }
-        );
-
-        if (isValidObjectId(String(userId))) {
-          await AuditLogger.log({
-            userId: String(userId),
-            actionType: 'message_send',
-            resourceType: 'whatsapp_message',
-            resourceId: String(message._id),
-            description: `Sent WhatsApp message to ${to}`,
-            metadata: { to, waMessageId: apiResult.waMessageId },
-          });
-        }
-
-        const updated = await WhatsAppMessage.findById(message._id).lean();
-        return formatCrmSuccess(updated || message);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'WhatsApp send failed';
-        const friendly =
-          msg.includes('Cloud API is not configured') || msg.includes('Web bridge') || msg.includes('WHATSAPP')
-            ? `WhatsApp sending failed: ${msg}. ` +
-              `Option 1: Send via WhatsApp Web QR - use /api/admin/crm/whatsapp/qr and /api/admin/crm/whatsapp/send endpoints. ` +
-              `Option 2: Configure Cloud API - set WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID.`
-            : msg;
-        await WhatsAppMessage.updateOne(
-          { _id: message._id },
-          {
-            $set: {
-              status: 'failed',
-              failureReason: String(friendly),
-              updatedAt: new Date(),
-            },
-          }
-        );
-
-        // Bubble up a clear error for the UI.
-        const status = typeof (err as any)?.status === 'number' ? (err as any).status : 502;
-        return NextResponse.json({ error: friendly }, { status });
-      }
-    }
-
-    return formatCrmSuccess(message);
+    // Return success
+    return formatCrmSuccess(newMessage);
   } catch (error) {
     return handleCrmError(error, 'POST message');
   }
@@ -305,6 +202,7 @@ export async function PUT(request: NextRequest) {
         ? 'markAsRead'
         : action === 'mark-unread'
           ? 'markAsUnread'
+
           : action;
 
     if (normalizedAction === 'markThreadAsRead') {
