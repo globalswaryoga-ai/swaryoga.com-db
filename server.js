@@ -172,11 +172,16 @@ app.get('/status', authMiddleware, (req, res) => {
 });
 
 app.post('/send', authMiddleware, (req, res) => {
-  const { chatId, message, to, media } = req.body;
+  const { chatId, message, to, media, url, caption, type } = req.body;
   const target = chatId || to;
   
   // Validate input
   if (!target) return res.status(400).json({ error: 'Missing target' });
+  
+  // Use either 'media' or 'url' for media content
+  const finalMedia = media || url || null;
+  // Use either 'message', 'caption' as body
+  const finalMessage = message || caption || '';
   
   // Check client health
   if (!client) {
@@ -189,7 +194,12 @@ app.post('/send', authMiddleware, (req, res) => {
     return res.status(503).json({ error: 'Session not ready, queuing message' });
   }
   
-  messageQueue.push({ chatId: target, message: message || '', media: media || null });
+  messageQueue.push({ 
+    chatId: target, 
+    message: finalMessage, 
+    media: finalMedia,
+    type: type || (finalMedia ? 'media' : 'text')
+  });
   res.json({ success: true, queueSize: messageQueue.length });
   processMessageQueue();
 });
@@ -222,16 +232,24 @@ app.get('/messages/:chatId', authMiddleware, async (req, res) => {
 
     // Fetch messages (limit to last 50)
     const messages = await chat.fetchMessages({ limit: 50 });
-    const msgData = messages.map(msg => ({
-      id: msg.id._serialized,
-      body: msg.body,
-      from: msg.from,
-      to: msg.to,
-      timestamp: msg.timestamp,
-      isFromMe: msg.isFromMe,
-      type: msg.type,
-      hasMedia: msg.hasMedia
-    }));
+    const msgData = messages.map(msg => {
+      // Robust media detection: only mark as media if it's not a plain text message
+      const type = msg.type || 'chat';
+      const supportsMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker'].includes(type);
+      const hasMedia = supportsMedia && msg.hasMedia;
+
+      return {
+        id: msg.id._serialized,
+        body: msg.body,
+        from: msg.from,
+        to: msg.to,
+        timestamp: msg.timestamp,
+        isFromMe: msg.isFromMe,
+        type: type,
+        hasMedia: hasMedia,
+        mimetype: msg.mimetype || null,
+      };
+    });
 
     res.json({ messages: msgData, count: msgData.length });
   } catch (err) {

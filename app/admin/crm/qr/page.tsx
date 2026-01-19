@@ -288,9 +288,18 @@ export default function QRWhatsAppInboxPage() {
         const mimetype = String(data?.mimetype || 'application/octet-stream');
         const b64Raw = String(data?.data || '');
         const b64 = b64Raw.replace(/\s+/g, '');
+        
         if (!b64) {
-          throw new Error('Media payload missing');
+          // Instead of throwing a "Media payload missing" error which clutters the console
+          // and causes repeated retries, we silently fail and mark it as loaded 
+          // with a null URL so we don't try again soon.
+          setMessageMediaCache((prev) => ({
+            ...prev,
+            [msgId]: { dataUrl: '', mimetype, isMissing: true },
+          }));
+          return;
         }
+        
         const dataUrl = `data:${mimetype};base64,${b64}`;
 
         setMessageMediaCache((prev) => ({

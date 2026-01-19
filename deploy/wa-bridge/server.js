@@ -545,14 +545,28 @@ app.get('/group/:chatId', authMiddleware, async (req, res) => {
 app.get('/messages/:chatId', authMiddleware, async (req, res) => {
   try {
     const { chatId } = req.params;
-    const chat = chats.find(c => c.id._serialized === chatId);
+    
+    // Check client health
+    if (!client || !sessionReady) {
+      return res.status(503).json({ error: 'WhatsApp client not connected' });
+    }
+
+    // Try to get chat directly (faster than searching)
+    let chat;
+    try {
+      chat = await client.getChatById(chatId);
+    } catch (e) {
+      chat = chats.find(c => c.id._serialized === chatId);
+    }
+    
     if (!chat) {
       return res.status(404).json({ error: 'Chat not found' });
     }
+    
     const messages = await chat.fetchMessages({ limit: 50 });
     
-    // Format messages with media support
-    const formattedMessages = await Promise.all(messages.map(async (msg) => {
+    // Format messages efficiently - DON'T download media here, let UI fetch it on demand
+    const formattedMessages = messages.map((msg) => {
       const formatted = {
         id: msg.id._serialized,
         body: msg.body,
@@ -564,29 +578,15 @@ app.get('/messages/:chatId', authMiddleware, async (req, res) => {
         type: msg.type
       };
       
-      // If message has media, try to download and get URL
+      // Provide download URLs but don't download now
       if (msg.hasMedia) {
-        try {
-          const media = await msg.downloadMedia();
-          if (media) {
-            // Convert media to data URL for display
-            formatted.mediaUrl = `data:${media.mimetype};base64,${media.data}`;
-            formatted.mediaMimetype = media.mimetype;
-            formatted.mediaFilename = media.filename;
-            // Also provide endpoint URL for fetching media
-            formatted.mediaDownloadUrl = `/media?messageId=${encodeURIComponent(msg.id._serialized)}`;
-          }
-        } catch (mediaErr) {
-          console.warn(`[messages] Failed to download media for message ${msg.id._serialized}:`, mediaErr.message);
-          // Don't fail the whole request, just mark that media failed
-          formatted.mediaError = 'Failed to download media';
-          // Still provide the download endpoint URL for potential retry
-          formatted.mediaDownloadUrl = `/media?messageId=${encodeURIComponent(msg.id._serialized)}`;
-        }
+        formatted.mediaDownloadUrl = `/media?messageId=${encodeURIComponent(msg.id._serialized)}`;
+        // Also provide the CRM-UI expected path
+        formatted.mediaDownloadPath = `/messages/media/${encodeURIComponent(msg.id._serialized)}`;
       }
       
       return formatted;
-    }));
+    });
     
     res.json({ messages: formattedMessages });
   } catch (err) {
@@ -665,17 +665,20 @@ app.post('/media/upload', authMiddleware, upload.single('file'), async (req, res
 // POST /send - Send message via queue
 app.post('/send', authMiddleware, async (req, res) => {
   try {
-    const { chatId, message, to, media, caption } = req.body;
+    const { chatId, message, to, media, url, caption, type, buttons } = req.body;
     
     // Support both chatId and to parameters
     const targetChatId = chatId || to;
+    // Support either message, caption or text body
     const messageText = message || caption || '';
+    // Support both media and url (from new backend)
+    const finalMedia = media || url || null;
     
     if (!targetChatId) {
       return res.status(400).json({ error: 'Missing chatId or to parameter' });
     }
     
-    console.log(`[send] Queuing ${media ? 'media' : 'text'} message to ${targetChatId}`);
+    console.log(`[send] Queuing ${finalMedia ? 'media' : 'text'} message to ${targetChatId}`);
     
     // Check if client is ready
     if (!client || !sessionReady) {
@@ -687,7 +690,9 @@ app.post('/send', authMiddleware, async (req, res) => {
     messageQueue.push({
       chatId: targetChatId,
       message: messageText,
-      media: media || null,
+      media: finalMedia,
+      type: type || (finalMedia ? 'media' : 'text'),
+      buttons: buttons || null,
       timestamp: Date.now()
     });
     
@@ -785,37 +790,22 @@ app.post('/send-to-number', authMiddleware, async (req, res) => {
 });
 
 // Media endpoint - download and return media from WhatsApp messages
-app.get('/media', authMiddleware, async (req, res) => {
+// Supports both /media?messageId=ID and /messages/media/ID
+const handleMediaDownload = async (req, res) => {
   try {
-    const messageId = req.query.messageId;
+    const rawId = req.query.messageId || req.params.msgId;
+    if (!rawId) return res.status(400).json({ error: 'Missing messageId' });
     
-    if (!messageId) {
-      console.warn('[media] Missing messageId parameter');
-      return res.status(400).json({ error: 'Missing messageId parameter' });
-    }
-
+    const messageId = decodeURIComponent(String(rawId));
     console.log(`[media] Fetching media for message: ${messageId}`);
 
     if (!client || !sessionReady) {
-      console.error('[media] Client not ready');
       return res.status(503).json({ error: 'WhatsApp client not connected' });
     }
 
     try {
-      // Try to get message from chat history
-      let foundMessage = null;
-      
-      // Search through all loaded chats
-      for (const chat of chats) {
-        try {
-          const messages = await chat.fetchMessages({ limit: 50 });
-          foundMessage = messages.find(m => m.id._serialized === messageId);
-          if (foundMessage) break;
-        } catch (chatErr) {
-          // Continue searching other chats
-          continue;
-        }
-      }
+      // FAST SEARCH using library method
+      const foundMessage = await client.getMessageById(messageId);
 
       if (!foundMessage) {
         console.warn(`[media] Message not found: ${messageId}`);
@@ -827,25 +817,41 @@ app.get('/media', authMiddleware, async (req, res) => {
         return res.status(400).json({ error: 'Message has no media' });
       }
 
-      // Download media
+      // Download media with timeout
       console.log(`[media] Downloading media for: ${messageId}`);
-      const media = await foundMessage.downloadMedia();
       
-      if (!media) {
-        console.error(`[media] Failed to download media: ${messageId}`);
-        return res.status(500).json({ error: 'Failed to download media' });
+      const timeoutMs = 25000;
+      const downloadPromise = foundMessage.downloadMedia();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Media download timeout')), timeoutMs)
+      );
+
+      const media = await Promise.race([downloadPromise, timeoutPromise]);
+      
+      if (!media || !media.data) {
+        console.error(`[media] Failed to download media or empty data: ${messageId}`);
+        return res.status(404).json({ error: 'Media not available' });
       }
 
-      // Return media with appropriate content type
+      // Return JSON if requested or the raw buffer
+      const acceptsJson = req.headers.accept?.includes('application/json');
+      if (acceptsJson) {
+        return res.json({
+          mimetype: media.mimetype,
+          data: media.data,
+          filename: media.filename || null
+        });
+      }
+
+      // Default: Return raw media with appropriate content type
       res.setHeader('Content-Type', media.mimetype || 'application/octet-stream');
-      res.setHeader('Content-Length', media.data.length);
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+      res.setHeader('Content-Length', Buffer.from(media.data, 'base64').length);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
       
-      // Send as base64-decoded buffer
       const buffer = Buffer.from(media.data, 'base64');
       res.send(buffer);
       
-      console.log(`[media] Successfully returned media for: ${messageId} (${buffer.length} bytes, type: ${media.mimetype})`);
+      console.log(`[media] Successfully returned media for: ${messageId} (${buffer.length} bytes)`);
     } catch (fetchErr) {
       console.error(`[media] Error fetching media:`, fetchErr.message);
       return res.status(500).json({ error: 'Failed to fetch media', details: fetchErr.message });
@@ -854,7 +860,10 @@ app.get('/media', authMiddleware, async (req, res) => {
     console.error('[media] Unexpected error:', err.message);
     res.status(500).json({ error: err.message });
   }
-});
+};
+
+app.get('/media', authMiddleware, handleMediaDownload);
+app.get('/messages/media/:msgId', authMiddleware, handleMediaDownload);
 
 // Health check
 app.get('/health', (req, res) => {
