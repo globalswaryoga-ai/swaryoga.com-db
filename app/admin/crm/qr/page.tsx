@@ -103,6 +103,10 @@ export default function QRWhatsAppInboxPage() {
     Record<string, { dataUrl: string; mimetype: string; filename?: string }>
   >({});
   const [messageMediaLoading, setMessageMediaLoading] = useState<Record<string, boolean>>({});
+
+  // Media failure backoff to avoid retry/toast spam during polling
+  const mediaFailuresRef = useRef<Record<string, { lastFailAt: number; failCount: number }>>({});
+  const lastMediaToastAtRef = useRef<number>(0);
   
   // New Lead Modal
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
@@ -259,22 +263,31 @@ export default function QRWhatsAppInboxPage() {
   };
 
   const loadMediaForMessage = useCallback(
-    async (msg: any) => {
+    async (msg: any, opts?: { force?: boolean }) => {
       const msgId = String(msg?.id || '');
       if (!msgId) return;
       if (messageMediaCache[msgId]?.dataUrl) return;
       if (messageMediaLoading[msgId]) return;
 
+      const now = Date.now();
+      const fail = mediaFailuresRef.current[msgId];
+      const cooldownMs = 5 * 60_000; // 5 minutes
+      if (!opts?.force && fail?.lastFailAt && now - fail.lastFailAt < cooldownMs) {
+        return;
+      }
+
       setMessageMediaLoading((prev) => ({ ...prev, [msgId]: true }));
       try {
-        const res = await bridgeFetch(`/messages/media/${encodeURIComponent(msgId)}`, { method: 'GET' }, 12_000);
+        // Media can be large/slow: align with proxy timeout (30s)
+        const res = await bridgeFetch(`/messages/media/${encodeURIComponent(msgId)}`, { method: 'GET' }, 35_000);
         if (!res.ok) {
           const err = await parseBridgeError(res);
           throw new Error(err);
         }
         const data = await res.json();
         const mimetype = String(data?.mimetype || 'application/octet-stream');
-        const b64 = String(data?.data || '');
+        const b64Raw = String(data?.data || '');
+        const b64 = b64Raw.replace(/\s+/g, '');
         if (!b64) {
           throw new Error('Media payload missing');
         }
@@ -288,9 +301,24 @@ export default function QRWhatsAppInboxPage() {
             filename: typeof data?.filename === 'string' ? data.filename : undefined,
           },
         }));
+
+        // Clear any failure backoff once it succeeds
+        delete mediaFailuresRef.current[msgId];
       } catch (e) {
+        const prevFail = mediaFailuresRef.current[msgId];
+        mediaFailuresRef.current[msgId] = {
+          lastFailAt: Date.now(),
+          failCount: (prevFail?.failCount || 0) + 1,
+        };
         console.warn('[media] failed to load message media:', msgId, e);
-        showToast('❌ Failed to load media. Please try again.', 'error');
+
+        // Rate-limit toasts to avoid "console vibrating" during polling
+        const toastCooldownMs = 15_000;
+        const lastToastAt = lastMediaToastAtRef.current;
+        if (Date.now() - lastToastAt > toastCooldownMs) {
+          lastMediaToastAtRef.current = Date.now();
+          showToast('Failed to load some media. Click the attachment to retry.', 'error');
+        }
       } finally {
         setMessageMediaLoading((prev) => {
           const next = { ...prev };
@@ -316,6 +344,31 @@ export default function QRWhatsAppInboxPage() {
     }
   }, [bridgeFetch]);
 
+  const handleBridgeRestart = useCallback(async () => {
+    try {
+      setBridgeError(null);
+      const res = await bridgeFetch('/restart', { method: 'POST', body: '{}' }, 15_000);
+      if (!res.ok) {
+        const msg = await parseBridgeError(res);
+        setBridgeError(msg);
+        return;
+      }
+      setStatus('loading');
+      setQr(null);
+      setShowQRModal(true);
+      showToast('✅ Bridge restart requested', 'success');
+      // Give the bridge a moment, then refresh status/health.
+      setTimeout(() => {
+        refreshQr();
+        refreshBridgeHealth();
+      }, 3000);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Bridge restart failed';
+      setBridgeError(msg);
+      showToast(`❌ ${msg}`, 'error');
+    }
+  }, [bridgeFetch, refreshBridgeHealth]);
+
   useEffect(() => {
     if (!isSuperAdmin) return;
     if (!showDiagnostics) return;
@@ -324,7 +377,7 @@ export default function QRWhatsAppInboxPage() {
 
   const normalizeBridgeStatus = (raw: any): 'connected' | 'qr' | 'disconnected' | 'loading' => {
     const s = String(raw || '').toLowerCase();
-    if (s === 'connected' || s === 'ready') return 'connected';
+    if (s === 'connected' || s === 'ready' || s === 'authenticated') return 'connected';
     if (s === 'qr') return 'qr';
     if (s === 'connecting' || s === 'initializing') return 'loading';
     return 'disconnected';
@@ -501,6 +554,12 @@ export default function QRWhatsAppInboxPage() {
         if (!id) return false;
         if (!m?.hasMedia) return false;
         if (messageMediaCache[id]?.dataUrl) return false;
+
+        // Avoid retrying the same failed media on every poll
+        const fail = mediaFailuresRef.current[id];
+        const cooldownMs = 5 * 60_000;
+        if (fail?.lastFailAt && Date.now() - fail.lastFailAt < cooldownMs) return false;
+
         const t = String(m?.type || '').toLowerCase();
         const mt = String(m?.mimetype || m?.mimeType || '').toLowerCase();
         return t === 'image' || mt.startsWith('image/');
@@ -983,7 +1042,8 @@ export default function QRWhatsAppInboxPage() {
       };
 
       loadMessages();
-      const interval = setInterval(loadMessages, 5000);
+      // Increase polling interval to 8s to reduce spam (bridge timeout is 12s)
+      const interval = setInterval(loadMessages, 8000);
       return () => clearInterval(interval);
     } else {
       setLast404Chat(null);
@@ -1778,9 +1838,12 @@ export default function QRWhatsAppInboxPage() {
         console.log('[refreshQr] QR not available in status response. hasQr:', data.hasQr, 'status:', data.status);
       }
 
+      // Some bridge versions return qrPresent/qrLength instead of qr/hasQr
+      const hasQrHint = Boolean(data?.qrPresent) || (Number(data?.qrLength || 0) > 0);
+
       // Some bridge versions only expose QR via /qr (status.hasQr=true but no status.qr).
       // Fall back to /qr to avoid leaving the UI stuck on “Generating QR…”.
-      if (data.hasQr) {
+      if (data.hasQr || hasQrHint || ['initializing', 'connecting', 'loading', 'qr'].includes(String(data.status || '').toLowerCase())) {
         try {
           console.log('[refreshQr] hasQr=true but no qr in status; fetching /qr...');
           const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8_000);
@@ -1801,7 +1864,7 @@ export default function QRWhatsAppInboxPage() {
       }
       
       // Last resort: keep modal open with "Generating" message
-      if (data.hasQr) {
+      if (data.hasQr || hasQrHint) {
         console.log('[refreshQr] hasQr=true, showing modal with generating message');
         setShowQRModal(true);
         return;
@@ -2071,12 +2134,20 @@ export default function QRWhatsAppInboxPage() {
                 {showDiagnostics ? 'Hide' : 'Show'} details
               </button>
               {showDiagnostics && (
-                <button
-                  onClick={refreshBridgeHealth}
-                  className="mt-1 ml-3 text-blue-600 hover:underline text-[9px]"
-                >
-                  Refresh /health
-                </button>
+                <div className="mt-1 flex items-center gap-3">
+                  <button
+                    onClick={refreshBridgeHealth}
+                    className="text-blue-600 hover:underline text-[9px]"
+                  >
+                    Refresh /health
+                  </button>
+                  <button
+                    onClick={handleBridgeRestart}
+                    className="text-blue-600 hover:underline text-[9px]"
+                  >
+                    Restart bridge
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -2486,7 +2557,7 @@ export default function QRWhatsAppInboxPage() {
                           <div className="space-y-2">
                             <div className="text-sm text-[#0f3a4d]/70">📎 Media message</div>
                             <button
-                              onClick={() => loadMediaForMessage(msg)}
+                              onClick={() => loadMediaForMessage(msg, { force: true })}
                               className="px-3 py-2 rounded-lg bg-[#0f3a4d] text-white text-xs font-bold hover:bg-[#1a4d66] disabled:opacity-60"
                               disabled={Boolean(messageMediaLoading[msgId])}
                             >

@@ -20,6 +20,23 @@ const BRIDGE_SECRET =
 // Mark as dynamic (uses request.nextUrl for query parameters)
 export const dynamic = 'force-dynamic';
 
+function decodePathFully(rawPath: string): string {
+  let decoded = rawPath || '';
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+  if (!decoded.startsWith('/')) {
+    decoded = `/${decoded}`;
+  }
+  return decoded;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { action, path, body } = await req.json();
@@ -28,13 +45,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing path parameter' }, { status: 400 });
     }
 
-    // Decode the path to handle special characters like @
-    let decodedPath = path;
-    try {
-      decodedPath = decodeURIComponent(path);
-    } catch (e) {
-      console.warn('[QR Bridge Proxy] Could not decode path:', path);
-    }
+    // Decode the path to handle double-encoded values like %2540 (@)
+    const decodedPath = decodePathFully(path);
 
     const method = (action || 'GET').toUpperCase();
     const bridgeUrl = `${BRIDGE_URL}${decodedPath}`;
@@ -118,13 +130,8 @@ export async function GET(req: NextRequest) {
   try {
     let path = req.nextUrl.searchParams.get('path') || '/status';
     
-    // Decode the path to handle special characters like @
-    try {
-      path = decodeURIComponent(path);
-    } catch (e) {
-      // If decoding fails, use the original path
-      console.warn('[QR Bridge Proxy] Could not decode path:', path);
-    }
+    // Decode the path to handle double-encoded values like %2540 (@)
+    path = decodePathFully(path);
 
     const bridgeUrl = `${BRIDGE_URL}${path}`;
 

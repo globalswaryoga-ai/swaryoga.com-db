@@ -125,15 +125,16 @@ export async function POST(request: NextRequest) {
           throw new Error('QR Bridge is not configured (missing WHATSAPP_BRIDGE_HTTP_URL or WHATSAPP_WEB_BRIDGE_SECRET)');
         }
 
-        const bridgeRes = await fetch(`${bridgeUrl}/api/messages/send`, {
+        const bridgeRes = await fetch(`${bridgeUrl}/send`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-bridge-secret': bridgeSecret,
           },
           body: JSON.stringify({
-            phone: to,
+            to,
             message: hasText ? String(messageContent) : '(media)',
+            type: 'text',
           }),
           cache: 'no-store',
         });

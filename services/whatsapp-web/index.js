@@ -660,55 +660,81 @@ app.post('/send', authenticate, async (req, res) => {
     return res.status(400).json({ error: 'Missing recipient (to)' });
   }
 
+  // Emergency check: if client is null, return 503 so watchdog can restart
+  if (!client) {
+    console.error('❌ Client is null, returning 503 for watchdog');
+    return res.status(503).json({ error: 'Client uninitialized, restart in progress' });
+  }
+
+  // Check if client is actually connected
+  if (clientStatus !== 'connected' && clientStatus !== 'authenticated') {
+    console.warn(`⚠️  Client status is ${clientStatus}, cannot send`);
+    return res.status(503).json({ error: `Client not ready (status: ${clientStatus})` });
+  }
+
   try {
     const formattedTo = to.includes('@') ? to : `${to}@c.us`;
     console.log(`Sending to: ${formattedTo}`);
     
-    let response;
-    
-    if (type === 'image' || type === 'video' || type === 'document') {
-      console.log(`Media Send [${type}]: ${url || 'base64-data'}`);
+    // Wrap with timeout to prevent hanging
+    const sendPromise = (async () => {
+      let response;
       
-      try {
-        let media;
-        if (url && url.startsWith('data:')) {
-          // It's a data URI
-          const parts = url.split(';base64,');
-          const mimetype = parts[0].split(':')[1];
-          const data = parts[1];
-          media = new MessageMedia(mimetype, data, caption || 'file');
-        } else if (url) {
-          // It's a URL
-          media = await MessageMedia.fromUrl(url, { unsafe: true });
-        } else {
-          return res.status(400).json({ error: `Missing ${type} URL or base64 data` });
+      if (type === 'image' || type === 'video' || type === 'document') {
+        console.log(`Media Send [${type}]: ${url || 'base64-data'}`);
+        
+        try {
+          let media;
+          if (url && url.startsWith('data:')) {
+            // It's a data URI
+            const parts = url.split(';base64,');
+            const mimetype = parts[0].split(':')[1];
+            const data = parts[1];
+            media = new MessageMedia(mimetype, data, caption || 'file');
+          } else if (url) {
+            // It's a URL
+            media = await MessageMedia.fromUrl(url, { unsafe: true });
+          } else {
+            return res.status(400).json({ error: `Missing ${type} URL or base64 data` });
+          }
+
+          response = await client.sendMessage(formattedTo, media, { 
+            caption: caption || message,
+            sendMediaAsDocument: type === 'document'
+          });
+        } catch (mediaErr) {
+          console.error('FAILED TO PROCESS MEDIA:', mediaErr.message);
+          return res.status(500).json({ error: 'Failed to process media. Ensure it is a valid URL or base64 data.' });
         }
-
-        response = await client.sendMessage(formattedTo, media, { 
-          caption: caption || message,
-          sendMediaAsDocument: type === 'document'
-        });
-      } catch (mediaErr) {
-        console.error('FAILED TO PROCESS MEDIA:', mediaErr.message);
-        return res.status(500).json({ error: 'Failed to process media. Ensure it is a valid URL or base64 data.' });
+      } else if (type === 'buttons') {
+        console.log('Buttons Send');
+        if (!buttons || !buttons.length) return res.status(400).json({ error: 'Missing buttons' });
+        const bts = buttons.map(b => ({ body: b }));
+        const msg = new Buttons(message || 'Select an option', bts, caption || 'Swar Yoga', 'Please select');
+        response = await client.sendMessage(formattedTo, msg);
+      } else {
+        console.log(`Text Send: "${message}"`);
+        if (!message) return res.status(400).json({ error: 'Missing message body' });
+        response = await client.sendMessage(formattedTo, message);
       }
-    } else if (type === 'buttons') {
-      console.log('Buttons Send');
-      if (!buttons || !buttons.length) return res.status(400).json({ error: 'Missing buttons' });
-      const bts = buttons.map(b => ({ body: b }));
-      const msg = new Buttons(message || 'Select an option', bts, caption || 'Swar Yoga', 'Please select');
-      response = await client.sendMessage(formattedTo, msg);
-    } else {
-      console.log(`Text Send: "${message}"`);
-      if (!message) return res.status(400).json({ error: 'Missing message body' });
-      response = await client.sendMessage(formattedTo, message);
-    }
 
-    console.log('MESSAGE SENT SUCCESS:', response.id._serialized);
-    res.json({ success: true, messageId: response.id._serialized });
+      console.log('MESSAGE SENT SUCCESS:', response.id._serialized);
+      res.json({ success: true, messageId: response.id._serialized });
+    })();
+
+    // Timeout after 30 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Send operation timeout (30s)')), 30000);
+    });
+
+    await Promise.race([sendPromise, timeoutPromise]);
   } catch (err) {
-    console.error('FINAL SEND ERROR:', err);
-    res.status(500).json({ error: err.message });
+    // Only send response if we haven't already
+    if (!res.headersSent) {
+      console.error('FINAL SEND ERROR:', err);
+      const status = err.message.includes('timeout') ? 503 : 500;
+      res.status(status).json({ error: err.message });
+    }
   }
 });
 
