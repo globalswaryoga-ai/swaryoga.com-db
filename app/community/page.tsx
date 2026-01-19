@@ -578,22 +578,6 @@ function CommunityPageContent() {
                 )}
               </div>
             </div>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setRequestingCommunity(currentCommunity);
-                            setShowRequestModal(true);
-                          }}
-                          className="px-8 py-4 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all transform hover:scale-105 shadow-lg border-2 border-blue-300"
-                        >
-                          🔄 Rejoin Request
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
 
             {/* Search and Filters */}
             <div className="mb-8 space-y-4">
