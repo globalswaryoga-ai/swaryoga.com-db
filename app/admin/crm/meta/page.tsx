@@ -1635,7 +1635,7 @@ export default function MetaInboxPage() {
                   <button 
                     onClick={handleSendMessage}
                     disabled={!composerText.trim() || sending}
-                    className="bg-blue-600 hover:bg-blue-700 text-white h-12 px-6 rounded-2xl font-[900] text-sm shadow-[0_8px_25px_rgba(37,99,235,0.25)] hover:shadow-[0_12px_30px_rgba(37,99,235,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:transform-none flex items-center gap-2 mb-1"
+                    className="bg-green-700 hover:bg-green-800 text-white h-12 px-6 rounded-2xl font-[900] text-sm shadow-[0_8px_25px_rgba(34,197,94,0.25)] hover:shadow-[0_12px_30px_rgba(34,197,94,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 disabled:opacity-50 disabled:shadow-none disabled:transform-none flex items-center gap-2 mb-1"
                   >
                     {sending ? <LoadingSpinner size="sm" /> : <i className="ph-bold ph-paper-plane-right text-lg"></i>}
                     <span className="uppercase tracking-wider hidden xl:inline">Send</span>

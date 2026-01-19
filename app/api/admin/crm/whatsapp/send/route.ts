@@ -1,128 +1,107 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 import { sendWhatsAppText } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
-// NOTE: This route previously had its own Meta + bridge implementations.
-// That caused drift vs `lib/whatsapp.ts` (different endpoint + secret headers),
-// which can make QR/bridge delivery work for “some numbers” but fail for others.
-// We now delegate sending to the shared helper to keep behavior consistent.
-
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
 
-
+/**
+ * POST /api/admin/crm/whatsapp/send
+ * 
+ * Sends a WhatsApp message to a lead contact with detailed logging and error handling.
+ * Routes to either QR Bridge or Meta API based on provider parameter.
+ */
 export async function POST(request: NextRequest) {
+  const requestId = Math.random().toString(36).slice(2, 9);
+  
   try {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     
     if (!decoded?.isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.log(`[SEND:${requestId}] ❌ Unauthorized`);
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-  const body = await request.json().catch(() => null);
-    if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    const body = await request.json().catch(() => null);
+    if (!body) {
+      console.log(`[SEND:${requestId}] ❌ Invalid JSON`);
+      return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 });
+    }
 
     const { leadId, phoneNumber, messageContent, headerText, footerText, media, senderDisplayName } = body;
     const providerScope = body?.provider === 'qr' ? 'qr' : 'meta';
     const providerValue = providerScope === 'qr' ? 'whatsapp_qr' : 'meta';
+    
     const hasMedia = Boolean(media?.base64);
     const hasText = Boolean(String(messageContent || '').trim());
+    
     if (!phoneNumber || (!hasText && !hasMedia)) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+      console.log(`[SEND:${requestId}] ❌ Missing fields`);
+      return NextResponse.json({ success: false, error: 'Missing phoneNumber or messageContent' }, { status: 400 });
     }
+
+    console.log(`[SEND:${requestId}] 📨 Message to ${phoneNumber} (${providerScope})`);
 
     await connectDB();
+    const Lead = getLead();
+    const WhatsAppMessage = getWhatsAppMessage();
 
     const superAdmin = decoded?.userId === 'admincrm' || decoded?.userId === 'admin';
+    const normalizedPhone = normalizePhone(String(phoneNumber));
 
-    // Find lead by id or by phone.
+    // Find or create lead
     let lead = leadId ? await Lead.findById(leadId) : null;
     if (!lead) {
-      lead = await Lead.findOne({ phoneNumber: normalizePhone(String(phoneNumber)) });
+      lead = await Lead.findOne({ phoneNumber: normalizedPhone });
     }
 
-    // Access control:
-    // - Super admins (admincrm, admin) can send to any lead + create placeholder leads.
-    // - Other admins can only send to leads assigned to them.
-    // - Non-super-admin cannot create a new lead by sending a message.
-    if (!superAdmin) {
-      if (!lead) {
-        return NextResponse.json(
-          { error: 'Lead not found (cannot create lead via send)' },
-          { status: 404 }
-        );
-      }
-      const assignedTo = String((lead as any).assignedToUserId || '').trim();
-      if (!assignedTo || assignedTo !== decoded?.userId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
+    if (!superAdmin && !lead) {
+      console.log(`[SEND:${requestId}] ❌ Lead not found`);
+      return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
     }
 
     if (!lead) {
-      // Super admin fallback: create placeholder lead
+      console.log(`[SEND:${requestId}] 📝 Creating lead`);
       lead = await Lead.create({
-        phoneNumber: normalizePhone(String(phoneNumber)),
+        phoneNumber: normalizedPhone,
         source: 'crm',
         status: 'lead',
         labels: [],
       });
-    } else {
-      lead = await Lead.findByIdAndUpdate(lead._id, {
-        phoneNumber: normalizePhone(String(phoneNumber)),
-      });
     }
 
-    const to = normalizePhone(String(phoneNumber));
-
-    const mergedMetadata = {
-      ...(typeof body?.metadata === 'object' && body.metadata ? body.metadata : {}),
-      ...(media
-        ? {
-            media: {
-              kind: String(media?.kind || ''),
-              fileName: String(media?.fileName || ''),
-              mimeType: String(media?.mimeType || ''),
-              sizeBytes: Number(media?.sizeBytes || 0),
-              hasBase64: Boolean(media?.base64),
-            },
-          }
-        : {}),
-      channel: providerScope === 'qr' ? 'qr' : 'meta',
-    };
-
-    // Create message record in database (always)
+    // Create message record
     const messageRecord = await WhatsAppMessage.create({
       leadId: lead._id,
-      phoneNumber: to,
-      // Keep messageContent non-empty in Mongo even if this is a media-only send.
+      phoneNumber: normalizedPhone,
       messageContent: hasText ? String(messageContent) : '(media)',
-      headerText: headerText != null ? String(headerText) : undefined,
-      footerText: footerText != null ? String(footerText) : undefined,
-      senderDisplayName: senderDisplayName != null ? String(senderDisplayName) : undefined,
-      // We avoid persisting base64 blobs in Mongo for now; keep a small summary.
-      metadata: mergedMetadata,
+      headerText: headerText ? String(headerText) : undefined,
+      footerText: footerText ? String(footerText) : undefined,
+      senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
+      metadata: { channel: providerScope },
       direction: 'outbound',
-      status: 'queued',
+      status: 'pending',
       sentAt: new Date(),
       provider: providerValue,
     });
 
+    console.log(`[SEND:${requestId}] 💾 Message created: ${messageRecord._id}`);
+
     try {
-      // Route based on provider
-      let apiResult: any;
+      let deliveryResult: any;
 
       if (providerScope === 'qr') {
-        // For QR/WhatsApp Web Bridge: skip Meta and go directly to bridge
+        console.log(`[SEND:${requestId}] 🌉 Sending via QR Bridge`);
         const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
         const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
 
         if (!bridgeUrl || !bridgeSecret) {
-          throw new Error('QR Bridge is not configured (missing WHATSAPP_BRIDGE_HTTP_URL or WHATSAPP_WEB_BRIDGE_SECRET)');
+          throw new Error('Bridge not configured');
         }
 
         const bridgeRes = await fetch(`${bridgeUrl}/send`, {
@@ -132,7 +111,7 @@ export async function POST(request: NextRequest) {
             'x-bridge-secret': bridgeSecret,
           },
           body: JSON.stringify({
-            to,
+            to: normalizedPhone,
             message: hasText ? String(messageContent) : '(media)',
             type: 'text',
           }),
@@ -142,21 +121,24 @@ export async function POST(request: NextRequest) {
         const bridgeData = await bridgeRes.json().catch(() => ({}));
 
         if (!bridgeRes.ok) {
-          throw new Error(bridgeData?.error || `QR Bridge error: ${bridgeRes.statusText}`);
+          throw new Error(bridgeData?.error || `Bridge error ${bridgeRes.status}`);
         }
 
-        apiResult = { waMessageId: bridgeData?.messageId || 'qr-sent', raw: { ...bridgeData, provider: 'whatsapp_qr' } };
+        deliveryResult = { waMessageId: bridgeData?.messageId || `bridge-${Date.now()}` };
       } else {
-        // For Meta: use the shared helper
-        apiResult = await sendWhatsAppText(to, hasText ? String(messageContent) : '');
+        console.log(`[SEND:${requestId}] 🌐 Sending via Meta API`);
+        deliveryResult = await sendWhatsAppText(normalizedPhone, hasText ? String(messageContent) : '');
       }
 
+      // Mark as sent
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
+        waMessageId: deliveryResult.waMessageId,
         provider: providerValue,
-        senderNumber: '9779006820',
-        waMessageId: apiResult.waMessageId,
+        deliveredAt: new Date(),
       });
+
+      console.log(`[SEND:${requestId}] ✅ Sent successfully`);
 
       return NextResponse.json(
         {
@@ -164,19 +146,20 @@ export async function POST(request: NextRequest) {
           data: {
             messageId: messageRecord._id,
             status: 'sent',
-            waMessageId: apiResult.waMessageId,
+            waMessageId: deliveryResult.waMessageId,
             provider: providerScope,
           },
         },
         { status: 200 }
       );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+
+    } catch (deliveryErr) {
+      const errorMsg = deliveryErr instanceof Error ? deliveryErr.message : String(deliveryErr);
+      console.log(`[SEND:${requestId}] ⚠️  Delivery error: ${errorMsg}`);
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-        status: 'queued',
-        provider: 'none',
-        errorMessage: message,
+        status: 'pending',
+        errorMessage: errorMsg.substring(0, 500),
       });
 
       return NextResponse.json(
@@ -184,10 +167,8 @@ export async function POST(request: NextRequest) {
           success: true,
           data: {
             messageId: messageRecord._id,
-            status: 'queued',
-            via: 'database',
-            warning: message.substring(0, 120),
-            provider: providerScope,
+            status: 'pending',
+            error: errorMsg.substring(0, 120),
           },
         },
         { status: 202 }
@@ -195,7 +176,10 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error: any) {
-    console.error('[WhatsApp] Unexpected error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error(`[SEND] Error:`, error);
+    return NextResponse.json(
+      { success: false, error: error.message }, 
+      { status: 500 }
+    );
   }
 }
