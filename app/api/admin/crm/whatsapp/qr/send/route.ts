@@ -81,6 +81,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: bridgeData.error || 'Bridge send failed' }, { status: bridgeRes.status });
     }
 
+    // Extract WhatsApp message ID from bridge response
+    const whatsappMessageId = bridgeData.id || bridgeData.messageId || bridgeData.key?.id;
+
     // 2. Log in DB for attribution ("so we can find out who has sent it")
     try {
       await connectDB();
@@ -102,16 +105,28 @@ export async function POST(req: NextRequest) {
         sentByUserId: viewerUserId,
         senderDisplayName: adminName,
         provider: 'whatsapp_web_bridge',
+        whatsappMessageId: whatsappMessageId,
         sentAt: new Date()
       });
 
-      console.log(`[QR SEND] ✅ Message logged to DB: ${savedMessage._id}`);
+      console.log(`[QR SEND] ✅ Message logged to DB: ${savedMessage._id} | WhatsApp ID: ${whatsappMessageId}`);
       
-      return NextResponse.json({ success: true, messageId: savedMessage._id });
+      // Return both IDs for frontend - use WhatsApp ID for media fetching, DB ID for querying
+      return NextResponse.json({ 
+        success: true, 
+        messageId: whatsappMessageId || savedMessage._id,
+        dbMessageId: savedMessage._id.toString(),
+        whatsappMessageId: whatsappMessageId
+      });
     } catch (dbErr) {
       console.error('[QR SEND DB LOG ERROR]:', dbErr);
       // Return success because message was sent via bridge, even if logging failed
-      return NextResponse.json({ success: true, message: 'Message sent but logging to DB failed' });
+      return NextResponse.json({ 
+        success: true, 
+        messageId: whatsappMessageId,
+        whatsappMessageId: whatsappMessageId,
+        message: 'Message sent but logging to DB failed' 
+      });
     }
   } catch (err: any) {
     console.error('[QR SEND API Error]:', err);

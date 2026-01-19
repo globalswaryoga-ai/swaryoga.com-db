@@ -149,7 +149,9 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`[SEND:${requestId}] ✅ Bridge accepted message, queue size: ${bridgeData?.queueSize}`);
-        deliveryResult = { waMessageId: `qr-${Date.now()}` };
+        // Extract actual WhatsApp message ID from bridge response
+        const whatsappMessageId = bridgeData.id || bridgeData.messageId || bridgeData.key?.id || `qr-${Date.now()}`;
+        deliveryResult = { waMessageId: whatsappMessageId };
       } else {
         console.log(`[SEND:${requestId}] 🌐 Sending via Meta API`);
         deliveryResult = await sendWhatsAppText(normalizedPhone, hasText ? String(messageContent) : '');
@@ -159,6 +161,7 @@ export async function POST(request: NextRequest) {
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'sent',
         waMessageId: deliveryResult.waMessageId,
+        whatsappMessageId: deliveryResult.waMessageId,
         provider: providerValue,
         deliveredAt: new Date(),
       });
