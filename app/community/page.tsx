@@ -397,27 +397,27 @@ function CommunityPageContent() {
             {user ? (
               <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-xl p-4 mb-6 backdrop-blur-sm">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center text-white font-bold text-lg">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold text-lg">
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-white font-semibold text-sm">{user.name}</p>
-                    <p className="text-green-300 text-xs">✓ Member</p>
+                    <p className="text-gray-900 font-semibold text-sm">{user.name}</p>
+                    <p className="text-green-600 text-xs">✓ Member</p>
                   </div>
                 </div>
-                <p className="text-green-200 text-xs">{user.email}</p>
+                <p className="text-green-700 text-xs">{user.email}</p>
               </div>
             ) : (
-              <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-xl p-4 mb-6 backdrop-blur-sm">
-                <p className="text-blue-200 text-sm font-semibold mb-3">👋 Join the Community</p>
-                <p className="text-blue-300 text-xs">Connect with fellow yoga practitioners and share your journey</p>
+              <div className="bg-gradient-to-br from-blue-100 to-blue-50 border-2 border-blue-400 rounded-xl p-4 mb-6 backdrop-blur-sm hover:shadow-lg transition-all">
+                <p className="text-blue-800 text-sm font-semibold mb-3">👋 Join the Community</p>
+                <p className="text-blue-700 text-xs">Connect with fellow yoga practitioners and share your journey</p>
               </div>
             )}
 
             {/* Communities Section */}
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-purple-500/20 rounded-xl p-6 mb-6">
-              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Users size={20} className="text-purple-400" />
+            <div className="bg-gradient-to-br from-white to-gray-50 backdrop-blur-sm border-2 border-green-400 rounded-xl p-6 mb-6 shadow-lg hover:shadow-xl transition-all">
+              <h3 className="text-lg font-bold text-green-700 mb-4 flex items-center gap-2">
+                <Users size={20} className="text-green-600" />
                 Communities
               </h3>
               <div className="space-y-2">
@@ -427,8 +427,8 @@ function CommunityPageContent() {
                       onClick={() => setSelectedCommunity(community.id)}
                       className={`w-full text-left px-4 py-3 rounded-lg transition-all transform hover:scale-105 ${
                         selectedCommunity === community.id
-                          ? `bg-gradient-to-r ${community.gradient} text-white shadow-lg font-semibold`
-                          : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
+                          ? `bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg font-semibold hover:shadow-xl`
+                          : 'bg-white text-gray-700 border border-gray-200 hover:border-green-400 hover:bg-green-50'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -448,7 +448,7 @@ function CommunityPageContent() {
                                 setJoiningCommunity(community);
                                 setShowJoinModal(true);
                               }}
-                              className="w-full px-3 py-2 bg-green-600/80 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition-all"
+                              className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-all transform hover:scale-105 shadow-md"
                             >
                               ✓ Join Now
                             </button>
@@ -457,7 +457,7 @@ function CommunityPageContent() {
                                 setJoiningCommunity(community);
                                 setShowJoinModal(true);
                               }}
-                              className="w-full px-3 py-2 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-all border border-blue-400/50"
+                              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all transform hover:scale-105 border border-blue-400/50"
                             >
                               🔄 Rejoin
                             </button>
@@ -469,7 +469,7 @@ function CommunityPageContent() {
                                 setRequestingCommunity(community);
                                 setShowRequestModal(true);
                               }}
-                              className="w-full px-3 py-2 bg-amber-500/80 hover:bg-amber-500 text-white rounded-lg text-sm font-semibold transition-all"
+                              className="w-full px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold transition-all transform hover:scale-105 shadow-md"
                             >
                               📋 Request Access
                             </button>
@@ -478,7 +478,7 @@ function CommunityPageContent() {
                                 setRequestingCommunity(community);
                                 setShowRequestModal(true);
                               }}
-                              className="w-full px-3 py-2 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition-all border border-blue-400/50"
+                              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all transform hover:scale-105 border border-blue-400/50"
                             >
                               🔄 Rejoin Request
                             </button>
@@ -492,12 +492,12 @@ function CommunityPageContent() {
             </div>
 
             {/* Stats Card */}
-            <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 rounded-xl p-6 backdrop-blur-sm">
-              <h3 className="text-sm font-bold text-white mb-4">📊 Community Stats</h3>
+            <div className="bg-gradient-to-br from-green-100 to-green-50 border-2 border-green-400 rounded-xl p-6 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all">
+              <h3 className="text-sm font-bold text-green-800 mb-4">📊 Community Stats</h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-300 text-sm">Total Posts</span>
-                  <span className="text-xl font-bold text-blue-400">{posts.length}</span>
+                  <span className="text-gray-700 text-sm">Total Posts</span>
+                  <span className="text-xl font-bold text-green-600">{posts.length}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-300 text-sm">Active Members</span>
@@ -578,13 +578,13 @@ function CommunityPageContent() {
             {/* Search and Filters */}
             <div className="mb-8 space-y-4">
               <div className="relative">
-                <Search className="absolute left-4 top-3 text-purple-400" size={20} />
+                <search className="absolute left-4 top-3 text-green-600" size={20} />
                 <input
                   type="text"
                   placeholder="Search posts..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-slate-800 text-white border border-purple-500/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-slate-500"
+                  className="w-full pl-12 pr-4 py-3 bg-white text-gray-900 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500 shadow-sm"
                 />
               </div>
 
@@ -596,8 +596,8 @@ function CommunityPageContent() {
                     onClick={() => setSelectedCategory(category.id)}
                     className={`px-4 py-2 rounded-full text-sm font-semibold transition-all transform hover:scale-105 ${
                       selectedCategory === category.id
-                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
-                        : 'bg-slate-800 text-slate-300 border border-slate-700 hover:border-purple-500'
+                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg hover:shadow-xl'
+                        : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-orange-400 hover:bg-orange-50'
                     }`}
                   >
                     {category.label}
@@ -618,23 +618,23 @@ function CommunityPageContent() {
               <div className="space-y-6">
                 {filteredPosts.map((post) => (
                   <Link key={post._id} href={`/community/post/${post._id}`}>
-                    <div className="bg-gradient-to-r from-slate-800 to-slate-700 border border-purple-500/20 rounded-xl hover:border-purple-500/50 hover:shadow-2xl transition-all transform hover:scale-102 p-6 cursor-pointer group">
+                    <div className="bg-gradient-to-r from-white to-gray-50 border-2 border-gray-300 rounded-xl hover:border-green-400 hover:shadow-2xl transition-all transform hover:scale-102 p-6 cursor-pointer group">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-4 flex-1">
-                          <div className="w-14 h-14 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-lg group-hover:shadow-lg transition-all">
+                          <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-lg group-hover:shadow-lg transition-all">
                             {post.author.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-semibold text-white group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-blue-400 group-hover:to-purple-500 group-hover:bg-clip-text transition-all">
+                            <h3 className="text-lg font-semibold text-gray-900 group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:from-green-600 group-hover:to-blue-600 group-hover:bg-clip-text transition-all">
                               {post.title}
                             </h3>
-                            <p className="text-sm text-slate-400">
+                            <p className="text-sm text-gray-600">
                               {post.author} • {new Date(post.createdAt).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
                         {post.category && (
-                          <span className="px-3 py-1 bg-purple-500/30 text-purple-200 rounded-full text-xs font-semibold whitespace-nowrap">
+                          <span className="px-3 py-1 bg-green-200 text-green-800 rounded-full text-xs font-semibold whitespace-nowrap">
                             {post.category}
                           </span>
                         )}
@@ -644,19 +644,19 @@ function CommunityPageContent() {
                         <img src={post.image} alt={post.title} className="w-full h-48 object-cover rounded-lg mb-4 group-hover:shadow-lg transition-all" />
                       )}
 
-                      <p className="text-slate-300 line-clamp-2 mb-4">{post.content}</p>
+                      <p className="text-gray-700 line-clamp-2 mb-4">{post.content}</p>
 
                       {/* Engagement Stats */}
-                      <div className="flex gap-6 text-sm text-slate-400">
-                        <button className="flex items-center gap-2 hover:text-pink-400 transition-colors">
+                      <div className="flex gap-6 text-sm text-gray-600">
+                        <button className="flex items-center gap-2 hover:text-red-600 transition-colors font-semibold">
                           <Heart className="w-4 h-4" />
                           <span>{post.likes}</span>
                         </button>
-                        <button className="flex items-center gap-2 hover:text-blue-400 transition-colors">
+                        <button className="flex items-center gap-2 hover:text-blue-600 transition-colors font-semibold">
                           <MessageCircle className="w-4 h-4" />
                           <span>{post.comments}</span>
                         </button>
-                        <button className="flex items-center gap-2 hover:text-green-400 transition-colors">
+                        <button className="flex items-center gap-2 hover:text-green-600 transition-colors font-semibold">
                           <Share2 className="w-4 h-4" />
                           <span>Share</span>
                         </button>
@@ -666,25 +666,25 @@ function CommunityPageContent() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 bg-slate-800/50 rounded-xl border border-purple-500/20">
-                <MessageCircle size={48} className="text-slate-600 mb-4" />
-                <p className="text-slate-400 text-center">
+              <div className="flex flex-col items-center justify-center py-12 bg-gradient-to-br from-white to-gray-50 rounded-xl border-2 border-gray-300">
+                <MessageCircle size={48} className="text-gray-400 mb-4" />
+                <p className="text-gray-600 text-center">
                   No posts yet. {user ? 'Be the first to share your yoga journey!' : 'Join the community to see posts!'}
                 </p>
                 {user && (
                   <div className="mt-6 w-full max-w-md">
-                    <div className="bg-slate-700/50 border border-purple-500/30 rounded-lg p-4">
-                      <label className="block text-sm font-semibold text-white mb-3">💬 Send a Message</label>
+                    <div className="bg-white border-2 border-green-400 rounded-lg p-4 shadow-md">
+                      <label className="block text-sm font-semibold text-gray-900 mb-3">💬 Send a Message</label>
                       <textarea
                         value={chatMessage}
                         onChange={(e) => setChatMessage(e.target.value)}
                         placeholder="Share your thoughts or ask a question..."
-                        className="w-full px-4 py-3 bg-slate-600 text-white border border-purple-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-slate-400 resize-none h-24"
+                        className="w-full px-4 py-3 bg-gray-50 text-gray-900 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500 resize-none h-24"
                       />
                       <button
                         onClick={handleSendChat}
                         disabled={chatLoading || !chatMessage.trim()}
-                        className="mt-3 w-full px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                        className="mt-3 w-full px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 font-semibold"
                       >
                         {chatLoading ? 'Sending...' : '📨 Send Message'}
                       </button>
@@ -779,10 +779,10 @@ function CommunityPageContent() {
 
       {/* Request Access Modal */}
       {showRequestModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-green-900 to-emerald-900 border border-green-500/40 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white border-2 border-green-400 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white">
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white">
               <div className="flex items-center gap-3">
                 <div className="text-5xl">{requestingCommunity?.icon}</div>
                 <div>
@@ -795,46 +795,46 @@ function CommunityPageContent() {
             {/* Modal Content */}
             <div className="p-8 space-y-4 max-h-[80vh] overflow-y-auto">
               {/* Info Box */}
-              <div className="bg-green-500/20 border border-green-500/40 rounded-lg p-4 mb-4">
-                <p className="text-green-200 text-sm">
+              <div className="bg-orange-100 border-2 border-orange-400 rounded-lg p-4 mb-4">
+                <p className="text-orange-800 text-sm">
                   ℹ️ This is a private community. Your request will be reviewed by our admin team.
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-green-200 mb-2">👤 Full Name</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">👤 Full Name</label>
                 <input
                   type="text"
                   placeholder="Enter your full name"
                   value={requestFormData.name}
                   onChange={(e) => setRequestFormData({...requestFormData, name: e.target.value})}
-                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
+                  className="w-full px-4 py-3 bg-white text-black border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-green-200 mb-2">📧 Email Address</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">📧 Email Address</label>
                 <input
                   type="email"
                   placeholder="your.email@example.com"
                   value={requestFormData.email}
                   onChange={(e) => setRequestFormData({...requestFormData, email: e.target.value})}
-                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
+                  className="w-full px-4 py-3 bg-white text-black border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-green-200 mb-2">📱 WhatsApp Number</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">📱 WhatsApp Number</label>
                 <input
                   type="tel"
                   placeholder="+91 98765 43210"
                   value={requestFormData.mobile}
                   onChange={(e) => setRequestFormData({...requestFormData, mobile: e.target.value})}
-                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
+                  className="w-full px-4 py-3 bg-white text-black border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500"
                 />
               </div>
 
-              <div className="flex items-center gap-3 bg-green-900/50 p-4 rounded-lg border border-green-500/30">
+              <div className="flex items-center gap-3 bg-blue-100 p-4 rounded-lg border-2 border-blue-400">
                 <input
                   type="checkbox"
                   id="workshops"
@@ -842,18 +842,18 @@ function CommunityPageContent() {
                   onChange={(e) => setRequestFormData({...requestFormData, workshopsCompleted: e.target.checked})}
                   className="w-4 h-4 cursor-pointer accent-green-500"
                 />
-                <label htmlFor="workshops" className="text-sm text-green-200 cursor-pointer flex-1">
+                <label htmlFor="workshops" className="text-sm text-gray-900 cursor-pointer flex-1">
                   ✅ I have completed the required workshops
                 </label>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-green-200 mb-2">💬 Message (Optional)</label>
+                <label className="block text-sm font-bold text-gray-900 mb-2">💬 Message (Optional)</label>
                 <textarea
                   placeholder="Tell us about your yoga journey and why you want to join this community..."
                   value={requestFormData.message}
                   onChange={(e) => setRequestFormData({...requestFormData, message: e.target.value})}
-                  className="w-full px-4 py-3 bg-white text-black border border-green-500/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none placeholder-gray-500"
+                  className="w-full px-4 py-3 bg-white text-black border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none placeholder-gray-500"
                   rows={4}
                 />
               </div>
@@ -864,14 +864,14 @@ function CommunityPageContent() {
                     setShowRequestModal(false);
                     setRequestFormData({ name: '', email: '', mobile: '', workshopsCompleted: false, message: '' });
                   }}
-                  className="flex-1 px-4 py-3 bg-green-900/50 hover:bg-green-900 text-green-200 border border-green-500/30 rounded-lg font-semibold transition-colors"
+                  className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 border border-gray-400 rounded-lg font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleRequestAccess}
                   disabled={requestLoading}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {requestLoading ? (
                     <>
@@ -890,25 +890,25 @@ function CommunityPageContent() {
 
       {/* Chat Off Modal */}
       {showChatOffModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-orange-500/40 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-600 to-amber-600 p-6 text-white">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white border-2 border-blue-400 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
               <h2 className="text-2xl font-bold flex items-center gap-3">
                 <span className="text-3xl">⏳</span>
                 Chat is Off
               </h2>
             </div>
             <div className="p-8 text-center space-y-4">
-              <p className="text-slate-300 text-lg font-semibold">Community chat is currently unavailable</p>
-              <p className="text-slate-400">Our admin team has temporarily disabled community chat for some time. Please check back later to participate in discussions.</p>
-              <div className="bg-amber-500/20 border border-amber-500/50 rounded-lg p-4 mt-6">
-                <p className="text-amber-200 text-sm">✨ We'll be back soon!</p>
+              <p className="text-gray-900 text-lg font-semibold">Community chat is currently unavailable</p>
+              <p className="text-gray-600">Our admin team has temporarily disabled community chat for some time. Please check back later to participate in discussions.</p>
+              <div className="bg-blue-100 border-2 border-blue-400 rounded-lg p-4 mt-6">
+                <p className="text-blue-800 text-sm">✨ We'll be back soon!</p>
               </div>
             </div>
-            <div className="px-8 py-4 border-t border-slate-700 flex justify-end">
+            <div className="px-8 py-4 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setShowChatOffModal(false)}
-                className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors"
+                className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors"
               >
                 Got it
               </button>
