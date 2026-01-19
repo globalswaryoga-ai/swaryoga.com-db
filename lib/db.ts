@@ -169,9 +169,9 @@ const userSchema = new mongoose.Schema({
   assignedLeadIds: { type: [String], default: [] }, // Array of Lead IDs assigned to this admin
   
   // Regular user fields
-  name: { type: String },
-  email: { type: String, required: true, unique: true },
-  phone: { type: String },
+  name: { type: String, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  phone: { type: String, trim: true },
   countryCode: { type: String, default: '+91' },
   country: { type: String },
   state: { type: String },
@@ -907,7 +907,7 @@ export const Note = mongoose.models.Note || mongoose.model('Note', noteSchema);
 // Community Member Schema - for Community page joiners
 const communityMemberSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
-  email: { type: String, required: true, trim: true, lowercase: true, sparse: true },
+  email: { type: String, required: false, trim: true, lowercase: true, sparse: true },
   mobile: { type: String, required: true, trim: true },
   countryCode: { type: String, default: '+91' },
   userId: { type: String, required: true, index: true }, // 6-digit user ID

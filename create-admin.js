@@ -30,7 +30,7 @@ const dbName = process.env.MONGODB_MAIN_DB_NAME || 'swaryogaDB';
 const ADMIN_RESET = String(process.env.ADMIN_RESET || '').trim() === '1';
 
 const ADMIN_USERID = (process.env.ADMIN_USERID || 'admincrm').trim();
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@swaryoga.com').trim();
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@swaryoga.com').trim().toLowerCase();
 const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || '').trim();
 
 async function createAdmin() {
@@ -63,7 +63,7 @@ async function createAdmin() {
     // Define User Schema (keep aligned with app's User model fields)
     const userSchema = new mongoose.Schema({
       userId: { type: String, sparse: true },
-      email: { type: String, required: true, unique: true },
+      email: { type: String, required: true, unique: true, lowercase: true, trim: true },
       password: { type: String, required: true },
       isAdmin: { type: Boolean, default: false },
       role: { type: String, enum: ['admin', 'user', 'moderator'], default: 'user' },

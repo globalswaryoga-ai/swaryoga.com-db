@@ -68,9 +68,12 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', 'Invalid email format');
     }
 
-    // Check if user already exists
+    // Check if user already exists (case-insensitive)
     try {
-      const existingUser = await User.findOne({ email: email.trim() }).lean();
+      const trimmedEmail = email.trim();
+      const existingUser = await User.findOne({ 
+        email: { $regex: new RegExp(`^${trimmedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
+      }).lean();
       if (existingUser) {
         return apiError('VALIDATION_ERROR', 'Email already registered');
       }
@@ -98,7 +101,7 @@ export async function POST(request: NextRequest) {
     try {
       const user = new User({
         name: name.trim(),
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         phone: phone.trim(),
         countryCode: countryCode || '+91',
         country: country.trim(),

@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
       return apiError('VALIDATION_ERROR', `Missing required fields: ${validation.missing?.join(', ')}`);
     }
 
-    const { email, password } = body;
+    const email = body.email?.trim().toLowerCase();
+    const password = body.password?.trim();
 
     // Connect to database
     try {
@@ -66,10 +67,13 @@ export async function POST(request: NextRequest) {
       return apiError('DATABASE_ERROR', 'Database connection failed. Please try again later.');
     }
 
-    // Find user
+    // Find user (case-insensitive)
     let user;
     try {
-      user = await User.findOne({ email }).lean();
+      // Use regex for case-insensitive match on the email
+      user = await User.findOne({ 
+        email: { $regex: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
+      }).lean();
     } catch (findError) {
       logApiError(requestContext, 'Failed to find user', 503, { email });
       logError('login/findUser', findError, { email });
