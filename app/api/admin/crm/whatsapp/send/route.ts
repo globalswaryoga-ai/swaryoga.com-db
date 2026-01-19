@@ -96,13 +96,15 @@ export async function POST(request: NextRequest) {
       let deliveryResult: any;
 
       if (providerScope === 'qr') {
-        console.log(`[SEND:${requestId}] 🌉 Sending via QR Bridge`);
-        const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || '').trim();
-        const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
+        console.log(`[SEND:${requestId}] 🌉 Sending via QR Bridge to ${normalizedPhone}`);
+        const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://52.91.198.23:3333').trim();
+        const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024').trim();
 
-        if (!bridgeUrl || !bridgeSecret) {
-          throw new Error('Bridge not configured');
+        if (!bridgeUrl) {
+          throw new Error('Bridge URL not configured');
         }
+
+        console.log(`[SEND:${requestId}] 🔗 Bridge URL: ${bridgeUrl}`);
 
         const bridgeRes = await fetch(`${bridgeUrl}/send`, {
           method: 'POST',
@@ -121,10 +123,12 @@ export async function POST(request: NextRequest) {
         const bridgeData = await bridgeRes.json().catch(() => ({}));
 
         if (!bridgeRes.ok) {
+          console.error(`[SEND:${requestId}] ❌ Bridge error:`, bridgeData);
           throw new Error(bridgeData?.error || `Bridge error ${bridgeRes.status}`);
         }
 
-        deliveryResult = { waMessageId: bridgeData?.messageId || `bridge-${Date.now()}` };
+        console.log(`[SEND:${requestId}] ✅ Bridge accepted message, queue size: ${bridgeData?.queueSize}`);
+        deliveryResult = { waMessageId: `qr-${Date.now()}` };
       } else {
         console.log(`[SEND:${requestId}] 🌐 Sending via Meta API`);
         deliveryResult = await sendWhatsAppText(normalizedPhone, hasText ? String(messageContent) : '');

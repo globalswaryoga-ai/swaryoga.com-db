@@ -73,26 +73,28 @@ export async function POST(req: NextRequest) {
       const phone = typeof to === 'string' ? to.split('@')[0] : (to.user || to._serialized?.split('@')[0]);
       const lead = await Lead.findOne({ phoneNumber: phone });
 
-      await WhatsAppMessage.create({
+      const savedMessage = await WhatsAppMessage.create({
         phoneNumber: phone || 'unknown',
         leadId: lead?._id,
         direction: 'outbound',
         messageContent: message || `Sent ${type || 'media'}`,
         messageType: type === 'buttons' ? 'interactive' : (type === 'text' ? 'text' : 'media'),
         media: url ? { kind: type, url: url } : undefined,
-        waMessageId: bridgeData.messageId,
         status: 'sent',
         sentByLabel: adminName,
         senderDisplayName: adminName,
         provider: 'whatsapp_web_bridge',
         sentAt: new Date()
       });
+
+      console.log(`[QR SEND] ✅ Message logged to DB: ${savedMessage._id}`);
+      
+      return NextResponse.json({ success: true, messageId: savedMessage._id });
     } catch (dbErr) {
       console.error('[QR SEND DB LOG ERROR]:', dbErr);
-      // We don't fail the request if just logging failed, but the message sent.
+      // Return success because message was sent via bridge, even if logging failed
+      return NextResponse.json({ success: true, message: 'Message sent but logging to DB failed' });
     }
-
-    return NextResponse.json({ success: true, messageId: bridgeData.messageId });
   } catch (err: any) {
     console.error('[QR SEND API Error]:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
