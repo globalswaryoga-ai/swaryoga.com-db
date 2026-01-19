@@ -1,0 +1,200 @@
+API 404/400 ERRORS - ROOT CAUSE ANALYSIS & FIXES
+================================================
+
+ERRORS REPORTED:
+1. GET /api/admin/crm/whatsapp/qr-bridge?path=%2Fchats  → 404 (Not Found)
+2. POST /api/admin/crm/messages  → 400 (Bad Request)
+
+ROOT CAUSE #1: Missing /chats Endpoint on Bridge
+─────────────────────────────────────────────────
+Status: ❌ CRITICAL - Endpoint not registered on EC2 bridge
+
+Diagnostic Results:
+  ✅ Bridge /status → 200 OK (bridge is running)
+  ❌ Bridge /chats  → 404 Not Found (route missing)
+  ❌ Bridge /messages/all → 500 Error
+
+The /chats endpoint code exists in services/whatsapp-web/index.js line 766
+BUT the deployed bridge service on EC2 (52.91.198.23:3333) doesn't have it.
+
+This means:
+  • Bridge was deployed with old/incomplete code
+  • Bridge service may have crashed/restarted
+  • Route not properly registered in current version
+
+Frontend Impact:
+  • App tries: bridgeFetch('/chats')
+  • Gets: 404 from bridge
+  • Proxy: /api/admin/crm/whatsapp/qr-bridge?path=%2Fchats returns 404
+  • Result: Chat list fails to load
+
+
+ROOT CAUSE #2: Missing Required Fields
+───────────────────────────────────────
+Status: ⚠️  Validation Error - Endpoint requirements not met
+
+The /api/admin/crm/messages PUT endpoint requires:
+  • action: 'markThreadAsRead'
+  • EITHER leadId OR phoneNumber (at least one required)
+
+Frontend sends request with:
+  • leadId: activeLeadId (could be undefined)
+  • phoneNumber: activePhone (could be undefined)
+
+If BOTH are undefined → endpoint returns 400 "Missing: leadId or phoneNumber"
+
+Frontend code (line 1378-1383):
+  if (activeLeadId || activePhone) {
+    fetch('/api/admin/crm/messages', {
+      action: 'markThreadAsRead',
+      leadId: activeLeadId,        // could be null
+      phoneNumber: activePhone      // could be null
+    })
+  }
+
+If the logic was inverted or variables not set → 400 error
+
+
+SOLUTIONS IMPLEMENTED
+═════════════════════
+
+FIX #1: Graceful 404 Fallback
+────────────────────────────
+File: app/admin/crm/qr/page.tsx (lines 738-815)
+
+Changes:
+  ✅ Detect when /chats returns 404
+  ✅ Fall back to cached chats from localStorage
+  ✅ Show warning: "⚠️ Chat endpoint unavailable - restart bridge service"
+  ✅ Better error logging for debugging
+
+User Impact:
+  ✅ App doesn't crash when bridge is outdated
+  ✅ Old chat data still loads from cache
+  ✅ Clear warning explains what to do
+
+
+FIX #2: Improved Error Handling for markThreadAsRead
+─────────────────────────────────────────────────────
+File: app/admin/crm/qr/page.tsx (lines 1377-1389)
+
+Changes:
+  ✅ Only send request if at least one field is present
+  ✅ Better error handling with try/catch
+  ✅ Log API error responses
+  ✅ Don't crash if mark-as-read fails
+
+User Impact:
+  ✅ Request only sent when valid
+  ✅ Failure doesn't crash app
+  ✅ Better debugging info in console
+
+
+FIX #3: Diagnostic Tool
+───────────────────────
+File: diagnose-404-errors.js
+
+Usage: node diagnose-404-errors.js
+
+What it tests:
+  1. Direct bridge connectivity
+  2. Bridge proxy endpoints
+  3. Provides failure analysis
+  4. Recommends specific fixes
+
+Sample output:
+  Bridge Status:  ✅ /status returns 200
+  Bridge /chats:  ❌ /chats returns 404
+  
+  ANALYSIS: /chats endpoint returns 404
+  → Route not registered in bridge
+  → Check: services/whatsapp-web/index.js line 766
+
+
+HOW TO FIX THE ROOT CAUSE
+═════════════════════════
+
+SHORT TERM (Immediate - App now handles gracefully):
+  ✓ The app will use cached chats
+  ✓ No crashes or data loss
+  ✓ Warning message explains the issue
+  ✓ Users can continue working
+
+LONG TERM (Permanent - Restart EC2 Bridge):
+  1. SSH into EC2:
+     ssh ec2-user@52.91.198.23
+
+  2. Check bridge status:
+     pm2 status
+     pm2 logs index
+
+  3. Restart the bridge:
+     pm2 restart index
+     pm2 logs index  # Watch for any errors
+
+  4. Verify the fix:
+     node diagnose-404-errors.js
+     # Should show ✅ Bridge /chats working
+
+  OR redeploy with latest code:
+     cd /path/to/bridge
+     git pull origin main
+     npm install
+     pm2 restart index
+
+
+TESTING THE FIXES
+═════════════════
+
+1. Open CRM app in browser
+
+2. Open DevTools (F12) → Console
+
+3. Watch for these messages:
+   ✅ "[loadChats] /chats endpoint working" = Success
+   ⚠️  "[loadChats] /chats endpoint not found (404)" = Graceful fallback
+   ℹ️  "[Mark As Read] API error" = Better handling
+
+4. Run diagnostic:
+   node diagnose-404-errors.js
+
+
+RELATED FILES
+═════════════
+
+• app/admin/crm/qr/page.tsx
+  Main QR dashboard with error handling
+
+• app/api/admin/crm/whatsapp/qr-bridge/route.ts
+  Proxy endpoint (working ✅)
+
+• app/api/admin/crm/messages/route.ts
+  Messages API endpoint (working ✅)
+
+• services/whatsapp-web/index.js
+  Bridge service with /chats at line 766
+
+• diagnose-404-errors.js
+  New diagnostic tool
+
+
+COMMITS
+═══════
+
+1fa2d45 - Fix 404 fallback handling and error resilience
+ef62f43 - Design enhancements for professional brand
+aaf6d6d - Community page color scheme update
+a2eb347 - WhatsApp media loading fixes
+
+
+STATUS SUMMARY
+══════════════
+
+✅ Errors now handled gracefully
+✅ App continues to work even if bridge is outdated
+✅ Better debugging information
+⚠️  Permanent fix requires EC2 bridge restart
+⏱️  Can be done at next maintenance window
+
+User Experience: Minimal impact, app stays functional
+Technical Debt: Bridge needs code sync with main
