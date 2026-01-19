@@ -24,6 +24,7 @@ export default function WhatsAppGroupsManagement() {
   const [selectedGroup, setSelectedGroup] = useState<WhatsAppGroup | null>(null);
   const [actionMode, setActionMode] = useState<'add-user' | 'send-message' | 'description' | null>(null);
   const [inputValue, setInputValue] = useState('');
+  const [mediaUrl, setMediaUrl] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -107,7 +108,7 @@ export default function WhatsAppGroupsManagement() {
   };
 
   const handleSendMessage = async () => {
-    if (!selectedGroup || !inputValue.trim()) return;
+    if (!selectedGroup || (!inputValue.trim() && !mediaUrl.trim())) return;
 
     try {
       const res = await fetch('/api/admin/crm/whatsapp/groups', {
@@ -120,6 +121,7 @@ export default function WhatsAppGroupsManagement() {
           action: 'send-message',
           groupId: selectedGroup.id,
           message: inputValue.trim(),
+          media: mediaUrl.trim() || undefined
         }),
       });
 
@@ -127,6 +129,7 @@ export default function WhatsAppGroupsManagement() {
       if (data.success) {
         setSuccess('✅ Message sent to group');
         setInputValue('');
+        setMediaUrl('');
         setActionMode(null);
       } else {
         setError(data.error || 'Failed to send message');
@@ -425,6 +428,15 @@ export default function WhatsAppGroupsManagement() {
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         className="w-full px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 h-24 resize-none"
+                        spellCheck="true"
+                        style={{ fontFamily: 'Segoe UI, -apple-system, BlinkMacSystemFont, sans-serif' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Image URL (optional)"
+                        value={mediaUrl}
+                        onChange={(e) => setMediaUrl(e.target.value)}
+                        className="w-full px-4 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600"
                       />
                       <div className="flex gap-3">
                         <button

@@ -1376,6 +1376,15 @@ function getModel(modelName: string, schema: any) {
   
   // Initialize on first use (safe because this happens after connectDB)
   const crmDb = getCrmDb();
+
+  // PROACTIVE REGISTRATION:
+  // If we are registering any CRM model other than Lead, ensure Lead is registered first on this connection.
+  // This prevents "Schema hasn't been registered for model 'Lead'" errors during population/ref lookup.
+  // LeadSchema is defined at the top of this file and is available here.
+  if (modelName !== 'Lead' && !crmDb.models['Lead']) {
+    crmDb.model('Lead', LeadSchema);
+  }
+
   const model = crmDb.models[modelName] || crmDb.model(modelName, schema);
   modelCache[modelName] = model;
   return model;

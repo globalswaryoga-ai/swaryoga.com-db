@@ -365,6 +365,7 @@ const communitySchema = new mongoose.Schema({
   name: { type: String, required: true, index: true },
   description: { type: String, default: '' },
   joinLink: { type: String, default: '' },
+  whatsappGroupId: { type: String, default: '' }, // Associate with WhatsApp QR group
   // Store user ids as strings (JWT userId is typically a stringified ObjectId)
   members: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },

@@ -413,6 +413,49 @@ app.get('/chats', authMiddleware, (req, res) => {
   res.json({ chats: formattedChats });
 });
 
+// GET /groups - Fetch all groups
+app.get('/groups', authMiddleware, async (req, res) => {
+  try {
+    if (!client || !sessionReady) {
+      return res.status(503).json({ error: 'WhatsApp not connected' });
+    }
+
+    const allChats = await client.getChats();
+    const groupChats = allChats.filter(chat => chat.isGroup);
+
+    const formattedGroups = await Promise.all(groupChats.map(async (chat) => {
+      let inviteCode = '';
+      try {
+        if (chat.participants.some(p => p.id._serialized === client.info.wid._serialized && p.isAdmin)) {
+          inviteCode = await chat.getInviteCode();
+        }
+      } catch (e) {}
+
+      return {
+        id: chat.id._serialized,
+        name: chat.name || 'Unnamed Group',
+        description: chat.groupMetadata?.desc || '',
+        participants: chat.groupMetadata?.participants?.map(p => p.id._serialized) || [],
+        isAdmin: chat.groupMetadata?.participants?.find(p => p.id._serialized === client.info.wid._serialized)?.isAdmin || false,
+        inviteCode: inviteCode,
+        createdAt: chat.timestamp * 1000,
+        lastMessage: chat.lastMessage ? {
+          body: chat.lastMessage.body,
+          timestamp: chat.lastMessage.timestamp * 1000
+        } : null
+      };
+    }));
+
+    res.json({
+      success: true,
+      groups: formattedGroups
+    });
+  } catch (err) {
+    console.error('[groups] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /contact/:contactId - Get contact details
 app.get('/contact/:contactId', authMiddleware, async (req, res) => {
   try {
@@ -537,6 +580,98 @@ app.get('/group/:chatId', authMiddleware, async (req, res) => {
     res.json(groupInfo);
   } catch (err) {
     console.error('[group] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /groups/:groupId/participants - Add participant
+app.post('/groups/:groupId/participants', authMiddleware, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber) return res.status(400).json({ error: 'phone number required' });
+    
+    let normalized = phoneNumber.replace(/\D/g, '');
+    if (normalized.length === 10) normalized = '91' + normalized;
+    if (!normalized.endsWith('@c.us')) normalized += '@c.us';
+
+    const chat = await client.getChatById(groupId);
+    if (!chat.isGroup) return res.status(400).json({ error: 'not a group' });
+
+    await chat.addParticipants([normalized]);
+    res.json({ success: true, message: `Added ${normalized}` });
+  } catch (err) {
+    console.error('[add-participant] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /groups/:groupId/participants/:phoneNumber - Remove participant
+app.delete('/groups/:groupId/participants/:phoneNumber', authMiddleware, async (req, res) => {
+  try {
+    const { groupId, phoneNumber } = req.params;
+    
+    let normalized = phoneNumber.replace(/\D/g, '');
+    if (normalized.length === 10) normalized = '91' + normalized;
+    if (!normalized.endsWith('@c.us')) normalized += '@c.us';
+
+    const chat = await client.getChatById(groupId);
+    await chat.removeParticipants([normalized]);
+    res.json({ success: true, message: `Removed ${normalized}` });
+  } catch (err) {
+    console.error('[remove-participant] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /groups/:groupId/messages - Send message to group
+app.post('/groups/:groupId/messages', authMiddleware, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { text, media, url } = req.body;
+    
+    if (!text && !media && !url) {
+      return res.status(400).json({ error: 'Message text or media required' });
+    }
+
+    const finalMedia = media || url || null;
+    
+    console.log(`[group-msg] Queuing message to ${groupId}`);
+    
+    messageQueue.push({
+      chatId: groupId,
+      message: text || '',
+      media: finalMedia,
+      timestamp: Date.now()
+    });
+    
+    res.json({ success: true, message: 'Message queued' });
+    
+    if (!isProcessingQueue) {
+      processMessageQueue().catch(e => console.error('[group-msg] Queue error:', e.message));
+    }
+  } catch (err) {
+    console.error('[group-msg] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /groups/:groupId - Update group info (description)
+app.put('/groups/:groupId', authMiddleware, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { description, name } = req.body;
+
+    const chat = await client.getChatById(groupId);
+    if (!chat.isGroup) return res.status(400).json({ error: 'not a group' });
+
+    if (name) await chat.setSubject(name);
+    if (description) await chat.setDescription(description);
+
+    res.json({ success: true, message: 'Group updated' });
+  } catch (err) {
+    console.error('[update-group] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,7 +1,8 @@
-import { connectDB } from '@/lib/db';
+import { connectDB, Community } from '@/lib/db';
 import { CommunityMember } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
+import axios from 'axios';
 
 export async function PUT(
   request: NextRequest,
@@ -59,6 +60,25 @@ export async function PUT(
     member.approvedBy = decoded.userId || decoded.username || 'admin';
 
     await member.save();
+
+    // NEW: Also add to linked WhatsApp QR group if exists
+    try {
+      const community = await Community.findOne({ id: member.communityId });
+      if (community?.whatsappGroupId && member.mobile) {
+        const bridgeUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
+        const bridgeSecret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
+
+        console.log(`[Approval] Adding approved member to WA Group: ${community.whatsappGroupId}`);
+        await axios.post(
+          `${bridgeUrl}/groups/${community.whatsappGroupId}/participants`,
+          { phoneNumber: member.mobile },
+          { headers: { 'x-bridge-secret': bridgeSecret }, timeout: 5000 }
+        );
+      }
+    } catch (waErr) {
+      console.error('[Approval] Failed to add to WA group:', waErr);
+      // Don't fail the whole request if WA add fails
+    }
 
     return NextResponse.json(
       {

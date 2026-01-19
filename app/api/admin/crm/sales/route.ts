@@ -8,13 +8,12 @@ import {
   isValidObjectId,
   toObjectId,
 } from '@/lib/crm-handlers';
-import { SalesReport } from '@/lib/schemas/enterpriseSchemas';
+import { getSalesReport, getLead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
 import { verifyToken } from '@/lib/auth';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
-
 
 function getViewerUserId(decoded: any): string {
   return String(decoded?.userId || decoded?.username || '').trim();
@@ -80,6 +79,10 @@ function normalizeSaleStatus(input: any): string | undefined {
 
 export async function GET(request: NextRequest) {
   try {
+    await connectDB();
+    const SalesReport = getSalesReport();
+    const Lead = getLead(); // Ensure Lead is registered for population
+
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     if (!decoded?.isAdmin) throw new Error('Unauthorized: Admin access required');

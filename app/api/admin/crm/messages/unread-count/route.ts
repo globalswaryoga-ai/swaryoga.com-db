@@ -5,7 +5,7 @@ import {
   handleCrmError,
   formatCrmSuccess,
 } from '@/lib/crm-handlers';
-import { WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 
 // Required: This route uses request.headers which cannot be statically rendered
 export const dynamic = 'force-dynamic';
@@ -16,10 +16,12 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
+    await connectDB();
+    const WhatsAppMessage = getWhatsAppMessage();
+    const Lead = getLead(); // Ensure Lead is registered for population
+
     const viewerUserId = verifyAdminAccess(request);
     const superAdmin = viewerUserId === 'admincrm';
-
-    await connectDB();
 
     // Query unread inbound messages
     // For super admin: all unread inbound messages

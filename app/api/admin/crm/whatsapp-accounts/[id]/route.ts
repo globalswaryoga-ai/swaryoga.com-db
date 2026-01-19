@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { WhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppAccount } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { Types } from 'mongoose';
 
@@ -21,6 +21,7 @@ export async function GET(
     }
 
     await connectDB();
+    const WhatsAppAccount = getWhatsAppAccount();
 
     if (!Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
@@ -55,6 +56,7 @@ export async function PUT(
     }
 
     await connectDB();
+    const WhatsAppAccount = getWhatsAppAccount();
 
     if (!Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
@@ -136,6 +138,7 @@ export async function DELETE(
     }
 
     await connectDB();
+    const WhatsAppAccount = getWhatsAppAccount();
 
     if (!Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });

@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { action, groupId, phoneNumber, message } = await request.json();
+    const { action, groupId, phoneNumber, message, media, url } = await request.json();
 
     if (!action) {
       return NextResponse.json({ error: 'Action required' }, { status: 400 });
@@ -144,9 +144,9 @@ export async function POST(request: NextRequest) {
         }
 
       case 'send-message':
-        if (!groupId || !message) {
+        if (!groupId || (!message && !media && !url)) {
           return NextResponse.json(
-            { error: 'Group ID and message required' },
+            { error: 'Group ID and message or media required' },
             { status: 400 }
           );
         }
@@ -154,7 +154,10 @@ export async function POST(request: NextRequest) {
         try {
           const response = await axios.post(
             `${bridgeUrl}/groups/${groupId}/messages`,
-            { text: message },
+            { 
+              text: message,
+              media: media || url 
+            },
             {
               headers: { 'x-bridge-secret': bridgeSecret },
               timeout: 5000,

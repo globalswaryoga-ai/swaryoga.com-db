@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, CommunityPost, MediaPost, SocialMediaPost } from '@/lib/db';
+import { connectDB, CommunityPost, MediaPost, SocialMediaPost, Community } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { CommunityMember } from '@/lib/db';
 import { contentHasLink, enforceCommunityChatPolicy, getMyCommunityChatPolicy } from '@/lib/communityChatPolicy';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
+import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -132,6 +133,9 @@ export async function POST(request: NextRequest) {
     const userId = decoded.userId || decoded.username || 'admin';
     const now = new Date();
 
+    const bridgeUrl = process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
+    const bridgeSecret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
+
     // Skip policy enforcement for admins creating campaigns
     
     // Optional cross-post:
@@ -209,6 +213,7 @@ export async function POST(request: NextRequest) {
 
     const postResults: any[] = [];
     for (const communityId of communityIds) {
+      // 1. Save to Internal Community DB
       const dbPost = await CommunityPost.create({
         communityId,
         userId,
@@ -231,6 +236,29 @@ export async function POST(request: NextRequest) {
         createdAt: now,
         updatedAt: now,
       });
+
+      // 2. Send to WhatsApp QR Group (if linked)
+      try {
+        const comm = await Community.findOne({ id: communityId });
+        if (comm?.whatsappGroupId) {
+          console.log(`[Campaign] Sending to WhatsApp Group: ${comm.whatsappGroupId}`);
+          
+          // Send main text message
+          await axios.post(
+            `${bridgeUrl}/groups/${comm.whatsappGroupId}/messages`,
+            { 
+              text: message,
+              media: imageUrls.length > 0 ? imageUrls[0] : (videoUrl || docUrl || null)
+            },
+            {
+              headers: { 'x-bridge-secret': bridgeSecret },
+              timeout: 5000,
+            }
+          ).catch(e => console.error(`Failed to send campaign segment to ${comm.name}: ${e.message}`));
+        }
+      } catch (err) {
+        console.error(`Error sending campaign to WhatsApp group ${communityId}:`, err);
+      }
 
       postResults.push(dbPost);
     }

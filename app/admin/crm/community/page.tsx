@@ -121,6 +121,9 @@ export default function AdminCommunityPage() {
   
   const [editingCommunityName, setEditingCommunityName] = useState(false);
   const [newCommunityName, setNewCommunityName] = useState('');
+  const [editingWAId, setEditingWAId] = useState(false);
+  const [newWAId, setNewWAId] = useState('');
+  const [currentCommunityDb, setCurrentCommunityDb] = useState<any>(null);
   const [approving, setApproving] = useState<string | null>(null);
   
   const [previewWidth, setPreviewWidth] = useState<'mobile' | 'tablet'>('mobile');
@@ -362,22 +365,35 @@ export default function AdminCommunityPage() {
     }
   };
 
-  const updateCommunityName = async () => {
+  const updateCommunitySettings = async (updates: any) => {
     if (!token) return;
     try {
       const response = await fetch(`/api/community/admin/${selectedCommunity}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ name: newCommunityName }),
+        body: JSON.stringify(updates),
       });
       if (!response.ok) throw new Error();
-      setEditedCommunities(prev => ({ ...prev, [selectedCommunity]: newCommunityName }));
-      setEditingCommunityName(false);
+      
+      if (updates.name) {
+        setEditedCommunities(prev => ({ ...prev, [selectedCommunity]: updates.name }));
+        setEditingCommunityName(false);
+      }
+      
+      if (updates.whatsappGroupId !== undefined) {
+        setEditingWAId(false);
+        // Refresh to see changes
+        window.location.reload();
+      }
+      
       alert('✅ Updated!');
     } catch (err) {
       alert('❌ Failed');
     }
   };
+
+  const updateCommunityName = () => updateCommunitySettings({ name: newCommunityName });
+  const updateWAId = () => updateCommunitySettings({ whatsappGroupId: newWAId });
 
   const approveMember = async (memberId: string) => {
     if (!token) return;
@@ -402,13 +418,12 @@ export default function AdminCommunityPage() {
     const fetchMembers = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/admin/community/members?communityId=${selectedCommunity}&status=${statusFilter}&limit=50`, {
+        // Fetch members
+        const res = await fetch(`/api/admin/community/members?communityId=${selectedCommunity}&status=${statusFilter}&limit=100`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         
         if (res.status === 401 || res.status === 403) {
-          console.error('[CRM Community] Auth failure:', res.status);
-          // Only clear and redirect if we're sure it's an auth failure
           localStorage.removeItem('adminToken');
           localStorage.removeItem('admin_token');
           router.push('/admin/login');
@@ -417,6 +432,16 @@ export default function AdminCommunityPage() {
 
         const json = await res.json();
         setMembers(Array.isArray(json?.data?.members) ? json.data.members : []);
+
+        // Fetch community specific settings from our new endpoint
+        const settingsRes = await fetch(`/api/community/admin/${selectedCommunity}/settings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const settingsJson = await settingsRes.json();
+        if (settingsJson.success) {
+          setCurrentCommunityDb(settingsJson.community);
+          setNewWAId(settingsJson.community?.whatsappGroupId || '');
+        }
       } catch (error) {
         console.error('[CRM Community] Fetch error:', error);
         setMembers([]);
@@ -495,6 +520,29 @@ export default function AdminCommunityPage() {
                       </button>
                     </div>
                   )}
+                  
+                  {/* WhatsApp Group Mapping */}
+                  <div className="flex items-center gap-2 bg-green-50/50 px-3 py-1 rounded-lg border border-green-100 group">
+                    <Phone size={12} className="text-green-500" />
+                    {editingWAId ? (
+                      <div className="flex items-center gap-1">
+                        <input 
+                          value={newWAId}
+                          onChange={(e) => setNewWAId(e.target.value)}
+                          placeholder="Group ID (@g.us)"
+                          className="text-[9px] px-1 py-0.5 border rounded outline-none"
+                        />
+                        <button onClick={updateWAId} className="text-[9px] font-bold text-green-700 underline">SAVE</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-[9px] font-bold text-green-700 truncate max-w-[150px]">
+                          WA Group: {currentCommunityDb?.whatsappGroupId || 'None Linked'}
+                        </span>
+                        <button onClick={() => { setEditingWAId(true); setNewWAId(currentCommunityDb?.whatsappGroupId || ''); }} className="p-1 rounded hover:bg-green-100 text-green-500"><Edit size={10} /></button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

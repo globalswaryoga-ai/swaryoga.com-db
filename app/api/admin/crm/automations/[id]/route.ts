@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyAdminAccess, handleCrmError, isValidObjectId, toObjectId, formatCrmSuccess } from '@/lib/crm-handlers';
-import { WhatsAppAutomationRule } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppAutomationRule } from '@/lib/schemas/enterpriseSchemas';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -14,6 +14,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
     await connectDB();
+    const WhatsAppAutomationRule = getWhatsAppAutomationRule();
 
     const rule = await WhatsAppAutomationRule.findOne({ _id: toObjectId(String(id)), createdByUserId: String(userId) }).lean();
     if (!rule) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -34,6 +35,7 @@ export async function PUT(request: NextRequest, ctx: { params: Promise<{ id: str
     if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
     await connectDB();
+    const WhatsAppAutomationRule = getWhatsAppAutomationRule();
 
     const allowed: any = {};
     const fields = [
@@ -75,6 +77,7 @@ export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: 
     if (!isValidObjectId(String(id))) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
     await connectDB();
+    const WhatsAppAutomationRule = getWhatsAppAutomationRule();
 
     const res = await WhatsAppAutomationRule.deleteOne({ _id: toObjectId(String(id)), createdByUserId: String(userId) });
     if (!res.deletedCount) return NextResponse.json({ error: 'Not found' }, { status: 404 });

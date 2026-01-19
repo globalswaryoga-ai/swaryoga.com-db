@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
-import { WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { User } from '@/lib/db';
 import { deleteTemplateFilesFromS3 } from '@/lib/aws-s3';
 import mongoose from 'mongoose';
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
     await connectDB();
+    const WhatsAppTemplate = getWhatsAppTemplate();
 
     const filter: any = {};
     if (category) filter.category = category;
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
+    const WhatsAppTemplate = getWhatsAppTemplate();
 
     // WhatsAppTemplate schema expects createdBy as an ObjectId reference.
     // Our admin JWT contains decoded.userId (e.g., "admincrm") which is NOT an ObjectId.
@@ -201,6 +203,7 @@ export async function PUT(request: NextRequest) {
     }
 
     await connectDB();
+    const WhatsAppTemplate = getWhatsAppTemplate();
 
     if (action === 'approve') {
       const template = await WhatsAppTemplate.findByIdAndUpdate(

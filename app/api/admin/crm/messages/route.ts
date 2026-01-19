@@ -29,6 +29,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    await connectDB();
     const Lead = getLead();
     const WhatsAppMessage = getWhatsAppMessage();
 
@@ -38,8 +39,6 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const orderParam = url.searchParams.get('order');
     const sortDir = orderParam === 'asc' ? 1 : -1;
-
-    await connectDB();
 
     // Build filter from query parameters
     const filterParams = {
@@ -199,6 +198,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    await connectDB();
     const Lead = getLead();
     const WhatsAppMessage = getWhatsAppMessage();
 
@@ -209,8 +209,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const { messageId, leadId, phoneNumber, action, ...updates } = body;
-
-    await connectDB();
 
     // Backward-compatible action aliases used by older UI code.
     const normalizedAction =
@@ -392,6 +390,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    await connectDB();
     const WhatsAppMessage = getWhatsAppMessage();
 
     verifyAdminAccess(request);
@@ -405,8 +404,6 @@ export async function DELETE(request: NextRequest) {
     if (!isValidObjectId(messageId)) {
       return NextResponse.json({ error: 'Invalid messageId' }, { status: 400 });
     }
-
-    await connectDB();
 
     const result = await WhatsAppMessage.findByIdAndDelete(messageId);
 
