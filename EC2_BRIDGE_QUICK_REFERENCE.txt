@@ -1,0 +1,104 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                   EC2 WHATSAPP BRIDGE FIX - QUICK REFERENCE                   ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+🔴 PROBLEM
+──────────
+QR page shows: [loadChats] /chats endpoint not found (404)
+Messages show "Sending" but don't appear in QR interface
+EC2 bridge (52.91.198.23:3333) running wrong code
+
+🟢 SOLUTION
+──────────
+Restart the EC2 bridge service with correct whatsapp-web.js code
+
+⚡ QUICK FIX (Copy & Paste)
+──────────────────────────
+
+1. SSH TO EC2:
+   ssh -i your-key.pem ec2-user@52.91.198.23
+
+2. STOP EVERYTHING:
+   sudo lsof -ti:3333 | xargs sudo kill -9 2>/dev/null || true
+   docker stop $(docker ps | grep whatsapp | awk '{print $1}') 2>/dev/null || true
+   pm2 stop bridge && pm2 delete bridge 2>/dev/null || true
+   sleep 2
+
+3. NAVIGATE:
+   cd ~/deploy/wa-bridge    # Update path if different
+
+4. START SERVICE:
+   
+   OPTION A (Docker - Recommended):
+   ─────────────────────────────────
+   docker-compose down 2>/dev/null || true
+   sleep 2
+   docker-compose up -d
+   sleep 5
+   
+   OPTION B (PM2):
+   ──────────────
+   npm install --production
+   pm2 start server.js --name bridge --env production
+   pm2 save
+   sleep 3
+
+5. TEST (Still on EC2):
+   curl -H "x-bridge-secret: swar-bridge-secret-2024" \
+        http://localhost:3333/health
+   
+   Should return: {"ok": true, "port": 3333}
+
+6. EXIT EC2:
+   exit
+
+7. TEST FROM MAC:
+   ./test-bridge-health.sh http://52.91.198.23:3333 swar-bridge-secret-2024
+   
+   All tests should show ✅
+
+✅ VERIFY IN BROWSER
+────────────────────
+• Open: https://swaryoga.com/admin/crm/qr
+• Chats should load (not "Falling back to cache")
+• Send test message - appears immediately
+• No 404 errors in console
+
+📚 FULL DOCUMENTATION
+─────────────────────
+EC2_BRIDGE_ACTION_PLAN.md           ← START HERE
+EC2_BRIDGE_DIRECT_COMMANDS.md       ← All commands
+EC2_BRIDGE_VERIFICATION_CHECKLIST.md ← Step-by-step
+test-bridge-health.sh              ← Test script
+ec2-bridge-restart.sh              ← Auto script
+
+❌ TROUBLESHOOTING
+──────────────────
+/health returns "Cannot GET"
+→ Bridge code is wrong, not whatsapp-web.js
+
+/chats times out
+→ Browser automation slow, check EC2 resources
+
+Messages don't appear
+→ Check EC2 logs: docker logs <id> or pm2 logs bridge
+
+Cannot connect to WhatsApp
+→ EC2 out of memory/disk, check: free -h, df -h
+
+⏱️  TIME ESTIMATE: 15 minutes
+
+📊 STATUS AFTER FIX
+───────────────────
+✅ /health returns proper JSON
+✅ /chats returns chat list
+✅ QR page loads chats
+✅ Messages appear in real-time
+✅ No 404 errors
+✅ No localStorage fallback
+
+─────────────────────────────────────────────────────────────────────────────────
+Last Updated: Jan 19, 2025
+Commit: 4dff239
+Status: Ready to restart - all docs prepared
+─────────────────────────────────────────────────────────────────────────────────
