@@ -2821,6 +2821,7 @@ export default function QRWhatsAppInboxPage() {
               <div className="flex items-end gap-2 px-3 py-2.5">
                 <textarea
                   value={newMessage}
+                  spellCheck="true"
                   onChange={(e) => {
                     setNewMessage(e.target.value);
                     e.target.style.height = 'auto';
