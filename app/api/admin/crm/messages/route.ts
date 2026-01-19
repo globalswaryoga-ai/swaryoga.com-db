@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
     const Lead = getLead();
     const WhatsAppMessage = getWhatsAppMessage();
     const userId = verifyAdminAccess(request);
+    const superAdmin = userId === 'admincrm' || userId === 'admin';
     const body = await request.json().catch(() => null);
 
     if (!body) {
@@ -149,30 +150,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
+    // ACCESS CONTROL: Check if admin is assigned to this lead
+    if (!superAdmin) {
+      const assignedTo = String(lead.assignedToUserId || '').trim();
+      if (assignedTo && assignedTo !== userId) {
+        return NextResponse.json(
+          { error: 'Forbidden: You can only message leads assigned to you' },
+          { status: 403 }
+        );
+      }
+    }
+
     // Normalize phone
     const normalizedPhone = normalizePhone(String(phoneNumber));
     if (!normalizedPhone) {
       return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
     }
 
-    // Create message in database
+    // Create message in database (with admin name appended as per user request)
     const now = new Date();
+    const adminNameTag = ` [${userId}]`;
+    const messageWithAdmin = String(messageContent).trim() + adminNameTag;
+    
     const newMessage = await WhatsAppMessage.create({
       leadId: leadId,
       phoneNumber: normalizedPhone,
-      messageContent: String(messageContent).trim(),
+      messageContent: messageWithAdmin,
       direction: 'outbound',
       messageType: messageType || 'text',
       status: 'sent',
       sentAt: now,
       sentByLabel: userId,
+      sentByUserId: userId,
       provider: 'meta',
     });
 
     // Update lead's lastMessageAt
     await Lead.updateOne({ _id: leadId }, { $set: { lastMessageAt: now } });
 
-    console.log(`[Messages API] Message created: ${newMessage._id} to ${normalizedPhone}`);
+    console.log(`[Messages API] Message created: ${newMessage._id} to ${normalizedPhone} by ${userId}`);
 
     // Return success
     return formatCrmSuccess(newMessage);

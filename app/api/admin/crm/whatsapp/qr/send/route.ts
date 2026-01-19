@@ -30,12 +30,29 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { to, message, type, url, buttons, caption } = body;
+    const { to, message, type, url, buttons, caption, leadId } = body;
     const viewerUserId = getViewerUserId(decoded);
+    const superAdmin = decoded.userId === 'admincrm' || decoded.userId === 'admin';
     const adminName = decoded.name || decoded.username || viewerUserId;
 
-    // We append the admin name to the outgoing message so it's clear who sent it 
-    // as requested: "add admin user name in out going chat"
+    // ACCESS CONTROL: If leadId provided, check if admin is assigned
+    if (leadId && !superAdmin) {
+      await connectDB();
+      const Lead = getLead();
+      const lead = await Lead.findById(leadId);
+      
+      if (lead) {
+        const assignedTo = String(lead.assignedToUserId || '').trim();
+        if (assignedTo && assignedTo !== viewerUserId) {
+          return NextResponse.json({
+            success: false,
+            error: `Forbidden: You can only message leads assigned to you`
+          }, { status: 403 });
+        }
+      }
+    }
+
+    // We append the admin name to the outgoing message so it's clear who sent it
     const attributionTag = `\n\n- ${adminName}`;
     let finalMessage = message;
     let finalCaption = caption || message;
@@ -82,6 +99,7 @@ export async function POST(req: NextRequest) {
         media: url ? { kind: type, url: url } : undefined,
         status: 'sent',
         sentByLabel: adminName,
+        sentByUserId: viewerUserId,
         senderDisplayName: adminName,
         provider: 'whatsapp_web_bridge',
         sentAt: new Date()

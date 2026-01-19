@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
     const Lead = getLead();
     const WhatsAppMessage = getWhatsAppMessage();
 
-    const superAdmin = decoded?.userId === 'admincrm' || decoded?.userId === 'admin';
+    const userId = decoded?.userId || decoded?.username || 'unknown';
+    const superAdmin = userId === 'admincrm' || userId === 'admin';
     const normalizedPhone = normalizePhone(String(phoneNumber));
 
     // Find or create lead
@@ -65,8 +66,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Lead not found' }, { status: 404 });
     }
 
+    // ACCESS CONTROL: Check if regular admin is assigned to this lead
+    if (!superAdmin && lead) {
+      const assignedTo = String(lead.assignedToUserId || '').trim();
+      if (assignedTo && assignedTo !== userId) {
+        console.log(`[SEND:${requestId}] ❌ Forbidden: Lead assigned to ${assignedTo}, not ${userId}`);
+        return NextResponse.json({ 
+          success: false, 
+          error: `You can only message leads assigned to you. This lead is assigned to ${assignedTo || 'unassigned'}` 
+        }, { status: 403 });
+      }
+    }
+
     if (!lead) {
-      console.log(`[SEND:${requestId}] 📝 Creating lead`);
+      console.log(`[SEND:${requestId}] 📝 Creating lead (super admin)`);
       lead = await Lead.create({
         phoneNumber: normalizedPhone,
         source: 'crm',
@@ -75,11 +88,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Add admin name to message content
+    const adminNameTag = ` [${userId}]`;
+    const finalMessageContent = hasText 
+      ? String(messageContent).trim() + adminNameTag
+      : '(media)';
+
     // Create message record
     const messageRecord = await WhatsAppMessage.create({
       leadId: lead._id,
       phoneNumber: normalizedPhone,
-      messageContent: hasText ? String(messageContent) : '(media)',
+      messageContent: finalMessageContent,
       headerText: headerText ? String(headerText) : undefined,
       footerText: footerText ? String(footerText) : undefined,
       senderDisplayName: senderDisplayName ? String(senderDisplayName) : undefined,
@@ -88,6 +107,8 @@ export async function POST(request: NextRequest) {
       status: 'pending',
       sentAt: new Date(),
       provider: providerValue,
+      sentByLabel: userId,
+      sentByUserId: userId,
     });
 
     console.log(`[SEND:${requestId}] 💾 Message created: ${messageRecord._id}`);
