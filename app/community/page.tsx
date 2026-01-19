@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { COMMUNITY_DESIGNS, CommunityDesign } from '@/lib/communityColorSystem';
 
 interface Post {
   _id: string;
@@ -18,32 +19,24 @@ interface Post {
   image?: string;
 }
 
+// Map CommunityDesign to legacy Community interface for compatibility
 interface Community {
   id: string;
   name: string;
-  icon: string;
   description: string;
   members: number;
   isPublic: boolean;
-  gradient: string;
+  design: CommunityDesign;
 }
 
-const COMMUNITIES: Community[] = [
-  { 
-    id: 'global', 
-    name: 'Global Community', 
-    icon: '🌍', 
-    description: 'Open to everyone - share your yoga journey with the world',
-    members: 8000,
-    isPublic: true,
-    gradient: 'from-blue-500 to-cyan-500'
-  },
-  { id: 'swar-yoga', name: 'Swar Yoga', icon: '🎵', description: 'Swar Yoga practitioners', members: 0, isPublic: false, gradient: 'from-purple-500 to-pink-500' },
-  { id: 'aham-bramhasmi', name: 'Aham Bramhasmi', icon: '✨', description: 'Self-realization journey', members: 0, isPublic: false, gradient: 'from-amber-500 to-orange-500' },
-  { id: 'astavakra', name: 'Astavakra', icon: '🧘', description: 'Advanced yoga training', members: 0, isPublic: false, gradient: 'from-rose-500 to-red-500' },
-  { id: 'shivoham', name: 'Shivoham', icon: '🔱', description: 'Shiva consciousness', members: 0, isPublic: false, gradient: 'from-slate-500 to-gray-600' },
-  { id: 'i-am-fit', name: 'I am Fit', icon: '💪', description: 'Fitness and wellness', members: 0, isPublic: false, gradient: 'from-lime-500 to-green-500' },
-];
+const COMMUNITIES: Community[] = COMMUNITY_DESIGNS.map(design => ({
+  id: design.id,
+  name: design.name,
+  description: design.description,
+  members: design.members || 0,
+  isPublic: design.isPublic || false,
+  design
+}));
 
 function CommunityPageContent() {
   const searchParams = useSearchParams();
@@ -427,12 +420,12 @@ function CommunityPageContent() {
                       onClick={() => setSelectedCommunity(community.id)}
                       className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 transform hover:scale-105 shadow-sm ${
                         selectedCommunity === community.id
-                          ? `bg-gradient-to-r from-green-700 to-green-800 text-white font-semibold shadow-md hover:shadow-lg`
-                          : 'bg-gray-50 text-gray-700 border border-gray-300 hover:border-green-600 hover:bg-green-50'
+                          ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md hover:shadow-lg`
+                          : `${community.design.color.light} text-gray-700 border hover:border-opacity-100 hover:bg-opacity-100 transition-colors`
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-xl">{community.icon}</span>
+                        <community.design.icon size={20} className={selectedCommunity === community.id ? 'text-white' : community.design.color.main} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{community.name}</p>
                           <p className="text-xs opacity-75 font-medium">{community.members} members</p>
@@ -514,14 +507,16 @@ function CommunityPageContent() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             {/* Community Header */}
-            <div className={`bg-gradient-to-br ${currentCommunity?.gradient} rounded-2xl p-10 mb-10 text-white shadow-2xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden`}>
+            <div className={`bg-gradient-to-br ${currentCommunity?.design.color.gradient} rounded-2xl p-10 mb-10 text-white shadow-2xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden`}>
               {/* Background accent */}
               <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-48 -mt-48 blur-3xl"></div>
               <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full -ml-36 -mb-36 blur-3xl"></div>
               
               <div className="relative z-10 flex items-center justify-between">
                 <div>
-                  <div className="text-6xl mb-4 drop-shadow-lg">{currentCommunity?.icon}</div>
+                  <div className="text-6xl mb-4 drop-shadow-lg flex items-center">
+                    {currentCommunity?.design.icon && <currentCommunity.design.icon size={64} className="text-white" />}
+                  </div>
                   <h1 className="text-4xl sm:text-5xl font-bold mb-2 drop-shadow-lg">{currentCommunity?.name}</h1>
                   <p className="text-lg opacity-95 drop-shadow-md">{currentCommunity?.description}</p>
                   <div className="mt-4 flex items-center gap-6 text-sm font-semibold">
@@ -538,7 +533,7 @@ function CommunityPageContent() {
                             setJoiningCommunity(currentCommunity);
                             setShowJoinModal(true);
                           }}
-                          className="px-8 py-4 bg-white text-green-800 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl text-lg"
+                          className="px-8 py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl text-lg"
                         >
                           + Join Now
                         </button>
