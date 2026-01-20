@@ -107,6 +107,11 @@ async function upsertLeadFromMeta(leadgenData: any) {
       existingLead.metadata = existingLead.metadata || {};
       existingLead.metadata.metaLeadgenId = metaLeadgenId;
       existingLead.source = 'meta_leadgen';
+      
+      // Add 'social media' label
+      if (!existingLead.labels || !existingLead.labels.includes('social media')) {
+        existingLead.labels = Array.from(new Set([...(existingLead.labels || []), 'social media']));
+      }
 
       // Ensure leadNumber exists (legacy/older leads)
       if (!existingLead.leadNumber) {
@@ -128,6 +133,7 @@ async function upsertLeadFromMeta(leadgenData: any) {
       name: name || 'Instagram Lead',
       status: 'lead',
       source: 'meta_leadgen',
+      labels: ['social media'],
       metadata: {
         metaLeadgenId,
         rawFieldData: fieldData,

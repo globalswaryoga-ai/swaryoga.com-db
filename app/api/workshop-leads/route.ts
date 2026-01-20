@@ -86,7 +86,11 @@ export async function POST(request: NextRequest) {
       existing.phoneNumber = phoneNumber;
       existing.city = (existing as any).city || city;
       (existing as any).gender = (existing as any).gender || gender;
-      (existing as any).source = (existing as any).source || 'website-form';
+      (existing as any).source = (existing as any).source || 'website';
+      // Add 'website' label
+      if (!existing.labels || !existing.labels.includes('website')) {
+        existing.labels = Array.from(new Set([...(existing.labels || []), 'website']));
+      }
       (existing as any).workshopId = (existing as any).workshopId || workshopId;
       (existing as any).workshopName = (existing as any).workshopName || workshopName;
       (existing as any).lastFormAt = new Date();
@@ -114,7 +118,8 @@ export async function POST(request: NextRequest) {
       name,
       email: emailRaw.toLowerCase(),
       phoneNumber,
-      source: 'website-form',
+      source: 'website',
+      labels: ['website'],
       status: 'lead',
       // workshop fields (schema supports these in CRM routes)
       workshopId,

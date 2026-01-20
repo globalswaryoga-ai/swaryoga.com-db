@@ -111,9 +111,18 @@ async function ingestQRPayload(payload: any) {
             phoneNumber: normalizedPhone,
             name: `QR Lead ${normalizedPhone}`,
             source: 'whatsapp',
+            labels: ['whatsapp'],
             status: 'lead',
             leadNumber
         });
+    } else {
+        // Add 'whatsapp' label if not already there
+        if (!lead.labels || !lead.labels.includes('whatsapp')) {
+            await Lead.updateOne(
+                { _id: lead._id },
+                { $addToSet: { labels: 'whatsapp' } }
+            );
+        }
     }
     
     doc.leadId = lead._id;

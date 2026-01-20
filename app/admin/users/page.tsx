@@ -38,6 +38,15 @@ export default function AdminUsersPage() {
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   
+  // Add User state
+  const [addOpen, setAddOpen] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addMsg, setAddMsg] = useState('');
+  const [newUserId, setNewUserId] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  
   // Permission state - supports both legacy and new V2
   const [permissionMode, setPermissionMode] = useState<'legacy' | 'granular'>('granular');
   const [selectedPermissions, setSelectedPermissions] = useState({
@@ -134,6 +143,73 @@ export default function AdminUsersPage() {
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminUser');
     router.push('/admin/login');
+  };
+
+  const openAdd = () => {
+    setNewUserId('');
+    setNewName('');
+    setNewEmail('');
+    setNewPassword('');
+    setAddMsg('');
+    setPermissionMode('granular');
+    setGranularPermissions({ isSuperAdmin: false });
+    setSelectedPermissions({ crm: true, whatsapp: false, email: false });
+    setAddOpen(true);
+  };
+
+  const createAdminUser = async () => {
+    const adminToken = localStorage.getItem('admin_token') || localStorage.getItem('adminToken') || '';
+    if (!adminToken) {
+      setAddMsg('Admin token missing. Please login again.');
+      return;
+    }
+
+    const userId = newUserId.trim();
+    const email = newEmail.trim().toLowerCase();
+    const name = newName.trim();
+    const password = newPassword;
+
+    if (!userId || !email || !password) {
+      setAddMsg('Username, email, and password are required.');
+      return;
+    }
+
+    // Determine permissions to send using existing helper logic
+    const { permissions, permissionsV2 } = buildPermissionsPayload();
+
+    setAddBusy(true);
+    setAddMsg('');
+    try {
+      const response = await fetch('/api/admin/auth/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          userId,
+          email,
+          name: name || userId,
+          password,
+          permissions,
+          permissionsV2,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to create user');
+      }
+
+      setAddMsg(`User created: ${userId}`);
+      setAddOpen(false);
+      // Refresh list
+      fetchUsers(token);
+    } catch (err) {
+      setAddMsg(err instanceof Error ? err.message : 'Failed to create user');
+    } finally {
+      setAddBusy(false);
+    }
   };
 
   const openEdit = (u: AdminUserRow) => {
@@ -412,14 +488,14 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="flex items-center space-x-4">
-              <Link
-                href="/admin/dashboard?addUsers=1"
+              <button
+                onClick={openAdd}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
                 title="Add new admin user"
               >
                 <UserPlus className="h-5 w-5" />
                 <span className="font-semibold hidden sm:inline">Add Users</span>
-              </Link>
+              </button>
               <button
                 onClick={handleLogout}
                 className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
@@ -670,6 +746,171 @@ export default function AdminUsersPage() {
                 disabled={editBusy}
               >
                 {editBusy ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => {
+              if (!addBusy) setAddOpen(false);
+            }}
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-2xl mx-4 bg-white rounded-xl shadow-xl border border-swar-border max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-swar-border sticky top-0 bg-white z-10">
+              <h2 className="text-xl font-bold text-swar-text">Add New Admin User</h2>
+              <button
+                onClick={() => setAddOpen(false)}
+                className="p-2 rounded-lg hover:bg-swar-primary-light"
+                title="Close"
+                disabled={addBusy}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-swar-text mb-1">Username (ID) *</label>
+                  <input
+                    value={newUserId}
+                    onChange={(e) => setNewUserId(e.target.value)}
+                    className="w-full border border-swar-border rounded-lg px-3 py-2"
+                    placeholder="e.g. rahul_admin"
+                    disabled={addBusy}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-swar-text mb-1">Full Name</label>
+                  <input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="w-full border border-swar-border rounded-lg px-3 py-2"
+                    placeholder="e.g. Rahul Sharma"
+                    disabled={addBusy}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-swar-text mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="w-full border border-swar-border rounded-lg px-3 py-2"
+                    placeholder="rahul@example.com"
+                    disabled={addBusy}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-swar-text mb-1">Password *</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full border border-swar-border rounded-lg px-3 py-2"
+                    placeholder="At least 6 characters"
+                    disabled={addBusy}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-swar-border pt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm font-semibold text-swar-text">Permissions</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPermissionMode('legacy')}
+                      className={`text-xs px-3 py-1 rounded ${
+                        permissionMode === 'legacy' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                      disabled={addBusy}
+                    >
+                      Legacy
+                    </button>
+                    <button
+                      onClick={() => setPermissionMode('granular')}
+                      className={`text-xs px-3 py-1 rounded ${
+                        permissionMode === 'granular' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                      disabled={addBusy}
+                    >
+                      Granular
+                    </button>
+                  </div>
+                </div>
+
+                {permissionMode === 'granular' ? (
+                  <PermissionManager
+                    initialPermissions={granularPermissions}
+                    onChange={setGranularPermissions}
+                    disabled={addBusy}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-swar-primary-light rounded-lg p-3">
+                    <label className="flex items-center gap-2 text-sm text-swar-text">
+                      <input
+                        type="checkbox"
+                        checked={selectedPermissions.crm}
+                        onChange={() => toggleSelectedPermission('crm')}
+                        disabled={addBusy}
+                      />
+                      CRM
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-swar-text">
+                      <input
+                        type="checkbox"
+                        checked={selectedPermissions.whatsapp}
+                        onChange={() => toggleSelectedPermission('whatsapp')}
+                        disabled={addBusy}
+                      />
+                      WhatsApp
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-swar-text">
+                      <input
+                        type="checkbox"
+                        checked={selectedPermissions.email}
+                        onChange={() => toggleSelectedPermission('email')}
+                        disabled={addBusy}
+                      />
+                      Email
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {addMsg && (
+                <div className="mt-4 text-sm">
+                  <div className={addMsg.toLowerCase().includes('success') || addMsg.toLowerCase().includes('created') ? 'text-green-700' : 'text-red-700'}>
+                    {addMsg}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-swar-border flex items-center justify-end gap-2 sticky bottom-0 bg-white">
+              <button
+                onClick={() => setAddOpen(false)}
+                className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+                disabled={addBusy}
+              >
+                Close
+              </button>
+              <button
+                onClick={createAdminUser}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                disabled={addBusy}
+              >
+                {addBusy ? 'Creating...' : 'Create Admin Account'}
               </button>
             </div>
           </div>

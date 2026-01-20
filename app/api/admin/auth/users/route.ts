@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { userId, email, password, name, permissions } = await request.json();
+    const { userId, email, password, name, permissions, permissionsV2 } = await request.json();
 
     // Validation
     if (!userId || !email || !password) {
@@ -55,21 +55,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!Array.isArray(permissions) || permissions.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one permission is required' },
-        { status: 400 }
-      );
-    }
+    // Default permissions if none provided
+    const finalPermissions = Array.isArray(permissions) && permissions.length > 0 
+      ? permissions 
+      : (permissionsV2 ? [] : ['crm']);
 
-    // Validate permissions
-    const validPermissions = ['all', 'crm', 'whatsapp', 'email'];
-    const invalidPerms = permissions.filter((p: string) => !validPermissions.includes(p));
-    if (invalidPerms.length > 0) {
-      return NextResponse.json(
-        { error: `Invalid permissions: ${invalidPerms.join(', ')}` },
-        { status: 400 }
-      );
+    // Validate permissions if legacy array provided
+    if (finalPermissions.length > 0) {
+      const validPermissions = ['all', 'crm', 'whatsapp', 'email'];
+      const invalidPerms = finalPermissions.filter((p: string) => !validPermissions.includes(p));
+      if (invalidPerms.length > 0) {
+        return NextResponse.json(
+          { error: `Invalid permissions: ${invalidPerms.join(', ')}` },
+          { status: 400 }
+        );
+      }
     }
 
     await connectDB();
@@ -105,7 +105,8 @@ export async function POST(request: NextRequest) {
       password: hashedPassword,
       isAdmin: true,
       role: 'admin',
-      permissions,
+      permissions: finalPermissions,
+      permissionsV2: permissionsV2 || undefined,
     });
 
     await newAdminUser.save();
@@ -119,6 +120,7 @@ export async function POST(request: NextRequest) {
           email: newAdminUser.email,
           name: newAdminUser.name,
           permissions: newAdminUser.permissions,
+          permissionsV2: newAdminUser.permissionsV2,
           createdAt: newAdminUser.createdAt,
         },
         message: 'Admin user created successfully',

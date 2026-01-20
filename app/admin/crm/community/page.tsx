@@ -117,6 +117,7 @@ export default function AdminCommunityPage() {
   const [postExtraLinks, setPostExtraLinks] = useState('');
   const [postType, setPostType] = useState<'text' | 'image' | 'video' | 'document' | 'link'>('text');
   const [postImageUrls, setPostImageUrls] = useState<string[]>([]);
+  const [localImagePreview, setLocalImagePreview] = useState<string | null>(null);
   const [postScheduledAt, setPostScheduledAt] = useState('');
   
   const [editingCommunityName, setEditingCommunityName] = useState(false);
@@ -191,6 +192,15 @@ export default function AdminCommunityPage() {
     const file = e.target.files?.[0];
     if (!file || !token) return;
 
+    // Create local preview immediately for images
+    if (type === 'image') {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLocalImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+
     try {
       setUploading(true);
       const formData = new FormData();
@@ -215,16 +225,19 @@ export default function AdminCommunityPage() {
       if (!res.ok) throw new Error(json.error || 'Upload failed');
 
       if (type === 'image') {
-        setPostImageUrls(prev => [...prev, json.data.url]);
+        // Replace current image for single-image campaigns to make it "direct"
+        setPostImageUrls([json.data.url]);
       } else if (type === 'video') {
         setPostVideoUrl(json.data.url);
       } else if (type === 'document') {
         setPostDocUrl(json.data.url);
       }
 
-      alert(`✅ Asset ${file.name} successfully registered.`);
+      // Success - keep local preview until S3 is ready if needed, 
+      // but the URL from S3 is now set in postImageUrls.
     } catch (err: any) {
       alert('❌ Upload failed: ' + err.message);
+      setLocalImagePreview(null);
     } finally {
       setUploading(false);
     }
@@ -704,22 +717,41 @@ export default function AdminCommunityPage() {
                           ))}
                        </div>
                        {postType === 'image' && (
-                          <div className="flex gap-3">
-                             <input type="text" value={postImageUrls.join(', ')} onChange={e => setPostImageUrls(e.target.value.split(',').map(u => u.trim()).filter(Boolean))} placeholder="Image URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white transition-all text-xs" />
-                             <label className={`h-14 px-6 border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${uploading ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
-                                {uploading ? (
-                                   <>
-                                      <Loader className="animate-spin" size={16}/>
-                                      <span>Uploading...</span>
-                                   </>
-                                ) : (
-                                   <>
-                                      <ImageIcon size={16}/>
-                                      <span>Upload</span>
-                                   </>
+                          <div className="flex flex-col gap-4">
+                             <div className="flex gap-3">
+                                <input type="text" value={postImageUrls.join(', ')} onChange={e => setPostImageUrls(e.target.value.split(',').map(u => u.trim()).filter(Boolean))} placeholder="Image URL..." className="flex-1 h-14 px-6 bg-slate-50 border rounded-xl font-semibold outline-none focus:bg-white transition-all text-xs" />
+                                <label className={`h-14 px-6 border rounded-xl flex items-center justify-center gap-2 cursor-pointer font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${uploading ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
+                                   {uploading ? (
+                                      <>
+                                         <Loader className="animate-spin" size={16}/>
+                                         <span>Uploading...</span>
+                                      </>
+                                   ) : (
+                                      <>
+                                         <ImageIcon size={16}/>
+                                         <span>{postImageUrls.length > 0 ? 'Change' : 'Upload'}</span>
+                                      </>
+                                   )}
+                                   <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'image')} disabled={uploading} />
+                                </label>
+                                {(postImageUrls.length > 0 || localImagePreview) && (
+                                   <button 
+                                      onClick={() => {
+                                         setPostImageUrls([]);
+                                         setLocalImagePreview(null);
+                                      }}
+                                      className="h-14 px-4 border border-red-100 text-red-500 rounded-xl hover:bg-red-50 transition-all"
+                                      title="Remove Image"
+                                   >
+                                      <Trash2 size={18} />
+                                   </button>
                                 )}
-                                <input type="file" className="hidden" accept="image/*" onChange={e => handleFileUpload(e, 'image')} disabled={uploading} />
-                             </label>
+                             </div>
+                             {localImagePreview && !postImageUrls[0] && (
+                                <div className="text-[10px] font-bold text-amber-600 flex items-center gap-2 animate-pulse">
+                                   <Loader size={10} className="animate-spin" /> Uploading to S3... Showing local preview
+                                </div>
+                             )}
                           </div>
                        )}
                        {postType === 'video' && (
@@ -919,14 +951,18 @@ export default function AdminCommunityPage() {
                           {postHeader && <h4 className="text-xl font-bold font-serif leading-tight text-slate-900">{postHeader}</h4>}
                           
                           {/* Improved Image Preview */}
-                          {postType === 'image' && postImageUrls[0] && (
+                          {postType === 'image' && (postImageUrls[0] || localImagePreview) && (
                              <div className="rounded-2xl bg-slate-50 overflow-hidden border shadow-sm">
                                 <img 
-                                   src={postImageUrls[0].trim()} 
+                                   src={postImageUrls[0] ? postImageUrls[0].trim() : localImagePreview || ''} 
                                    alt="Campaign Preview"
                                    className="w-full h-auto block"
                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).src = 'https://placehold.co/600x400?text=Invalid+Image+URL';
+                                      if (localImagePreview) {
+                                         (e.target as HTMLImageElement).src = localImagePreview;
+                                      } else {
+                                         (e.target as HTMLImageElement).src = 'https://placehold.co/600x400?text=Invalid+Image+URL';
+                                      }
                                    }}
                                 />
                              </div>

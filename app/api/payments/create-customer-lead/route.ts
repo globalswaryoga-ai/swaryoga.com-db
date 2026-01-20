@@ -144,6 +144,7 @@ export async function POST(request: NextRequest) {
       phoneNumber: phone,
       status: 'customer', // ✅ Set as customer immediately
       source: 'website',
+      labels: ['website'],
       workshopName,
       sales: {
         stage: 'enrolled',

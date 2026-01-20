@@ -148,12 +148,12 @@ export async function POST(request: NextRequest) {
                   status: 'lead',
                   source: 'website',
                   workshopName: 'Website Signup',
-                  labels: ['website-signup'],
+                  labels: ['website', 'signup'],
                   createdByUserId: 'system',
                   assignedToUserId: 'system',
                 },
                 $addToSet: {
-                  labels: { $each: ['website-signup'] },
+                  labels: { $each: ['website', 'signup'] },
                 },
                 $set: {
                   ...(cleanedName ? { name: cleanedName } : {}),
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
               status: 'lead',
               source: 'website',
               workshopName: 'Website Signup',
-              labels: ['website-signup'],
+              labels: ['website', 'signup'],
               createdByUserId: 'system',
               assignedToUserId: 'system',
               metadata: meta,

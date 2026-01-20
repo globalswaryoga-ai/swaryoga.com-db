@@ -60,8 +60,12 @@ export async function uploadToS3(
 
   try {
     await s3Client.send(command);
-    const region = process.env.AWS_REGION || 'ap-south-1';
-    const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${fileName}`;
+    const region = process.env.AWS_REGION || 'us-east-1';
+    
+    // Encode the fileName/key for a valid URL
+    const encodedKey = fileName.split('/').map(part => encodeURIComponent(part)).join('/');
+    const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey}`;
+    
     console.log(`✅ Uploaded to S3: ${s3Url}`);
     return s3Url;
   } catch (error: any) {
@@ -155,8 +159,14 @@ export async function deleteTemplateFileFromS3(s3Url: string) {
     return await deleteFromS3(key);
 }
 
-export async function uploadTemplateFileToS3(options: any) {
-    return await uploadToS3(options.file, options.fileName);
+export async function uploadTemplateFileToS3(options: {
+    file: Buffer;
+    fileName: string;
+    fileType: 'image' | 'document' | 'video';
+    templateId: string;
+}) {
+    const key = generateTemplateS3Key(options.templateId, options.fileName, options.fileType);
+    return await uploadToS3(options.file, key);
 }
 
 export async function deleteTemplateFilesFromS3(s3Urls: string[]) {

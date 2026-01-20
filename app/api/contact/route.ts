@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, Contact, Message } from '@/lib/db';
+import { getOrCreateLeadIdForPhone } from '@/lib/crm/leadNumber';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +15,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ensure lead exists in CRM and label it as 'contacts'
+    let leadNumber = '';
+    if (phone) {
+      try {
+        leadNumber = await getOrCreateLeadIdForPhone(
+          phone, 
+          name, 
+          email, 
+          'website', 
+          ['contacts']
+        );
+      } catch (e) {
+        console.warn('CRM lead allocation failed (non-blocking):', e);
+      }
+    }
+
     // Create contact message
     const contact = new Contact({
       name,
@@ -22,6 +39,7 @@ export async function POST(request: NextRequest) {
       subject,
       message,
       status: 'new',
+      leadNumber // Optional: helps link the contact record to CRM lead
     });
 
     await contact.save();
@@ -37,6 +55,7 @@ export async function POST(request: NextRequest) {
       message,
       contactId: contact._id,
       isRead: false,
+      leadNumber // Link here too if available
     });
 
     await inboxMessage.save();

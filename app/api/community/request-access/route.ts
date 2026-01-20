@@ -60,7 +60,13 @@ export async function POST(request: NextRequest) {
     // NEW: Get or Create Lead ID from CRM system
     let leadUserId: string;
     try {
-      leadUserId = await getOrCreateLeadIdForPhone(cleanMobile, name, email);
+      leadUserId = await getOrCreateLeadIdForPhone(
+        cleanMobile, 
+        name, 
+        email, 
+        'website', 
+        ['community']
+      );
     } catch (err: any) {
       return NextResponse.json({ error: err.message || 'Lead allocation failed' }, { status: 500 });
     }

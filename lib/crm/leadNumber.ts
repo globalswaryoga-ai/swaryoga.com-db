@@ -58,7 +58,13 @@ export function normalizeLeadNumberInput(raw: string): string | null {
  * If multiple leads exist (shouldn't happen with unique index), it returns the first one with a leadNumber.
  * If no lead exists, it creates one and allocates a new leadNumber.
  */
-export async function getOrCreateLeadIdForPhone(phone: string, name?: string, email?: string): Promise<string> {
+export async function getOrCreateLeadIdForPhone(
+  phone: string, 
+  name?: string, 
+  email?: string,
+  source: string = 'website',
+  labels: string[] = []
+): Promise<string> {
   const cleanPhone = normalizePhone(phone);
   if (!cleanPhone) throw new Error('Invalid phone number for lead allocation');
 
@@ -70,6 +76,13 @@ export async function getOrCreateLeadIdForPhone(phone: string, name?: string, em
   let lead = await Lead.findOne({ phoneNumber: cleanPhone });
   
   if (lead && lead.leadNumber) {
+    // Opportunistically add labels if provided
+    if (labels.length > 0) {
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $addToSet: { labels: { $each: labels } } }
+      );
+    }
     return lead.leadNumber;
   }
 
@@ -89,6 +102,11 @@ export async function getOrCreateLeadIdForPhone(phone: string, name?: string, em
       // Opportunistically fill missing fields (non-destructive).
       if (cleanName && !byEmail.name) byEmail.name = cleanName;
       if (cleanEmail && !byEmail.email) byEmail.email = cleanEmail;
+      
+      if (labels.length > 0) {
+        byEmail.labels = Array.from(new Set([...(byEmail.labels || []), ...labels]));
+      }
+
       await byEmail.save();
 
       return String(byEmail.leadNumber);
@@ -99,6 +117,11 @@ export async function getOrCreateLeadIdForPhone(phone: string, name?: string, em
   if (lead && !lead.leadNumber) {
     const { leadNumber } = await allocateNextLeadNumber();
     lead.leadNumber = leadNumber;
+    
+    if (labels.length > 0) {
+      lead.labels = Array.from(new Set([...(lead.labels || []), ...labels]));
+    }
+    
     await lead.save();
     return leadNumber;
   }
@@ -106,11 +129,12 @@ export async function getOrCreateLeadIdForPhone(phone: string, name?: string, em
   // 3. Create new lead if none exists
   const { leadNumber } = await allocateNextLeadNumber();
   lead = new Lead({
-    name: cleanName || 'Community Joiner',
+    name: cleanName || 'CRM Lead',
     email: cleanEmail || '',
     phoneNumber: cleanPhone,
     leadNumber: leadNumber,
-    source: 'website',
+    source: source,
+    labels: labels,
     status: 'lead'
   });
   

@@ -524,6 +524,7 @@ async function handleWebhookPayload(payload: any) {
               lead = await Lead.create({
                 phoneNumber: from,
                 source: 'whatsapp',
+                labels: ['whatsapp'],
                 status: 'lead',
                 leadNumber,
                 lastMessageAt: now,
@@ -538,7 +539,13 @@ async function handleWebhookPayload(payload: any) {
               }
             } else {
               console.log(`[WEBHOOK DEBUG] Updating existing lead ${lead._id}`);
-              await Lead.updateOne({ _id: lead._id }, { $set: { lastMessageAt: now } });
+              await Lead.updateOne(
+                { _id: lead._id }, 
+                { 
+                  $set: { lastMessageAt: now },
+                  $addToSet: { labels: 'whatsapp' }
+                }
+              );
             }
 
             // Store message
