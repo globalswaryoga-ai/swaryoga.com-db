@@ -41,6 +41,7 @@ export default function QRWhatsAppInboxPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const isSendingRef = useRef(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -1130,7 +1131,7 @@ export default function QRWhatsAppInboxPage() {
 
   // Send message
   const handleSendMessage = async () => {
-    if ((!newMessage.trim() && pendingMedia.length === 0) || !selectedChat || sending) return;
+    if ((!newMessage.trim() && pendingMedia.length === 0) || !selectedChat || sending || isSendingRef.current) return;
 
     // CHECK PERMISSIONS: Non-super-admins can only message assigned leads
     if (!isSuperAdmin && activeLeadId && !assignedLeadIds.has(activeLeadId)) {
@@ -1139,6 +1140,7 @@ export default function QRWhatsAppInboxPage() {
     }
 
     setSending(true);
+    isSendingRef.current = true;
     try {
       let chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
       
@@ -1427,6 +1429,7 @@ export default function QRWhatsAppInboxPage() {
       showToast(`❌ ${errorMsg}`, 'error');
     } finally {
       setSending(false);
+      isSendingRef.current = false;
       setUploadingMedia(false);
       setUploadProgress({});
     }
@@ -1649,7 +1652,7 @@ export default function QRWhatsAppInboxPage() {
   };
 
   const handleScheduledSend = async () => {
-    if (!newMessage.trim() || !selectedChat) return;
+    if (sending || isSendingRef.current || !newMessage.trim() || !selectedChat) return;
     
     const delayMs = calculateDelayMs();
     const scheduledTime = new Date(Date.now() + delayMs);

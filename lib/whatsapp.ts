@@ -99,7 +99,7 @@ export function generateAppSecretProof(accessToken: string, appSecret?: string):
 }
 
 export function buildGraphMessagesUrl(phoneNumberId: string, appSecretProof?: string): string {
-  const base = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
+  const base = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
   if (!appSecretProof) {
     return base;
   }

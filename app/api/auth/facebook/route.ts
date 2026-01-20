@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { connectDB, User } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
+import { generateAppSecretProof } from '@/lib/whatsapp';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
@@ -26,11 +27,20 @@ export async function POST(request: NextRequest) {
 
     // Verify token with Facebook API (optional but recommended)
     try {
+      const appSecret = process.env.META_APP_SECRET;
+      const proof = generateAppSecretProof(accessToken, appSecret);
+      
+      const params: any = {
+        access_token: accessToken,
+        fields: 'id,email',
+      };
+      
+      if (proof) {
+        params.appsecret_proof = proof;
+      }
+
       const verifyResponse = await axios.get('https://graph.facebook.com/me', {
-        params: {
-          access_token: accessToken,
-          fields: 'id,email',
-        },
+        params,
       });
       if (!verifyResponse.data.id) {
         throw new Error('Token verification failed');

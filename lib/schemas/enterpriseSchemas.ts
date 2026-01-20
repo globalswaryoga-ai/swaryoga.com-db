@@ -222,7 +222,7 @@ const WhatsAppMessageSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['queued', 'sent', 'delivered', 'read', 'failed'],
+      enum: ['pending', 'queued', 'sent', 'delivered', 'read', 'failed'],
       default: 'queued',
       index: true,
     },
@@ -363,7 +363,7 @@ const MessageStatusSchema = new mongoose.Schema(
     phoneNumber: String,
     status: {
       type: String,
-      enum: ['queued', 'sent', 'failed', 'delivered', 'read'],
+      enum: ['pending', 'queued', 'sent', 'failed', 'delivered', 'read'],
     },
     statusChangedAt: { type: Date, default: Date.now },
     failureCode: String,

@@ -4,6 +4,12 @@ import { connectDB, SocialMediaAccount, SocialMediaPost } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { decryptCredential } from '@/lib/encryption';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
+import crypto from 'crypto';
+
+function generateAppSecretProof(accessToken: string, appSecret?: string): string | undefined {
+  if (!appSecret) return undefined;
+  return crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex');
+}
 
 type PublishResult = {
   platform: string;
@@ -42,7 +48,17 @@ function createFriendlyPublishErrorMessage(error: string, platform: string): str
 }
 
 async function graphPost(path: string, params: Record<string, string>): Promise<any> {
-  const url = `https://graph.facebook.com/v24.0/${path}`;
+  const url = `https://graph.facebook.com/v20.0/${path}`;
+  
+  // Inject appsecret_proof if possible
+  if (params.access_token) {
+    const metaAppSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+    const proof = generateAppSecretProof(params.access_token, metaAppSecret);
+    if (proof) {
+      params.appsecret_proof = proof;
+    }
+  }
+
   const body = new URLSearchParams(params);
 
   const res = await fetch(url, {

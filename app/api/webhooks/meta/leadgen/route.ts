@@ -3,7 +3,7 @@ import { createHmac } from 'crypto';
 import { connectDB } from '@/lib/db';
 import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
-import { normalizePhone } from '@/lib/whatsapp';
+import { normalizePhone, generateAppSecretProof } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 const APP_SECRET = process.env.META_APP_SECRET || '';
@@ -26,12 +26,14 @@ function verifySignature(payload: string, signature: string): boolean {
  */
 async function fetchLeadgenDetails(leadgenId: string) {
   try {
-    const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${leadgenId}`;
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${PAGE_ACCESS_TOKEN}`,
-      },
-    });
+    const proof = generateAppSecretProof(PAGE_ACCESS_TOKEN, APP_SECRET);
+    let url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${leadgenId}?access_token=${PAGE_ACCESS_TOKEN}`;
+    
+    if (proof) {
+      url += `&appsecret_proof=${proof}`;
+    }
+
+    const response = await fetch(url);
 
     if (!response.ok) {
       console.error(`Graph API error: ${response.status}`, await response.text());

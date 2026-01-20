@@ -158,7 +158,15 @@ async function publishToFacebook(post: any, account: any): Promise<string> {
   const accessToken = account.access_token;
   const pageId = account.platform_account_id || 'me';
   
-  const response = await fetch(`https://graph.facebook.com/v24.0/${pageId}/feed`, {
+  const metaAppSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+  const proof = generateAppSecretProof(accessToken, metaAppSecret);
+  
+  let url = `https://graph.facebook.com/v24.0/${pageId}/feed`;
+  if (proof) {
+    url += `?appsecret_proof=${proof}`;
+  }
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -188,10 +196,18 @@ async function publishToInstagram(post: any, account: any): Promise<string> {
     throw new Error('Instagram posts require image or video');
   }
 
+  const metaAppSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+  const proof = generateAppSecretProof(accessToken, metaAppSecret);
+
   try {
     // First, create a media object
+    let mediaUrl = `https://graph.instagram.com/v24.0/${igBusinessAccountId}/media`;
+    if (proof) {
+      mediaUrl += `?appsecret_proof=${proof}`;
+    }
+
     const mediaResponse = await fetch(
-      `https://graph.instagram.com/v24.0/${igBusinessAccountId}/media`,
+      mediaUrl,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,8 +227,13 @@ async function publishToInstagram(post: any, account: any): Promise<string> {
     const mediaId = mediaData.id;
 
     // Then publish the media
+    let publishUrl = `https://graph.instagram.com/v24.0/${igBusinessAccountId}/media_publish`;
+    if (proof) {
+      publishUrl += `?appsecret_proof=${proof}`;
+    }
+
     const publishResponse = await fetch(
-      `https://graph.instagram.com/v24.0/${igBusinessAccountId}/media_publish`,
+      publishUrl,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

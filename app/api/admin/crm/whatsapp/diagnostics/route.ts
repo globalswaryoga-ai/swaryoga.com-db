@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppWebhookEvent } from '@/lib/schemas/enterpriseSchemas';
+import { generateAppSecretProof } from '@/lib/whatsapp';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
 
     const metaAccessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     const metaPhoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const metaAppSecret = process.env.META_APP_SECRET;
     const graphVersion = process.env.META_GRAPH_API_VERSION || 'v24.0';
 
     const out: any = {
@@ -46,6 +48,7 @@ export async function GET(request: NextRequest) {
         configured: Boolean(metaAccessToken && metaPhoneNumberId),
         phoneNumberId: metaPhoneNumberId ? mask(metaPhoneNumberId) : '',
         accessToken: metaAccessToken ? mask(metaAccessToken) : '',
+        appSecret: metaAppSecret ? 'SET' : 'MISSING',
         connected: false,
         message: '',
       },
@@ -77,8 +80,17 @@ export async function GET(request: NextRequest) {
       out.meta.message = 'Missing WHATSAPP_ACCESS_TOKEN and/or WHATSAPP_PHONE_NUMBER_ID';
     } else {
       try {
+        const proof = generateAppSecretProof(metaAccessToken, metaAppSecret);
+        let url = `https://graph.facebook.com/${graphVersion}/${metaPhoneNumberId}?fields=id,display_phone_number,quality_rating`;
+        
+        if (proof) {
+          url += `&appsecret_proof=${proof}`;
+        }
+        
+        url += `&access_token=${metaAccessToken}`;
+
         const res = await fetch(
-          `https://graph.facebook.com/${graphVersion}/${metaPhoneNumberId}?fields=id,display_phone_number,quality_rating&access_token=${metaAccessToken}`,
+          url,
           { method: 'GET', cache: 'no-store' }
         );
         const json = await safeJson(res);
