@@ -230,7 +230,7 @@ export default function MetaInboxPage() {
 
     // Auto-refresh every 30 seconds. Don't recreate the interval on every keystroke.
     const timer = setInterval(() => {
-      loadConversations(searchQuery);
+      loadConversations(searchQuery, true);
     }, 30000);
 
     return () => clearInterval(timer);
@@ -255,8 +255,8 @@ export default function MetaInboxPage() {
     const timer = setInterval(() => {
       const c = selectedRef.current;
       if (!c) return;
-      loadMessages(c.leadId || c._id || c.phoneNumber);
-    }, 10000); // Poll messages every 10s when active
+      loadMessages(c.leadId || c._id || c.phoneNumber, true);
+    }, 10000); // Poll messages every 10s when active (silent mode)
 
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -294,31 +294,6 @@ export default function MetaInboxPage() {
   };
 
   const handleManualDiag = () => runDiagnostics(diagPhone);
-
-  // Search-triggered reload (debounced)
-  useEffect(() => {
-    if (!token) return;
-    const t = setTimeout(() => {
-      loadConversations(searchQuery);
-    }, 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, token]);
-
-  // Handle message polling for selected conversation
-  useEffect(() => {
-    if (!token) return;
-    if (!selectedRef.current) return;
-
-    const timer = setInterval(() => {
-      const c = selectedRef.current;
-      if (!c) return;
-      loadMessages(c.leadId || c._id || c.phoneNumber);
-    }, 10000); // Poll messages every 10s when active
-
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, selected?._id]);
 
   // Update now clock (for countdown)
   useEffect(() => {
@@ -359,8 +334,12 @@ export default function MetaInboxPage() {
     return { diff, hh, mm, ss };
   }, [windowAnchorMs, nowMs]);
 
-  const loadConversations = async (q = '') => {
+  const loadConversations = async (q = '', silent = false) => {
     try {
+      if (!silent) {
+        // We don't have a global conversations loading state that shows a spinner, 
+        // but it's good practice to keep it consistent.
+      }
       const data = await crmFetch('/api/admin/crm/conversations', {
         params: { q, limit: 50, provider: providerScope },
       });
@@ -372,9 +351,9 @@ export default function MetaInboxPage() {
     }
   };
 
-  const loadMessages = async (id?: string) => {
+  const loadMessages = async (id?: string, silent = false) => {
     if (!id) return;
-    setLoadingMessages(true);
+    if (!silent) setLoadingMessages(true);
     try {
       // Determine if id is an ObjectId or phoneNumber
       const isObjectId = id.length === 24 && /^[0-9a-fA-F]+$/.test(id);
@@ -384,14 +363,21 @@ export default function MetaInboxPage() {
       const data = await crmFetch(`/api/admin/crm/messages`, { params });
       if (data?.messages) {
         // Reverse needed so oldest is at top (standard chat view)
-        setMessages([...data.messages].reverse());
-        // Scroll to bottom after state update
-        setTimeout(() => scrollToBottom(), 100);
+        const newMsgs = [...data.messages].reverse();
+        
+        // Only trigger scroll to bottom if new messages arrived
+        const hasNew = newMsgs.length !== messages.length || 
+                     (newMsgs.length > 0 && newMsgs[newMsgs.length-1]._id !== messages[messages.length-1]?._id);
+        
+        setMessages(newMsgs);
+        if (hasNew) {
+          setTimeout(() => scrollToBottom(), 100);
+        }
       }
     } catch (err) {
       console.error('Failed to load messages:', err);
     } finally {
-      setLoadingMessages(false);
+      if (!silent) setLoadingMessages(false);
     }
   };
 
