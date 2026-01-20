@@ -65,26 +65,9 @@ export async function POST(req: NextRequest) {
       finalCaption = message + attributionTag;
     }
 
-    // 1. Call Bridge to actually send the message
-    const bridgeRes = await fetch(`${BRIDGE_URL}/send`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'x-bridge-secret': BRIDGE_SECRET
-      },
-      body: JSON.stringify({ to, message: finalMessage, type, url, buttons, caption: finalCaption })
-    });
-
-    const bridgeData = await bridgeRes.json();
-    
-    if (!bridgeRes.ok) {
-        return NextResponse.json({ success: false, error: bridgeData.error || 'Bridge send failed' }, { status: bridgeRes.status });
-    }
-
-    // Extract WhatsApp message ID from bridge response
-    const whatsappMessageId = bridgeData.id || bridgeData.messageId || bridgeData.key?.id;
-
-    // 2. Log in DB for attribution ("so we can find out who has sent it")
+    // 1. Log in DB immediately so it appears in the inbox history (CRM fallback)
+    // even if the bridge takes time or is briefly unavailable.
+    let savedDbMessageId: string | null = null;
     try {
       await connectDB();
       const WhatsAppMessage = getWhatsAppMessage();
@@ -95,39 +78,91 @@ export async function POST(req: NextRequest) {
 
       const savedMessage = await WhatsAppMessage.create({
         phoneNumber: phone || 'unknown',
-        leadId: lead?._id,
+        leadId: lead?._id || leadId,
         direction: 'outbound',
         messageContent: message || `Sent ${type || 'media'}`,
         messageType: type === 'buttons' ? 'interactive' : (type === 'text' ? 'text' : 'media'),
         media: url ? { kind: type, url: url } : undefined,
-        status: 'sent',
+        status: 'pending', // Mark as pending initially
         sentByLabel: adminName,
         sentByUserId: viewerUserId,
         senderDisplayName: adminName,
         provider: 'whatsapp_web_bridge',
-        whatsappMessageId: whatsappMessageId,
         sentAt: new Date()
       });
-
-      console.log(`[QR SEND] ✅ Message logged to DB: ${savedMessage._id} | WhatsApp ID: ${whatsappMessageId}`);
-      
-      // Return both IDs for frontend - use WhatsApp ID for media fetching, DB ID for querying
-      return NextResponse.json({ 
-        success: true, 
-        messageId: whatsappMessageId || savedMessage._id,
-        dbMessageId: savedMessage._id.toString(),
-        whatsappMessageId: whatsappMessageId
-      });
+      savedDbMessageId = savedMessage._id.toString();
+      console.log(`[QR SEND] 💾 Initial log saved to DB: ${savedDbMessageId}`);
     } catch (dbErr) {
-      console.error('[QR SEND DB LOG ERROR]:', dbErr);
-      // Return success because message was sent via bridge, even if logging failed
-      return NextResponse.json({ 
-        success: true, 
-        messageId: whatsappMessageId,
-        whatsappMessageId: whatsappMessageId,
-        message: 'Message sent but logging to DB failed' 
-      });
+      console.error('[QR SEND DB INIT LOG ERROR]:', dbErr);
     }
+
+    // 2. Call Bridge to actually send the message
+    let bridgeData: any = {};
+    let bridgeOk = false;
+    try {
+      const bridgeRes = await fetch(`${BRIDGE_URL}/send`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-bridge-secret': BRIDGE_SECRET
+        },
+        body: JSON.stringify({ to, message: finalMessage, type, url, buttons, caption: finalCaption }),
+        signal: AbortSignal.timeout(10000) // 10s timeout for bridge call
+      });
+
+      bridgeData = await bridgeRes.json();
+      bridgeOk = bridgeRes.ok;
+    } catch (fetchErr: any) {
+      console.error('[QR SEND BRIDGE FETCH ERROR]:', fetchErr.message);
+      return NextResponse.json({ 
+        success: false, 
+        error: `Bridge connection error: ${fetchErr.message}`,
+        dbMessageId: savedDbMessageId 
+      }, { status: 503 });
+    }
+    
+    if (!bridgeOk) {
+        // Update DB status to failed if bridge rejected it
+        if (savedDbMessageId) {
+          try {
+            const WhatsAppMessage = getWhatsAppMessage();
+            await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, { 
+              status: 'failed', 
+              failureReason: bridgeData.error || 'Bridge rejected request' 
+            });
+          } catch (e) {}
+        }
+        return NextResponse.json({ 
+          success: false, 
+          error: bridgeData.error || 'Bridge send failed',
+          dbMessageId: savedDbMessageId
+        }, { status: 400 });
+    }
+
+    // Extract WhatsApp message ID from bridge response
+    const whatsappMessageId = bridgeData.id || bridgeData.messageId || bridgeData.key?.id;
+
+    // 3. Update DB with success status and WhatsApp ID
+    if (savedDbMessageId) {
+      try {
+        const WhatsAppMessage = getWhatsAppMessage();
+        await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, {
+          status: 'sent',
+          waMessageId: whatsappMessageId
+        });
+        console.log(`[QR SEND] ✅ Message status updated to sent: ${savedDbMessageId}`);
+      } catch (dbErr) {
+        console.error('[QR SEND DB UPDATE ERROR]:', dbErr);
+      }
+    }
+
+    // Return both IDs for frontend
+    return NextResponse.json({ 
+      success: true, 
+      messageId: whatsappMessageId || savedDbMessageId,
+      dbMessageId: savedDbMessageId,
+      whatsappMessageId: whatsappMessageId
+    });
   } catch (err: any) {
     console.error('[QR SEND API Error]:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
