@@ -87,6 +87,58 @@ export function getWhatsAppEnv() {
   };
 }
 
+/**
+ * Get the media URL from Meta using a media ID
+ */
+export async function getWhatsAppMediaUrl(mediaId: string): Promise<string> {
+  const env = getWhatsAppEnv();
+  if (!env) throw new Error('Meta Cloud API not configured');
+
+  const { accessToken } = env;
+  const url = `https://graph.facebook.com/v24.0/${mediaId}`;
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error?.message || 'Failed to get media URL from Meta');
+  }
+
+  return data.url; // This is the temporary URL to download the actual file
+}
+
+/**
+ * Download media from Meta temporary URL
+ */
+export async function downloadWhatsAppMedia(tempUrl: string): Promise<{ buffer: Buffer; contentType: string }> {
+  const env = getWhatsAppEnv();
+  if (!env) throw new Error('Meta Cloud API not configured');
+
+  const { accessToken } = env;
+
+  const res = await fetch(tempUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to download media from Meta URL');
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const contentType = res.headers.get('content-type') || 'application/octet-stream';
+
+  return { buffer, contentType };
+}
+
 function isWebBridgeDisabled(): boolean {
   return String(process.env.WHATSAPP_DISABLE_WEB_BRIDGE || '')
     .trim()
@@ -99,7 +151,7 @@ export function generateAppSecretProof(accessToken: string, appSecret?: string):
 }
 
 export function buildGraphMessagesUrl(phoneNumberId: string, appSecretProof?: string): string {
-  const base = `https://graph.facebook.com/v20.0/${encodeURIComponent(phoneNumberId)}/messages`;
+  const base = `https://graph.facebook.com/v24.0/${encodeURIComponent(phoneNumberId)}/messages`;
   if (!appSecretProof) {
     return base;
   }

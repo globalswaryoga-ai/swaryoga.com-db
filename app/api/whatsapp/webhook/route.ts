@@ -11,6 +11,13 @@ import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
+// Import media helpers
+import { 
+  getWhatsAppMediaUrl, 
+  downloadWhatsAppMedia 
+} from '@/lib/whatsapp';
+import { uploadToS3 } from '@/lib/aws-s3';
+
 // Safe verify of string
 function safeString(s: any): string {
     return String(s || '').trim();
@@ -37,7 +44,19 @@ function extractTextMessageBody(msg: any): string {
     if (iType === 'button_reply') return String(msg?.interactive?.button_reply?.title || '').trim();
     if (iType === 'list_reply') return String(msg?.interactive?.list_reply?.title || '').trim();
   }
-  // Fallback for media or other types
+  
+  // Handle media types
+  if (['image', 'video', 'audio', 'document', 'sticker'].includes(type)) {
+    const media = msg[type];
+    const caption = media?.caption ? ` - ${media.caption}` : '';
+    return `[${type} message]${caption}`;
+  }
+
+  // Fallback for location or other types
+  if (type === 'location') {
+      return `[Location: ${msg.location?.latitude}, ${msg.location?.longitude}]`;
+  }
+
   return type ? `[${type} message]` : '';
 }
 
@@ -187,25 +206,7 @@ export async function POST(request: NextRequest) {
     return res;
   } catch (error) {
     console.error('CRITICAL Webhook Error:', error);
-    return NextResponse.json({ error: 'Internal Error' }, { status: 500 });
-  }
-}
-    const message = error instanceof Error ? error.message : 'Webhook handler error';
-
-    // Avoid throwing here; webhook responses must be fast and resilient.
-    console.error('WhatsApp webhook processing failed:', message);
-
-    await logWebhookEvent({
-      kind: 'error',
-      ok: false,
-      message,
-    });
-
-    const res = NextResponse.json({ error: message }, { status: 500 });
-    res.headers.set('x-swar-webhook-route', 'whatsapp-webhook');
-    res.headers.set('x-swar-webhook-method', 'POST');
-    res.headers.set('x-swar-webhook-reason', 'unhandled');
-    return res;
+    return NextResponse.json({ error: (error as Error).message || 'Internal Error' }, { status: 500 });
   }
 }
 
@@ -251,6 +252,9 @@ async function logWebhookEvent(event: {
 
 async function handleWebhookPayload(payload: any) {
   try {
+    // Ensure DB connection is active for model use
+    await connectDB();
+    
     // DEBUG: Log raw payload for troubleshooting
     console.log('[WEBHOOK DEBUG] Raw payload:', JSON.stringify(payload, null, 2).substring(0, 500));
 
@@ -327,28 +331,66 @@ async function handleWebhookPayload(payload: any) {
         for (const msg of messages) {
           try {
             const from = normalizePhone(String(msg?.from || ''));
+            const type = String(msg?.type || 'text');
             const body = extractTextMessageBody(msg);
             const inboundWaMessageId = msg?.id ? String(msg.id).trim() : '';
             const msgTimestampSec = msg?.timestamp ? Number(msg.timestamp) : NaN;
             const msgSentAt = Number.isFinite(msgTimestampSec) ? new Date(msgTimestampSec * 1000) : now;
 
-            console.log(`📩 Inbound From: ${from} | Body: ${body?.substring(0, 30)} | ID: ${inboundWaMessageId}`);
+            console.log(`📩 Inbound From: ${from} | Type: ${type} | Body: ${body?.substring(0, 30)}`);
 
             if (!from || !body) {
               console.log('⚠️ Skipping message due to missing phone or body');
               continue;
             }
 
+            // --- Media Handling ---
+            let s3MediaUrl: string | undefined = undefined;
+            let mimeType: string | undefined = undefined;
+            
+            if (['image', 'video', 'audio', 'document', 'sticker'].includes(type)) {
+              const mediaData = msg[type];
+              const mediaId = mediaData?.id;
+              
+              if (mediaId) {
+                try {
+                  console.log(`[WEBHOOK MEDIA] Fetching media ID: ${mediaId}`);
+                  const metaMediaUrl = await getWhatsAppMediaUrl(mediaId);
+                  const { buffer, contentType } = await downloadWhatsAppMedia(metaMediaUrl);
+                  
+                  mimeType = contentType;
+                  const extension = contentType.split('/')[1]?.split(';')[0] || 'bin';
+                  const fileName = `whatsapp/${from}/${Date.now()}.${extension}`;
+                  
+                  s3MediaUrl = await uploadToS3(buffer, fileName, {
+                    metadata: {
+                      'wa-message-id': inboundWaMessageId,
+                      'phone-number': from
+                    }
+                  });
+                  console.log(`[WEBHOOK MEDIA] Uploaded to S3: ${s3MediaUrl}`);
+                } catch (mediaErr) {
+                  console.error('[WEBHOOK MEDIA ERROR] Failed to process media:', mediaErr);
+                }
+              }
+            }
+
+            // Extract Profile Name from contacts if available
+            const contacts = Array.isArray(value?.contacts) ? value.contacts : [];
+            const profileName = contacts.find((c: any) => normalizePhone(String(c.wa_id)) === from)?.profile?.name || '';
+
             // Ensure Lead exists
             console.log(`[WEBHOOK DEBUG] Finding lead for ${from}`);
             let lead = await Lead.findOne({ phoneNumber: from });
             let wasFirstInbound = false;
+
             if (!lead) {
-              console.log(`[WEBHOOK DEBUG] Creating new lead for ${from}`);
+              console.log(`[WEBHOOK DEBUG] Creating new lead for ${from} with name ${profileName}`);
               // Allocate a unique leadNumber for this new lead
               const { leadNumber } = await allocateNextLeadNumber();
               lead = await Lead.create({
                 phoneNumber: from,
+                name: profileName || 'WhatsApp User', // Capture Meta Profile Name
                 source: 'whatsapp',
                 labels: ['whatsapp'],
                 status: 'lead',
@@ -365,13 +407,16 @@ async function handleWebhookPayload(payload: any) {
               }
             } else {
               console.log(`[WEBHOOK DEBUG] Updating existing lead ${lead._id}`);
-              await Lead.updateOne(
-                { _id: lead._id }, 
-                { 
-                  $set: { lastMessageAt: now },
-                  $addToSet: { labels: 'whatsapp' }
-                }
-              );
+              const updatePayload: any = { 
+                lastMessageAt: now,
+                $addToSet: { labels: 'whatsapp' }
+              };
+              // Fill name if missing but Meta provided one
+              if (!lead.name && profileName) {
+                updatePayload.name = profileName;
+              }
+              
+              await Lead.updateOne({ _id: lead._id }, updatePayload);
             }
 
             // Store message
@@ -383,6 +428,37 @@ async function handleWebhookPayload(payload: any) {
               : '';
             const ourBusinessNumber = ourDisplayPhone ? normalizePhone(ourDisplayPhone) : undefined;
             
+            const insertData: any = {
+              leadId: lead._id,
+              phoneNumber: from,
+              direction: 'inbound',
+              messageType: s3MediaUrl ? 'media' : 'text',
+              messageContent: body,
+              status: 'delivered',
+              deliveredAt: now,
+              sentAt: msgSentAt,
+              waMessageId: inboundWaMessageId,
+              senderNumber: ourBusinessNumber,
+              provider: 'meta',
+              isRead: false, // Mark new inbound as unread for CRM badge
+              createdAt: now,
+            };
+
+            if (s3MediaUrl) {
+              // Normalize kind for UI convenience
+              const mediaKind = (type === 'image' || type === 'sticker' || type === 'audio') 
+                ? 'image' 
+                : type === 'video' 
+                  ? 'video' 
+                  : 'document';
+                  
+              insertData.media = {
+                kind: mediaKind,
+                url: s3MediaUrl,
+                mimeType: mimeType,
+              };
+            }
+
             await WhatsAppMessage.updateOne(
               {
                 direction: 'inbound',
@@ -394,21 +470,7 @@ async function handleWebhookPayload(payload: any) {
               },
               {
                 $set: { updatedAt: now },
-                $setOnInsert: {
-                  leadId: lead._id,
-                  phoneNumber: from,
-                  direction: 'inbound',
-                  messageType: 'text',
-                  messageContent: body,
-                  status: 'delivered',
-                  deliveredAt: now,
-                  sentAt: msgSentAt,
-                  waMessageId: inboundWaMessageId,
-                  senderNumber: ourBusinessNumber,
-                  provider: 'meta',
-                  isRead: false, // Mark new inbound as unread for CRM badge
-                  createdAt: now,
-                },
+                $setOnInsert: insertData,
               },
               { upsert: true }
             );
@@ -418,7 +480,7 @@ async function handleWebhookPayload(payload: any) {
               ok: true,
               phoneNumber: from,
               waMessageId: inboundWaMessageId,
-              message: `Inbound received for business phone ID: ${businessPhoneNumberId}`,
+              message: `Inbound from ${from} (${type}) for BID: ${businessPhoneNumberId || 'unknown'}: ${body?.substring(0, 50)}`,
             });
 
             // Trigger automation logic

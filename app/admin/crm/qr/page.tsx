@@ -448,25 +448,58 @@ export default function QRWhatsAppInboxPage() {
     const checkStatus = async () => {
       if (cancelled) return;
       try {
-        const res = await bridgeFetch('/status', { method: 'GET' }, 8_000);
-        if (!res.ok) {
-          setLastStatusCode(res.status);
-          if (res.status === 404) {
-            console.error('[404] WhatsApp Bridge /status endpoint not found.');
-            setBridgeErrorIfChanged('Bridge service not responding (404). Make sure the WhatsApp bridge is running.');
+        // Try alternative bridge endpoints since /status might not exist on all bridge implementations
+        let res = await bridgeFetch('/status', { method: 'GET' }, 8_000).catch(() => null);
+        
+        // Fallback: try /health endpoint
+        if (!res || res.status === 404) {
+          console.log('[Bridge] /status not found, trying /health endpoint...');
+          res = await bridgeFetch('/health', { method: 'GET' }, 8_000).catch(() => null);
+        }
+
+        // If both fail, mark bridge as unavailable but don't completely disable
+        if (!res || !res.ok) {
+          setLastStatusCode(res?.status || 0);
+          
+          // **CRITICAL FIX**: Don't keep hammering the endpoint with 404s
+          // Instead, set status to "disconnected" and longer backoff
+          if (res?.status === 404) {
+            console.error('[BRIDGE ERROR 404] /status and /health endpoints not found on bridge.');
+            console.error('[BRIDGE INFO] This is likely a bridge configuration issue. The bridge may not have status endpoints.');
+            
+            // Set status to "disconnected" with helpful message
+            setStatusIfChanged('disconnected');
+            setBridgeErrorIfChanged(
+              'WhatsApp Bridge /status endpoint not configured. ' +
+              'QR system is standby. You can still use CRM to manage messages. ' +
+              'Contact bridge provider to enable /status or /health endpoint.'
+            );
+            
+            // STOP polling after 404 - prevents on-off flickering
+            // Increase backoff to 2 minutes to reduce load
+            statusPollDelayRef.current = 120000;
+            
+            setLastStatusData({
+              status: 'bridge_not_configured',
+              note: 'Bridge /status endpoint missing',
+              fallback: 'CRM database mode'
+            });
+            
+            scheduleNext(); // Still schedule but with long delay
+            return;
           }
-          const msg = await parseBridgeError(res);
+
+          const msg = await parseBridgeError(res || { status: 0 });
           throw new Error(msg || 'Bridge unreachable');
         }
+
         setLastStatusCode(res.status);
         const data = await res.json();
         setLastStatusData(data);
-        console.log('[checkStatus] /status response:', {
+        console.log('[checkStatus] Status response:', {
           status: data.status,
           hasQr: data.hasQr,
-          qrLength: data.qr ? data.qr.length : 0,
           qrPresent: !!data.qr,
-          fullResponse: data
         });
         setBridgeErrorIfChanged(null);
 
@@ -479,14 +512,10 @@ export default function QRWhatsAppInboxPage() {
         // Always set QR if it's in the response (regardless of status change)
         if (typeof data.qr === 'string' && data.qr.length > 0) {
           setQr(data.qr);
-          // If we have a QR, make sure the modal is visible (even if status didn't change).
           if (newStatus !== 'connected' && !showQRModalRef.current) {
             setShowQRModal(true);
           }
-        }
-        // If hasQr flag is set but no QR data yet, just show the modal
-        else if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
-          // Don't require a status change; if the bridge indicates QR flow, show the modal.
+        } else if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
           if (newStatus !== 'connected' && !showQRModalRef.current) {
             setShowQRModal(true);
           }
@@ -495,26 +524,22 @@ export default function QRWhatsAppInboxPage() {
         setStatusIfChanged('disconnected');
         const errorMsg = err instanceof Error ? err.message : 'Bridge not reachable';
         
-        // Detect if bridge is completely unreachable (504/timeout)
         const isBridgeDown = errorMsg.includes('504') || errorMsg.includes('timeout') || errorMsg.includes('unreachable');
         const helpfulMsg = isBridgeDown 
-          ? 'WhatsApp Bridge is currently unavailable. QR login disabled - you can still view and manage CRM messages.'
+          ? 'WhatsApp Bridge is offline. You can still view messages in CRM (database fallback mode).'
           : errorMsg;
         
         setBridgeErrorIfChanged(helpfulMsg);
         setBridgeUnavailable(isBridgeDown);
         
-        // Log detailed error for debugging
         console.error('[Bridge Connection Error]', {
           message: errorMsg,
           timestamp: new Date().toISOString(),
           bridgeUrl: bridgeUrl,
-          attempt: statusPollDelayRef.current / 15000,
-          isBridgeDown
         });
 
-        // Backoff up to 60s when failing to reduce UI thrash
-        statusPollDelayRef.current = Math.min(statusPollDelayRef.current * 2, 60000);
+        // More aggressive backoff to prevent UI flickering on repeated failures
+        statusPollDelayRef.current = Math.min(statusPollDelayRef.current * 2, 120000);
       }
 
       scheduleNext();

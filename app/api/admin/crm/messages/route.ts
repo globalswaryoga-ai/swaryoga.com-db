@@ -128,12 +128,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { leadId, phoneNumber, messageContent, messageType } = body;
+    const { leadId, phoneNumber, messageContent, messageType, mediaUrl, mediaType: providedMediaType } = body;
 
     // Validate required fields
-    if (!leadId || !phoneNumber || !messageContent) {
+    if (!leadId || !phoneNumber || (!messageContent && !mediaUrl)) {
       return NextResponse.json(
-        { error: 'Missing required fields: leadId, phoneNumber, messageContent' },
+        { error: 'Missing required fields: leadId, phoneNumber, messageContent/mediaUrl' },
         { status: 400 }
       );
     }
@@ -169,25 +169,67 @@ export async function POST(request: NextRequest) {
     // Create message in database (with admin name appended as per user request)
     const now = new Date();
     const adminNameTag = ` [${userId}]`;
-    const messageWithAdmin = String(messageContent).trim() + adminNameTag;
+    const messageWithAdmin = messageContent ? String(messageContent).trim() + adminNameTag : '';
     
-    const newMessage = await WhatsAppMessage.create({
+    const insertData: any = {
       leadId: leadId,
       phoneNumber: normalizedPhone,
       messageContent: messageWithAdmin,
       direction: 'outbound',
-      messageType: messageType || 'text',
-      status: 'sent',
+      messageType: mediaUrl ? 'media' : (messageType || 'text'),
+      status: 'queued', // Start as queued
       sentAt: now,
       sentByLabel: userId,
       sentByUserId: userId,
       provider: 'meta',
-    });
+    };
+
+    if (mediaUrl) {
+      insertData.media = {
+        kind: providedMediaType || 'image',
+        url: mediaUrl
+      };
+    }
+
+    const newMessage = await WhatsAppMessage.create(insertData);
+
+    // Actually send the message via Meta Cloud API / Bridge
+    try {
+      let apiResult;
+      if (mediaUrl) {
+         apiResult = await sendWhatsAppMedia(
+           normalizedPhone, 
+           mediaUrl, 
+           (providedMediaType as any) || 'image', 
+           messageWithAdmin
+         );
+      } else {
+         apiResult = await sendWhatsAppText(normalizedPhone, messageWithAdmin);
+      }
+
+      await WhatsAppMessage.updateOne(
+        { _id: newMessage._id },
+        { 
+          $set: { 
+            status: 'sent', 
+            waMessageId: apiResult.waMessageId,
+            provider: apiResult.raw?.provider || 'meta',
+            updatedAt: new Date()
+          } 
+        }
+      );
+    } catch (sendErr) {
+      console.error('[Messages API] Meta send failed:', sendErr);
+      await WhatsAppMessage.updateOne(
+        { _id: newMessage._id },
+        { $set: { status: 'failed', failureReason: sendErr instanceof Error ? sendErr.message : 'Send failed' } }
+      );
+    }
 
     // Update lead's lastMessageAt
     await Lead.updateOne({ _id: leadId }, { $set: { lastMessageAt: now } });
 
-    console.log(`[Messages API] Message created: ${newMessage._id} to ${normalizedPhone} by ${userId}`);
+    console.log(`[Messages API] Message processed: ${newMessage._id} status updated to sent/failed`);
 
     // Return success
     return formatCrmSuccess(newMessage);

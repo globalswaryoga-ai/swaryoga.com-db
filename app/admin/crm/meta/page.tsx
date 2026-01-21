@@ -122,6 +122,7 @@ export default function MetaInboxPage() {
   const [isDiagnosing, setIsDiagnosing] = useState(false);
   const [diagError, setDiagError] = useState<string | null>(null);
   const [lastRawEvents, setLastRawEvents] = useState<any[]>([]);
+  const [expandDiagDetails, setExpandDiagDetails] = useState(false);
 
   // AI State
   const [isBotMode, setIsBotMode] = useState(false);
@@ -336,12 +337,9 @@ export default function MetaInboxPage() {
 
   const loadConversations = async (q = '', silent = false) => {
     try {
-      if (!silent) {
-        // We don't have a global conversations loading state that shows a spinner, 
-        // but it's good practice to keep it consistent.
-      }
       const data = await crmFetch('/api/admin/crm/conversations', {
         params: { q, limit: 50, provider: providerScope },
+        silent, // Pass silent flag to crmFetch
       });
       if (data?.conversations) {
         setConversations(data.conversations);
@@ -360,7 +358,10 @@ export default function MetaInboxPage() {
       const params: any = isObjectId ? { leadId: id } : { phoneNumber: id };
       params.provider = providerScope;
       
-      const data = await crmFetch(`/api/admin/crm/messages`, { params });
+      const data = await crmFetch(`/api/admin/crm/messages`, { 
+        params,
+        silent, // Pass silent flag to crmFetch
+      });
       if (data?.messages) {
         // Reverse needed so oldest is at top (standard chat view)
         const newMsgs = [...data.messages].reverse();
@@ -468,7 +469,8 @@ export default function MetaInboxPage() {
         // Now handled by component directly, but kept for fallback or other logic
         break;
       case 'symbols':
-        appendToComposer(' ✓ ★ →');
+        // Common symbols used in Indian espiritual / Yoga context
+        appendToComposer(' 🕉 🔱 ☸ 🙏✨ ★ ✓ ₹ • →');
         break;
       case 'bold':
         wrapComposerSelection('*', '*');
@@ -996,6 +998,65 @@ export default function MetaInboxPage() {
               </div>
             ) : null}
 
+            {/* Show Details Toggle Button */}
+            {diagResult?.ok && (diagResult.messages?.length > 0 || diagResult.webhookEvents?.length > 0) && (
+              <button
+                onClick={() => setExpandDiagDetails(!expandDiagDetails)}
+                className="w-full text-[11px] font-bold text-indigo-600 hover:text-indigo-700 py-1.5 px-2 rounded-lg hover:bg-indigo-50 transition-colors flex items-center justify-center gap-1.5 mt-2"
+              >
+                <span>{expandDiagDetails ? '▼' : '▶'}</span>
+                <span>{expandDiagDetails ? 'Hide Details' : 'Show Details'} ({diagResult.counts.messages}M/{diagResult.counts.webhookEvents}E)</span>
+              </button>
+            )}
+
+            {/* Expanded Diagnostics Details */}
+            {diagResult?.ok && expandDiagDetails && (
+              <div className="mt-3 space-y-3 rounded-xl border border-slate-200/70 bg-white p-3">
+                {/* Messages Details */}
+                {diagResult.messages?.length > 0 && (
+                  <div>
+                    <div className="text-[10px] font-extrabold text-slate-600 uppercase mb-2">All Messages ({diagResult.messages.length})</div>
+                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+                      {diagResult.messages.map((m: any, idx: number) => (
+                        <div key={idx} className="text-[9px] bg-slate-50 p-2 rounded border border-slate-100 space-y-1">
+                          <div className="flex items-center gap-2 justify-between">
+                            <span className={`font-bold px-2 py-0.5 rounded text-[8px] ${m.direction === 'inbound' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {m.direction?.toUpperCase()}
+                            </span>
+                            <span className="text-slate-500 text-[8px]">{m.status || 'pending'}</span>
+                            <span className="text-slate-400 text-[8px]">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <div className="text-slate-700 font-medium line-clamp-2 break-words">{m.messageContent || '(no content)'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Webhook Events Details */}
+                {diagResult.webhookEvents?.length > 0 && (
+                  <div className="border-t border-slate-200 pt-3">
+                    <div className="text-[10px] font-extrabold text-slate-600 uppercase mb-2">All Webhook Events ({diagResult.webhookEvents.length})</div>
+                    <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+                      {diagResult.webhookEvents.map((e: any, idx: number) => (
+                        <div key={idx} className="text-[9px] bg-slate-50 p-2 rounded border border-slate-100 space-y-1">
+                          <div className="flex items-center gap-2 justify-between">
+                            <span className={`font-bold px-2 py-0.5 rounded text-[8px] ${e.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                              {e.kind?.toUpperCase() || 'EVENT'}
+                            </span>
+                            <span className={`text-[8px] font-bold ${e.ok ? 'text-emerald-600' : 'text-red-600'}`}>{e.ok ? '✓' : '✗'}</span>
+                            <span className="text-slate-400 text-[8px]">{new Date(e.receivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <div className="text-slate-700 line-clamp-2 break-words">{e.message || e.status || '(no details)'}</div>
+                          {e.waMessageId && <div className="text-slate-500 text-[8px]">ID: {e.waMessageId}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {lastRawEvents && lastRawEvents.length > 0 && (
               <div className="mt-3 pt-3 border-t border-slate-200/50">
                 <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2 flex justify-between items-center px-1">
@@ -1417,7 +1478,48 @@ export default function MetaInboxPage() {
                             ? 'bg-blue-600 text-white rounded-tr-none shadow-[0_8px_20px_rgba(37,99,235,0.15)] ring-1 ring-blue-500/10'
                             : 'bg-emerald-500 text-white rounded-tl-none shadow-[0_8px_15px_rgba(16,185,129,0.15)] border border-emerald-400'
                         }`}>
-                          <div className="whitespace-pre-wrap leading-relaxed font-medium">{msg.messageContent}</div>
+                          {/* Media Rendering */}
+                          {msg.media && msg.media.url && (
+                            <div className="mb-3 rounded-2xl overflow-hidden bg-black/5 border border-white/10">
+                              {/* Better media detection including stickers and documents */}
+                              {msg.media.kind === 'image' || msg.media.kind === 'sticker' || (!msg.media.kind && msg.media.url.match(/\.(jpg|jpeg|png|webp|gif)$/i)) ? (
+                                <img 
+                                  src={msg.media.url} 
+                                  alt="WhatsApp Media" 
+                                  className="w-full max-h-[350px] object-contain cursor-pointer transition-transform hover:scale-[1.02]"
+                                  onClick={() => window.open(msg.media.url, '_blank')}
+                                />
+                              ) : msg.media.kind === 'video' || (!msg.media.kind && msg.media.url.match(/\.(mp4|mov|avi|webm)$/i)) ? (
+                                <video 
+                                  src={msg.media.url} 
+                                  controls 
+                                  className="w-full max-h-[350px]"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl">
+                                  <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                                    <i className="ph-fill ph-file-text text-xl"></i>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold uppercase tracking-wider opacity-70">Document</p>
+                                    <a 
+                                      href={msg.media.url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-sm font-semibold truncate block hover:underline"
+                                    >
+                                      {msg.media.url.split('/').pop() || 'Download File'}
+                                    </a>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="whitespace-pre-wrap leading-relaxed font-medium">
+                            {msg.messageContent && msg.messageContent !== '(media)' && msg.messageContent !== '[media]' ? msg.messageContent : ''}
+                          </div>
+                          
                           <div className={`text-[10px] mt-2.5 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-blue-100' : 'justify-start text-emerald-50 font-[800]'}`}>
                             <span className="uppercase tracking-wider">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {msg.direction === 'outbound' && (
@@ -1523,10 +1625,19 @@ export default function MetaInboxPage() {
                           {/* Emoji Toggle */}
                           <button 
                             onClick={() => handleToolAction('emoji')} 
-                            title="Emoji" 
+                            title="Emoji Picker" 
                             className={`h-8 w-8 flex items-center justify-center rounded-lg transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}
                           >
                             <i className="ph ph-smiley text-lg"></i>
+                          </button>
+
+                          {/* Quick Symbols */}
+                          <button 
+                            onClick={() => handleToolAction('symbols')} 
+                            title="Quick Yoga Symbols" 
+                            className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            <i className="ph ph-hash text-lg"></i>
                           </button>
 
                            {/* AI Tools */}
