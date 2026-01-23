@@ -173,9 +173,30 @@ export async function GET(req: NextRequest) {
     }
     clearTimeout(timeout);
 
+    // Check if this is media (binary) content
+    const contentType = res.headers.get('content-type') || '';
+    if (path.includes('/media') && !contentType.includes('application/json')) {
+      // This is binary media - pass through directly
+      console.log(`[QR Bridge Proxy] Proxying binary media (${contentType})`);
+      const buffer = await res.arrayBuffer();
+      return new NextResponse(buffer, {
+        status: res.status,
+        headers: {
+          'Content-Type': contentType || 'application/octet-stream',
+          'Cache-Control': 'public, max-age=86400',
+          'Content-Length': buffer.byteLength.toString()
+        }
+      });
+    }
+
     // Check if response is successful before parsing
     if (!res.ok) {
-      const errorText = await res.text();
+      let errorText = '';
+      try {
+        errorText = await res.text();
+      } catch (e) {
+        errorText = `Status ${res.status}`;
+      }
       console.error(`[QR Bridge Proxy] Bridge error (${res.status}):`, errorText.substring(0, 200));
       
       // For group chats that fail, return empty messages instead of error
@@ -193,33 +214,24 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Check if this is media (binary) content
-    const contentType = res.headers.get('content-type') || '';
-    if (path.includes('/media') && !contentType.includes('application/json')) {
-      // This is binary media - pass through directly
-      console.log(`[QR Bridge Proxy] Proxying binary media (${contentType})`);
-      const buffer = await res.arrayBuffer();
-      return new NextResponse(buffer, {
-        status: res.status,
-        headers: {
-          'Content-Type': contentType || 'application/octet-stream',
-          'Cache-Control': 'public, max-age=86400',
-          'Content-Length': buffer.byteLength.toString()
-        }
-      });
-    }
-
     // Try to parse as JSON, fallback if not valid JSON
     let data: any;
     try {
       data = await res.json();
     } catch (jsonErr) {
       console.warn('[QR Bridge Proxy] Response is not JSON, returning as text');
-      const text = await res.text();
-      return NextResponse.json(
-        { data: text, note: 'Response was not JSON' },
-        { status: res.status }
-      );
+      try {
+        const text = await res.text();
+        return NextResponse.json(
+          { data: text, note: 'Response was not JSON' },
+          { status: res.status }
+        );
+      } catch (textErr) {
+        return NextResponse.json(
+          { data: 'Unable to read response', note: 'Response body unavailable' },
+          { status: res.status }
+        );
+      }
     }
     return NextResponse.json(data, { status: res.status });
   } catch (err) {
