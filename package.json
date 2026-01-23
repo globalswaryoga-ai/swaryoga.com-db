@@ -11,6 +11,7 @@
     "health-check": "node scripts/health-check.js",
     "monitor-bridge": "node scripts/monitor-bridge-health.js",
     "setup-ec2-recovery": "bash scripts/setup-ec2-auto-recovery.sh",
+    "diagnose-bridge": "node scripts/diagnose-bridge.js",
     "build": "next build",
     "vercel-build": "next build",
     "vercel-start": "next start",
