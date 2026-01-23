@@ -407,7 +407,7 @@ export default function CreateTemplatePage() {
                       <img
                         src={imageFile.url}
                         alt="Header"
-                        className="w-full max-h-64 object-cover"
+                        className="w-full max-h-64 object-contain bg-slate-950"
                       />
                       <div className="px-4 py-2 bg-gray-100 text-xs text-gray-600">
                         {imageFile.fileName} ({(imageFile.sizeBytes / 1024).toFixed(2)} KB)
@@ -672,7 +672,7 @@ export default function CreateTemplatePage() {
                           <img
                             src={imageFile.url}
                             alt="Preview"
-                            className="w-full max-h-48 object-cover"
+                            className="w-full max-h-48 object-contain bg-slate-950"
                           />
                         </div>
                       )}

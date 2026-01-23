@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
 
           const metaAppSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
           const proof = generateAppSecretProof(decryptedAccessToken, metaAppSecret);
-          let url = `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}?fields=fan_count,followers_count,name&access_token=${encodeURIComponent(decryptedAccessToken)}`;
+          let url = `https://graph.facebook.com/v24.0/${encodeURIComponent(accountId)}?fields=fan_count,followers_count,name&access_token=${encodeURIComponent(decryptedAccessToken)}`;
           if (proof) {
             url += `&appsecret_proof=${proof}`;
           }
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
 
           const metaAppSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
           const proof = generateAppSecretProof(decryptedAccessToken, metaAppSecret);
-          let url = `https://graph.facebook.com/v20.0/${encodeURIComponent(accountId)}?fields=followers_count,username&access_token=${encodeURIComponent(decryptedAccessToken)}`;
+          let url = `https://graph.facebook.com/v24.0/${encodeURIComponent(accountId)}?fields=followers_count,username&access_token=${encodeURIComponent(decryptedAccessToken)}`;
           if (proof) {
             url += `&appsecret_proof=${proof}`;
           }

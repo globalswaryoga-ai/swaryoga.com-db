@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, Account, Investment } from '@/lib/db';
+import { connectDB, Account, AccountingInvestment } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 
 const getUserOwner = (request: NextRequest) => {
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
-    const investments = await Investment.find(owner).sort({ createdAt: -1 }).limit(100);
+    const investments = await AccountingInvestment.find(owner).sort({ createdAt: -1 }).limit(100);
 
     return NextResponse.json({
       success: true,
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     payload.accountName = payload.accountName || account.name;
 
-    const newInvestment = new Investment({
+    const newInvestment = new AccountingInvestment({
       ...owner,
       ...payload
     });
@@ -169,7 +169,7 @@ export async function PUT(request: NextRequest) {
       payload.accountName = payload.accountName || account.name;
     }
 
-    const updatedInvestment = await Investment.findOneAndUpdate(
+    const updatedInvestment = await AccountingInvestment.findOneAndUpdate(
       { _id: id, ...owner },
       { ...payload, updatedAt: new Date() },
       { new: true }
@@ -214,7 +214,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const deletedInvestment = await Investment.findOneAndDelete({ _id: id, ...owner });
+    const deletedInvestment = await AccountingInvestment.findOneAndDelete({ _id: id, ...owner });
 
     if (!deletedInvestment) {
       return NextResponse.json(

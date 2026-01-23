@@ -14,7 +14,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = parseInt(searchParams.get('skip') || '0');
 
-    let query: any = {};
+    let query: any = {
+      status: 'published' // Only show published posts to public
+    };
 
     // Filter by category if provided and not 'all'
     if (category !== 'all') {
@@ -31,16 +33,22 @@ export async function GET(request: NextRequest) {
     // Get total count for pagination
     const total = await CommunityPost.countDocuments(query);
 
-    return NextResponse.json({
-      success: true,
-      data: {
+    return NextResponse.json(
+      {
         posts,
         total,
         limit,
         skip,
         hasMore: skip + limit < total,
       },
-    });
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+          'Content-Type': 'application/json',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error fetching community posts:', error);
     return NextResponse.json(

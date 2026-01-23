@@ -3,7 +3,7 @@ import { connectDB, Community } from '@/lib/db';
 // Community IDs used across the app (URLs, membership checks).
 // Names are human-friendly labels stored in the Community collection.
 export const DEFAULT_COMMUNITIES = [
-  { id: 'general', name: 'Global Community for General' },
+  { id: 'global', name: 'Global Community' },
   { id: 'swar-yoga', name: 'Swar Yoga' },
   { id: 'aham-bramhasmi', name: 'Aham Bramhasmi' },
   { id: 'astavakra', name: 'Astavakra' },

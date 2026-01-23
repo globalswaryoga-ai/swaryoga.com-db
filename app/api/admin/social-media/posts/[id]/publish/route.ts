@@ -48,7 +48,7 @@ function createFriendlyPublishErrorMessage(error: string, platform: string): str
 }
 
 async function graphPost(path: string, params: Record<string, string>): Promise<any> {
-  const url = `https://graph.facebook.com/v20.0/${path}`;
+  const url = `https://graph.facebook.com/v24.0/${path}`;
   
   // Inject appsecret_proof if possible
   if (params.access_token) {

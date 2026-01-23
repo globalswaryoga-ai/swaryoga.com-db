@@ -16,7 +16,8 @@ import {
   Calendar,
   Award,
   Sparkles,
-  LayoutDashboard
+  LayoutDashboard,
+  TrendingUp
 } from 'lucide-react';
 
 export default function Footer() {
@@ -28,6 +29,7 @@ export default function Footer() {
     { name: 'Workshops', href: '/workshop' },
     { name: 'Resort', href: '/resort' },
     { name: 'Blog', href: '/blog' },
+    { name: 'Invest', href: '/invest' },
     { name: 'Contact', href: '/contact' }
   ];
 
@@ -37,7 +39,8 @@ export default function Footer() {
     { name: 'Personal Coaching', href: '/contact' },
     { name: 'Corporate Wellness', href: '/contact' },
     { name: 'Teacher Training', href: '/workshop' },
-    { name: 'Online Programs', href: '/workshop' }
+    { name: 'Online Programs', href: '/workshop' },
+    { name: 'Investment Opportunities', href: '/invest' }
   ];
 
   const resources = [
@@ -266,6 +269,13 @@ export default function Footer() {
             </div>
             
             <div className="flex flex-col sm:flex-row justify-start md:justify-end space-y-3 sm:space-y-0 sm:space-x-6">
+              <Link 
+                href="/invest" 
+                className="flex items-center space-x-2 hover:text-green-400 transition-colors group bg-gradient-to-r from-green-500 to-swar-primary hover:from-green-600 hover:to-blue-600 text-white px-4 py-2 rounded-lg"
+              >
+                <TrendingUp className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
+                <span className="font-semibold">Invest Now</span>
+              </Link>
               <Link 
                 href="/life-planner" 
                 className="flex items-center space-x-2 hover:text-green-400 transition-colors group"

@@ -14,6 +14,7 @@ interface FetchOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   body?: any;
   params?: Record<string, any>;
+  silent?: boolean; // NEW: option to bypass loading state
 }
 
 /**
@@ -67,10 +68,13 @@ export function useCRM(options: UseCRMOptions = {}) {
         method = 'GET',
         body = null,
         params = {},
+        silent = false,
       } = fetchOptions;
 
       try {
-        setLoading(true);
+        if (!silent) {
+          setLoading(true);
+        }
         setError(null);
 
         // CRITICAL: Token must be available before making requests
@@ -121,7 +125,9 @@ export function useCRM(options: UseCRMOptions = {}) {
         onErrorRef.current?.(errorMessage);
         throw err;
       } finally {
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
       }
     },
     // IMPORTANT: do not depend on the `options` object identity because callers often

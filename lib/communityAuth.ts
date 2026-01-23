@@ -25,7 +25,7 @@ export async function requireCommunityMembership(request: NextRequest, community
     ? ({ _id: communityId } as any)
     : ({ id: communityId } as any);
 
-  const community = await Community.findOne(query).select({ members: 1 }).lean();
+  const community = await Community.findOne(query).select({ id: 1, members: 1 }).lean();
   if (!community) {
     const err = new Error('Community not found');
     (err as any).status = 404;
@@ -33,6 +33,12 @@ export async function requireCommunityMembership(request: NextRequest, community
   }
 
   const members = Array.isArray((community as any).members) ? ((community as any).members as string[]) : [];
+  
+  // Allow engagement in the 'global' community for any authenticated user
+  if (communityId === 'global' || (community as any).id === 'global') {
+    return userId;
+  }
+
   if (!members.includes(userId)) {
     const err = new Error('Forbidden');
     (err as any).status = 403;

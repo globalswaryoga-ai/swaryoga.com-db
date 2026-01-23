@@ -982,12 +982,12 @@ function TemplatesContent() {
                             ) : null}
 
                             {editHeaderMedia ? (
-                              <div className="mb-3 rounded-xl overflow-hidden border border-gray-200">
+                              <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 bg-slate-100">
                                 {editHeaderMedia.kind === 'image' ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={editHeaderMedia.objectUrl} alt="Preview" className="w-full max-h-64 object-cover" />
+                                  <img src={editHeaderMedia.objectUrl} alt="Preview" className="w-full max-h-64 object-contain bg-slate-950" />
                                 ) : (
-                                  <video src={editHeaderMedia.objectUrl} controls className="w-full max-h-64 object-cover" />
+                                  <video src={editHeaderMedia.objectUrl} controls className="w-full max-h-64 object-contain bg-slate-950" />
                                 )}
                               </div>
                             ) : null}

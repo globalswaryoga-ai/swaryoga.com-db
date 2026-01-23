@@ -25,7 +25,7 @@ async function testSend() {
     ? crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex')
     : null;
 
-  const baseUrl = `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`;
+  const baseUrl = `https://graph.facebook.com/v24.0/${phoneNumberId}/messages`;
   const url = appSecretProof ? `${baseUrl}?appsecret_proof=${appSecretProof}` : baseUrl;
   console.log(`📤 Sending to: ${phone}`);
   console.log(`📝 Message: ${message}`);

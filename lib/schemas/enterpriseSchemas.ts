@@ -33,6 +33,14 @@ function getCrmDb() {
 // ==========================================================================
 const LeadSchema = new mongoose.Schema(
   {
+    // =====================================================
+    // UNIFIED USER LINKING
+    // Links Lead to registered User account for unified profile view
+    // =====================================================
+    linkedUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', sparse: true, index: true },
+    linkedProfileId: { type: String, trim: true, sparse: true, index: true }, // 6-digit profile ID from User
+    isLinkedToAccount: { type: Boolean, default: false, index: true }, // Quick check if linked
+
     // Ownership / multi-user access control
     // - assignedToUserId: which CRM user owns/manages this lead (used for per-user filtering)
     // - createdByUserId: who created the lead (admin / user head / creator)

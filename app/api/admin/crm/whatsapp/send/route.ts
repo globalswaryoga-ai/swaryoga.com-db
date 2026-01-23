@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone } from '@/lib/whatsapp';
-import { sendWhatsAppText } from '@/lib/whatsapp';
+import { normalizePhone, sendWhatsAppText, sendWhatsAppMedia } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -127,17 +126,24 @@ export async function POST(request: NextRequest) {
 
         console.log(`[SEND:${requestId}] 🔗 Bridge URL: ${bridgeUrl}`);
 
+        const bridgePayload: any = {
+          to: normalizedPhone,
+          message: hasText ? String(messageContent) : '',
+          type: media?.url ? 'media' : 'text',
+        };
+
+        if (media?.url) {
+          bridgePayload.media = media.url;
+          bridgePayload.caption = String(messageContent || '').trim();
+        }
+
         const bridgeRes = await fetch(`${bridgeUrl}/send`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-bridge-secret': bridgeSecret,
           },
-          body: JSON.stringify({
-            to: normalizedPhone,
-            message: hasText ? String(messageContent) : '(media)',
-            type: 'text',
-          }),
+          body: JSON.stringify(bridgePayload),
           cache: 'no-store',
         });
 
@@ -154,7 +160,17 @@ export async function POST(request: NextRequest) {
         deliveryResult = { waMessageId: whatsappMessageId };
       } else {
         console.log(`[SEND:${requestId}] 🌐 Sending via Meta API`);
-        deliveryResult = await sendWhatsAppText(normalizedPhone, hasText ? String(messageContent) : '');
+        if (media?.url) {
+          console.log(`[SEND:${requestId}] 🖼 Sending media via Meta API:`, media.url);
+          deliveryResult = await sendWhatsAppMedia(
+            normalizedPhone, 
+            media.url, 
+            media.kind || 'image', 
+            finalMessageContent // Use the version with the admin tag
+          );
+        } else {
+          deliveryResult = await sendWhatsAppText(normalizedPhone, finalMessageContent); // Use the version with the admin tag
+        }
       }
 
       // Mark as sent
@@ -164,6 +180,13 @@ export async function POST(request: NextRequest) {
         whatsappMessageId: deliveryResult.waMessageId,
         provider: providerValue,
         deliveredAt: new Date(),
+        // Save media info if sent via Meta
+        ...(media?.url && {
+          media: {
+            url: media.url,
+            kind: media.kind || 'image'
+          }
+        })
       });
 
       console.log(`[SEND:${requestId}] ✅ Sent successfully`);

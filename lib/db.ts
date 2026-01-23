@@ -301,12 +301,18 @@ export const WorkshopSeatInventory =
 
 // Contact Schema
 const contactSchema = new mongoose.Schema({
+  // Unified User Linking
+  linkedUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', sparse: true, index: true },
+  linkedProfileId: { type: String, sparse: true, index: true }, // 6-digit profile ID
+  linkedLeadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', sparse: true, index: true },
+  
   name: { type: String, required: true },
-  email: { type: String, required: true },
-  phone: { type: String },
+  email: { type: String, required: true, index: true },
+  phone: { type: String, index: true },
   subject: { type: String, required: true },
   message: { type: String, required: true },
   status: { type: String, default: 'new' },
+  source: { type: String, default: 'website-contact' }, // website-contact, enquiry-form, etc.
   createdAt: { type: Date, default: Date.now },
 });
 
@@ -396,6 +402,7 @@ const communityPostSchema = new mongoose.Schema({
   documents: { type: [String], default: [] },
   links: { type: [String], default: [] },
   type: { type: String, enum: ['text', 'image', 'video', 'document', 'link'], default: 'text' },
+  status: { type: String, enum: ['published', 'draft', 'scheduled'], default: 'published', index: true },
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   likes: { type: [String], default: [] },
   comments: { type: [communityCommentSchema], default: [] },
@@ -408,6 +415,169 @@ communityPostSchema.index({ communityId: 1, createdAt: -1 });
 
 export const CommunityPost =
   mongoose.models.CommunityPost || mongoose.model('CommunityPost', communityPostSchema);
+
+// Community Video Schema - for non-shareable community videos
+const communityVideoSchema = new mongoose.Schema({
+  communityId: { type: String, required: true, index: true },
+  title: { type: String, required: true },
+  description: { type: String, default: '' },
+  s3Key: { type: String, required: true }, // Path in S3: community/{id}/videos/{filename}
+  duration: { type: Number }, // Duration in seconds
+  thumbnailUrl: { type: String },
+  uploadedBy: { type: String, required: true },
+  isShareable: { type: Boolean, default: false }, // Always false for community videos
+  views: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
+});
+
+communityVideoSchema.index({ communityId: 1, createdAt: -1 });
+
+export const CommunityVideo =
+  mongoose.models.CommunityVideo || mongoose.model('CommunityVideo', communityVideoSchema);
+
+// Community Membership Schema - tracks who is in which community
+const communityMembershipSchema = new mongoose.Schema({
+  communityId: { type: String, required: true, index: true },
+  userId: { type: String, index: true }, // From auth system
+  odId: { type: String, index: true }, // Alternative ID
+  name: { type: String, required: true },
+  email: { type: String },
+  mobile: { type: String },
+  status: { type: String, enum: ['pending', 'active', 'suspended', 'left'], default: 'pending' },
+  role: { type: String, enum: ['member', 'moderator', 'admin'], default: 'member' },
+  joinedAt: { type: Date, default: Date.now },
+  approvedBy: { type: String },
+  approvedAt: { type: Date },
+});
+
+communityMembershipSchema.index({ communityId: 1, status: 1 });
+communityMembershipSchema.index({ userId: 1, communityId: 1 }, { unique: true, sparse: true });
+communityMembershipSchema.index({ odId: 1, communityId: 1 }, { unique: true, sparse: true });
+
+export const CommunityMembership =
+  mongoose.models.CommunityMembership || mongoose.model('CommunityMembership', communityMembershipSchema);
+
+// =====================================================
+// DEVICE CONTROL SYSTEM - For preventing credential sharing
+// =====================================================
+
+// User Device Schema - Tracks registered devices per user (max 3)
+const userDeviceSchema = new mongoose.Schema({
+  userId: { type: String, required: true, index: true },
+  deviceId: { type: String, required: true }, // Browser fingerprint hash
+  deviceName: { type: String, required: true }, // "Chrome on Windows", "Safari on iPhone"
+  deviceType: { type: String, enum: ['desktop', 'mobile', 'tablet'], default: 'desktop' },
+  browser: { type: String }, // Chrome, Safari, Firefox, etc.
+  os: { type: String }, // Windows, macOS, iOS, Android, etc.
+  ipAddress: { type: String },
+  location: {
+    city: { type: String },
+    state: { type: String },
+    country: { type: String },
+    lat: { type: Number },
+    lon: { type: Number },
+  },
+  lastActive: { type: Date, default: Date.now },
+  isCurrentlyStreaming: { type: Boolean, default: false },
+  streamStartedAt: { type: Date },
+  registeredAt: { type: Date, default: Date.now },
+  isBlocked: { type: Boolean, default: false },
+  blockedAt: { type: Date },
+  blockedReason: { type: String },
+});
+
+userDeviceSchema.index({ userId: 1, deviceId: 1 }, { unique: true });
+userDeviceSchema.index({ userId: 1, isBlocked: 1 });
+userDeviceSchema.index({ lastActive: -1 });
+
+export const UserDevice =
+  mongoose.models.UserDevice || mongoose.model('UserDevice', userDeviceSchema);
+
+// Device Violation Schema - Logs suspicious activity
+const deviceViolationSchema = new mongoose.Schema({
+  userId: { type: String, required: true, index: true },
+  violationType: { 
+    type: String, 
+    enum: ['location_mismatch', 'device_limit_exceeded', 'concurrent_stream', 'rapid_device_switch'],
+    required: true 
+  },
+  severity: { type: String, enum: ['warning', 'moderate', 'severe'], default: 'warning' },
+  device1: {
+    deviceId: { type: String },
+    deviceName: { type: String },
+    location: { type: String },
+    ipAddress: { type: String },
+    timestamp: { type: Date },
+  },
+  device2: {
+    deviceId: { type: String },
+    deviceName: { type: String },
+    location: { type: String },
+    ipAddress: { type: String },
+    timestamp: { type: Date },
+  },
+  message: { type: String },
+  isAcknowledged: { type: Boolean, default: false }, // User clicked "It's me"
+  acknowledgedAt: { type: Date },
+  isReviewed: { type: Boolean, default: false }, // Admin reviewed
+  reviewedBy: { type: String },
+  reviewedAt: { type: Date },
+  adminNotes: { type: String },
+  createdAt: { type: Date, default: Date.now, index: true },
+});
+
+deviceViolationSchema.index({ userId: 1, createdAt: -1 });
+deviceViolationSchema.index({ isReviewed: 1, createdAt: -1 });
+
+export const DeviceViolation =
+  mongoose.models.DeviceViolation || mongoose.model('DeviceViolation', deviceViolationSchema);
+
+// Device Settings Schema - Admin-controlled settings
+const deviceSettingsSchema = new mongoose.Schema({
+  settingKey: { type: String, unique: true, required: true, default: 'default' },
+  maxDevicesPerUser: { type: Number, default: 3 },
+  maxConcurrentStreams: { type: Number, default: 1 },
+  locationMismatchWindowMinutes: { type: Number, default: 60 }, // Time window for location check
+  enableLocationCheck: { type: Boolean, default: true },
+  enableDeviceLimit: { type: Boolean, default: true },
+  enableConcurrentStreamCheck: { type: Boolean, default: true },
+  autoBlockOnViolations: { type: Number, default: 0 }, // 0 = never auto-block, N = block after N violations
+  warningMessage: { 
+    type: String, 
+    default: 'We detected suspicious activity on your account. Someone may be using your credentials. If this wasn\'t you, please change your password.' 
+  },
+  updatedAt: { type: Date, default: Date.now },
+  updatedBy: { type: String },
+});
+
+export const DeviceSettings =
+  mongoose.models.DeviceSettings || mongoose.model('DeviceSettings', deviceSettingsSchema);
+
+// Active Stream Schema - Track who is currently streaming (for 1 stream at a time)
+const activeStreamSchema = new mongoose.Schema({
+  userId: { type: String, required: true, index: true },
+  deviceId: { type: String, required: true },
+  videoId: { type: String }, // Which video they're watching
+  communityId: { type: String },
+  startedAt: { type: Date, default: Date.now },
+  lastHeartbeat: { type: Date, default: Date.now }, // Client pings every 30s
+  ipAddress: { type: String },
+  location: {
+    city: { type: String },
+    state: { type: String },
+    country: { type: String },
+  },
+});
+
+activeStreamSchema.index({ userId: 1 }, { unique: true }); // Only 1 stream per user
+activeStreamSchema.index({ lastHeartbeat: 1 }, { expireAfterSeconds: 120 }); // Auto-delete stale streams
+
+export const ActiveStream =
+  mongoose.models.ActiveStream || mongoose.model('ActiveStream', activeStreamSchema);
+
+// =====================================================
+// END DEVICE CONTROL SYSTEM
+// =====================================================
 
 // Account Schema (for accounting)
 const accountSchema = new mongoose.Schema({
@@ -448,7 +618,7 @@ transactionSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
 export const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 
 // Investment Schema (for accounting)
-const investmentSchema = new mongoose.Schema({
+const accountingInvestmentSchema = new mongoose.Schema({
   ownerType: { type: String, enum: ['user', 'admin'], required: true, index: true },
   ownerId: { type: String, required: true, index: true },
   name: { type: String, required: true },
@@ -466,9 +636,9 @@ const investmentSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
-investmentSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
+accountingInvestmentSchema.index({ ownerType: 1, ownerId: 1, createdAt: -1 });
 
-export const Investment = mongoose.models.Investment || mongoose.model('Investment', investmentSchema);
+export const AccountingInvestment = mongoose.models.AccountingInvestment || mongoose.model('AccountingInvestment', accountingInvestmentSchema);
 
 // Budget Plan Schema (for accounting / life planner)
 // Stores targets and 100% allocation buckets to compare with actual transactions.

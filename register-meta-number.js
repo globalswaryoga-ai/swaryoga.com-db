@@ -22,7 +22,7 @@ async function registerNumber() {
     ? crypto.createHmac('sha256', appSecret).update(accessToken).digest('hex')
     : null;
 
-  const url = `https://graph.facebook.com/v20.0/${phoneNumberId}/register${appSecretProof ? '?appsecret_proof=' + appSecretProof : ''}`;
+  const url = `https://graph.facebook.com/v24.0/${phoneNumberId}/register${appSecretProof ? '?appsecret_proof=' + appSecretProof : ''}`;
 
   console.log(`🚀 Attempting to register Phone ID: ${phoneNumberId}`);
   console.log(`🔗 URL: ${url}`);

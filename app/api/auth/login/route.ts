@@ -11,6 +11,7 @@ import { generateToken } from '@/lib/auth';
 import { apiError, apiSuccess, logError, validateRequired } from '@/lib/api-error';
 import { checkRateLimit, getClientId } from '@/lib/rate-limit';
 import { createRequestContext, logRequest, logResponse, logApiError, Timer } from '@/lib/logging';
+import { getLead } from '@/lib/schemas/enterpriseSchemas';
 import bcrypt from 'bcryptjs';
 
 // Rate limiting: 10 login attempts per minute per IP
@@ -127,6 +128,33 @@ export async function POST(request: NextRequest) {
       // Don't fail the login if signin logging fails
     }
 
+    // Look up leadNumber from CRM Lead (match by phone or email)
+    let leadNumber: string | undefined;
+    try {
+      const Lead = getLead();
+      const phoneClean = user.phone?.replace(/\D/g, '');
+      let lead = null;
+      
+      // Try to find by phone first
+      if (phoneClean && phoneClean.length >= 10) {
+        lead = await Lead.findOne({
+          phoneNumber: { $regex: phoneClean.slice(-10) + '$' }
+        }).lean();
+      }
+      
+      // Fallback to email if no phone match
+      if (!lead && user.email) {
+        lead = await Lead.findOne({ email: user.email }).lean();
+      }
+      
+      if (lead && (lead as any).leadNumber) {
+        leadNumber = String((lead as any).leadNumber);
+      }
+    } catch (leadError) {
+      // Non-fatal: login should still succeed even if lead lookup fails
+      logError('login/leadLookup', leadError);
+    }
+
     logRequest(requestContext, 'Login successful', { email, userId: user._id.toString() });
     logResponse(requestContext, 200, timer.elapsed(), 'Login completed');
 
@@ -136,6 +164,7 @@ export async function POST(request: NextRequest) {
       user: {
         id: user._id,
         profileId: user.profileId,
+        leadNumber: leadNumber,
         name: user.name,
         email: user.email,
         phone: user.phone,

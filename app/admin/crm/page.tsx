@@ -132,79 +132,143 @@ export default function CRMDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Navigation */}
+      {/* Navigation Header with Dropdowns */}
       <nav className="bg-slate-800/50 backdrop-blur border-b border-purple-500/20 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              CRM Dashboard
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            {isSuperAdmin ? (
-              <Link
-                href="/admin/dashboard"
-                className="px-4 py-2 bg-slate-700/60 hover:bg-slate-700 text-white rounded-lg transition-colors border border-slate-600"
-                title="Go to Admin Dashboard"
-              >
-                Admin Dashboard
+        <div className="max-w-full mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            {/* Logo and Title */}
+            <div className="flex items-center gap-4">
+              <Link href="/admin/crm" className="flex items-center gap-3">
+                <img src="/logo.png" alt="Swar Yoga" className="w-8 h-8 rounded-lg" />
+                <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                  CRM
+                </h1>
               </Link>
-            ) : (
-              <span
-                className="px-4 py-2 bg-slate-800/40 text-slate-400 rounded-lg border border-slate-700 cursor-not-allowed"
-                title="Admin Dashboard is available for Super Admin only"
+              
+              {/* Header Menu Items */}
+              <div className="hidden md:flex items-center gap-1 ml-6">
+                {/* Leads Dropdown */}
+                <div className="relative group">
+                  <button className="px-3 py-2 text-purple-200 hover:text-white hover:bg-purple-600/30 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium">
+                    👥 Leads
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-purple-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <Link href="/admin/crm/leads" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm rounded-t-lg">👥 All Leads</Link>
+                    <Link href="/admin/crm/leads-followup" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">📞 Lead Followup</Link>
+                    <Link href="/admin/crm/meta" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">🟢 Meta WhatsApp</Link>
+                    <Link href="/admin/crm/qr" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">💚 QR WhatsApp</Link>
+                    <Link href="/admin/crm/sales" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm">💰 Sales</Link>
+                    <Link href="/admin/crm/messages" className="flex items-center gap-2 px-4 py-2.5 text-purple-100 hover:bg-purple-600/30 hover:text-white text-sm rounded-b-lg">💬 Messages</Link>
+                  </div>
+                </div>
+
+                {/* Community Dropdown */}
+                <div className="relative group">
+                  <button className="px-3 py-2 text-green-200 hover:text-white hover:bg-green-600/30 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium">
+                    🌍 Community
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-green-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <Link href="/admin/crm/community" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm rounded-t-lg">🏠 Dashboard</Link>
+                    <Link href="/admin/community" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📝 Posts</Link>
+                    <Link href="/admin/crm/broadcast" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📢 Broadcast</Link>
+                    <Link href="/admin/crm/whatsapp-groups" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm rounded-b-lg">👥 Groups</Link>
+                  </div>
+                </div>
+
+                {/* Device & Users */}
+                <div className="relative group">
+                  <button className="px-3 py-2 text-cyan-200 hover:text-white hover:bg-cyan-600/30 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium">
+                    📱 Devices
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-cyan-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <Link href="/admin/crm/devices" className="flex items-center gap-2 px-4 py-2.5 text-cyan-100 hover:bg-cyan-600/30 hover:text-white text-sm rounded-t-lg">📱 Device Control</Link>
+                    <Link href="/admin/crm/devices/settings" className="flex items-center gap-2 px-4 py-2.5 text-cyan-100 hover:bg-cyan-600/30 hover:text-white text-sm">⚙️ Settings</Link>
+                    <Link href="/admin/crm/users/profile" className="flex items-center gap-2 px-4 py-2.5 text-cyan-100 hover:bg-cyan-600/30 hover:text-white text-sm rounded-b-lg">👤 User Profiles</Link>
+                  </div>
+                </div>
+
+                {/* Admin Dropdown */}
+                <div className="relative group">
+                  <button className="px-3 py-2 text-red-200 hover:text-white hover:bg-red-600/30 rounded-lg transition-colors flex items-center gap-1 text-sm font-medium">
+                    🔐 Admin
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-red-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <Link href="/admin/crm/users" className="flex items-center gap-2 px-4 py-2.5 text-red-100 hover:bg-red-600/30 hover:text-white text-sm rounded-t-lg">👨‍💼 Admin Users</Link>
+                    <Link href="/admin/crm/permissions" className="flex items-center gap-2 px-4 py-2.5 text-red-100 hover:bg-red-600/30 hover:text-white text-sm">✅ Permissions</Link>
+                    <Link href="/admin/crm/analytics" className="flex items-center gap-2 px-4 py-2.5 text-red-100 hover:bg-red-600/30 hover:text-white text-sm">📈 Analytics</Link>
+                    <Link href="/admin/crm/media" className="flex items-center gap-2 px-4 py-2.5 text-red-100 hover:bg-red-600/30 hover:text-white text-sm rounded-b-lg">🖼️ Media</Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side Actions */}
+            <div className="flex items-center gap-3">
+              {isSuperAdmin && (
+                <Link
+                  href="/admin/dashboard"
+                  className="px-3 py-2 bg-slate-700/60 hover:bg-slate-700 text-white rounded-lg transition-colors border border-slate-600 text-sm"
+                  title="Go to Admin Dashboard"
+                >
+                  Admin Dashboard
+                </Link>
+              )}
+              <Link
+                href="/"
+                className="px-3 py-2 bg-purple-600/60 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm"
               >
-                Admin Dashboard
-              </span>
-            )}
-            <button
-              onClick={() => {
-                localStorage.removeItem('adminToken');
-                localStorage.removeItem('adminUser');
-                localStorage.removeItem('admin_token');
-                localStorage.removeItem('admin_user');
-                router.push('/admin/login');
-              }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-            >
-              Logout
-            </button>
+                🏠 Home
+              </Link>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('adminToken');
+                  localStorage.removeItem('adminUser');
+                  localStorage.removeItem('admin_token');
+                  localStorage.removeItem('admin_user');
+                  router.push('/admin/login');
+                }}
+                className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </nav>
 
       {/* Sidebar Navigation */}
       <div className="flex">
-        <aside className="w-64 bg-slate-800/50 backdrop-blur border-r border-purple-500/20 min-h-screen p-6 fixed left-0 top-16">
-          <nav className="space-y-3">
+        <aside className="w-56 bg-slate-800/50 backdrop-blur border-r border-purple-500/20 min-h-screen p-4 fixed left-0 top-16 overflow-y-auto">
+          <nav className="space-y-2">
+            {/* Main Links */}
             {[
-              { href: '/admin/crm', label: 'Overview', icon: '📊' },
+              { href: '/admin/crm', label: 'Dashboard', icon: '📊' },
               { href: '/admin/crm/leads', label: 'Leads', icon: '👥' },
-              { href: '/admin/crm/meta', label: 'Meta Inbox', icon: '🟢' },
-              { href: '/admin/crm/qr', label: 'QR WhatsApp Inbox', icon: '💚' },
-              { href: '/admin/crm/leads-followup', label: 'Leads Followup', icon: '📋' },
+              { href: '/admin/crm/meta', label: 'Meta WhatsApp', icon: '🟢' },
+              { href: '/admin/crm/qr', label: 'QR WhatsApp', icon: '💚' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
               { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
-              { href: '/admin/crm/messages', label: 'Messages', icon: '💬' },
-              { href: '/admin/crm/labels', label: 'Labels', icon: '🏷️' },
+              { href: '/admin/crm/devices', label: 'Devices', icon: '📱' },
               { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
-              { href: '/admin/crm/permissions', label: 'Consent', icon: '✅' },
-              { href: '/admin/crm/users', label: 'Admin Users', icon: '🔐' },
             ].map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-purple-600/30 text-purple-100 hover:text-white transition-colors group"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-purple-600/30 text-purple-100 hover:text-white transition-colors"
               >
-                <span className="text-xl">{item.icon}</span>
-                <span className="group-hover:translate-x-1 transition-transform">{item.label}</span>
+                <span className="text-lg">{item.icon}</span>
+                <span>{item.label}</span>
               </Link>
             ))}
           </nav>
         </aside>
 
         {/* Main Content */}
-        <main className="ml-64 flex-1 p-8">
+        <main className="ml-56 flex-1 p-8">
           {/* Header */}
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>

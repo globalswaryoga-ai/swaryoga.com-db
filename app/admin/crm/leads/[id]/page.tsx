@@ -207,12 +207,21 @@ export default function LeadDetailPage() {
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
-              >
-                Edit
-              </button>
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => router.push(`/admin/crm/users/profile?leadId=${lead._id}`)}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                  title="View unified user profile"
+                >
+                  👤 View User
+                </button>
+              </>
             )}
 
             <button

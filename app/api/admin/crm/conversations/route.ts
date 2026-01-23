@@ -24,8 +24,6 @@ function escapeRegexLiteral(input: string): string {
  */
 export async function GET(request: NextRequest) {
   try {
-    const WhatsAppMessage = getWhatsAppMessage();
-
     const viewerUserId = verifyAdminAccess(request);
     const superAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
     const { limit, skip } = parsePagination(request);
@@ -34,9 +32,10 @@ export async function GET(request: NextRequest) {
     const q = url.searchParams.get('q')?.trim();
     const status = url.searchParams.get('status')?.trim();
     const label = url.searchParams.get('label')?.trim();
-  const providerParam = url.searchParams.get('provider')?.trim();
+    const providerParam = url.searchParams.get('provider')?.trim();
 
     await connectDB();
+    const WhatsAppMessage = getWhatsAppMessage();
 
     const pipeline: any[] = [];
 
@@ -65,17 +64,19 @@ export async function GET(request: NextRequest) {
     }
 
     // Normalize the timestamp used for ordering.
-    // Some older records may not have sentAt.
+    // We prefer updatedAt for the conversation list sorting because it reflects the 
+    // "most recent activity" (status updates, new meta signals), even if the 
+    // original message timestamp (sentAt) is stale or identical.
     pipeline.push({
       $addFields: {
         _messageTime: {
           $ifNull: [
-            '$sentAt',
+            '$updatedAt',
             {
               $ifNull: [
-                '$createdAt',
+                '$sentAt',
                 {
-                  $ifNull: ['$updatedAt', new Date(0)],
+                  $ifNull: ['$createdAt', new Date(0)],
                 },
               ],
             },
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Pre-sort to allow $first in group
+    // Sort by most recent activity first
     pipeline.push({ $sort: { _messageTime: -1 } });
 
     // Group by phoneNumber first to avoid duplicate conversations when leadId is missing on older data.

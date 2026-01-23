@@ -2,21 +2,24 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home, AlertCircle, ExternalLink } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { COMMUNITY_DESIGNS, CommunityDesign } from '@/lib/communityColorSystem';
 
 interface Post {
   _id: string;
-  title: string;
+  userId: string;
   content: string;
-  author: string;
-  authorAvatar?: string;
-  likes: number;
-  comments: number;
+  title?: string;
+  images?: string[];
+  videos?: string[];
+  documents?: string[];
+  likes?: number | any[];
+  comments?: number | any[];
   createdAt: string;
   category?: string;
-  image?: string;
+  status?: 'published' | 'draft' | 'scheduled';
+  communityId?: string;
 }
 
 // Map CommunityDesign to legacy Community interface for compatibility
@@ -61,12 +64,30 @@ function CommunityPageContent() {
   const [chatLoading, setChatLoading] = useState(false);
   const [showChatOffModal, setShowChatOffModal] = useState(false);
   const [communities, setCommunities] = useState(COMMUNITIES);
+  const [postsError, setPostsError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+
+  // View Mode: 'posts' or 'videos'
+  const [viewMode, setViewMode] = useState<'posts' | 'videos'>('posts');
+  
+  // Videos State
+  const [videos, setVideos] = useState<any[]>([]);
+  const [videosLoading, setVideosLoading] = useState(false);
+  const [videosError, setVideosError] = useState('');
+
+  // Comment Modal States
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [activePostForComment, setActivePostForComment] = useState<Post | null>(null);
+  const [commentText, setCommentText] = useState('');
+  const [commentLoading, setCommentLoading] = useState(false);
 
   const categories = [
     { id: 'all', label: '✨ All Posts' },
-    { id: 'experience', label: '🙏 Experiences' },
+    { id: 'experiences', label: '🙏 Experiences' },
     { id: 'tips', label: '💡 Tips & Tricks' },
-    { id: 'transformation', label: '🦋 Transformations' },
+    { id: 'transformations', label: '🦋 Transformations' },
     { id: 'questions', label: '❓ Questions' },
   ];
 
@@ -128,6 +149,7 @@ function CommunityPageContent() {
       try {
         const communityUser = JSON.parse(communityUserStr);
         setUser(communityUser);
+        setAuthChecked(true);
         return;
       } catch (error) {
         console.error('Error parsing community user:', error);
@@ -153,26 +175,183 @@ function CommunityPageContent() {
         localStorage.removeItem('token');
       }
     }
+    setAuthChecked(true);
   };
+
+  // Helper to get proxied URL for S3 images
+  const getSignedImageUrl = useCallback(async (imageUrl: string): Promise<string> => {
+    // If it's already a proxied URL or data URL, return as-is
+    if (imageUrl.startsWith('/api/s3/image') || imageUrl.startsWith('data:')) {
+      return imageUrl;
+    }
+
+    // Check cache first
+    if (signedUrls[imageUrl]) {
+      return signedUrls[imageUrl];
+    }
+
+    // Extract key from URL or use as key
+    let key = imageUrl;
+    if (imageUrl.includes('amazonaws.com')) {
+      try {
+        const url = new URL(imageUrl);
+        key = url.pathname.slice(1); // Remove leading /
+      } catch {
+        // Use as-is if not a valid URL
+      }
+    }
+
+    // Use the proxy endpoint instead of signed URL
+    const proxyUrl = `/api/s3/image?key=${encodeURIComponent(key)}`;
+    setSignedUrls(prev => ({ ...prev, [imageUrl]: proxyUrl }));
+    return proxyUrl;
+  }, [signedUrls]);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
+    setPostsError('');
     try {
-      const response = await fetch('/api/community/posts?category=' + selectedCategory);
+      const response = await fetch('/api/community/posts?category=' + selectedCategory, {
+        cache: 'no-store',
+      });
+      
+      if (response.status === 429) {
+        // Rate limited - retry with exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+        setPostsError('Too many requests. Retrying...');
+        setTimeout(() => {
+          setRetryCount(r => r + 1);
+        }, delay);
+        setPosts([]);
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
-        setPosts(data.posts || []);
+        setPosts(Array.isArray(data.posts) ? data.posts : []);
+        setRetryCount(0);
+      } else {
+        console.error('Failed to fetch posts:', response.status);
+        setPostsError(`Failed to load posts (Error: ${response.status})`);
+        setPosts([]);
       }
     } catch (error) {
       console.error('Error fetching posts:', error);
+      setPostsError('Failed to load posts. Please try again.');
+      setPosts([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, retryCount]);
 
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
+
+  // Fetch community videos (only for members)
+  const fetchVideos = useCallback(async () => {
+    if (!user || selectedCommunity === 'global') {
+      setVideos([]);
+      return;
+    }
+    
+    setVideosLoading(true);
+    setVideosError('');
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setVideosError('Please login to view videos');
+        return;
+      }
+      
+      const response = await fetch(`/api/community/${selectedCommunity}/videos`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.status === 403) {
+        setVideosError('Join this community to access exclusive videos');
+        setVideos([]);
+        return;
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        setVideos(data.videos || []);
+      } else {
+        setVideosError('Failed to load videos');
+        setVideos([]);
+      }
+    } catch (error) {
+      console.error('Error fetching videos:', error);
+      setVideosError('Failed to load videos');
+      setVideos([]);
+    } finally {
+      setVideosLoading(false);
+    }
+  }, [selectedCommunity, user]);
+
+  // Fetch videos when switching to videos tab or changing community
+  useEffect(() => {
+    if (viewMode === 'videos') {
+      fetchVideos();
+    }
+  }, [viewMode, selectedCommunity, fetchVideos]);
+
+  // Pre-fetch signed URLs for all post images
+  useEffect(() => {
+    const fetchSignedUrls = async () => {
+      for (const post of posts) {
+        if (post.images && post.images.length > 0) {
+          for (const imageUrl of post.images) {
+            if (!signedUrls[imageUrl] && !imageUrl.includes('X-Amz-Signature')) {
+              await getSignedImageUrl(imageUrl);
+            }
+          }
+        }
+      }
+    };
+    if (posts.length > 0) {
+      fetchSignedUrls();
+    }
+  }, [posts, signedUrls, getSignedImageUrl]);
+
+  const handleAddComment = async () => {
+    if (!activePostForComment || !commentText.trim()) return;
+    setCommentLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        window.location.href = '/signin';
+        return;
+      }
+      const response = await fetch('/api/community/post/comment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          postId: activePostForComment._id,
+          text: commentText
+        }),
+      });
+      if (response.ok) {
+        setCommentText('');
+        setShowCommentModal(false);
+        fetchPosts(); // Refresh list
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to add comment');
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+    } finally {
+      setCommentLoading(false);
+    }
+  };
 
   const handleJoinCommunity = async () => {
     if (!joinFormData.name || !joinFormData.email || !joinFormData.mobile) {
@@ -332,6 +511,54 @@ function CommunityPageContent() {
     }
   };
 
+  // Format WhatsApp-style text (bold, italic, strikethrough)
+  const formatWhatsAppText = (text: string) => {
+    if (!text) return '';
+    
+    // Replace *bold* with <strong>
+    let formatted = text.replace(/\*(.*?)\*/g, '<strong class="font-bold text-gray-900">$1</strong>');
+    
+    // Replace _italic_ with <em>
+    formatted = formatted.replace(/_(.*?)_/g, '<em class="italic">$1</em>');
+    
+    // Replace ~strikethrough~ with <del>
+    formatted = formatted.replace(/~(.*?)~/g, '<del class="line-through">$1</del>');
+    
+    // Replace ```code``` with <code>
+    formatted = formatted.replace(/```(.*?)```/g, '<code class="bg-gray-100 px-2 py-1 rounded text-sm font-mono">$1</code>');
+    
+    // Convert newlines to <br>
+    formatted = formatted.replace(/\n/g, '<br />');
+    
+    return formatted;
+  };
+
+  // Get the body content - strips header/footer if they exist in metadata
+  const getPostBodyContent = (post: Post) => {
+    let content = post.content || '';
+    const metadata = (post as any).metadata;
+    
+    // If we have original body in metadata, use that instead
+    if (metadata?.originalBody) {
+      return metadata.originalBody;
+    }
+    
+    // Otherwise strip the header and footer from the full content
+    if (metadata?.originalHeader) {
+      // Remove the header line (with asterisks for bold)
+      content = content.replace(new RegExp(`^\\*${escapeRegex(metadata.originalHeader)}\\*\\n?`, 'i'), '');
+    }
+    if (metadata?.originalFooter) {
+      // Remove the footer line (with underscores for italic)
+      content = content.replace(new RegExp(`\\n?_${escapeRegex(metadata.originalFooter)}_$`, 'i'), '');
+    }
+    
+    return content.trim();
+  };
+
+  // Helper to escape regex special chars
+  const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('community_user');
@@ -339,12 +566,11 @@ function CommunityPageContent() {
     alert('✅ Logged out successfully');
   };
 
-  const filteredPosts = posts.filter(post =>
-    post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    post.content.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredPosts = posts.filter((post) =>
+    (post.content || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const currentCommunity = communities.find(c => c.id === selectedCommunity);
+  const currentCommunity = communities.find((c) => c.id === selectedCommunity);
 
   return (
     <div className="min-h-screen bg-white">
@@ -577,7 +803,7 @@ function CommunityPageContent() {
             {/* Search and Filters */}
             <div className="mb-8 space-y-4">
               <div className="relative">
-                <search className="absolute left-4 top-3 text-green-600" size={20} />
+                <Search className="absolute left-4 top-3 text-green-600" size={20} />
                 <input
                   type="text"
                   placeholder="Search posts..."
@@ -592,9 +818,9 @@ function CommunityPageContent() {
                 {categories.map(category => (
                   <button
                     key={category.id}
-                    onClick={() => setSelectedCategory(category.id)}
+                    onClick={() => { setSelectedCategory(category.id); setViewMode('posts'); }}
                     className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-sm ${
-                      selectedCategory === category.id
+                      selectedCategory === category.id && viewMode === 'posts'
                         ? 'bg-gradient-to-r from-green-700 to-green-800 text-white shadow-md hover:shadow-lg'
                         : 'bg-white text-gray-700 border border-gray-300 hover:border-green-600 hover:bg-green-50'
                     }`}
@@ -602,11 +828,152 @@ function CommunityPageContent() {
                     {category.label}
                   </button>
                 ))}
+                
+                {/* Videos Tab - Only show for non-global communities and members */}
+                {selectedCommunity !== 'global' && (
+                  <button
+                    onClick={() => setViewMode('videos')}
+                    className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-sm flex items-center gap-2 ${
+                      viewMode === 'videos'
+                        ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md hover:shadow-lg'
+                        : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600 hover:bg-purple-50'
+                    }`}
+                  >
+                    🎥 Videos
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Posts List */}
-            {loading ? (
+            {/* Videos Section */}
+            {viewMode === 'videos' ? (
+              <div className="space-y-6">
+                {!user ? (
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-8 text-center">
+                    <div className="text-5xl mb-4">🔒</div>
+                    <h3 className="text-xl font-bold text-purple-900 mb-2">Members Only</h3>
+                    <p className="text-purple-700 mb-4">Join this community to access exclusive videos</p>
+                    <button
+                      onClick={() => {
+                        const community = communities.find(c => c.id === selectedCommunity);
+                        if (community) {
+                          if (community.isPublic) {
+                            setJoiningCommunity(community);
+                            setShowJoinModal(true);
+                          } else {
+                            setRequestingCommunity(community);
+                            setShowRequestModal(true);
+                          }
+                        }
+                      }}
+                      className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all"
+                    >
+                      Join Community
+                    </button>
+                  </div>
+                ) : videosLoading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <div className="text-center">
+                      <Loader className="w-12 h-12 animate-spin text-purple-600 mx-auto mb-4" />
+                      <p className="text-gray-500 font-medium">Loading videos...</p>
+                    </div>
+                  </div>
+                ) : videosError ? (
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-8 text-center">
+                    <div className="text-5xl mb-4">🎬</div>
+                    <p className="text-purple-700">{videosError}</p>
+                  </div>
+                ) : videos.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {videos.map((video) => (
+                      <div key={video._id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
+                        {/* Video Player */}
+                        <div className="relative aspect-video bg-gray-900">
+                          {video.url ? (
+                            <video 
+                              controls 
+                              className="w-full h-full"
+                              poster={video.thumbnailUrl}
+                              controlsList="nodownload"
+                              onContextMenu={(e) => e.preventDefault()}
+                            >
+                              <source src={video.url} type="video/mp4" />
+                              Your browser does not support the video tag.
+                            </video>
+                          ) : (
+                            <div className="flex items-center justify-center h-full text-gray-500">
+                              <span>Video unavailable</span>
+                            </div>
+                          )}
+                          {/* Non-shareable badge */}
+                          <div className="absolute top-3 right-3 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-bold">
+                            🔒 Members Only
+                          </div>
+                        </div>
+                        {/* Video Info */}
+                        <div className="p-4">
+                          <h4 className="text-lg font-bold text-gray-900 mb-1">{video.title}</h4>
+                          {video.description && (
+                            <p className="text-gray-600 text-sm line-clamp-2">{video.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
+                            <span>👤 {video.uploadedBy}</span>
+                            <span>📅 {new Date(video.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-8 text-center">
+                    <div className="text-5xl mb-4">🎥</div>
+                    <h3 className="text-xl font-bold text-purple-900 mb-2">No Videos Yet</h3>
+                    <p className="text-purple-700">Videos will be added by community admins</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Posts Section */
+              <>
+            {/* Access Control: Show members-only message for non-global communities when not logged in */}
+            {selectedCommunity !== 'global' && !user ? (
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-2xl p-10 text-center">
+                <div className="text-6xl mb-4">🔒</div>
+                <h3 className="text-2xl font-bold text-purple-900 mb-3">Members Only Community</h3>
+                <p className="text-purple-700 mb-6 max-w-md mx-auto">
+                  This community is exclusive to members. Join to access posts, videos, and connect with other members.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  {currentCommunity?.isPublic ? (
+                    <button
+                      onClick={() => {
+                        setJoiningCommunity(currentCommunity);
+                        setShowJoinModal(true);
+                      }}
+                      className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:from-green-700 hover:to-emerald-700 transition-all transform hover:scale-105 shadow-lg"
+                    >
+                      ✨ Join Now - It&apos;s Free!
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setRequestingCommunity(currentCommunity);
+                        setShowRequestModal(true);
+                      }}
+                      className="px-8 py-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl font-bold hover:from-purple-700 hover:to-purple-800 transition-all transform hover:scale-105 shadow-lg"
+                    >
+                      📋 Request Membership
+                    </button>
+                  )}
+                  <Link
+                    href="/community?join=global"
+                    className="px-8 py-4 bg-white text-purple-700 border-2 border-purple-300 rounded-xl font-bold hover:bg-purple-50 transition-all"
+                  >
+                    🌐 View Global Community
+                  </Link>
+                </div>
+              </div>
+            ) : loading ? (
               <div className="flex justify-center items-center py-12">
                 <div className="text-center">
                   <Loader className="w-12 h-12 animate-spin text-green-600 mx-auto mb-4" />
@@ -617,52 +984,169 @@ function CommunityPageContent() {
               <div className="space-y-6">
                 {filteredPosts.map((post) => (
                   <Link key={post._id} href={`/community/post/${post._id}`}>
-                    <div className="bg-white border border-gray-200 rounded-2xl hover:border-green-400 hover:shadow-xl transition-all duration-300 transform hover:scale-102 p-6 cursor-pointer group">
-                      <div className="flex items-start justify-between mb-5">
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-lg group-hover:shadow-lg transition-all duration-200 shadow-sm">
-                            {post.author.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-bold text-gray-900 group-hover:text-green-600 transition-colors duration-200 line-clamp-2">
-                              {post.title}
-                            </h3>
-                            <p className="text-sm text-gray-600 font-medium">
-                              {post.author} • {new Date(post.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        {post.category && (
-                          <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold whitespace-nowrap border border-green-200">
-                            {post.category}
-                          </span>
+                    <div className="bg-white border-2 border-gray-100 rounded-[2rem] hover:border-emerald-400 hover:shadow-2xl hover:shadow-emerald-100/50 transition-all duration-500 transform hover:-translate-y-2 overflow-hidden cursor-pointer group shadow-lg p-6 sm:p-8 mb-6">
+                      
+                      {/* WhatsApp Format 1: Header (Heading) */}
+                      <div className="mb-4">
+                        {(post as any).metadata?.originalHeader ? (
+                           <h3 className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight tracking-tight group-hover:text-emerald-600 transition-colors duration-300">
+                             {(post as any).metadata.originalHeader}
+                           </h3>
+                        ) : post.title && (
+                          <h3 className="text-xl sm:text-2xl font-black text-gray-900 leading-tight mb-2 tracking-tight group-hover:text-emerald-600 transition-colors duration-300">
+                            {post.title}
+                          </h3>
                         )}
+                        <p className="text-xs text-gray-400 mt-2">
+                          {new Date(post.createdAt).toLocaleDateString()}
+                        </p>
                       </div>
 
-                      {post.image && (
-                        <img src={post.image} alt={post.title} className="w-full h-48 object-cover rounded-xl mb-4 group-hover:shadow-lg transition-all duration-200" />
+                      {/* WhatsApp Format 2: Image */}
+                      {post.images && post.images.length > 0 && (() => {
+                        const imageUrl = signedUrls[post.images[0]] || (post.images[0].includes('X-Amz-Signature') ? post.images[0] : null);
+                        return imageUrl ? (
+                          <div className="relative w-full aspect-video sm:aspect-[16/9] bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden rounded-2xl mb-6 border border-gray-100 shadow-inner group-hover:shadow-lg transition-shadow duration-300">
+                            <img 
+                              src={imageUrl} 
+                              alt="" 
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                              onError={(e) => { 
+                                const img = e.target as HTMLImageElement;
+                                const container = img.parentElement;
+                                if (container) {
+                                  container.style.display = 'none';
+                                }
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            {post.images.length > 1 && (
+                              <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-md text-white px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide border border-white/20">
+                                +{post.images.length - 1} More
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="relative w-full aspect-video sm:aspect-[16/9] bg-gradient-to-br from-emerald-50 to-teal-50 overflow-hidden rounded-2xl mb-6 border border-gray-100 flex items-center justify-center">
+                            <div className="text-emerald-400 animate-pulse text-sm">Loading image...</div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* WhatsApp Format 3: Body (Text) - With Formatting */}
+                      <div className="mb-6">
+                        <div 
+                          className="text-gray-600 text-base sm:text-lg leading-relaxed"
+                          dangerouslySetInnerHTML={{ __html: formatWhatsAppText(getPostBodyContent(post)) }}
+                        />
+                      </div>
+
+                      {/* WhatsApp Format 4: Footer - By Mohan Sir */}
+                      <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border-l-4 border-emerald-500">
+                        <p className="text-emerald-700 italic text-sm sm:text-base">
+                          By - Mohan Sir
+                        </p>
+                      </div>
+
+                      {/* WhatsApp Format 5: Blue Button */}
+                      {(post as any).metadata?.buttons && Array.isArray((post as any).metadata.buttons) && (post as any).metadata.buttons.length > 0 && (
+                        <div className="flex flex-wrap gap-3 mb-6">
+                          {(post as any).metadata.buttons.map((btn: any, idx: number) => (
+                            <button 
+                              key={idx}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if(btn.url) window.open(btn.url, '_blank');
+                              }}
+                              className="flex-1 min-w-[180px] py-3 px-6 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-bold text-sm uppercase tracking-wide shadow-lg shadow-blue-200/50 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95 text-center flex items-center justify-center gap-2"
+                            >
+                              {btn.label || btn.text} <ExternalLink className="w-4 h-4" />
+                            </button>
+                          ))}
+                        </div>
                       )}
 
-                      <p className="text-gray-700 line-clamp-2 mb-5 leading-relaxed">{post.content}</p>
-
-                      {/* Engagement Stats */}
-                      <div className="flex gap-6 text-sm font-bold">
-                        <button className="flex items-center gap-2 text-red-700 hover:text-red-800 hover:bg-red-50 px-3 py-2 rounded-lg transition-all duration-200 font-bold">
-                          <Heart className="w-4 h-4" />
-                          <span>{post.likes}</span>
+                      {/* Engagement Stats - Always at bottom */}
+                      <div className="flex gap-6 text-sm font-semibold border-t border-gray-100 pt-5 mt-2">
+                        <button 
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            const token = localStorage.getItem('token');
+                            if (!token) return window.location.href = '/signin';
+                            try {
+                              const res = await fetch('/api/community/post/like', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                body: JSON.stringify({ postId: post._id }),
+                              });
+                              if (res.ok) {
+                                const json = await res.json();
+                                setPosts(prev => prev.map(p => p._id === post._id ? { 
+                                  ...p, 
+                                  likes: Array.isArray(p.likes) 
+                                    ? (json.data.likedByMe 
+                                        ? (p.likes.includes(user._id) ? p.likes : [...p.likes, user._id])
+                                        : p.likes.filter((id: string) => id !== user._id))
+                                    : [user._id]
+                                } : p));
+                              }
+                            } catch (err) {}
+                          }}
+                          className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-all hover:scale-105">
+                          <span className={`text-lg ${Array.isArray(post.likes) && user && post.likes.includes(user._id) ? 'text-red-500' : ''}`}>
+                            {Array.isArray(post.likes) && user && post.likes.includes(user._id) ? '❤️' : '🤍'}
+                          </span>
+                          <span className={`${Array.isArray(post.likes) && user && post.likes.includes(user._id) ? 'text-red-600' : 'text-gray-500'}`}>
+                            {Array.isArray(post.likes) ? post.likes.length : 0}
+                          </span>
                         </button>
-                        <button className="flex items-center gap-2 text-blue-700 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-lg transition-all duration-200 font-bold">
-                          <MessageCircle className="w-4 h-4" />
-                          <span>{post.comments}</span>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setActivePostForComment(post);
+                            setShowCommentModal(true);
+                          }}
+                          className="flex items-center gap-2 text-gray-400 hover:text-emerald-500 transition-all hover:scale-105">
+                          <MessageCircle className="w-5 h-5" />
+                          <span className="text-gray-500">{Array.isArray(post.comments) ? post.comments.length : (typeof post.comments === 'number' ? post.comments : 0)}</span>
                         </button>
-                        <button className="flex items-center gap-2 text-green-700 hover:text-green-800 hover:bg-green-50 px-3 py-2 rounded-lg transition-all duration-200 font-bold">
-                          <Share2 className="w-4 h-4" />
-                          <span>Share</span>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            if (navigator.share) {
+                              navigator.share({
+                                title: 'Swar Yoga Community',
+                                text: post.content.substring(0, 100),
+                                url: `${window.location.origin}/community/post/${post._id}`
+                              });
+                            }
+                          }}
+                          className="flex items-center gap-2 text-gray-400 hover:text-emerald-600 transition-all hover:scale-105 ml-auto">
+                          <Share2 className="w-5 h-5" />
+                          <span className="text-gray-500">Share</span>
                         </button>
                       </div>
                     </div>
                   </Link>
                 ))}
+              </div>
+            ) : postsError ? (
+              <div className="flex flex-col items-center justify-center py-12 bg-white rounded-2xl border border-red-200 shadow-sm">
+                <AlertCircle size={48} className="text-red-400 mb-4" />
+                <p className="text-red-600 text-center font-medium mb-6">{postsError}</p>
+                <button
+                  onClick={() => {
+                    setRetryCount(0);
+                    fetchPosts();
+                  }}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-bold"
+                >
+                  Retry
+                </button>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 bg-white rounded-2xl border border-gray-200 shadow-sm">
@@ -692,6 +1176,8 @@ function CommunityPageContent() {
                 )}
               </div>
             )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -701,12 +1187,14 @@ function CommunityPageContent() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-green-900 to-emerald-900 border border-green-500/40 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white">
-              <div className="flex items-center gap-3">
-                <div className="text-5xl">{joiningCommunity?.icon}</div>
+            <div className="bg-gradient-to-r from-green-600 to-emerald-600 p-6 text-white text-left">
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 p-4 rounded-2xl shadow-inner text-3xl">
+                  ✨
+                </div>
                 <div>
-                  <h2 className="text-2xl font-bold">Join {joiningCommunity?.name}</h2>
-                  <p className="text-sm opacity-90">Connect with the community</p>
+                  <h2 className="text-2xl font-bold tracking-tight">Join {joiningCommunity?.name}</h2>
+                  <p className="text-sm font-medium opacity-90">Connect with the community</p>
                 </div>
               </div>
             </div>
@@ -781,12 +1269,14 @@ function CommunityPageContent() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white border-2 border-green-400 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white">
-              <div className="flex items-center gap-3">
-                <div className="text-5xl">{requestingCommunity?.icon}</div>
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white text-left">
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 p-4 rounded-2xl shadow-inner text-3xl">
+                  📋
+                </div>
                 <div>
-                  <h2 className="text-2xl font-bold">Request Access</h2>
-                  <p className="text-sm opacity-90">{requestingCommunity?.name}</p>
+                  <h2 className="text-2xl font-bold tracking-tight">Request Access</h2>
+                  <p className="text-sm font-medium opacity-90">{requestingCommunity?.name}</p>
                 </div>
               </div>
             </div>
@@ -887,11 +1377,79 @@ function CommunityPageContent() {
         </div>
       )}
 
+      {/* Comment Modal */}
+      {showCommentModal && activePostForComment && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white border-2 border-emerald-500 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 p-6 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <MessageCircle size={24} />
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tighter leading-none mb-1">Add Comment</h3>
+                  <p className="text-[10px] uppercase font-bold opacity-75 tracking-tighter">Community Discussion</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowCommentModal(false);
+                  setCommentText('');
+                  setActivePostForComment(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                title="Close"
+              >
+                <Plus className="rotate-45" size={24} />
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Replying to</p>
+                <p className="text-sm text-slate-600 font-medium line-clamp-2 italic">"{activePostForComment.content}"</p>
+              </div>
+              
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Your Message</label>
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Share your thoughts..."
+                  className="w-full h-32 px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-emerald-500 focus:bg-white transition-all font-medium text-sm resize-none"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setShowCommentModal(false);
+                    setCommentText('');
+                    setActivePostForComment(null);
+                  }}
+                  className="flex-1 py-4 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddComment}
+                  disabled={commentLoading || !commentText.trim()}
+                  className="flex-1 py-4 px-6 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-200 hover:bg-emerald-700 disabled:opacity-50 transition-all active:scale-95"
+                >
+                  {commentLoading ? 'Posting...' : 'Submit Comment'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chat Off Modal */}
       {showChatOffModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white border-2 border-blue-400 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
+          <div className="bg-white border-2 border-blue-400 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transition-all animate-in fade-in zoom-in duration-300">
+            <div className="bg-blue-500 p-8 text-white relative">
+              <div className="absolute top-4 right-4 text-white/50 animate-pulse">
+                <AlertCircle className="w-12 h-12" />
+              </div>
               <h2 className="text-2xl font-bold flex items-center gap-3">
                 <span className="text-3xl">⏳</span>
                 Chat is Off
