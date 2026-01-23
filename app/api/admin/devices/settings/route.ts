@@ -4,6 +4,9 @@ import { verifyToken } from '@/lib/auth';
 import { getDeviceSettings, updateDeviceSettings } from '@/lib/device-control';
 import { apiError, apiSuccess } from '@/lib/api-error';
 
+// Mark as dynamic since this route uses request.headers
+export const dynamic = 'force-dynamic';
+
 // GET - Get device settings
 export async function GET(req: NextRequest) {
   try {

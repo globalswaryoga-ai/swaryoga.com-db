@@ -12,7 +12,10 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
-    const decoded = verifyToken(token);
+    if (!token) {
+      return apiError('UNAUTHORIZED', 'No token provided');
+    }
+    const decoded = await verifyToken(token);
     if (!decoded?.isAdmin) {
       return apiError('UNAUTHORIZED', 'Unauthorized');
     }
