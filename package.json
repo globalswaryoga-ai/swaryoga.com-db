@@ -9,6 +9,8 @@
     "dev:reset": "node scripts/dev-reset-3000.mjs",
     "ec2:status": "node scripts/ec2-status.js",
     "health-check": "node scripts/health-check.js",
+    "monitor-bridge": "node scripts/monitor-bridge-health.js",
+    "setup-ec2-recovery": "bash scripts/setup-ec2-auto-recovery.sh",
     "build": "next build",
     "vercel-build": "next build",
     "vercel-start": "next start",
