@@ -40,11 +40,20 @@ const formatStatus = (status) => {
 
 const getEC2Status = async () => {
   try {
-    // Try to get EC2 instances using AWS CLI
-    const { stdout } = await execAsync(
+    // Try to get EC2 instances with swar-yoga name tag first
+    let { stdout } = await execAsync(
       `aws ec2 describe-instances --filters "Name=tag:Name,Values=swar-yoga*" --query "Reservations[*].Instances[*].[Tags[?Key=='Name']|[0].Value,State.Name,InstanceType,PublicIpAddress]" --output text 2>/dev/null || echo ""`,
       { timeout: 5000 }
     );
+
+    // If no swar-yoga instances found, get all running instances
+    if (!stdout.trim()) {
+      const result = await execAsync(
+        `aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" --query "Reservations[*].Instances[*].[Tags[?Key=='Name']|[0].Value,State.Name,InstanceType,PublicIpAddress]" --output text 2>/dev/null || echo ""`,
+        { timeout: 5000 }
+      );
+      stdout = result.stdout;
+    }
 
     if (!stdout.trim()) {
       return null;
