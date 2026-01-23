@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "Swar Yoga e-commerce website",
   "scripts": {
-    "dev": "PORT=3000 next dev --port 3000",
+    "dev": "node scripts/dev-with-status.js",
     "dev:no-check": "PORT=3000 next dev --port 3000",
+    "dev:no-ec2": "PORT=3000 next dev --port 3000",
     "dev:reset": "node scripts/dev-reset-3000.mjs",
+    "ec2:status": "node scripts/ec2-status.js",
     "health-check": "node scripts/health-check.js",
     "build": "next build",
     "vercel-build": "next build",
