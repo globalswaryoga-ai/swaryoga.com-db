@@ -1630,7 +1630,17 @@ function QRWhatsAppInboxPageContent() {
       console.log('[handleConnect] Done!');
       
       // Show helpful message about scanning
-      setBridgeError('🔐 QR code ready! Scan with WhatsApp on your phone. If you get "try again later", please wait 30 seconds and try refreshing the QR.');
+      setBridgeError('🔐 QR code ready! Scan with WhatsApp on your phone. The QR will auto-refresh every 30 seconds.');
+      
+      // Auto-refresh QR every 30 seconds to keep it fresh and prevent "try again later" errors
+      const refreshInterval = setInterval(() => {
+        if (showQRModalRef.current) {
+          console.log('[handleConnect] Auto-refreshing QR...');
+          refreshQr().catch(() => null);
+        } else {
+          clearInterval(refreshInterval);
+        }
+      }, 30000); // 30 seconds
     } catch (err) {
       console.warn('[handleConnect] Warning:', err instanceof Error ? err.message : 'Failed to connect');
       // Don't set bridge error for connection failures - QR load is what matters
