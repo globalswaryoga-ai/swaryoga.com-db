@@ -41,6 +41,21 @@ export default function CRMAdminUsersPage() {
     email: false,
   });
 
+  // Add Admin User modal state
+  const [addOpen, setAddOpen] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addMsg, setAddMsg] = useState('');
+  const [addUserId, setAddUserId] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addPassword, setAddPassword] = useState('');
+  const [addName, setAddName] = useState('');
+  const [addPermissionMode, setAddPermissionMode] = useState<'all' | 'selected'>('selected');
+  const [addSelectedPermissions, setAddSelectedPermissions] = useState({
+    crm: true,
+    whatsapp: false,
+    email: false,
+  });
+
   // Check permissions on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -141,6 +156,78 @@ export default function CRMAdminUsersPage() {
       .filter((k) => selectedPermissions[k])
       .map((k) => String(k));
     return chosen;
+  };
+  const buildAddPermissionsPayload = () => {
+    if (addPermissionMode === 'all') return ['all'];
+    const chosen = (Object.keys(addSelectedPermissions) as Array<keyof typeof addSelectedPermissions>)
+      .filter((k) => addSelectedPermissions[k])
+      .map((k) => String(k));
+    return chosen;
+  };
+  const resetAddModal = () => {
+    setAddUserId('');
+    setAddEmail('');
+    setAddPassword('');
+    setAddName('');
+    setAddPermissionMode('selected');
+    setAddSelectedPermissions({ crm: true, whatsapp: false, email: false });
+    setAddMsg('');
+  };
+
+  const openAdd = () => {
+    resetAddModal();
+    setAddOpen(true);
+  };
+
+  const saveAdd = async () => {
+    if (!token) {
+      setAddMsg('Admin token missing. Please login again.');
+      return;
+    }
+    const userId = addUserId.trim();
+    const email = addEmail.trim().toLowerCase();
+    const password = addPassword;
+    const name = addName.trim();
+    const permissions = buildAddPermissionsPayload();
+    if (!userId) {
+      setAddMsg('Username (userId) is required.');
+      return;
+    }
+    if (!email) {
+      setAddMsg('Email is required.');
+      return;
+    }
+    if (!password || password.length < 6) {
+      setAddMsg('Password must be at least 6 characters.');
+      return;
+    }
+    if (permissions.length === 0) {
+      setAddMsg('Select at least one permission (CRM/WhatsApp/Email) or choose Full Access.');
+      return;
+    }
+    setAddBusy(true);
+    setAddMsg('');
+    try {
+      const response = await fetch('/api/admin/auth/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId, email, password, name, permissions }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to add user');
+      }
+      setAddMsg('User added successfully.');
+      setAddOpen(false);
+      await fetchUsers(token);
+    } catch (err) {
+      setAddMsg(err instanceof Error ? err.message : 'Failed to add user');
+    } finally {
+      setAddBusy(false);
+    }
   };
 
   const saveEdit = async () => {
@@ -296,21 +383,189 @@ export default function CRMAdminUsersPage() {
               Admin Users
             </h1>
           </div>
-          <button
-            onClick={() => {
-              localStorage.removeItem('adminToken');
-              localStorage.removeItem('admin_token');
-              localStorage.removeItem('admin_user');
-              localStorage.removeItem('adminUser');
-              router.push('/admin/login');
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+            >
+              <UserPlus className="h-4 w-4" />
+              <span>Add Admin User</span>
+            </button>
+            <button
+              onClick={() => {
+                localStorage.removeItem('adminToken');
+                localStorage.removeItem('admin_token');
+                localStorage.removeItem('admin_user');
+                localStorage.removeItem('adminUser');
+                router.push('/admin/login');
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </nav>
+      {/* Add Admin User Modal */}
+      {addOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => {
+              if (!addBusy) setAddOpen(false);
+            }}
+            aria-hidden="true"
+          />
+          <div className="relative w-full max-w-2xl bg-slate-800 rounded-xl shadow-2xl border border-purple-500/30">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-purple-500/20">
+              <h2 className="text-xl font-bold text-green-300">Add Admin User</h2>
+              <button
+                onClick={() => setAddOpen(false)}
+                className="p-2 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                title="Close"
+                disabled={addBusy}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 py-5 max-h-96 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-green-300 mb-1">Username (userId)</label>
+                  <input
+                    value={addUserId}
+                    onChange={(e) => setAddUserId(e.target.value)}
+                    className="w-full border border-slate-600 rounded-lg px-3 py-2 bg-slate-700 text-slate-300"
+                    placeholder="admin2"
+                    disabled={addBusy}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-green-300 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    className="w-full border border-slate-600 rounded-lg px-3 py-2 bg-slate-700 text-slate-100 placeholder-slate-500"
+                    placeholder="John Doe"
+                    disabled={addBusy}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-green-300 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={addEmail}
+                    onChange={(e) => setAddEmail(e.target.value)}
+                    className="w-full border border-slate-600 rounded-lg px-3 py-2 bg-slate-700 text-slate-100 placeholder-slate-500"
+                    placeholder="user@example.com"
+                    disabled={addBusy}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-green-300 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={addPassword}
+                    onChange={(e) => setAddPassword(e.target.value)}
+                    className="w-full border border-slate-600 rounded-lg px-3 py-2 bg-slate-700 text-slate-100 placeholder-slate-500"
+                    placeholder="At least 6 characters"
+                    disabled={addBusy}
+                  />
+                </div>
+              </div>
+              <div className="mt-5 border-t border-slate-700 pt-4">
+                <p className="text-sm font-semibold text-green-300 mb-2">Permissions</p>
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="add-permission-mode"
+                      checked={addPermissionMode === 'selected'}
+                      onChange={() => setAddPermissionMode('selected')}
+                      disabled={addBusy}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-semibold text-slate-100">Custom</div>
+                      <div className="text-sm text-slate-400">Select CRM/WhatsApp/Email.</div>
+                    </div>
+                  </label>
+                  {addPermissionMode === 'selected' && (
+                    <div className="ml-7 grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-700/50 rounded-lg p-3">
+                      <label className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={addSelectedPermissions.crm}
+                          onChange={() => setAddSelectedPermissions((prev) => ({ ...prev, crm: !prev.crm }))}
+                          disabled={addBusy}
+                        />
+                        CRM
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={addSelectedPermissions.whatsapp}
+                          onChange={() => setAddSelectedPermissions((prev) => ({ ...prev, whatsapp: !prev.whatsapp }))}
+                          disabled={addBusy}
+                        />
+                        WhatsApp
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={addSelectedPermissions.email}
+                          onChange={() => setAddSelectedPermissions((prev) => ({ ...prev, email: !prev.email }))}
+                          disabled={addBusy}
+                        />
+                        Email
+                      </label>
+                    </div>
+                  )}
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="add-permission-mode"
+                      checked={addPermissionMode === 'all'}
+                      onChange={() => setAddPermissionMode('all')}
+                      disabled={addBusy}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-semibold text-slate-100">Full Access (all)</div>
+                      <div className="text-sm text-slate-400">Use only for trusted admins.</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              {addMsg && (
+                <div className="mt-4 text-sm">
+                  <div className={addMsg.toLowerCase().includes('success') ? 'text-green-400' : 'text-red-400'}>
+                    {addMsg}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setAddOpen(false)}
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 transition-colors"
+                disabled={addBusy}
+              >
+                Close
+              </button>
+              <button
+                onClick={saveAdd}
+                className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-60"
+                disabled={addBusy}
+              >
+                {addBusy ? 'Saving...' : 'Add User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">

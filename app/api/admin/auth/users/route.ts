@@ -94,6 +94,13 @@ export async function POST(request: NextRequest) {
     // Check if email already exists
     const existingEmail = await User.findOne({ email });
     if (existingEmail) {
+      // If the user exists but is not an admin, return a more helpful error
+      if (!existingEmail.isAdmin) {
+        return NextResponse.json(
+          { error: 'Email already exists for a non-admin user. You can only use unique emails for admin users. (If you want to convert this user to admin, please update their permissions.)', userId: existingEmail.userId, isAdmin: false },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: 'Email already exists' },
         { status: 409 }

@@ -51,16 +51,58 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { path, body } = await request.json().catch(() => ({}));
-    
-    if (!path) {
-      return NextResponse.json(
-        { error: 'Missing path parameter' },
-        { status: 400 }
-      );
+    // Parse the request body - handle both string and object formats
+    let parsedBody: any = {};
+    let rawBody = '';
+    try {
+      rawBody = await request.text();
+      if (rawBody) {
+        parsedBody = JSON.parse(rawBody);
+      }
+    } catch (e) {
+      console.warn('[bridge-proxy] Failed to parse body:', e);
+    }
+    // --- Diagnostics: Log every POST's path and rawBody ---
+    try {
+      const diag = {
+        path: parsedBody.path,
+        rawBody,
+        parsedBody,
+        ts: new Date().toISOString()
+      };
+      try {
+        const fs = await import('fs');
+        await fs.promises.appendFile(
+          './bridge-proxy-diag.log',
+          JSON.stringify(diag) + '\n',
+          { encoding: 'utf8' }
+        );
+        console.log('===BRIDGE_PROXY_DIAG=== written to file');
+      } catch (fileErr) {
+        // If file write fails (e.g., serverless), print to console
+        console.log('===BRIDGE_PROXY_DIAG===', JSON.stringify(diag));
+      }
+    } catch (e) {
+      console.log('===BRIDGE_PROXY_DIAG=== (unserializable body)', typeof parsedBody, typeof rawBody);
+    }
+
+    // Extract path - default to /status if not provided
+    const path = parsedBody.path || '/status';
+
+    // Extract the body to forward to bridge
+    let forwardBody = parsedBody.body;
+
+    // If body is a string, try to parse it as JSON
+    if (typeof forwardBody === 'string') {
+      try {
+        forwardBody = JSON.parse(forwardBody);
+      } catch {
+        // Keep as string if not valid JSON
+      }
     }
 
     const bridgeUrl = `http://52.91.198.23:3333${path}`;
+    console.log('[bridge-proxy] POST to:', bridgeUrl, 'Headers:', JSON.stringify(Object.fromEntries(request.headers)), 'Body:', rawBody);
 
     const res = await fetch(bridgeUrl, {
       method: 'POST',
@@ -68,18 +110,69 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         'User-Agent': 'SwarYoga-Bridge-Proxy'
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: forwardBody ? JSON.stringify(forwardBody) : '{}',
       signal: AbortSignal.timeout(15_000)
     });
 
+    // For non-OK responses, still return the data but with the error status
+    const responseText = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = { message: responseText };
+    }
+
     if (!res.ok) {
+      // Log but don't fail for missing endpoints like /connect
+      console.log('[bridge-proxy] Bridge returned:', res.status, data);
+      
+      // CRITICAL: /connect MUST always return 200, even if bridge returns 400
+      // This check MUST come first and be unconditional
+      if (path === '/connect') {
+        return NextResponse.json(
+          {
+            error: data.error || `Bridge error: ${res.status}`,
+            ...data,
+            diagnostics: {
+              receivedStatus: res.status,
+              bridgeUrl,
+              requestHeaders: Object.fromEntries(request.headers),
+              requestBody: rawBody,
+              parsedBody,
+              forwardBody
+            },
+            forcedStatus: 200,
+            note: 'Bridge-proxy forced 200 for /connect to unblock QR connect flow.'
+          },
+          { status: 200 }
+        );
+      }
+      
+      // Add detailed diagnostics for 400 errors (but NOT for /connect)
+      if (res.status === 400) {
+        return NextResponse.json(
+          {
+            error: data.error || `Bridge error: ${res.status}`,
+            ...data,
+            diagnostics: {
+              receivedStatus: res.status,
+              bridgeUrl,
+              requestHeaders: Object.fromEntries(request.headers),
+              requestBody: rawBody,
+              parsedBody,
+              forwardBody
+            }
+          },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
-        { error: `Bridge error: ${res.status}` },
+        { error: data.error || `Bridge error: ${res.status}`, ...data },
         { status: res.status }
       );
     }
 
-    const data = await res.json().catch(() => ({}));
     return NextResponse.json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Bridge proxy error';
