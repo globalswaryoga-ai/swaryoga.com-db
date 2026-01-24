@@ -231,6 +231,12 @@ export default function QRWhatsAppInboxPage() {
           console.error(`[bridgeFetch] Request timeout after ${timeoutMs}ms for path: ${path}`);
           throw new Error(`Bridge request timeout (${timeoutMs}ms) - Check if bridge is running`);
         }
+        // For CORS or network errors, return a 503 response instead of throwing
+        console.warn(`[bridgeFetch] Network error for ${path}:`, error.message);
+        return new Response(JSON.stringify({ error: 'Bridge unavailable', details: error.message }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        });
       }
       throw error;
     } finally {
