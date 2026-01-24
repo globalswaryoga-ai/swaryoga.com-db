@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+/**
+ * WhatsApp QR Bridge Proxy Endpoint
+ * Proxies requests to the WhatsApp bridge service at 52.91.198.23:3333
+ * Supports dynamic path routing for QR code retrieval, status checks, and messaging
+ */
+
 // Use EC2 bridge URL by default (works for both dev and prod)
 const DEFAULT_BRIDGE_URL = 'http://52.91.198.23:3333';
 
