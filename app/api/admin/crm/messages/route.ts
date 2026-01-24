@@ -128,6 +128,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
+    // Handle special actions (e.g., markThreadAsRead)
+    if (body.action === 'markThreadAsRead') {
+      // This is just a QR chat action, minimal validation
+      const { phoneNumber } = body;
+      if (phoneNumber) {
+        // Mark all messages for this phone as read
+        const normalizedPhone = normalizePhone(String(phoneNumber));
+        if (normalizedPhone) {
+          await WhatsAppMessage.updateMany(
+            { phoneNumber: normalizedPhone, status: { $ne: 'read' } },
+            { $set: { status: 'read', readAt: new Date() } }
+          ).catch(() => {}); // Silently fail
+        }
+      }
+      return NextResponse.json({ success: true, action: 'markThreadAsRead' }, { status: 200 });
+    }
+
     const { leadId, phoneNumber, messageContent, messageType, mediaUrl, mediaType: providedMediaType } = body;
 
     // Validate required fields
