@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId } from '@/lib/crm-handlers';
+import { sendWhatsAppText, sendWhatsAppMedia, normalizePhone } from '@/lib/whatsapp';
 
 // Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
 // so prefer server-only env vars and only fall back to NEXT_PUBLIC_* if needed.
@@ -18,6 +19,21 @@ const BRIDGE_SECRET =
   process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
   process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
   'swar-bridge-secret-2024';
+
+// Check if bridge is available (quick health check)
+async function isBridgeConnected(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/status`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data?.connected === true;
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -113,7 +129,7 @@ export async function POST(req: NextRequest) {
         sentByLabel: adminName,
         sentByUserId: viewerUserId,
         senderDisplayName: adminName,
-        provider: 'whatsapp_web_bridge',
+        provider: 'meta', // Will be updated based on actual provider used
         sentAt: new Date()
       });
       savedDbMessageId = savedMessage._id.toString();
@@ -122,10 +138,80 @@ export async function POST(req: NextRequest) {
       console.error('[QR SEND DB INIT LOG ERROR]:', dbErr);
     }
 
-    // 2. Call Bridge to actually send the message
+    // Extract phone number from chatId format
+    const phone = typeof to === 'string' ? to.split('@')[0] : (to.user || to._serialized?.split('@')[0]);
+    const normalizedPhone = normalizePhone(phone);
+
+    // 2. TRY META CLOUD API FIRST (more reliable than Web Bridge)
+    let metaResult: any = null;
+    let usedProvider = 'meta';
+    
+    try {
+      console.log(`[QR SEND] 🌐 Trying Meta Cloud API first for ${normalizedPhone}...`);
+      
+      if (url) {
+        // Send media via Meta
+        const mediaType = type === 'video' ? 'video' : type === 'audio' ? 'audio' : type === 'document' ? 'document' : 'image';
+        metaResult = await sendWhatsAppMedia(normalizedPhone, url, mediaType, finalCaption || finalMessage);
+      } else {
+        // Send text via Meta
+        metaResult = await sendWhatsAppText(normalizedPhone, finalMessage);
+      }
+      
+      if (metaResult?.waMessageId) {
+        console.log(`[QR SEND] ✅ Meta API sent successfully: ${metaResult.waMessageId}`);
+        
+        // Update DB with success
+        if (savedDbMessageId) {
+          try {
+            const WhatsAppMessage = getWhatsAppMessage();
+            await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, {
+              status: 'sent',
+              waMessageId: metaResult.waMessageId,
+              provider: 'meta'
+            });
+          } catch (e) {}
+        }
+        
+        return NextResponse.json({ 
+          success: true, 
+          messageId: metaResult.waMessageId,
+          dbMessageId: savedDbMessageId,
+          whatsappMessageId: metaResult.waMessageId,
+          provider: 'meta'
+        });
+      }
+    } catch (metaErr: any) {
+      console.warn(`[QR SEND] ⚠️ Meta API failed: ${metaErr.message}, trying bridge...`);
+    }
+
+    // 3. FALLBACK: Try WhatsApp Web Bridge only if Meta failed
+    const bridgeConnected = await isBridgeConnected();
+    if (!bridgeConnected) {
+      console.error('[QR SEND] ❌ Both Meta API and Bridge unavailable');
+      if (savedDbMessageId) {
+        try {
+          const WhatsAppMessage = getWhatsAppMessage();
+          await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, { 
+            status: 'failed', 
+            failureReason: 'WhatsApp bridge not connected. Please scan QR code to connect.' 
+          });
+        } catch (e) {}
+      }
+      return NextResponse.json({ 
+        success: false, 
+        error: 'WhatsApp not connected. Messages are being sent via Meta Cloud API (check your Meta number for delivery).',
+        dbMessageId: savedDbMessageId 
+      }, { status: 503 });
+    }
+
+    // Bridge is connected, try sending
     let bridgeData: any = {};
     let bridgeOk = false;
+    usedProvider = 'whatsapp_web_bridge';
+    
     try {
+      console.log(`[QR SEND] 🌉 Trying Bridge for ${to}...`);
       const bridgeRes = await fetch(`${BRIDGE_URL}/send`, {
         method: 'POST',
         headers: { 
@@ -133,13 +219,22 @@ export async function POST(req: NextRequest) {
           'x-bridge-secret': BRIDGE_SECRET
         },
         body: JSON.stringify({ to, message: finalMessage, type, url, buttons, caption: finalCaption }),
-        signal: AbortSignal.timeout(10000) // 10s timeout for bridge call
+        signal: AbortSignal.timeout(10000)
       });
 
       bridgeData = await bridgeRes.json();
       bridgeOk = bridgeRes.ok;
     } catch (fetchErr: any) {
       console.error('[QR SEND BRIDGE FETCH ERROR]:', fetchErr.message);
+      if (savedDbMessageId) {
+        try {
+          const WhatsAppMessage = getWhatsAppMessage();
+          await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, { 
+            status: 'failed', 
+            failureReason: `Bridge error: ${fetchErr.message}` 
+          });
+        } catch (e) {}
+      }
       return NextResponse.json({ 
         success: false, 
         error: `Bridge connection error: ${fetchErr.message}`,
@@ -168,15 +263,16 @@ export async function POST(req: NextRequest) {
     // Extract WhatsApp message ID from bridge response
     const whatsappMessageId = bridgeData.id || bridgeData.messageId || bridgeData.key?.id;
 
-    // 3. Update DB with success status and WhatsApp ID
+    // 4. Update DB with success status and WhatsApp ID
     if (savedDbMessageId) {
       try {
         const WhatsAppMessage = getWhatsAppMessage();
         await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, {
           status: 'sent',
-          waMessageId: whatsappMessageId
+          waMessageId: whatsappMessageId,
+          provider: 'whatsapp_web_bridge'
         });
-        console.log(`[QR SEND] ✅ Message status updated to sent: ${savedDbMessageId}`);
+        console.log(`[QR SEND] ✅ Message sent via Bridge: ${savedDbMessageId}`);
       } catch (dbErr) {
         console.error('[QR SEND DB UPDATE ERROR]:', dbErr);
       }
@@ -187,7 +283,8 @@ export async function POST(req: NextRequest) {
       success: true, 
       messageId: whatsappMessageId || savedDbMessageId,
       dbMessageId: savedDbMessageId,
-      whatsappMessageId: whatsappMessageId
+      whatsappMessageId: whatsappMessageId,
+      provider: 'whatsapp_web_bridge'
     });
   } catch (err: any) {
     console.error('[QR SEND API Error]:', err);
