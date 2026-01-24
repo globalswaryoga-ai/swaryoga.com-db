@@ -2492,13 +2492,6 @@ function QRWhatsAppInboxPageContent() {
 
                     return (
                       <div key={idx} className={`flex flex-col gap-1 ${msg.fromMe ? 'items-end' : 'items-start'}`}>
-                        {/* Sender Name */}
-                        {currentUserName && (
-                          <div className="text-[10px] font-bold text-[#0f3a4d]/70 px-2">
-                            {msg.fromMe ? `👨‍💼 ${currentUserName}` : '👤 Customer'}
-                          </div>
-                        )}
-
                         {/* Message Bubble */}
                         <div className={`flex gap-2 ${msg.fromMe ? 'justify-end' : 'justify-start'}`}>
                           <div
@@ -2576,6 +2569,13 @@ function QRWhatsAppInboxPageContent() {
                         {msg.fromMe && ackDisplay && (
                           <div className={`text-[11px] mt-0.5 flex items-center gap-0.5 justify-end font-medium tracking-tight ${ackColor}`}>
                             {ackDisplay}
+                          </div>
+                        )}
+                        
+                        {/* Sender name below message for outbound */}
+                        {msg.fromMe && (
+                          <div className="text-[9px] text-[#0f3a4d]/50 mt-1 text-right italic">
+                            - Swar Yoga Team
                           </div>
                         )}
                         </div>
