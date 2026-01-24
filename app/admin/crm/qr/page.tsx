@@ -1619,6 +1619,10 @@ function QRWhatsAppInboxPageContent() {
       console.log('[handleConnect] Connecting...');
       await bridgeFetch('/connect', { method: 'POST', body: '{}' }, 15_000).catch(() => null);
 
+      // Give the bridge a moment to initialize the QR code after /connect
+      console.log('[handleConnect] Waiting for bridge to initialize QR...');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       // Fetch and display QR (this should work on any bridge version)
       console.log('[handleConnect] Fetching QR...');
       await refreshQr();
