@@ -790,29 +790,35 @@ export default function QRWhatsAppInboxPage() {
         try {
           const res = await bridgeFetch('/chats', { method: 'GET' }, 12_000);
           
-          // Handle 404: /chats endpoint not available on bridge
+          // Handle 404: /chats endpoint not available on minimal bridge (expected)
           if (res.status === 404) {
-            console.warn('[loadChats] /chats endpoint not found (404) - bridge may be outdated');
-            console.warn('[loadChats] Falling back to cached chats');
-            // Load from cache if available
+            // Silently use cached chats for minimal bridges that don't have /chats
             const cached = localStorage.getItem(CHAT_CACHE_KEY);
             if (cached) {
               try {
                 const cachedChats = JSON.parse(cached);
                 setChats(cachedChats);
               } catch (e) {
-                console.warn('[cache] Failed to parse cached chats:', e);
+                console.debug('[cache] Failed to parse cached chats:', e);
               }
             }
-            setBridgeError('⚠️ Chat endpoint unavailable - please restart WhatsApp bridge service');
             return;
           }
 
           // Handle other error statuses
           if (!res.ok) {
             const errorText = await res.text();
-            console.error(`[loadChats] Bridge error ${res.status}: ${errorText.substring(0, 100)}`);
-            setBridgeError(`Bridge error: ${res.status}`);
+            console.warn(`[loadChats] Bridge error ${res.status}`);
+            // Don't set bridge error - use cached chats instead
+            const cached = localStorage.getItem(CHAT_CACHE_KEY);
+            if (cached) {
+              try {
+                const cachedChats = JSON.parse(cached);
+                setChats(cachedChats);
+              } catch (e) {
+                console.debug('[cache] Failed to parse cached chats:', e);
+              }
+            }
             return;
           }
 
@@ -856,13 +862,22 @@ export default function QRWhatsAppInboxPage() {
             try {
               localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(newChats));
             } catch (e) {
-              console.warn('[cache] Failed to persist chats:', e);
+              console.debug('[cache] Failed to persist chats:', e);
             }
             
             setBridgeError(null);
         } catch (err) {
-          console.error('[loadChats] Exception:', err);
-          setBridgeError(`Network error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          console.debug('[loadChats] Exception:', err);
+          // Silently fail - use cached chats
+          const cached = localStorage.getItem(CHAT_CACHE_KEY);
+          if (cached) {
+            try {
+              const cachedChats = JSON.parse(cached);
+              setChats(cachedChats);
+            } catch (e) {
+              console.debug('[cache] Failed to parse cached chats:', e);
+            }
+          }
         }
       };
 
@@ -1745,21 +1760,17 @@ export default function QRWhatsAppInboxPage() {
       setShowQRModal(true);
 
       // Try to call /connect endpoint (may not exist on minimal bridge)
+      // Don't log errors since minimal bridges don't have this endpoint
       console.log('[handleConnect] Connecting...');
-      const res = await bridgeFetch('/connect', { method: 'POST', body: '{}' }, 15_000).catch(() => null);
-      if (res && !res.ok) {
-        const msg = await parseBridgeError(res);
-        console.error('[handleConnect] Error:', msg);
-        setBridgeError(msg);
-      }
+      await bridgeFetch('/connect', { method: 'POST', body: '{}' }, 15_000).catch(() => null);
 
       // Fetch and display QR (this should work on any bridge version)
       console.log('[handleConnect] Fetching QR...');
       await refreshQr();
       console.log('[handleConnect] Done!');
     } catch (err) {
-      console.error('Failed to connect:', err);
-      setBridgeError(err instanceof Error ? err.message : 'Failed to connect');
+      console.warn('[handleConnect] Warning:', err instanceof Error ? err.message : 'Failed to connect');
+      // Don't set bridge error for connection failures - QR load is what matters
     } finally {
       setConnecting(false);
     }
