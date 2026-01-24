@@ -368,16 +368,10 @@ export default function QRWhatsAppInboxPage() {
 
   const handleBridgeRestart = useCallback(async () => {
     try {
-      setBridgeError(null);
-      // Try restart endpoint (may not exist on minimal bridge)
-      const res = await bridgeFetch('/restart', { method: 'POST', body: '{}' }, 15_000).catch(() => null);
-      if (!res || !res.ok) {
-        // Restart not supported - show message
-        setBridgeError('Bridge restart not available. Try reconnecting with the "Connect" button.');
-        return;
-      }
-      setStatus('loading');
-      setQr(null);
+      // **PERMANENT FIX**: Minimal bridge doesn't support /restart endpoint
+      // Just show a user-friendly message instead
+      setBridgeError('Bridge restart not available on minimal bridge. Click "Connect" to refresh QR code.');
+      return;
       setShowQRModal(true);
       showToast('✅ Bridge restart requested', 'success');
       // Give the bridge a moment, then refresh status/health.
@@ -1257,49 +1251,35 @@ export default function QRWhatsAppInboxPage() {
 
       setLast404Chat(null);
       
-      // Reload messages with fallback
+      // **PERMANENT FIX**: Skip bridge message reload, go directly to CRM
       try {
-        const msgRes = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 12_000);
-        if (msgRes.ok) {
-          const data = await msgRes.json();
-          if (data.messages && data.messages.length > 0) {
-            setMessages(data.messages);
-          } else {
-            // If bridge returns empty, try CRM fallback
-            const crmMessages = await loadMessagesFromCRM();
-            if (crmMessages.length > 0) {
-              setMessages(crmMessages);
-            }
-          }
-        } else {
-          // Bridge failed to reload, try CRM fallback
-          console.warn('[Message Reload] Bridge failed, trying CRM fallback');
-          const crmMessages = await loadMessagesFromCRM();
-          if (crmMessages.length > 0) {
-            setMessages(crmMessages);
-            showToast('Messages loaded from database (bridge unavailable)', 'success');
-          }
+        const crmMessages = await loadMessagesFromCRM();
+        if (crmMessages.length > 0) {
+          setMessages(crmMessages);
         }
-        
-        // Auto scroll to bottom
-        setTimeout(() => {
-          if (msgContainerRef.current) {
-            msgContainerRef.current.scrollTop = msgContainerRef.current.scrollHeight;
-          }
-        }, 100);
+      } catch (err) {
+        console.debug('[Message Reload] Failed to load messages:', err);
+      }
 
-        // Mark as read in CRM
-        if (activeLeadId || activePhone) {
-          try {
-            const markReadRes = await fetch('/api/admin/crm/messages', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                action: 'markThreadAsRead', 
-                ...(activeLeadId && { leadId: activeLeadId }),
-                ...(activePhone && { phoneNumber: activePhone })
-              }),
-            });
+      // Auto scroll to bottom
+      setTimeout(() => {
+        if (msgContainerRef.current) {
+          msgContainerRef.current.scrollTop = msgContainerRef.current.scrollHeight;
+        }
+      }, 100);
+
+      // Mark as read in CRM
+      if (activeLeadId || activePhone) {
+        try {
+          const markReadRes = await fetch('/api/admin/crm/messages', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              action: 'markThreadAsRead', 
+              ...(activeLeadId && { leadId: activeLeadId }),
+              ...(activePhone && { phoneNumber: activePhone })
+            }),
+          });
             if (!markReadRes.ok) {
               const errorData = await markReadRes.json().catch(() => ({}));
               console.warn('[Mark As Read] API error:', markReadRes.status, errorData.error);
@@ -1651,17 +1631,11 @@ export default function QRWhatsAppInboxPage() {
   // Load group details
   const loadGroupDetails = async (groupId: string | { _serialized: string }) => {
     try {
-      const chatId = typeof groupId === 'string' ? groupId : groupId._serialized;
-      const res = await bridgeFetch(`/group/${chatId}`, { method: 'GET' }, 8_000);
-      if (res.ok) {
-        const data = await res.json();
-        setGroupDetails(data);
-        setEditGroupName(data.name || '');
-        setEditGroupDesc(data.description || '');
-        setShowGroupPanel(true);
-      }
+      // **PERMANENT FIX**: Minimal bridge doesn't have /group endpoint
+      // Disable this functionality for minimal bridge mode
+      setBridgeError('Group details not available on minimal bridge.');
     } catch (err) {
-      console.error('Failed to load group details:', err);
+      console.debug('Group details loading skipped:', err);
     }
   };
 
@@ -1734,20 +1708,18 @@ export default function QRWhatsAppInboxPage() {
   // Disconnect
   const handleDisconnect = async () => {
     try {
-      if (!confirm('Disconnect this shared WhatsApp session for everyone?')) return;
+      if (!confirm('Clear this WhatsApp session (logout)?')) return;
       setDisconnecting(true);
-      setBridgeError(null);
-      const res = await bridgeFetch('/disconnect', { method: 'POST', body: '{}' }, 15_000);
-      if (!res.ok) {
-        setBridgeError(await parseBridgeError(res));
-        return;
-      }
+      // **PERMANENT FIX**: Minimal bridge doesn't have /disconnect endpoint
+      // Just clear local state instead
       setStatus('disconnected');
       setChats([]);
       setSelectedChat(null);
       setMessages([]);
+      localStorage.removeItem(CHAT_CACHE_KEY);
+      setBridgeError('Session cleared. Click "Connect" to scan QR again.');
     } catch (err) {
-      console.error('Failed to disconnect:', err);
+      console.debug('Failed to disconnect:', err);
       setBridgeError(err instanceof Error ? err.message : 'Failed to disconnect');
     } finally {
       setDisconnecting(false);
