@@ -42,23 +42,10 @@ export default function QRCodeDisplay() {
       setLoading(true);
       setError(null);
 
-      // First check health
-      const isHealthy = await checkBridgeHealth();
-
-      if (!isHealthy) {
-        setError('Bridge is offline. Attempting to fetch cached QR...');
-        setHealthChecks((prev) => ({ ...prev, failed: prev.failed + 1 }));
-        return;
-      }
-
-      // Try to get QR from bridge
-      const response = await fetch('/api/admin/crm/whatsapp/qr-bridge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'get',
-          path: '/qr',
-        }),
+      // Use fallback endpoint which handles retries and caching
+      const response = await fetch('/api/admin/crm/whatsapp/qr-fallback', {
+        method: 'GET',
+        cache: 'no-store'
       });
 
       if (!response.ok) {
@@ -67,7 +54,7 @@ export default function QRCodeDisplay() {
 
       const data = await response.json();
 
-      if (data.data && typeof data.data === 'string') {
+      if (data.qr && typeof data.qr === 'string') {
         setQrData(data.data);
         setLastRefresh(new Date().toLocaleTimeString());
         setError(null);

@@ -196,44 +196,17 @@ export default function QRWhatsAppInboxPage() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      // Use Next.js API proxy to avoid CORS/preflight issues
+      // Call the bridge directly (not via missing qr-bridge proxy)
       const method = (init.method || 'GET').toUpperCase();
-      const proxyUrl = '/api/admin/crm/whatsapp/qr-bridge';
-
-      // For GET requests, use query param to avoid preflight
-      if (method === 'GET') {
-        const url = new URL(proxyUrl, window.location.origin);
-        // FIX: Remove one layer of encoding if input path is already encoded
-        // but normalize it for the proxy.
-        url.searchParams.set('path', path);
-        
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          cache: 'no-store',
-          signal: controller.signal
-        });
-        return res;
-      }
-
-      // For POST/PUT, send via body
-      const proxyPayload = {
-        action: method,
-        path,
-        ...(init.body && { body: init.body })
-      };
-
-      const res = await fetch(proxyUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        cache: 'no-store',
-        body: JSON.stringify(proxyPayload),
+      const bridgeBase = 'http://52.91.198.23:3333';
+      const url = new URL(path, bridgeBase);
+      
+      const res = await fetch(url.toString(), {
+        method,
+        headers: init.headers || {},
+        body: init.body,
         signal: controller.signal
       });
-
       return res;
     } catch (error) {
       // Handle AbortError specifically
@@ -342,12 +315,11 @@ export default function QRWhatsAppInboxPage() {
 
   const refreshBridgeHealth = useCallback(async () => {
     try {
-      // Try health endpoint first (for full-featured bridge)
-      let res = await bridgeFetch('/health', { method: 'GET' }, 8_000).catch(() => null);
-      if (!res) {
-        // Fallback: Try QR endpoint (for minimal bridge)
-        res = await bridgeFetch('/qr', { method: 'GET' }, 8_000).catch(() => null);
-      }
+      // Use the bridge-health endpoint
+      const res = await fetch('/api/admin/crm/whatsapp/bridge-health?action=status', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        cache: 'no-store'
+      }).catch(() => null);
       
       if (!res) {
         setLastHealthCode(0);
@@ -363,14 +335,14 @@ export default function QRWhatsAppInboxPage() {
         const data = await res.json();
         setLastHealthData(data);
       } catch {
-        // Response was not JSON (e.g., QR HTML) - that's OK, bridge is responsive
+        // Response was not JSON - that's OK
         setLastHealthData({ status: 'ok' });
       }
     } catch (e) {
       console.warn('[health] failed:', e);
       setLastHealthCode(0);
     }
-  }, [bridgeFetch]);
+  }, [token]);
 
   const handleBridgeRestart = useCallback(async () => {
     try {
