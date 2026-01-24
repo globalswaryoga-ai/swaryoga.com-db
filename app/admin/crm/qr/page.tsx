@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchParams } from 'next/navigation';
 import { 
@@ -25,7 +25,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 
-export default function QRWhatsAppInboxPage() {
+function QRWhatsAppInboxPageContent() {
   const token = useAuth();
   const searchParams = useSearchParams();
   const phoneParam = searchParams?.get('phone');
@@ -3363,5 +3363,13 @@ export default function QRWhatsAppInboxPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function QRWhatsAppInboxPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[#FAFAF8]"><div className="text-center"><div className="text-lg font-semibold text-[#8B7355] mb-2">Loading QR WhatsApp Inbox...</div><div className="w-8 h-8 border-4 border-[#D4A574] border-t-transparent rounded-full animate-spin mx-auto"></div></div></div>}>
+      <QRWhatsAppInboxPageContent />
+    </Suspense>
   );
 }
