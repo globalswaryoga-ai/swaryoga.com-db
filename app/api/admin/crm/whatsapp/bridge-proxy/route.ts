@@ -104,15 +104,29 @@ export async function POST(request: NextRequest) {
     const bridgeUrl = `http://52.91.198.23:3333${path}`;
     console.log('[bridge-proxy] POST to:', bridgeUrl, 'Headers:', JSON.stringify(Object.fromEntries(request.headers)), 'Body:', rawBody);
 
-    const res = await fetch(bridgeUrl, {
+    // For /connect specifically, send empty body (no JSON)
+    const bodyToSend = path === '/connect' 
+      ? undefined 
+      : (forwardBody ? JSON.stringify(forwardBody) : '{}');
+
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'User-Agent': 'SwarYoga-Bridge-Proxy'
       },
-      body: forwardBody ? JSON.stringify(forwardBody) : '{}',
       signal: AbortSignal.timeout(15_000)
-    });
+    };
+
+    // Only set Content-Type and body if sending data
+    if (bodyToSend) {
+      fetchOptions.headers = {
+        ...fetchOptions.headers,
+        'Content-Type': 'application/json'
+      };
+      fetchOptions.body = bodyToSend;
+    }
+
+    const res = await fetch(bridgeUrl, fetchOptions);
 
     // For non-OK responses, still return the data but with the error status
     const responseText = await res.text();

@@ -1614,36 +1614,23 @@ function QRWhatsAppInboxPageContent() {
       console.log('[handleConnect] Opening modal...');
       setShowQRModal(true);
 
-      // Try to call /connect endpoint (may not exist on minimal bridge)
-      // Don't log errors since minimal bridges don't have this endpoint
-      console.log('[handleConnect] Connecting...');
-      await bridgeFetch('/connect', { method: 'POST', body: '{}' }, 15_000).catch(() => null);
+      // Call /connect endpoint to reset bridge session
+      console.log('[handleConnect] Calling /connect to initialize bridge...');
+      await bridgeFetch('/connect', { method: 'POST' }, 15_000).catch(() => null);
 
-      // Give the bridge a moment to initialize the QR code after /connect
-      // Increased from 1.5s to 3s to allow WhatsApp bridge more time to generate QR
-      console.log('[handleConnect] Waiting for bridge to initialize QR (3 seconds)...');
+      // Wait for bridge to initialize QR code
+      console.log('[handleConnect] Waiting 3 seconds for bridge QR generation...');
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Fetch and display QR (this should work on any bridge version)
+      // Fetch and display QR
       console.log('[handleConnect] Fetching QR...');
       await refreshQr();
-      console.log('[handleConnect] Done!');
+      console.log('[handleConnect] Success!');
       
-      // Show helpful message about scanning
-      setBridgeError('🔐 QR code ready! Scan with WhatsApp on your phone. The QR will auto-refresh every 30 seconds. If you get "try again later", the bridge may need to restart - click Logout and try again.');
-      
-      // Auto-refresh QR every 30 seconds to keep it fresh and prevent "try again later" errors
-      const refreshInterval = setInterval(() => {
-        if (showQRModalRef.current) {
-          console.log('[handleConnect] Auto-refreshing QR...');
-          refreshQr().catch(() => null);
-        } else {
-          clearInterval(refreshInterval);
-        }
-      }, 30000); // 30 seconds
+      setBridgeError('🔐 Scan QR with WhatsApp. Keep scanning until you get "Successfully authenticated".');
     } catch (err) {
-      console.warn('[handleConnect] Warning:', err instanceof Error ? err.message : 'Failed to connect');
-      // Don't set bridge error for connection failures - QR load is what matters
+      console.warn('[handleConnect] Error:', err instanceof Error ? err.message : 'Failed to connect');
+      setBridgeError('Error connecting to bridge. Try again.');
     } finally {
       setConnecting(false);
     }
