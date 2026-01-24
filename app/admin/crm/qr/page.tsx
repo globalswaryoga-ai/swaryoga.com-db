@@ -342,25 +342,44 @@ export default function QRWhatsAppInboxPage() {
 
   const refreshBridgeHealth = useCallback(async () => {
     try {
-      const res = await bridgeFetch('/health', { method: 'GET' }, 8_000);
+      // Try health endpoint first (for full-featured bridge)
+      let res = await bridgeFetch('/health', { method: 'GET' }, 8_000).catch(() => null);
+      if (!res) {
+        // Fallback: Try QR endpoint (for minimal bridge)
+        res = await bridgeFetch('/qr', { method: 'GET' }, 8_000).catch(() => null);
+      }
+      
+      if (!res) {
+        setLastHealthCode(0);
+        return;
+      }
+      
       setLastHealthCode(res.status);
       if (!res.ok) {
         return;
       }
-      const data = await res.json();
-      setLastHealthData(data);
+      
+      try {
+        const data = await res.json();
+        setLastHealthData(data);
+      } catch {
+        // Response was not JSON (e.g., QR HTML) - that's OK, bridge is responsive
+        setLastHealthData({ status: 'ok' });
+      }
     } catch (e) {
       console.warn('[health] failed:', e);
+      setLastHealthCode(0);
     }
   }, [bridgeFetch]);
 
   const handleBridgeRestart = useCallback(async () => {
     try {
       setBridgeError(null);
-      const res = await bridgeFetch('/restart', { method: 'POST', body: '{}' }, 15_000);
-      if (!res.ok) {
-        const msg = await parseBridgeError(res);
-        setBridgeError(msg);
+      // Try restart endpoint (may not exist on minimal bridge)
+      const res = await bridgeFetch('/restart', { method: 'POST', body: '{}' }, 15_000).catch(() => null);
+      if (!res || !res.ok) {
+        // Restart not supported - show message
+        setBridgeError('Bridge restart not available. Try reconnecting with the "Connect" button.');
         return;
       }
       setStatus('loading');
@@ -1731,18 +1750,16 @@ export default function QRWhatsAppInboxPage() {
       console.log('[handleConnect] Opening modal...');
       setShowQRModal(true);
 
-      // Then start the connection
+      // Try to call /connect endpoint (may not exist on minimal bridge)
       console.log('[handleConnect] Connecting...');
-      const res = await bridgeFetch('/connect', { method: 'POST', body: '{}' }, 15_000);
-      console.log('[handleConnect] Response OK:', res.ok);
-      if (!res.ok) {
+      const res = await bridgeFetch('/connect', { method: 'POST', body: '{}' }, 15_000).catch(() => null);
+      if (res && !res.ok) {
         const msg = await parseBridgeError(res);
         console.error('[handleConnect] Error:', msg);
         setBridgeError(msg);
-        return;
       }
 
-      // Fetch and display QR
+      // Fetch and display QR (this should work on any bridge version)
       console.log('[handleConnect] Fetching QR...');
       await refreshQr();
       console.log('[handleConnect] Done!');
@@ -1886,13 +1903,39 @@ export default function QRWhatsAppInboxPage() {
   const refreshQr = async () => {
     try {
       setBridgeError(null);
-      console.log('[refreshQr] Fetching status...');
+      console.log('[refreshQr] Fetching QR from simplified bridge...');
+      
+      // Try the /qr endpoint directly since this is a minimal bridge
+      try {
+        const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8_000);
+        if (qrRes.ok) {
+          const qrText = await qrRes.text();
+          if (qrText && qrText.includes('data:image/png;base64')) {
+            // Extract base64 from HTML response
+            const match = qrText.match(/src="(data:image\/png;base64[^"]+)"/);
+            if (match) {
+              const qrData = match[1];
+              console.log('[refreshQr] QR found, setting it');
+              setQr(qrData);
+              setStatus('connected');
+              setShowQRModal(true);
+              return;
+            }
+          }
+        }
+      } catch (qrErr) {
+        console.warn('[refreshQr] QR endpoint failed:', qrErr);
+      }
+      
+      // Fallback: Try status endpoint (for full-featured bridge)
+      console.log('[refreshQr] Fetching status from full-featured bridge...');
       const res = await bridgeFetch('/status', { method: 'GET' }, 8_000);
       console.log('[refreshQr] Status response ok?', res.ok);
       if (!res.ok) {
         const err = await parseBridgeError(res);
         console.error('[refreshQr] Status error:', err);
-        setBridgeError(err);
+        // Don't fail - try QR endpoint instead
+        setBridgeError('Using simplified bridge (status endpoint unavailable)');
         return;
       }
       const data = await res.json();
