@@ -1620,13 +1620,17 @@ function QRWhatsAppInboxPageContent() {
       await bridgeFetch('/connect', { method: 'POST', body: '{}' }, 15_000).catch(() => null);
 
       // Give the bridge a moment to initialize the QR code after /connect
-      console.log('[handleConnect] Waiting for bridge to initialize QR...');
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Increased from 1.5s to 3s to allow WhatsApp bridge more time to generate QR
+      console.log('[handleConnect] Waiting for bridge to initialize QR (3 seconds)...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Fetch and display QR (this should work on any bridge version)
       console.log('[handleConnect] Fetching QR...');
       await refreshQr();
       console.log('[handleConnect] Done!');
+      
+      // Show helpful message about scanning
+      setBridgeError('🔐 QR code ready! Scan with WhatsApp on your phone. If you get "try again later", please wait 30 seconds and try refreshing the QR.');
     } catch (err) {
       console.warn('[handleConnect] Warning:', err instanceof Error ? err.message : 'Failed to connect');
       // Don't set bridge error for connection failures - QR load is what matters
