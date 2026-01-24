@@ -62,8 +62,15 @@ export async function POST(request: NextRequest) {
 
     // Validate permissions if legacy array provided
     if (finalPermissions.length > 0) {
-      const validPermissions = ['all', 'crm', 'whatsapp', 'email'];
-      const invalidPerms = finalPermissions.filter((p: string) => !validPermissions.includes(p));
+      const validPermissions = [
+        'all', 'crm', 'whatsapp', 'email', 'broadcasts', 'analytics', 
+        'users', 'workshops', 'templates', 'settings', 'payments', 'reports',
+      ];
+      const invalidPerms = finalPermissions.filter((p: string) => {
+        // Allow granular format "module:action" (e.g., "leads:read", "whatsapp:send")
+        if (p.includes(':')) return false;
+        return !validPermissions.includes(p);
+      });
       if (invalidPerms.length > 0) {
         return NextResponse.json(
           { error: `Invalid permissions: ${invalidPerms.join(', ')}` },
