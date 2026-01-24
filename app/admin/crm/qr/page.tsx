@@ -228,11 +228,11 @@ export default function QRWhatsAppInboxPage() {
       // Handle AbortError specifically
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          console.error(`[bridgeFetch] Request timeout after ${timeoutMs}ms for path: ${path}`);
+          console.debug(`[bridgeFetch] Request timeout after ${timeoutMs}ms for path: ${path}`);
           throw new Error(`Bridge request timeout (${timeoutMs}ms) - Check if bridge is running`);
         }
         // For CORS or network errors, return a 503 response instead of throwing
-        console.warn(`[bridgeFetch] Network error for ${path}:`, error.message);
+        console.debug(`[bridgeFetch] Network error for ${path}:`, error.message);
         return new Response(JSON.stringify({ error: 'Bridge unavailable', details: error.message }), {
           status: 503,
           headers: { 'Content-Type': 'application/json' }
@@ -466,7 +466,7 @@ export default function QRWhatsAppInboxPage() {
         
         // Fallback: try /health endpoint
         if (!res || res.status === 404) {
-          console.log('[Bridge] /status not found, trying /health endpoint...');
+          console.debug('[Bridge] /status not found, trying /health endpoint...');
           res = await bridgeFetch('/health', { method: 'GET' }, 8_000).catch(() => null);
         }
 
@@ -477,8 +477,8 @@ export default function QRWhatsAppInboxPage() {
           // **CRITICAL FIX**: Don't keep hammering the endpoint with 404s
           // Instead, set status to "disconnected" and longer backoff
           if (res?.status === 404) {
-            console.error('[BRIDGE ERROR 404] /status and /health endpoints not found on bridge.');
-            console.error('[BRIDGE INFO] This is likely a bridge configuration issue. The bridge may not have status endpoints.');
+            console.debug('[BRIDGE ERROR 404] /status and /health endpoints not found on bridge.');
+            console.debug('[BRIDGE INFO] This is likely a bridge configuration issue. The bridge may not have status endpoints.');
             
             // Set status to "disconnected" with helpful message
             setStatusIfChanged('disconnected');
@@ -545,7 +545,7 @@ export default function QRWhatsAppInboxPage() {
         setBridgeErrorIfChanged(helpfulMsg);
         setBridgeUnavailable(isBridgeDown);
         
-        console.error('[Bridge Connection Error]', {
+        console.debug('[Bridge Connection Error]', {
           message: errorMsg,
           timestamp: new Date().toISOString(),
           bridgeUrl: bridgeUrl,
@@ -1096,7 +1096,7 @@ export default function QRWhatsAppInboxPage() {
               }
             }
           } else if (res.status === 404) {
-            console.warn(`[404] Messages not found for chat: ${chatId}. Falling back to CRM messages.`);
+            console.debug(`[404] Messages not found for chat: ${chatId}. Falling back to CRM messages.`);
             // FALLBACK: Load from CRM database when bridge doesn't have messages
             const crmMessages = await loadMessagesFromCRM();
             if (crmMessages.length > 0) {
@@ -1113,7 +1113,7 @@ export default function QRWhatsAppInboxPage() {
           // Detailed error logging
           const errorMsg = err instanceof Error ? err.message : 'Unknown error';
           const errorType = err instanceof Error ? err.constructor.name : 'Unknown';
-          console.error(`[Bridge Load Error] ${errorType}:`, errorMsg);
+          console.debug(`[Bridge Load Error] ${errorType}:`, errorMsg);
           
           // FALLBACK: Try CRM messages when bridge fails
           if (messages.length === 0) {
@@ -1121,10 +1121,10 @@ export default function QRWhatsAppInboxPage() {
               const crmMessages = await loadMessagesFromCRM();
               if (crmMessages.length > 0) {
                 setMessages(crmMessages);
-                console.log('[Bridge Load Fallback] Loaded from CRM - bridge error:', errorMsg);
+                console.debug('[Bridge Load Fallback] Loaded from CRM - bridge error:', errorMsg);
               }
             } catch (crmErr) {
-              console.error('[CRM Load Fallback Error]:', crmErr);
+              console.debug('[CRM Load Fallback Error]:', crmErr);
             }
           }
         }
