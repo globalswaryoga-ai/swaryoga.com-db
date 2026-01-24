@@ -1280,26 +1280,12 @@ export default function QRWhatsAppInboxPage() {
               ...(activePhone && { phoneNumber: activePhone })
             }),
           });
-            if (!markReadRes.ok) {
-              const errorData = await markReadRes.json().catch(() => ({}));
-              console.warn('[Mark As Read] API error:', markReadRes.status, errorData.error);
-            }
-          } catch (err) {
-            console.warn('[Mark As Read] Failed:', err instanceof Error ? err.message : String(err));
+          if (!markReadRes.ok) {
+            const errorData = await markReadRes.json().catch(() => ({}));
+            console.warn('[Mark As Read] API error:', markReadRes.status, errorData.error);
           }
-        }
-      } catch (reloadErr) {
-        console.error('[Message Reload Error]', reloadErr);
-        // Try CRM as last resort
-        try {
-          const crmMessages = await loadMessagesFromCRM();
-          if (crmMessages.length > 0) {
-            setMessages(crmMessages);
-            showToast('Messages loaded from database', 'success');
-          }
-        } catch (crmErr) {
-          console.error('[CRM Fallback Error]', crmErr);
-          showToast('Could not reload messages - check bridge connection', 'error');
+        } catch (err) {
+          console.warn('[Mark As Read] Failed:', err instanceof Error ? err.message : String(err));
         }
       }
       
