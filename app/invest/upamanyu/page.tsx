@@ -136,23 +136,57 @@ export default function UpamanyuPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    
+    // Auto-calculate end date when start date changes (set to 1 year after start date)
+    if (['startYear', 'startMonth', 'startDay'].includes(name)) {
+      const newFormData = { ...formData, [name]: value };
+      const startDate = new Date(
+        parseInt(newFormData.startYear),
+        parseInt(newFormData.startMonth) - 1,
+        parseInt(newFormData.startDay)
+      );
+      // Calculate end date as 1 year after start date
+      const endDate = new Date(startDate.getFullYear() + 1, startDate.getMonth(), startDate.getDate());
+      
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+        endYear: endDate.getFullYear().toString(),
+        endMonth: String(endDate.getMonth() + 1).padStart(2, '0'),
+        endDay: String(endDate.getDate()).padStart(2, '0'),
+      }));
 
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
+      // Clear error for this field
+      if (errors[name] || errors.endDate) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[name];
+          delete newErrors.endDate;
+          return newErrors;
+        });
+      }
 
-    // Recalculate on relevant changes
-    if (['investmentAmount', 'shareType', 'startYear', 'startMonth', 'startDay', 'endYear', 'endMonth', 'endDay'].includes(name)) {
+      // Recalculate on relevant changes
       setTimeout(() => recalculate(), 100);
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+
+      // Clear error for this field
+      if (errors[name]) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[name];
+          return newErrors;
+        });
+      }
+
+      // Recalculate on relevant changes
+      if (['investmentAmount', 'shareType', 'endYear', 'endMonth', 'endDay'].includes(name)) {
+        setTimeout(() => recalculate(), 100);
+      }
     }
   };
 

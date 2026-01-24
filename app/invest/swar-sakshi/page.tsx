@@ -78,23 +78,57 @@ export default function SwarSakshiPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    
+    // Auto-calculate end date when start date changes (set to 90 days after start date for Swar Sakshi minimum)
+    if (['startYear', 'startMonth', 'startDay'].includes(name)) {
+      const newFormData = { ...formData, [name]: value };
+      const startDate = new Date(
+        parseInt(newFormData.startYear),
+        parseInt(newFormData.startMonth) - 1,
+        parseInt(newFormData.startDay)
+      );
+      // Calculate end date as 90 days after start date (minimum lock-in period)
+      const endDate = new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+      
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+        endYear: endDate.getFullYear().toString(),
+        endMonth: String(endDate.getMonth() + 1).padStart(2, '0'),
+        endDay: String(endDate.getDate()).padStart(2, '0'),
+      }));
 
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
+      // Clear error for this field
+      if (errors[name] || errors.endDate) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[name];
+          delete newErrors.endDate;
+          return newErrors;
+        });
+      }
 
-    // Recalculate on amount or date change
-    if (['investmentAmount', 'startYear', 'startMonth', 'startDay', 'endYear', 'endMonth', 'endDay'].includes(name)) {
+      // Recalculate on relevant changes
       setTimeout(() => recalculate(formData), 100);
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+
+      // Clear error for this field
+      if (errors[name]) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[name];
+          return newErrors;
+        });
+      }
+
+      // Recalculate on amount or date change
+      if (['investmentAmount', 'endYear', 'endMonth', 'endDay'].includes(name)) {
+        setTimeout(() => recalculate(formData), 100);
+      }
     }
   };
 
