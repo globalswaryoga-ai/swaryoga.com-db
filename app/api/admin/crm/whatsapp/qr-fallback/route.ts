@@ -50,6 +50,20 @@ function getCachedQR(): string | null {
       const content = fs.readFileSync(QR_CACHE_FILE, 'utf-8');
       if (content && content.includes('data:image/png;base64')) {
         console.log('[QR Fallback] Retrieved cached QR');
+        
+        // If cached content is HTML, extract the data URL
+        if (content.startsWith('<html') || content.startsWith('<!DOCTYPE')) {
+          const match = content.match(/data:image\/png;base64,[A-Za-z0-9+/=]+/);
+          if (match) {
+            return match[0];
+          }
+        }
+        
+        // If it's already a clean data URL, return it
+        if (content.startsWith('data:image/png;base64')) {
+          return content;
+        }
+        
         return content;
       }
     }
@@ -101,7 +115,18 @@ async function fetchQRWithRetries(retries = 3): Promise<string | null> {
         const html = await response.text();
         if (html && html.includes('data:image/png;base64')) {
           console.log('[QR Fallback] Successfully fetched QR from bridge');
-          cacheQR(html); // Cache for future use
+          
+          // Extract the data URL from the HTML
+          const match = html.match(/data:image\/png;base64,[A-Za-z0-9+/=]+/);
+          if (match) {
+            const dataUrl = match[0];
+            console.log('[QR Fallback] Extracted QR data URL (length:', dataUrl.length, ')');
+            cacheQR(dataUrl); // Cache the clean data URL
+            return dataUrl;
+          }
+          
+          // If extraction failed, cache full HTML as fallback
+          cacheQR(html);
           return html;
         }
       }

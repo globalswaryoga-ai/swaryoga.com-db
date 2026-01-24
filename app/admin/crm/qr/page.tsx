@@ -739,27 +739,68 @@ function QRWhatsAppInboxPageContent() {
     }
   }, [phoneParam, status, nameParam]); // Add nameParam to deps
 
-  // Load chats
+  // Load chats from CRM database instead of bridge
   useEffect(() => {
-    if (status === 'connected') {
+    if (status === 'connected' && token) {
       const loadChats = async () => {
         try {
-          // **PERMANENT FIX**: Skip calling /chats endpoint entirely
-          // Minimal bridge doesn't have this endpoint, so just use cached chats
-          const cached = localStorage.getItem(CHAT_CACHE_KEY);
-          if (cached) {
-            try {
-              const cachedChats = JSON.parse(cached);
-              setChats(cachedChats);
-            } catch (e) {
-              console.debug('[cache] Failed to parse cached chats:', e);
+          // **FIX**: Load conversations directly from CRM database
+          // This ensures all messages (Meta + QR) are visible in the inbox
+          const res = await fetch('/api/admin/crm/conversations?limit=100', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (res.ok) {
+            const payload = await res.json();
+            const conversations = payload?.data?.conversations || [];
+            
+            // Convert CRM conversations to chat format for the UI
+            const crmChats = conversations.map((conv: any) => ({
+              id: { _serialized: `${conv.phoneNumber}@c.us` },
+              name: conv.name || conv.phoneNumber,
+              displayName: conv.name !== conv.phoneNumber ? conv.name : null,
+              leadId: conv.leadId,
+              leadNumber: conv.leadNumber,
+              status: conv.status,
+              labels: conv.labels || [],
+              unreadCount: conv.unreadCount || 0,
+              lastMessage: {
+                body: conv.lastMessageContent || '',
+                timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() / 1000 : 0,
+                fromMe: conv.lastDirection === 'outbound',
+              },
+              timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() / 1000 : 0,
+              isLeadOnly: false,
+              _fromCRM: true,
+            }));
+
+            if (crmChats.length > 0) {
+              setChats(crmChats);
+              // Also cache for offline use
+              try {
+                localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(crmChats));
+              } catch (e) {
+                console.debug('[cache] Failed to cache chats:', e);
+              }
+            } else {
+              // Fall back to cached chats if CRM returns empty
+              const cached = localStorage.getItem(CHAT_CACHE_KEY);
+              if (cached) {
+                try {
+                  const cachedChats = JSON.parse(cached);
+                  setChats(cachedChats);
+                } catch (e) {
+                  console.debug('[cache] Failed to parse cached chats:', e);
+                }
+              }
             }
-          }
-          return;
-          if (!res.ok) {
-            const errorText = await res.text();
-            console.warn(`[loadChats] Bridge error ${res.status}`);
-            // Don't set bridge error - use cached chats instead
+          } else {
+            console.warn(`[loadChats] CRM API error ${res.status}`);
+            // Fall back to cached chats
             const cached = localStorage.getItem(CHAT_CACHE_KEY);
             if (cached) {
               try {
@@ -769,10 +810,7 @@ function QRWhatsAppInboxPageContent() {
                 console.debug('[cache] Failed to parse cached chats:', e);
               }
             }
-            return;
           }
-
-          // (Removed: old bridge chats processing code - not needed for minimal bridge)
         } catch (err) {
           console.debug('[loadChats] Exception:', err);
           // Silently fail - use cached chats
@@ -789,10 +827,10 @@ function QRWhatsAppInboxPageContent() {
       };
 
       loadChats();
-      const interval = setInterval(loadChats, 45000); // 45s instead of 30s
+      const interval = setInterval(loadChats, 45000); // 45s polling
       return () => clearInterval(interval);
     }
-  }, [status, bridgeUrl]);
+  }, [status, token]);
 
   // Persist selected chat id so it can be restored offline
   useEffect(() => {
