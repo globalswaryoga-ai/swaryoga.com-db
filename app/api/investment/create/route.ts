@@ -90,20 +90,48 @@ export async function POST(request: NextRequest) {
 
     // Create investment
     console.log('[Investment API] Creating investment with data:', JSON.stringify(investmentData, null, 2));
-    const investment = await Investment.create(investmentData);
-    console.log('[Investment API] Investment created successfully:', investment._id);
+    
+    let investment: any;
+    try {
+      investment = await Investment.create(investmentData);
+      console.log('[Investment API] Investment created successfully:', investment._id);
+      
+      // Verify the investment was actually saved
+      const savedInvestment = await Investment.findById(investment._id);
+      if (!savedInvestment) {
+        console.error('[Investment API] ERROR: Investment created but not found in database!');
+        throw new Error('Investment created but verification failed - data may not have been saved');
+      }
+      console.log('[Investment API] Investment verified in database:', savedInvestment._id);
+    } catch (createError: any) {
+      console.error('[Investment API] Error creating investment:', createError.message);
+      throw createError;
+    }
 
     // Populate user data if userId exists
     if (userId) {
-      await investment.populate('userId', 'name email phone address');
+      try {
+        await investment.populate('userId', 'name email phone address');
+      } catch (populateError) {
+        console.warn('[Investment API] Warning: Could not populate user data:', populateError);
+        // Don't throw - investment was still created successfully
+      }
     }
+
+    const investmentObject = investment.toObject ? investment.toObject() : investment;
+    console.log('[Investment API] Returning response:', {
+      success: true,
+      certificateNumber: investmentObject.certificateNumber,
+      investmentId: investmentObject._id,
+    });
 
     return NextResponse.json(
       {
         success: true,
         message: 'Investment created successfully',
-        certificateNumber: investment.certificateNumber,
-        investment: investment.toObject(),
+        certificateNumber: investmentObject.certificateNumber,
+        investmentId: investmentObject._id,
+        investment: investmentObject,
       },
       { status: 201 }
     );

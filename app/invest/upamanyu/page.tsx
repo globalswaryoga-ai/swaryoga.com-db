@@ -258,6 +258,7 @@ export default function UpamanyuPage() {
     if (!validateForm()) return;
 
     setLoading(true);
+    console.log('[Upamanyu Form] Starting submission...');
 
     try {
       const sharePrice =
@@ -268,30 +269,51 @@ export default function UpamanyuPage() {
       const numberOfShares = parseInt(formData.numberOfShares);
       const totalAmount = sharePrice * numberOfShares;
 
+      const payload = {
+        entity: ENTITIES.UPAMANYU,
+        name: formData.name,
+        phone: `${formData.countryCode}${formData.phone}`,
+        paymentMode: formData.paymentMode,
+        shareType: formData.shareType,
+        numberOfShares: numberOfShares,
+        sharePrice: sharePrice,
+        amount: totalAmount,
+        startDate: new Date(formData.startDate.split(' ')[0]).toISOString(),
+        endDate: new Date(formData.endDate.split(' ')[0]).toISOString(),
+      };
+
+      console.log('[Upamanyu Form] Sending investment payload:', payload);
+
       // Send submission data
       const response = await fetch('/api/investment/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entity: ENTITIES.UPAMANYU,
-          name: formData.name,
-          phone: `${formData.countryCode}${formData.phone}`,
-          paymentMode: formData.paymentMode,
-          shareType: formData.shareType,
-          numberOfShares: numberOfShares,
-          sharePrice: sharePrice,
-          amount: totalAmount,
-          startDate: new Date(formData.startDate.split(' ')[0]).toISOString(),
-          endDate: new Date(formData.endDate.split(' ')[0]).toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
+
+      console.log('[Upamanyu Form] API Response Status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('[Upamanyu Form] API Error:', errorData);
         throw new Error(errorData.error || 'Submission failed');
       }
 
       const result = await response.json();
+      console.log('[Upamanyu Form] API Response:', result);
+
+      if (!result.success) {
+        console.error('[Upamanyu Form] Response indicates failure:', result);
+        throw new Error(result.message || 'Investment not saved - unknown error');
+      }
+
+      // Verify certificate number was returned
+      if (!result.certificateNumber) {
+        console.error('[Upamanyu Form] No certificate number in response:', result);
+        throw new Error('Investment submitted but certificate not generated');
+      }
+
+      console.log('[Upamanyu Form] Investment successful! Certificate:', result.certificateNumber);
       setSuccess(true);
       setFormData({
         name: '',
@@ -303,9 +325,15 @@ export default function UpamanyuPage() {
         startDate: '',
         endDate: '',
       });
-      setTimeout(() => (window.location.href = '/dashboard'), 2000);
+      
+      // Show success for 2 seconds before redirecting
+      setTimeout(() => {
+        console.log('[Upamanyu Form] Redirecting to dashboard...');
+        window.location.href = '/dashboard';
+      }, 2000);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred. Please try again.';
+      console.error('[Upamanyu Form] Submission error:', errorMessage);
       setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
