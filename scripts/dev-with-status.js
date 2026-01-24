@@ -6,7 +6,7 @@
  */
 
 const { displayStatus } = require('./ec2-status.js');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 
 const colors = {
@@ -18,7 +18,16 @@ const colors = {
 };
 
 const startDevServer = async () => {
-  // Display EC2 status first
+  // Run auto-cleanup first (quick, runs in background)
+  try {
+    console.log(`${colors.cyan}🧹 Running auto-cleanup...${colors.reset}`);
+    require('./auto-cleanup.js');
+    console.log('');
+  } catch (err) {
+    // Cleanup failed but continue anyway
+  }
+
+  // Display EC2 status
   await displayStatus();
 
   console.log(`${colors.bright}${colors.green}🚀 Starting development server...${colors.reset}\n`);

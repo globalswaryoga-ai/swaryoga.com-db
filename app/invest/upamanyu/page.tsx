@@ -26,10 +26,14 @@ interface FormData {
   countryCode: string;
   phone: string;
   shareType: 'equity' | 'preference';
-  numberOfShares: string;
+  investmentAmount: string;
   paymentMode: 'INR' | 'NPR' | 'USD';
-  startDate: string;
-  endDate: string;
+  startYear: string;
+  startMonth: string;
+  startDay: string;
+  endYear: string;
+  endMonth: string;
+  endDay: string;
 }
 
 interface Errors {
@@ -47,10 +51,14 @@ export default function UpamanyuPage() {
     countryCode: '+91',
     phone: '',
     shareType: SHARE_TYPES.EQUITY,
-    numberOfShares: '',
+    investmentAmount: '',
     paymentMode: 'INR',
-    startDate: '',
-    endDate: '',
+    startYear: new Date().getFullYear().toString(),
+    startMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+    startDay: String(new Date().getDate()).padStart(2, '0'),
+    endYear: (new Date().getFullYear() + 3).toString(),
+    endMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+    endDay: String(new Date().getDate()).padStart(2, '0'),
   });
 
   const [errors, setErrors] = useState<Errors>({});
@@ -98,47 +106,29 @@ export default function UpamanyuPage() {
     return `${year}-${month}-${date}`;
   };
 
+  // Build date string from year/month/day dropdowns
+  const getStartDate = (): string => {
+    return `${formData.startYear}-${formData.startMonth}-${formData.startDay}`;
+  };
+
+  const getEndDate = (): string => {
+    return `${formData.endYear}-${formData.endMonth}-${formData.endDay}`;
+  };
+
+  // Convert investment amount to shares
+  const calculateShares = (): number => {
+    if (!formData.investmentAmount) return 0;
+    const sharePrice =
+      formData.shareType === SHARE_TYPES.EQUITY
+        ? companyInfo.equityPrice || 110
+        : companyInfo.preferencePrice || 10;
+    return Math.floor(parseInt(formData.investmentAmount) / sharePrice);
+  };
+
   // Auto-update date after midnight and initialize end date on load
   useEffect(() => {
-    const updateDateIfNewDay = () => {
-      const today = getTodayDate();
-      
-      // Calculate 90 days from today (using local time)
-      const future = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 90);
-      const year = future.getFullYear();
-      const month = String(future.getMonth() + 1).padStart(2, '0');
-      const date = String(future.getDate()).padStart(2, '0');
-      const endDate90 = `${year}-${month}-${date}`;
-      
-      setFormData((prev) => {
-        // Initialize on first load (when startDate is empty)
-        const needsInitialization = !prev.startDate;
-        // Or update if the date has changed (comparing date strings)
-        const hasDateChanged = prev.startDate !== today;
-        
-        if (needsInitialization || hasDateChanged) {
-          if (needsInitialization) {
-            console.log('[Upamanyu] Initialized dates:', { startDate: today, endDate: endDate90 });
-          } else {
-            console.log('[Upamanyu] Date auto-updated:', { old: prev.startDate, new: today });
-          }
-          return {
-            ...prev,
-            startDate: today,
-            endDate: endDate90,
-          };
-        }
-        return prev;
-      });
-    };
-
-    // Update immediately on mount with today's date
-    updateDateIfNewDay();
-
-    // Check every 60 seconds if it's a new day (to catch midnight changes)
-    const interval = setInterval(updateDateIfNewDay, 60000);
-
-    return () => clearInterval(interval);
+    // Just initialize once on mount, dates now controlled by dropdowns
+    return () => {};
   }, []);
 
   // Handle input changes
@@ -161,8 +151,8 @@ export default function UpamanyuPage() {
     }
 
     // Recalculate on relevant changes
-    if (['numberOfShares', 'shareType', 'startDate', 'endDate'].includes(name)) {
-      setTimeout(() => recalculate(formData), 100);
+    if (['investmentAmount', 'shareType', 'startYear', 'startMonth', 'startDay', 'endYear', 'endMonth', 'endDay'].includes(name)) {
+      setTimeout(() => recalculate(), 100);
     }
   };
 
@@ -172,27 +162,30 @@ export default function UpamanyuPage() {
 
     if (!formData.name.trim()) newErrors.name = 'Name is required';
     if (!validatePhoneNumber(formData.phone)) newErrors.phone = 'Valid phone number required';
-    if (!formData.numberOfShares || parseInt(formData.numberOfShares) < 1)
-      newErrors.numberOfShares = 'Minimum 1 share required';
-    if (!formData.startDate) newErrors.startDate = 'Start date is required';
-    if (!formData.endDate) newErrors.endDate = 'End date is required';
-
-    // Validate that end date is at least 90 days from start date
-    if (formData.startDate && formData.endDate) {
-      const startDate = new Date(formData.startDate.split(' ')[0]);
-      const endDate = new Date(formData.endDate.split(' ')[0]);
-      const diffTime = endDate.getTime() - startDate.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
-      
-      if (diffDays < 90) {
-        newErrors.endDate = 'Maturity date must be at least 90 days from start date';
-      }
+    if (!formData.investmentAmount || parseInt(formData.investmentAmount) < 1)
+      newErrors.investmentAmount = 'Investment amount is required';
+    
+    const sharePrice =
+      formData.shareType === SHARE_TYPES.EQUITY
+        ? companyInfo.equityPrice || 110
+        : companyInfo.preferencePrice || 10;
+    const shares = calculateShares();
+    if (shares < 1) {
+      newErrors.investmentAmount = `Minimum investment required: ₹${sharePrice}`;
     }
 
-    const dateValidation = validateInvestmentDates(
-      new Date(formData.startDate.split(' ')[0]),
-      new Date(formData.endDate.split(' ')[0])
-    );
+    const startDate = new Date(parseInt(formData.startYear), parseInt(formData.startMonth) - 1, parseInt(formData.startDay));
+    const endDate = new Date(parseInt(formData.endYear), parseInt(formData.endMonth) - 1, parseInt(formData.endDay));
+
+    // Validate that end date is at least 90 days from start date
+    const diffTime = endDate.getTime() - startDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
+    
+    if (diffDays < 90) {
+      newErrors.endDate = 'Maturity date must be at least 90 days from start date';
+    }
+
+    const dateValidation = validateInvestmentDates(startDate, endDate);
     if (!dateValidation.valid && !newErrors.endDate) {
       newErrors.endDate = dateValidation.error || 'Invalid dates';
     }
@@ -201,52 +194,44 @@ export default function UpamanyuPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Recalculate investment with 18% minimum PA for equity
-  const recalculate = (data: FormData) => {
-    if (
-      data.numberOfShares &&
-      data.startDate &&
-      data.endDate &&
-      parseInt(data.numberOfShares) > 0
-    ) {
+  // Recalculate investment
+  const recalculate = () => {
+    if (formData.investmentAmount) {
       const sharePrice =
-        data.shareType === SHARE_TYPES.EQUITY
-          ? companyInfo.equityPrice || 1000
-          : companyInfo.preferencePrice || 1000;
+        formData.shareType === SHARE_TYPES.EQUITY
+          ? companyInfo.equityPrice || 110
+          : companyInfo.preferencePrice || 10;
 
-      const numberOfShares = parseInt(data.numberOfShares);
+      const numberOfShares = calculateShares();
       const totalAmount = sharePrice * numberOfShares;
       
-      // Parse dates using local timezone (not UTC)
-      const startParts = data.startDate.split('-');
-      const endParts = data.endDate.split('-');
-      const startDate = new Date(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2]));
-      const endDate = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]));
+      const startDate = new Date(parseInt(formData.startYear), parseInt(formData.startMonth) - 1, parseInt(formData.startDay));
+      const endDate = new Date(parseInt(formData.endYear), parseInt(formData.endMonth) - 1, parseInt(formData.endDay));
 
       const dateValidation = validateInvestmentDates(startDate, endDate);
       if (dateValidation.valid) {
         const years = calculateYears(startDate, endDate);
 
-        let calculation: any = {
+        let calc: any = {
           sharePrice,
           totalAmount,
           years,
           numberOfShares,
         };
 
-        if (data.shareType === SHARE_TYPES.PREFERENCE) {
+        if (formData.shareType === SHARE_TYPES.PREFERENCE) {
           // Preference shares: 12% fixed dividend
           const dividendInfo = calculatePreferenceDividend(totalAmount, years);
-          calculation.yearlyReturn = dividendInfo.yearlyDividend;
-          calculation.totalReturn = dividendInfo.totalDividend;
+          calc.yearlyReturn = dividendInfo.yearlyDividend;
+          calc.totalReturn = dividendInfo.totalDividend;
         } else {
           // Equity shares: minimum 18% PA
           const EQUITY_RATE = 0.18;
-          calculation.yearlyReturn = totalAmount * EQUITY_RATE;
-          calculation.totalReturn = totalAmount * EQUITY_RATE * years;
+          calc.yearlyReturn = totalAmount * EQUITY_RATE;
+          calc.totalReturn = totalAmount * EQUITY_RATE * years;
         }
 
-        setCalculation(calculation);
+        setCalculation(calc);
       }
     }
   };
@@ -266,7 +251,7 @@ export default function UpamanyuPage() {
           ? companyInfo.equityPrice || 110
           : companyInfo.preferencePrice || 10;
 
-      const numberOfShares = parseInt(formData.numberOfShares);
+      const numberOfShares = calculateShares();
       const totalAmount = sharePrice * numberOfShares;
 
       const payload = {
@@ -278,8 +263,8 @@ export default function UpamanyuPage() {
         numberOfShares: numberOfShares,
         sharePrice: sharePrice,
         amount: totalAmount,
-        startDate: new Date(formData.startDate.split(' ')[0]).toISOString(),
-        endDate: new Date(formData.endDate.split(' ')[0]).toISOString(),
+        startDate: new Date(parseInt(formData.startYear), parseInt(formData.startMonth) - 1, parseInt(formData.startDay)).toISOString(),
+        endDate: new Date(parseInt(formData.endYear), parseInt(formData.endMonth) - 1, parseInt(formData.endDay)).toISOString(),
       };
 
       console.log('[Upamanyu Form] Sending investment payload:', payload);
@@ -320,10 +305,14 @@ export default function UpamanyuPage() {
         countryCode: '+91',
         phone: '',
         shareType: SHARE_TYPES.EQUITY,
-        numberOfShares: '',
+        investmentAmount: '',
         paymentMode: 'INR',
-        startDate: '',
-        endDate: '',
+        startYear: new Date().getFullYear().toString(),
+        startMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+        startDay: String(new Date().getDate()).padStart(2, '0'),
+        endYear: (new Date().getFullYear() + 3).toString(),
+        endMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+        endDay: String(new Date().getDate()).padStart(2, '0'),
       });
       
       // Show success for 2 seconds before redirecting
@@ -488,27 +477,65 @@ export default function UpamanyuPage() {
                   </div>
                 </div>
 
-                {/* Number of Shares */}
+                {/* Investment Amount */}
                 <div className="border-b pb-6">
-                  <h3 className="font-bold text-gray-800 mb-4">Investment Amount & Payment</h3>
+                  <h3 className="font-bold text-gray-800 mb-4">Investment Amount & Share Details</h3>
 
                   {formData.shareType === SHARE_TYPES.EQUITY && (
-                    <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg mb-4">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
                       <p className="text-sm text-gray-700">
-                        <strong>📌 Equity Share Structure:</strong> 1 Lot = 110 shares @ ₹110 = ₹12,100
+                        <strong>ℹ️ Equity:</strong> Price ₹{companyInfo.equityPrice || 110}/share
+                      </p>
+                    </div>
+                  )}
+                  {formData.shareType === SHARE_TYPES.PREFERENCE && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
+                      <p className="text-sm text-gray-700">
+                        <strong>ℹ️ Preference:</strong> Price ₹{companyInfo.preferencePrice || 10}/share | 12% fixed dividend
                       </p>
                     </div>
                   )}
 
                   <FormInput
-                    label={formData.shareType === SHARE_TYPES.EQUITY ? 'Number of Shares (or Lots × 110)' : 'Number of Shares'}
-                    name="numberOfShares"
+                    label="Investment Amount (₹)"
+                    name="investmentAmount"
                     type="number"
-                    value={formData.numberOfShares}
+                    value={formData.investmentAmount}
                     onChange={handleChange}
-                    placeholder={formData.shareType === SHARE_TYPES.EQUITY ? 'Enter shares (110 = 1 lot)' : 'Enter number of shares'}
-                    error={errors.numberOfShares}
-                    step="1"
+                    placeholder="Enter your investment amount"
+                    error={errors.investmentAmount}
+                    step="100"
+                    required
+                  />
+
+                  {formData.investmentAmount && (
+                    <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-700">
+                        <strong>📊 Auto-calculated Shares:</strong> {calculateShares()} shares
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Amount: ₹{formData.investmentAmount} ÷ ₹{formData.shareType === SHARE_TYPES.EQUITY ? companyInfo.equityPrice || 110 : companyInfo.preferencePrice || 10} per share
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Payment Mode <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="paymentMode"
+                      value={formData.paymentMode}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="INR">🇮🇳 INR (Indian Rupees)</option>
+                      <option value="NPR">🇳🇵 NPR (Nepalese Rupees)</option>
+                      <option value="USD">🇺🇸 USD (US Dollars)</option>
+                    </select>
+                  </div>
+                </div>
                     min="1"
                     required
                   />
@@ -577,44 +604,103 @@ export default function UpamanyuPage() {
                 <div>
                   <h3 className="font-bold text-gray-800 mb-4">Investment Duration</h3>
 
-                  <DatePickerDropdown
-                    label="Start Date"
-                    value={formData.startDate}
-                    onChange={(value) => {
-                      // Auto-calculate end date as 90 days after start date (using local time)
-                      const startParts = value.split('-');
-                      const start = new Date(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2]));
-                      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 90);
-                      
-                      const year = end.getFullYear();
-                      const month = String(end.getMonth() + 1).padStart(2, '0');
-                      const date = String(end.getDate()).padStart(2, '0');
-                      const endDateStr = `${year}-${month}-${date}`;
-                      
-                      setFormData((prev) => ({
-                        ...prev,
-                        startDate: value,
-                        endDate: endDateStr,
-                      }));
-                    }}
-                    error={errors.startDate}
-                    required
-                    minDate={getTodayDate()}
-                  />
+                  <div className="grid grid-cols-3 gap-3 mb-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Start Year <span className="text-red-500">*</span></label>
+                      <select
+                        name="startYear"
+                        value={formData.startYear}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        {[...Array(10)].map((_, i) => {
+                          const year = new Date().getFullYear() + i;
+                          return <option key={year} value={year}>{year}</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Start Month <span className="text-red-500">*</span></label>
+                      <select
+                        name="startMonth"
+                        value={formData.startMonth}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        {[...Array(12)].map((_, i) => {
+                          const month = String(i + 1).padStart(2, '0');
+                          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          return <option key={month} value={month}>{monthNames[i]}</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Start Day <span className="text-red-500">*</span></label>
+                      <select
+                        name="startDay"
+                        value={formData.startDay}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        {[...Array(31)].map((_, i) => {
+                          const day = String(i + 1).padStart(2, '0');
+                          return <option key={day} value={day}>{day}</option>;
+                        })}
+                      </select>
+                    </div>
+                  </div>
 
-                  <DatePickerDropdown
-                    label="End Date (Maturity)"
-                    value={formData.endDate}
-                    onChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        endDate: value,
-                      }))
-                    }
-                    error={errors.endDate}
-                    required
-                    minDate={formData.startDate}
-                  />
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Maturity Year <span className="text-red-500">*</span></label>
+                      <select
+                        name="endYear"
+                        value={formData.endYear}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        {[...Array(15)].map((_, i) => {
+                          const year = new Date().getFullYear() + i;
+                          return <option key={year} value={year}>{year}</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Maturity Month <span className="text-red-500">*</span></label>
+                      <select
+                        name="endMonth"
+                        value={formData.endMonth}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        {[...Array(12)].map((_, i) => {
+                          const month = String(i + 1).padStart(2, '0');
+                          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          return <option key={month} value={month}>{monthNames[i]}</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Maturity Day <span className="text-red-500">*</span></label>
+                      <select
+                        name="endDay"
+                        value={formData.endDay}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        {[...Array(31)].map((_, i) => {
+                          const day = String(i + 1).padStart(2, '0');
+                          return <option key={day} value={day}>{day}</option>;
+                        })}
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Submit Button */}

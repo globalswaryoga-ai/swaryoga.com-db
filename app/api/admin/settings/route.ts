@@ -6,8 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getAdminSettings } from '@/lib/schemas/enterpriseSchemas';
-import { verifyToken } from '@/lib/crm-handlers';
+import { getAdminSettings } from '@/lib/schemas/adminSettingsSchema';
+import { verifyToken } from '@/lib/auth-utils';
 
 export async function GET(request: NextRequest) {
   try {

@@ -12,24 +12,24 @@ import React, { useState, useEffect } from 'react';
 import { ENTITIES, ENTITY_NAMES, BUTTON_STYLES, SWAR_SAKSHI_INVESTMENT } from '@/lib/investment-constants';
 import { InvestmentButton } from '@/components/investment/InvestmentButton';
 import { FormInput } from '@/components/investment/FormInput';
-import { DatePickerDropdown } from '@/components/investment/DatePickerDropdown';
 import { InvestmentCard } from '@/components/investment/InvestmentCard';
 import {
   validatePhoneNumber,
-  validateInvestmentDates,
-  calculateYears,
   formatCurrency,
-  formatDate,
 } from '@/lib/investment-utils';
 
 interface FormData {
   name: string;
   countryCode: string;
   phone: string;
-  amount: string;
+  investmentAmount: string;
   paymentMode: 'INR' | 'NPR' | 'USD';
-  startDate: string;
-  endDate: string;
+  startYear: string;
+  startMonth: string;
+  startDay: string;
+  endYear: string;
+  endMonth: string;
+  endDay: string;
 }
 
 interface Errors {
@@ -43,76 +43,13 @@ export default function SwarSakshiPage() {
     phone: '',
     amount: '',
     paymentMode: 'INR',
-    startDate: '',
-    endDate: '',
+    startYear: new Date().getFullYear().toString(),
+    startMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+    startDay: String(new Date().getDate()).padStart(2, '0'),
+    endYear: (new Date().getFullYear() + 3).toString(),
+    endMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+    endDay: String(new Date().getDate()).padStart(2, '0'),
   });
-
-  // Auto-calculated end date (90 days from start date)
-  const getEndDate = (): string => {
-    if (!formData.startDate) return '';
-    const start = new Date(formData.startDate);
-    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 90);
-    return end.toISOString().split('T')[0];
-  };
-
-  // Get today's date in YYYY-MM-DD format (using local time, not UTC)
-  const getTodayDate = (): string => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const date = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${date}`;
-  };
-
-  // Get date 90 days from today
-  const get90DaysFromNow = (): string => {
-    const today = new Date();
-    const future = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 90);
-    const year = future.getFullYear();
-    const month = String(future.getMonth() + 1).padStart(2, '0');
-    const date = String(future.getDate()).padStart(2, '0');
-    return `${year}-${month}-${date}`;
-  };
-
-  // Initialize form with today's date on mount and auto-update after midnight
-  useEffect(() => {
-    const updateDateIfNewDay = () => {
-      const today = getTodayDate();
-      const endDate = get90DaysFromNow();
-      
-      setFormData((prev) => {
-        // Initialize on first load (when startDate is empty)
-        const needsInitialization = !prev.startDate;
-        // Or update if the date has changed (comparing date strings)
-        const hasDateChanged = prev.startDate !== today;
-        
-        if (needsInitialization || hasDateChanged) {
-          if (needsInitialization) {
-            console.log('[Swar Sakshi] Initialized dates:', { startDate: today, endDate: endDate });
-          } else {
-            console.log('[Swar Sakshi] Date auto-updated:', { old: prev.startDate, new: today });
-          }
-          const updatedForm = {
-            ...prev,
-            startDate: today,
-            endDate: endDate,
-          };
-          // Trigger recalculation with updated form data
-          setTimeout(() => recalculate(updatedForm), 0);
-          return updatedForm;
-        }
-        return prev;
-      });
-    };
-
-    // Update immediately on mount with today's date
-    updateDateIfNewDay();
-
-    // Check every 60 seconds if it's a new day (to catch midnight changes)
-    const interval = setInterval(updateDateIfNewDay, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
@@ -125,10 +62,16 @@ export default function SwarSakshiPage() {
     dailyDividend: number;
   } | null>(null);
 
+  // Initialize form with today's date on mount
+  useEffect(() => {
+    // Just initialize once on mount, dates now controlled by dropdowns
+    return () => {};
+  }, []);
+
   // Trigger recalculation when form data changes
   useEffect(() => {
     recalculate(formData);
-  }, [formData.amount, formData.startDate, formData.endDate]);
+  }, [formData.investmentAmount, formData.startYear, formData.startMonth, formData.startDay, formData.endYear, formData.endMonth, formData.endDay]);
 
   // Handle input changes
   const handleChange = (
@@ -150,7 +93,7 @@ export default function SwarSakshiPage() {
     }
 
     // Recalculate on amount or date change
-    if (['amount', 'startDate', 'endDate'].includes(name)) {
+    if (['investmentAmount', 'startYear', 'startMonth', 'startDay', 'endYear', 'endMonth', 'endDay'].includes(name)) {
       setTimeout(() => recalculate(formData), 100);
     }
   };
@@ -166,15 +109,15 @@ export default function SwarSakshiPage() {
 
     if (!formData.name.trim()) newErrors.name = 'Name is required';
     if (!validatePhoneNumber(formData.phone)) newErrors.phone = 'Valid phone number required (10 digits)';
-    if (!formData.amount || parseFloat(formData.amount) < SWAR_SAKSHI_INVESTMENT.MINIMUM_AMOUNT)
-      newErrors.amount = `Minimum investment is ${formatCurrency(SWAR_SAKSHI_INVESTMENT.MINIMUM_AMOUNT)}`;
-    if (!formData.startDate) newErrors.startDate = 'Start date is required';
-    if (!formData.endDate) newErrors.endDate = 'End date is required';
+    if (!formData.investmentAmount || parseFloat(formData.investmentAmount) < SWAR_SAKSHI_INVESTMENT.MINIMUM_AMOUNT)
+      newErrors.investmentAmount = `Minimum investment is ${formatCurrency(SWAR_SAKSHI_INVESTMENT.MINIMUM_AMOUNT)}`;
+    if (!formData.startYear || !formData.startMonth || !formData.startDay) newErrors.startDate = 'Start date is required';
+    if (!formData.endYear || !formData.endMonth || !formData.endDay) newErrors.endDate = 'End date is required';
     
     // Validate that end date is at least 90 days from start date
-    if (formData.startDate && formData.endDate) {
-      const startDate = new Date(formData.startDate);
-      const endDate = new Date(formData.endDate);
+    if (formData.startYear && formData.startMonth && formData.startDay && formData.endYear && formData.endMonth && formData.endDay) {
+      const startDate = new Date(parseInt(formData.startYear), parseInt(formData.startMonth) - 1, parseInt(formData.startDay));
+      const endDate = new Date(parseInt(formData.endYear), parseInt(formData.endMonth) - 1, parseInt(formData.endDay));
       const diffTime = endDate.getTime() - startDate.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
       
@@ -189,15 +132,12 @@ export default function SwarSakshiPage() {
 
   // Recalculate based on current form data
   const recalculate = (data: FormData) => {
-    if (data.amount && data.startDate && data.endDate && parseFloat(data.amount) > 0) {
-      const amount = parseFloat(data.amount);
+    if (data.investmentAmount && data.startYear && data.startMonth && data.startDay && data.endYear && data.endMonth && data.endDay && parseFloat(data.investmentAmount) > 0) {
+      const amount = parseFloat(data.investmentAmount);
       
-      // Parse dates using local time (not UTC)
-      const startParts = data.startDate.split('-');
-      const endParts = data.endDate.split('-');
-      
-      const startDate = new Date(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2]));
-      const endDate = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]));
+      // Create dates from year/month/day
+      const startDate = new Date(parseInt(data.startYear), parseInt(data.startMonth) - 1, parseInt(data.startDay));
+      const endDate = new Date(parseInt(data.endYear), parseInt(data.endMonth) - 1, parseInt(data.endDay));
 
       // Calculate number of days between start and end date
       const timeDiff = endDate.getTime() - startDate.getTime();
@@ -230,16 +170,19 @@ export default function SwarSakshiPage() {
     setLoading(true);
 
     try {
+      const startDate = `${formData.startYear}-${formData.startMonth}-${formData.startDay}`;
+      const endDate = `${formData.endYear}-${formData.endMonth}-${formData.endDay}`;
+
       const payload = {
         entity: ENTITIES.SWAR_SAKSHI,
         name: formData.name,
         phone: `${formData.countryCode}${formData.phone}`,
-        amount: parseFloat(formData.amount),
+        amount: parseFloat(formData.investmentAmount),
         paymentMode: formData.paymentMode,
         interestRate: SWAR_SAKSHI_INVESTMENT.FIXED_DIVIDEND_RATE * 100, // Convert to percentage
         compound: false, // Swar Sakshi doesn't use compound interest
-        startDate: formData.startDate, // Send as ISO date string, not Date object
-        endDate: getEndDate(), // Send as ISO date string
+        startDate: startDate, // Send as ISO date string
+        endDate: endDate, // Send as ISO date string
         earlyRefundAllowed: false, // Cannot refund before due date
         refundRule: 'early_refund_blocked',
       };
@@ -260,8 +203,15 @@ export default function SwarSakshiPage() {
         setFormData({
           name: '',
           phone: '',
-          amount: '',
-          startDate: '',
+          countryCode: '+91',
+          investmentAmount: '',
+          paymentMode: 'INR',
+          startYear: new Date().getFullYear().toString(),
+          startMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+          startDay: String(new Date().getDate()).padStart(2, '0'),
+          endYear: (new Date().getFullYear() + 3).toString(),
+          endMonth: String(new Date().getMonth() + 1).padStart(2, '0'),
+          endDay: String(new Date().getDate()).padStart(2, '0'),
         });
         setTimeout(() => (window.location.href = '/dashboard'), 2000);
       } else {
@@ -380,12 +330,12 @@ export default function SwarSakshiPage() {
 
                   <FormInput
                     label="Investment Amount (₹)"
-                    name="amount"
+                    name="investmentAmount"
                     type="number"
-                    value={formData.amount}
+                    value={formData.investmentAmount}
                     onChange={handleChange}
                     placeholder={`Minimum ${formatCurrency(SWAR_SAKSHI_INVESTMENT.MINIMUM_AMOUNT)}`}
-                    error={errors.amount}
+                    error={errors.investmentAmount}
                     step="1000"
                     min={SWAR_SAKSHI_INVESTMENT.MINIMUM_AMOUNT}
                     required
@@ -417,54 +367,131 @@ export default function SwarSakshiPage() {
                 <div>
                   <h3 className="font-bold text-gray-800 mb-4">Investment Duration</h3>
 
-                  <DatePickerDropdown
-                    label="Start Date"
-                    value={formData.startDate}
-                    onChange={(value) => {
-                      // Auto-calculate end date as 90 days after start date (using local time)
-                      const startParts = value.split('-');
-                      const start = new Date(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2]));
-                      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 90);
-                      
-                      const year = end.getFullYear();
-                      const month = String(end.getMonth() + 1).padStart(2, '0');
-                      const date = String(end.getDate()).padStart(2, '0');
-                      const endDateStr = `${year}-${month}-${date}`;
-                      
-                      setFormData((prev) => ({
-                        ...prev,
-                        startDate: value,
-                        endDate: endDateStr,
-                      }));
-                    }}
-                    error={errors.startDate}
-                    required
-                    minDate={getTodayDate()}
-                  />
+                  {/* Start Date Dropdowns */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                      Start Date <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Year</label>
+                        <select
+                          name="startYear"
+                          value={formData.startYear}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                          required
+                        >
+                          {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i).map((year) => (
+                            <option key={year} value={year.toString()}>
+                              {year}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Month</label>
+                        <select
+                          name="startMonth"
+                          value={formData.startMonth}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                          required
+                        >
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                            <option key={month} value={String(month).padStart(2, '0')}>
+                              {String(month).padStart(2, '0')}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Day</label>
+                        <select
+                          name="startDay"
+                          value={formData.startDay}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                          required
+                        >
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                            <option key={day} value={String(day).padStart(2, '0')}>
+                              {String(day).padStart(2, '0')}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {errors.startDate && <p className="text-sm text-red-500 mt-1">{errors.startDate}</p>}
+                  </div>
 
-                  <DatePickerDropdown
-                    label="End Date"
-                    value={formData.endDate}
-                    onChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        endDate: value,
-                      }))
-                    }
-                    error={errors.endDate}
-                    required
-                    minDate={formData.startDate}
-                  />
+                  {/* End Date Dropdowns */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                      End Date (Maturity) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Year</label>
+                        <select
+                          name="endYear"
+                          value={formData.endYear}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                          required
+                        >
+                          {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map((year) => (
+                            <option key={year} value={year.toString()}>
+                              {year}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Month</label>
+                        <select
+                          name="endMonth"
+                          value={formData.endMonth}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                          required
+                        >
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                            <option key={month} value={String(month).padStart(2, '0')}>
+                              {String(month).padStart(2, '0')}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Day</label>
+                        <select
+                          name="endDay"
+                          value={formData.endDay}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                          required
+                        >
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                            <option key={day} value={String(day).padStart(2, '0')}>
+                              {String(day).padStart(2, '0')}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {errors.endDate && <p className="text-sm text-red-500 mt-1">{errors.endDate}</p>}
+                  </div>
 
                   <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-gray-500 uppercase font-semibold mb-2">Investment Period</p>
                     <p className="text-sm text-gray-800">
-                      <strong>From:</strong> {formData.startDate ? formatDate(formData.startDate) : 'Select start date'}
+                      <strong>From:</strong> {formData.startYear}-{formData.startMonth}-{formData.startDay}
                     </p>
                     <p className="text-sm text-gray-800 mt-1">
-                      <strong>To:</strong> {formData.endDate ? formatDate(formData.endDate) : 'Auto-set'}
+                      <strong>To:</strong> {formData.endYear}-{formData.endMonth}-{formData.endDay}
                     </p>
-                    <p className="text-xs text-gray-600 mt-2">Default duration: 90 days from your start date</p>
+                    <p className="text-xs text-gray-600 mt-2">Minimum duration: 90 days from start date</p>
                   </div>
 
                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm mt-4">
@@ -495,7 +522,7 @@ export default function SwarSakshiPage() {
                 <div>
                   <p className="text-sm text-gray-500 uppercase font-semibold">Investment Amount</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {formData.amount ? formatCurrency(parseFloat(formData.amount)) : '₹0'}
+                    {formData.investmentAmount ? formatCurrency(parseFloat(formData.investmentAmount)) : '₹0'}
                   </p>
                 </div>
 
@@ -523,10 +550,10 @@ export default function SwarSakshiPage() {
                       <p className="text-xs text-gray-500 uppercase font-semibold mb-3">Total Getting at Maturity</p>
                       <div className="text-2xl font-bold text-gray-800 space-y-2">
                         <div>
-                          {formData.amount ? formatCurrency(parseFloat(formData.amount)) : '₹0'} + {formatCurrency(calculation.dividend)} ({calculation.days} days)
+                          {formData.investmentAmount ? formatCurrency(parseFloat(formData.investmentAmount)) : '₹0'} + {formatCurrency(calculation.dividend)} ({calculation.days} days)
                         </div>
                         <div className="text-3xl text-green-600 border-t pt-2 mt-2">
-                          = {formatCurrency(parseFloat(formData.amount) + calculation.dividend)}
+                          = {formatCurrency(parseFloat(formData.investmentAmount || '0') + calculation.dividend)}
                         </div>
                       </div>
                       <p className="text-xs text-green-700 mt-3 font-semibold">
@@ -537,14 +564,13 @@ export default function SwarSakshiPage() {
                     <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
                       <p className="text-xs text-amber-800 uppercase font-semibold mb-2">📅 Maturity Date</p>
                       <p className="text-lg font-bold text-amber-900">
-                        {formData.startDate ? formatDate(getEndDate()) : 'Select start date'}
+                        {formData.endYear}-{formData.endMonth}-{formData.endDay}
                       </p>
                       <p className="text-xs text-amber-700 mt-2">💳 Auto-deposited to your bank account at 5:00 PM</p>
                     </div>
 
                     <p className="text-xs text-gray-500 italic mt-4">
-                      You will receive {formatCurrency(calculation.maturityAmount)} on{' '}
-                      {formData.startDate ? formatDate(getEndDate()) : 'maturity date'}
+                      You will receive {formatCurrency(calculation.maturityAmount)} on {formData.endYear}-{formData.endMonth}-{formData.endDay}
                     </p>
                   </>
                 )}

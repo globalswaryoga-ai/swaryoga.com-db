@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getInvestment } from '@/lib/schemas/investmentSchemas';
-import { getAdminSettings } from '@/lib/schemas/enterpriseSchemas';
+import { getAdminSettings } from '@/lib/schemas/adminSettingsSchema';
 import { generateInvestmentCertificate } from '@/lib/certificate-generator';
 
 export async function GET(
