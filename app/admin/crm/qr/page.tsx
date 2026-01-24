@@ -1630,7 +1630,7 @@ function QRWhatsAppInboxPageContent() {
       console.log('[handleConnect] Done!');
       
       // Show helpful message about scanning
-      setBridgeError('🔐 QR code ready! Scan with WhatsApp on your phone. The QR will auto-refresh every 30 seconds.');
+      setBridgeError('🔐 QR code ready! Scan with WhatsApp on your phone. The QR will auto-refresh every 30 seconds. If you get "try again later", the bridge may need to restart - click Logout and try again.');
       
       // Auto-refresh QR every 30 seconds to keep it fresh and prevent "try again later" errors
       const refreshInterval = setInterval(() => {
