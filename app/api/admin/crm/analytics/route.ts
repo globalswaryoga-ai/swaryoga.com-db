@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     try {
       if (view === 'overview' || view === 'all') {
         // Get summary metrics
-        const [totalLeads, leadsByStatus, totalSales, totalMessages, broadcastAgg] = await Promise.all([
+        const [totalLeads, leadsByStatus, totalSales, totalMessages, metaMessagesSent, qrWhatsappMessagesSent, broadcastAgg] = await Promise.all([
           Lead.countDocuments(),
           Lead.aggregate([
             { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -54,6 +54,18 @@ export async function GET(request: NextRequest) {
           ]),
           SalesReport.countDocuments(hasDateRange ? { saleDate: dateRange } : {}),
           WhatsAppMessage.countDocuments(hasDateRange ? { sentAt: dateRange } : {}),
+          // Count Meta messages
+          WhatsAppMessage.countDocuments({
+            provider: 'meta',
+            direction: 'outbound',
+            ...(hasDateRange ? { sentAt: dateRange } : {}),
+          }),
+          // Count QR/Bridge messages
+          WhatsAppMessage.countDocuments({
+            provider: 'whatsapp_web_bridge',
+            direction: 'outbound',
+            ...(hasDateRange ? { sentAt: dateRange } : {}),
+          }),
           // Broadcast diagnostics: overall delivery outcomes across run messages.
           // We aggregate by status + a normalized reason bucket derived from failureReason.
           BroadcastRunMessage.aggregate([
@@ -139,6 +151,8 @@ export async function GET(request: NextRequest) {
           leadsByStatus: Object.fromEntries(leadsByStatus.map((item: any) => [item._id || 'unknown', item.count])),
           totalSales,
           totalMessages,
+          metaMessagesSent,
+          qrWhatsappMessagesSent,
           // Response-time tracking is not currently stored on WhatsAppMessage.
           avgResponseTime: 0,
           broadcast: {
