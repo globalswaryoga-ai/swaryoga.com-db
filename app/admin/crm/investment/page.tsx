@@ -1,16 +1,26 @@
 /**
- * Admin CRM - Investment Management Page
- * Manage all investments, add old investments, view details
+ * CRM - Investment Management Page
+ * Manage investments with dividend tracking, permissions-based CRUD, and lead integration
+ * - CS, CA, Admin can create/edit investments
+ * - Admin can delete investments
+ * - Track paid dividends, pending dividends, overdue amounts
+ * - Calculate compound interest at 12% on overdue amounts
+ * - Link investments to leads
  */
 
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { ENTITIES, ENTITY_NAMES, SHARE_TYPES, SHARE_TYPE_NAMES } from '@/lib/investment-constants';
 import { formatCurrency, formatDate } from '@/lib/investment-utils';
 
 interface Investment {
   _id: string;
+  leadId?: string;
+  leadNumber?: string;
+  createdByUserId?: string;
+  createdByUserName?: string;
   entity: 'swar-sakshi' | 'upamanyu';
   shareType?: 'equity' | 'preference';
   name: string;
@@ -21,14 +31,20 @@ interface Investment {
   interestRate?: number;
   startDate: string;
   endDate: string;
-  status: string;
+  status: 'active' | 'matured' | 'overdue';
   certificateNumber: string;
   maturityAmount?: number;
+  paidDividend?: number;
+  pendingDividend?: number;
+  overdueAmount?: number;
+  compoundedInterest?: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface FormData {
   entity: 'swar-sakshi' | 'upamanyu';
+  leadId?: string;
   name: string;
   phone: string;
   shareType?: 'equity' | 'preference';
@@ -38,15 +54,20 @@ interface FormData {
   interestRate?: string;
   startDate: string;
   endDate: string;
+  paidDividend?: string;
   isOldInvestment?: boolean;
 }
 
-export default function InvestmentPage() {
+export default function CRMInvestmentPage() {
+  const { user } = useAuth();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterEntity, setFilterEntity] = useState<'all' | 'swar-sakshi' | 'upamanyu'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'matured' | 'overdue'>('all');
+  
   const [formData, setFormData] = useState<FormData>({
     entity: 'swar-sakshi',
     name: '',
@@ -54,10 +75,18 @@ export default function InvestmentPage() {
     amount: '',
     startDate: '',
     endDate: '',
+    paidDividend: '0',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  // Check permissions
+  const canCreate = user && ['admin', 'CS', 'CA'].includes(user.role);
+  const canEdit = user && ['admin', 'CS', 'CA'].includes(user.role);
+  const canDelete = user && user.role === 'admin';
 
   // Fetch investments
   useEffect(() => {
@@ -77,6 +106,29 @@ export default function InvestmentPage() {
 
     fetchInvestments();
   }, []);
+
+  // Calculate dividend status with compound interest
+  const calculateDividendStatus = (investment: Investment) => {
+    const endDate = new Date(investment.endDate);
+    const today = new Date();
+    const daysOverdue = Math.floor((today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysOverdue > 0) {
+      // Compound interest at 12% per annum
+      const totalPendingDividend = (investment.pendingDividend || 0) + (investment.maturityAmount || 0);
+      const dailyRate = 0.12 / 365;
+      const compoundedAmount = totalPendingDividend * Math.pow(1 + dailyRate, daysOverdue);
+      const compoundedInterest = compoundedAmount - totalPendingDividend;
+      
+      return {
+        daysOverdue,
+        compoundedInterest: Math.round(compoundedInterest * 100) / 100,
+        totalOverdueAmount: Math.round(compoundedAmount * 100) / 100,
+      };
+    }
+    
+    return { daysOverdue: 0, compoundedInterest: 0, totalOverdueAmount: 0 };
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -127,6 +179,10 @@ export default function InvestmentPage() {
     e.preventDefault();
 
     if (!validateForm()) return;
+    if (!canCreate) {
+      setErrors({ submit: 'You do not have permission to create investments' });
+      return;
+    }
 
     setSubmitting(true);
 
@@ -138,7 +194,11 @@ export default function InvestmentPage() {
         amount: parseFloat(formData.amount),
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),
+        paidDividend: parseFloat(formData.paidDividend || '0'),
+        isOldInvestment: formData.isOldInvestment,
       };
+
+      if (formData.leadId) payload.leadId = formData.leadId;
 
       if (formData.entity === 'upamanyu') {
         payload.shareType = formData.shareType;
@@ -147,28 +207,27 @@ export default function InvestmentPage() {
       }
 
       if (formData.entity === 'swar-sakshi') {
-        payload.interestRate = parseFloat(formData.interestRate || '0');
+        payload.interestRate = parseFloat(formData.interestRate || '12');
         payload.compound = false;
       }
 
-      if (formData.isOldInvestment) {
-        payload.isOldInvestment = true;
-      }
+      const endpoint = editingId ? `/api/admin/crm/investments/${editingId}` : '/api/investment/create';
+      const method = editingId ? 'PUT' : 'POST';
 
-      console.log('Form data:', formData);
-      console.log('Sending investment payload:', JSON.stringify(payload, null, 2));
-
-      const response = await fetch('/api/investment/create', {
-        method: 'POST',
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       const responseData = await response.json();
-      console.log('API Response:', responseData, 'Status:', response.status);
 
       if (response.ok) {
-        setSuccessMessage(`✅ Investment added successfully! Certificate: ${responseData.certificateNumber}`);
+        setSuccessMessage(
+          editingId 
+            ? '✅ Investment updated successfully!'
+            : `✅ Investment added successfully! Certificate: ${responseData.certificateNumber}`
+        );
         
         // Refresh investments list
         const listResponse = await fetch('/api/admin/crm/investments');
@@ -177,7 +236,6 @@ export default function InvestmentPage() {
           setInvestments(data.investments || []);
         }
 
-        // Reset form
         setFormData({
           entity: 'swar-sakshi',
           name: '',
@@ -185,26 +243,17 @@ export default function InvestmentPage() {
           amount: '',
           startDate: '',
           endDate: '',
+          paidDividend: '0',
         });
+        setEditingId(null);
 
         setTimeout(() => {
           setShowAddModal(false);
           setSuccessMessage('');
         }, 2000);
       } else {
-        console.error('API Error Response:', responseData);
-        
-        let errorMessage = responseData.error || 'Failed to add investment';
-        if (responseData.details && Array.isArray(responseData.details)) {
-          errorMessage += '\n' + responseData.details.join('\n');
-        } else if (responseData.fieldErrors && typeof responseData.fieldErrors === 'object') {
-          const fieldErrorMessages = Object.entries(responseData.fieldErrors)
-            .map(([field, msg]) => `${field}: ${msg}`)
-            .join('\n');
-          errorMessage += '\n' + fieldErrorMessages;
-        }
-        
-        setErrors({ submit: errorMessage });
+        const errorMsg = responseData.error || responseData.message || 'Failed to save investment';
+        setErrors({ submit: errorMsg });
       }
     } catch (error) {
       console.error('Submit error:', error);
@@ -214,6 +263,59 @@ export default function InvestmentPage() {
     }
   };
 
+  const handleEdit = (investment: Investment) => {
+    if (!canEdit) {
+      alert('You do not have permission to edit investments');
+      return;
+    }
+    setEditingId(investment._id);
+    setFormData({
+      entity: investment.entity,
+      leadId: investment.leadId,
+      name: investment.name,
+      phone: investment.phone,
+      shareType: investment.shareType,
+      amount: investment.amount.toString(),
+      numberOfShares: investment.numberOfShares?.toString(),
+      sharePrice: investment.sharePrice?.toString(),
+      interestRate: investment.interestRate?.toString(),
+      startDate: new Date(investment.startDate).toISOString().split('T')[0],
+      endDate: new Date(investment.endDate).toISOString().split('T')[0],
+      paidDividend: (investment.paidDividend || 0).toString(),
+    });
+    setShowAddModal(true);
+  };
+
+  const handleDelete = async (investmentId: string) => {
+    if (!canDelete) {
+      alert('You do not have permission to delete investments');
+      return;
+    }
+    if (!confirm('Are you sure you want to delete this investment?')) return;
+
+    try {
+      const response = await fetch(`/api/admin/crm/investments/${investmentId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setInvestments(investments.filter((inv) => inv._id !== investmentId));
+        setSuccessMessage('✅ Investment deleted successfully!');
+        setTimeout(() => setSuccessMessage(''), 2000);
+      } else {
+        alert('Failed to delete investment');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('An error occurred while deleting');
+    }
+  };
+
+  const handleViewDetails = (investment: Investment) => {
+    setSelectedInvestment(investment);
+    setShowDetailsModal(true);
+  };
+
   const filteredInvestments = investments.filter((inv) => {
     const matchesSearch =
       inv.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -221,16 +323,17 @@ export default function InvestmentPage() {
       inv.certificateNumber.includes(searchTerm);
 
     const matchesEntity = filterEntity === 'all' || inv.entity === filterEntity;
+    const matchesStatus = filterStatus === 'all' || inv.status === filterStatus;
 
-    return matchesSearch && matchesEntity;
+    return matchesSearch && matchesEntity && matchesStatus;
   });
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-gray-50 min-h-screen">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">💰 Investment Management</h1>
-        <p className="text-gray-600">Manage all investments and add old investment records</p>
+        <p className="text-gray-600">Manage investments, track dividends, and handle overdue amounts</p>
       </div>
 
       {/* Success Message */}
@@ -243,14 +346,13 @@ export default function InvestmentPage() {
       {/* Controls */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-          {/* Search & Filter */}
-          <div className="flex-1 flex gap-4 w-full md:w-auto">
+          <div className="flex-1 flex gap-4 w-full md:w-auto flex-wrap">
             <input
               type="text"
               placeholder="Search by name, phone, or certificate..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <select
               value={filterEntity}
@@ -261,20 +363,43 @@ export default function InvestmentPage() {
               <option value="swar-sakshi">Swar Sakshi</option>
               <option value="upamanyu">Upamanyu</option>
             </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="matured">Matured</option>
+              <option value="overdue">Overdue</option>
+            </select>
           </div>
 
-          {/* Add Button */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors"
-          >
-            + Add Old Investment
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => {
+                setEditingId(null);
+                setFormData({
+                  entity: 'swar-sakshi',
+                  name: '',
+                  phone: '',
+                  amount: '',
+                  startDate: '',
+                  endDate: '',
+                  paidDividend: '0',
+                });
+                setShowAddModal(true);
+              }}
+              className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors"
+            >
+              + Add Investment
+            </button>
+          )}
         </div>
       </div>
 
       {/* Investments Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+      <div className="bg-white rounded-lg shadow-md overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-gray-500">Loading investments...</div>
         ) : filteredInvestments.length === 0 ? (
@@ -282,93 +407,114 @@ export default function InvestmentPage() {
             {investments.length === 0 ? 'No investments found' : 'No matching investments'}
           </div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Phone</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Entity</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Amount</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Duration</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Certificate</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredInvestments.map((inv) => {
-                const startDate = new Date(inv.startDate);
-                const endDate = new Date(inv.endDate);
-                const daysRemaining = Math.ceil(
-                  (endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-                );
-
-                return (
-                  <tr key={inv._id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{inv.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{inv.phone}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
-                        {ENTITY_NAMES[inv.entity as keyof typeof ENTITY_NAMES]?.split(' ')[0] || inv.entity}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                      {formatCurrency(inv.amount)}
-                      {inv.shareType && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          {inv.numberOfShares} {inv.shareType === 'equity' ? 'shares' : 'shares'}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100 border-b-2 border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-900">Name</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-900">Phone</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-900">Entity</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-900">Amount</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-900">Paid Dividend</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-900">Pending Dividend</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-900">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-900">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredInvestments.map((inv) => {
+                  const dividendStatus = calculateDividendStatus(inv);
+                  return (
+                    <tr key={inv._id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-900">{inv.name}</td>
+                      <td className="px-4 py-3 text-gray-700">{inv.phone}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                          {ENTITY_NAMES[inv.entity as any] || inv.entity}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-900 font-medium">
+                        {formatCurrency(inv.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-green-600 font-medium">
+                        {formatCurrency(inv.paidDividend || 0)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="text-orange-600 font-medium">
+                          {formatCurrency(inv.pendingDividend || 0)}
                         </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {formatDate(inv.startDate)} to {formatDate(inv.endDate)}
-                      <div className={`text-xs mt-1 font-semibold ${daysRemaining > 0 ? 'text-orange-600' : 'text-gray-500'}`}>
-                        {daysRemaining > 0 ? `${daysRemaining} days left` : 'Matured'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-mono text-gray-900">{inv.certificateNumber}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          inv.status === 'submitted'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : inv.status === 'certificate_issued'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {inv.status?.replace(/_/g, ' ').toUpperCase()}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        {dividendStatus.daysOverdue > 0 && (
+                          <div className="text-xs text-red-600">
+                            +{formatCurrency(dividendStatus.compoundedInterest)} (12% compound)
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                            inv.status === 'active'
+                              ? 'bg-green-100 text-green-800'
+                              : inv.status === 'matured'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {inv.status}
+                          {dividendStatus.daysOverdue > 0 && ` (${dividendStatus.daysOverdue}d)`}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex gap-2 justify-center">
+                          <button
+                            onClick={() => handleViewDetails(inv)}
+                            className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors"
+                            title="View details"
+                          >
+                            📋
+                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => handleEdit(inv)}
+                              className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-xs rounded transition-colors"
+                              title="Edit"
+                            >
+                              ✏️
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(inv._id)}
+                              className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
+                              title="Delete"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* Add Investment Modal */}
+      {/* Add/Edit Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-blue-500 text-white p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Add Old Investment</h2>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="text-2xl hover:text-gray-200"
-              >
-                ✕
-              </button>
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {editingId ? '✏️ Edit Investment' : '➕ Add New Investment'}
+              </h2>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {errors.submit && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded bg-red-100 text-red-900 text-sm font-medium">
-                  <p className="font-bold mb-2">❌ Error:</p>
-                  <div className="whitespace-pre-wrap font-mono text-xs">{errors.submit}</div>
-                  <p className="text-xs text-red-800 mt-2">Check browser console (F12) for more details</p>
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                  {errors.submit}
                 </div>
               )}
 
@@ -598,6 +744,131 @@ export default function InvestmentPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {showDetailsModal && selectedInvestment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">Investment Details</h2>
+              <button
+                onClick={() => setShowDetailsModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Name</label>
+                  <p className="text-lg font-semibold text-gray-900">{selectedInvestment.name}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Phone</label>
+                  <p className="text-lg font-semibold text-gray-900">{selectedInvestment.phone}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Entity</label>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {ENTITY_NAMES[selectedInvestment.entity as any]}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Certificate</label>
+                  <p className="text-lg font-semibold text-gray-900">{selectedInvestment.certificateNumber}</p>
+                </div>
+              </div>
+
+              {/* Financial Details */}
+              <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Investment Amount</label>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrency(selectedInvestment.amount)}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Maturity Amount</label>
+                  <p className="text-xl font-bold text-green-600">
+                    {formatCurrency(selectedInvestment.maturityAmount || 0)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Status</label>
+                  <p className="text-lg font-bold text-gray-900">{selectedInvestment.status}</p>
+                </div>
+              </div>
+
+              {/* Dividend Status */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h3 className="font-bold text-gray-900 mb-4">Dividend Status</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase">Paid Dividend</label>
+                    <p className="text-xl font-bold text-green-600">
+                      {formatCurrency(selectedInvestment.paidDividend || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase">Pending Dividend</label>
+                    <p className="text-xl font-bold text-orange-600">
+                      {formatCurrency(selectedInvestment.pendingDividend || 0)}
+                    </p>
+                  </div>
+                </div>
+
+                {(() => {
+                  const status = calculateDividendStatus(selectedInvestment);
+                  return status.daysOverdue > 0 ? (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
+                      <p className="text-sm font-semibold text-red-800 mb-2">
+                        ⚠️ Overdue by {status.daysOverdue} days
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500">Compound Interest (12%)</label>
+                          <p className="font-bold text-red-600">{formatCurrency(status.compoundedInterest)}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500">Total Overdue Amount</label>
+                          <p className="font-bold text-red-600">{formatCurrency(status.totalOverdueAmount)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Start Date</label>
+                  <p className="text-lg font-semibold text-gray-900">{formatDate(selectedInvestment.startDate)}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">End Date</label>
+                  <p className="text-lg font-semibold text-gray-900">{formatDate(selectedInvestment.endDate)}</p>
+                </div>
+              </div>
+
+              {selectedInvestment.createdByUserName && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Created By</label>
+                  <p className="text-lg font-semibold text-gray-900">{selectedInvestment.createdByUserName}</p>
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowDetailsModal(false)}
+                className="w-full px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-900 font-semibold rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
