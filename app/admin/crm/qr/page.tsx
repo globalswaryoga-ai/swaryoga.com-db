@@ -196,16 +196,32 @@ export default function QRWhatsAppInboxPage() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      // Call the bridge directly (not via missing qr-bridge proxy)
+      // Use API proxy to avoid CORS errors
       const method = (init.method || 'GET').toUpperCase();
-      const bridgeBase = 'http://52.91.198.23:3333';
-      const url = new URL(path, bridgeBase);
       
-      const res = await fetch(url.toString(), {
-        method,
-        headers: init.headers || {},
-        body: init.body,
-        signal: controller.signal
+      if (method === 'GET') {
+        const url = new URL('/api/admin/crm/whatsapp/bridge-proxy', window.location.origin);
+        url.searchParams.set('path', path);
+        
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        return res;
+      }
+
+      // For POST/PUT, use body
+      const res = await fetch('/api/admin/crm/whatsapp/bridge-proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ path, body: init.body }),
+        signal: controller.signal,
+        cache: 'no-store'
       });
       return res;
     } catch (error) {
