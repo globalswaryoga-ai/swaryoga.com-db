@@ -1041,15 +1041,17 @@ export default function QRWhatsAppInboxPage() {
       let chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
       
       // Normalize chatId: handle both phone chats (@c.us) and group chats (@g.us)
-      if (!chatId.includes('@')) {
+      if (!chatId.includes('@') || chatId.includes('@lid')) {
+        // Fix @lid to @c.us (invalid format from some Bridge versions)
+        const baseId = chatId.replace('@lid', '').replace(/\D/g, '');
+        
         // Check if it's a group ID (long numeric)
-        if (chatId.length > 15 && /^\d+$/.test(chatId)) {
+        if (baseId.length > 15 && /^\d+$/.test(baseId)) {
           // Group ID
-          chatId = chatId + '@g.us';
+          chatId = baseId + '@g.us';
         } else {
           // Phone number - remove non-digits and format
-          const phoneOnly = chatId.replace(/\D/g, '');
-          chatId = phoneOnly + '@c.us';
+          chatId = baseId + '@c.us';
         }
       }
 

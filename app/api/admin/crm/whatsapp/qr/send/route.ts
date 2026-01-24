@@ -30,10 +30,36 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { to, message, type, url, buttons, caption, leadId } = body;
+    let { to, message, type, url, buttons, caption, leadId } = body;
     const viewerUserId = getViewerUserId(decoded);
     const superAdmin = decoded.userId === 'admincrm' || decoded.userId === 'admin';
     const adminName = decoded.name || decoded.username || viewerUserId;
+
+    // Validate and normalize `to` field
+    if (!to) {
+      return NextResponse.json({ success: false, error: 'Missing recipient (to)' }, { status: 400 });
+    }
+
+    // Fix invalid @lid format to @c.us or @g.us
+    if (typeof to === 'string' && to.includes('@lid')) {
+      const baseId = to.replace('@lid', '');
+      // Check if it's a group ID (long numeric)
+      if (baseId.length > 15 && /^\d+$/.test(baseId)) {
+        to = baseId + '@g.us';
+      } else {
+        to = baseId + '@c.us';
+      }
+    }
+
+    // Ensure to is in proper WhatsApp format
+    if (typeof to === 'string' && !to.includes('@')) {
+      const phoneOnly = to.replace(/\D/g, '');
+      if (phoneOnly.length > 15) {
+        to = phoneOnly + '@g.us';
+      } else {
+        to = phoneOnly + '@c.us';
+      }
+    }
 
     // ACCESS CONTROL: If leadId provided, check if admin is assigned
     if (leadId && !superAdmin) {
