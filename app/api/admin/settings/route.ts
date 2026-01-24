@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { getAdminSettings } from '@/lib/schemas/adminSettingsSchema';
-import { verifyToken } from '@/lib/auth-utils';
+import { verifyToken } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
