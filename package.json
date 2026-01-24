@@ -11,6 +11,8 @@
     "health-check": "node scripts/health-check.js",
     "monitor-bridge": "node scripts/monitor-bridge-health.js",
     "bridge:health-monitor": "node scripts/bridge-health-monitor.js",
+    "bridge:start-monitor": "bash scripts/start-bridge-health-monitor.sh",
+    "bridge:ensure-running": "bash scripts/start-bridge-health-monitor.sh || true",
     "setup-ec2-recovery": "bash scripts/setup-ec2-auto-recovery.sh",
     "diagnose-bridge": "node scripts/diagnose-bridge.js",
     "repair-bridge": "bash scripts/repair-bridge.sh",

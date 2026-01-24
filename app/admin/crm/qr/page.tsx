@@ -1903,44 +1903,36 @@ export default function QRWhatsAppInboxPage() {
   const refreshQr = async () => {
     try {
       setBridgeError(null);
-      console.log('[refreshQr] Fetching QR from simplified bridge...');
+      console.log('[refreshQr] Fetching QR from fallback endpoint...');
       
-      // Try the /qr endpoint directly since this is a minimal bridge
-      try {
-        const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8_000);
-        if (qrRes.ok) {
-          const qrText = await qrRes.text();
-          if (qrText && qrText.includes('data:image/png;base64')) {
-            // Extract base64 from HTML response
-            const match = qrText.match(/src="(data:image\/png;base64[^"]+)"/);
-            if (match) {
-              const qrData = match[1];
-              console.log('[refreshQr] QR found, setting it');
-              setQr(qrData);
-              setStatus('connected');
-              setShowQRModal(true);
-              return;
-            }
+      // Use fallback endpoint which handles retries, caching, and auto-restart
+      const fallbackRes = await fetch('/api/admin/crm/whatsapp/qr-fallback', {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        cache: 'no-store'
+      });
+      
+      if (fallbackRes.ok) {
+        const fallbackData = await fallbackRes.json();
+        console.log('[refreshQr] Fallback response:', { source: fallbackData.source, bridgeStatus: fallbackData.bridgeStatus });
+        
+        if (fallbackData.qr) {
+          console.log('[refreshQr] QR found from', fallbackData.source);
+          setQr(fallbackData.qr);
+          setStatus('connected');
+          setShowQRModal(true);
+          
+          if (fallbackData.warning) {
+            setBridgeError(fallbackData.warning);
           }
+          return;
         }
-      } catch (qrErr) {
-        console.warn('[refreshQr] QR endpoint failed:', qrErr);
       }
       
-      // Fallback: Try status endpoint (for full-featured bridge)
-      console.log('[refreshQr] Fetching status from full-featured bridge...');
-      const res = await bridgeFetch('/status', { method: 'GET' }, 8_000);
-      console.log('[refreshQr] Status response ok?', res.ok);
-      if (!res.ok) {
-        const err = await parseBridgeError(res);
-        console.error('[refreshQr] Status error:', err);
-        // Don't fail - try QR endpoint instead
-        setBridgeError('Using simplified bridge (status endpoint unavailable)');
-        return;
-      }
-      const data = await res.json();
-      console.log('[refreshQr] Status data:', data);
-      setStatus(normalizeBridgeStatus(data.status));
+      // If fallback also failed, show error
+      const fallbackError = await fallbackRes.json();
+      console.error('[refreshQr] Fallback failed:', fallbackError);
+      setBridgeError(fallbackError.message || 'Unable to retrieve QR code. Please try again.');
       
       // QR is included directly in the /status response
       if (typeof data.qr === 'string' && data.qr.length > 0) {
