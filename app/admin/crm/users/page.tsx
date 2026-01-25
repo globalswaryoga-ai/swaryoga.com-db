@@ -11,10 +11,17 @@ type AdminUserRow = {
   email?: string;
   name?: string;
   permissions?: string[];
+  role?: 'superadmin' | 'manager' | 'admin' | 'user';
+  managedUserIds?: string[];
   createdAt?: string;
 };
 
 const PERMISSION_KEYS = ['crm', 'whatsapp', 'email'] as const;
+const ROLE_OPTIONS = [
+  { value: 'admin', label: 'Admin User', desc: 'Can only see their own assigned data' },
+  { value: 'manager', label: 'MR Admin (Manager)', desc: 'Can see assigned team members\' data + manage broadcasts/templates' },
+  { value: 'superadmin', label: 'Super Admin', desc: 'Full access to all data' },
+] as const;
 
 export default function CRMAdminUsersPage() {
   const router = useRouter();
@@ -34,6 +41,8 @@ export default function CRMAdminUsersPage() {
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState<'admin' | 'manager' | 'superadmin'>('admin');
+  const [editManagedUserIds, setEditManagedUserIds] = useState<string[]>([]);
   const [permissionMode, setPermissionMode] = useState<'all' | 'selected'>('selected');
   const [selectedPermissions, setSelectedPermissions] = useState({
     crm: true,
@@ -49,6 +58,8 @@ export default function CRMAdminUsersPage() {
   const [addEmail, setAddEmail] = useState('');
   const [addPassword, setAddPassword] = useState('');
   const [addName, setAddName] = useState('');
+  const [addRole, setAddRole] = useState<'admin' | 'manager' | 'superadmin'>('admin');
+  const [addManagedUserIds, setAddManagedUserIds] = useState<string[]>([]);
   const [addPermissionMode, setAddPermissionMode] = useState<'all' | 'selected'>('selected');
   const [addSelectedPermissions, setAddSelectedPermissions] = useState({
     crm: true,
@@ -113,6 +124,8 @@ export default function CRMAdminUsersPage() {
             email: u?.email ? String(u.email) : undefined,
             name: u?.name ? String(u.name) : undefined,
             permissions: Array.isArray(u?.permissions) ? u.permissions.map((p: any) => String(p)) : undefined,
+            role: u?.role || 'admin',
+            managedUserIds: Array.isArray(u?.managedUserIds) ? u.managedUserIds.map((id: any) => String(id)) : [],
             createdAt: u?.createdAt ? String(u.createdAt) : undefined,
           }))
           .filter((u: AdminUserRow) => Boolean(u._id) && Boolean(u.userId))
@@ -130,6 +143,8 @@ export default function CRMAdminUsersPage() {
     setEditEmail(String(u.email || '').trim());
     setEditName(String(u.name || '').trim());
     setEditPassword('');
+    setEditRole((u.role as 'admin' | 'manager' | 'superadmin') || 'admin');
+    setEditManagedUserIds(Array.isArray(u.managedUserIds) ? u.managedUserIds : []);
     const perms = Array.isArray(u.permissions) ? u.permissions : [];
     if (perms.includes('all')) {
       setPermissionMode('all');
@@ -169,6 +184,8 @@ export default function CRMAdminUsersPage() {
     setAddEmail('');
     setAddPassword('');
     setAddName('');
+    setAddRole('admin');
+    setAddManagedUserIds([]);
     setAddPermissionMode('selected');
     setAddSelectedPermissions({ crm: true, whatsapp: false, email: false });
     setAddMsg('');
@@ -189,6 +206,8 @@ export default function CRMAdminUsersPage() {
     const password = addPassword;
     const name = addName.trim();
     const permissions = buildAddPermissionsPayload();
+    const role = addRole;
+    const managedUserIds = addRole === 'manager' ? addManagedUserIds : [];
     if (!userId) {
       setAddMsg('Username (userId) is required.');
       return;
@@ -214,7 +233,7 @@ export default function CRMAdminUsersPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ userId, email, password, name, permissions }),
+        body: JSON.stringify({ userId, email, password, name, permissions, role, managedUserIds }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -231,7 +250,7 @@ export default function CRMAdminUsersPage() {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify({ userId, email, password, name, permissions, convertExisting: true }),
+              body: JSON.stringify({ userId, email, password, name, permissions, role, managedUserIds, convertExisting: true }),
             });
             const retryData = await retryResponse.json().catch(() => ({}));
             if (!retryResponse.ok) {
@@ -283,6 +302,9 @@ export default function CRMAdminUsersPage() {
     if (password && password.trim().length > 0) {
       body.password = password;
     }
+    // Add role and managedUserIds
+    body.role = editRole;
+    body.managedUserIds = editRole === 'manager' ? editManagedUserIds : [];
 
     setEditBusy(true);
     setEditMsg('');
@@ -312,6 +334,10 @@ export default function CRMAdminUsersPage() {
                   permissions: Array.isArray(updated?.permissions)
                     ? updated.permissions.map((p: any) => String(p))
                     : u.permissions,
+                  role: updated?.role || u.role,
+                  managedUserIds: Array.isArray(updated?.managedUserIds)
+                    ? updated.managedUserIds.map((id: any) => String(id))
+                    : u.managedUserIds,
                 }
               : u
           )
@@ -383,6 +409,27 @@ export default function CRMAdminUsersPage() {
             {p}
           </span>
         ))}
+      </div>
+    );
+  };
+
+  const RoleBadge = ({ role, managedUserIds }: { role?: string; managedUserIds?: string[] }) => {
+    const roleLabel = ROLE_OPTIONS.find((r) => r.value === role)?.label || role || 'admin';
+    const roleColors: Record<string, string> = {
+      superadmin: 'bg-red-100 text-red-700',
+      manager: 'bg-yellow-100 text-yellow-700',
+      admin: 'bg-green-100 text-green-700',
+    };
+    const colorClass = roleColors[role || 'admin'] || 'bg-slate-100 text-slate-700';
+    const teamCount = Array.isArray(managedUserIds) ? managedUserIds.length : 0;
+    return (
+      <div className="flex items-center gap-1">
+        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${colorClass}`}>
+          {roleLabel}
+        </span>
+        {role === 'manager' && teamCount > 0 && (
+          <span className="text-xs text-slate-400">({teamCount} team)</span>
+        )}
       </div>
     );
   };
@@ -564,6 +611,60 @@ export default function CRMAdminUsersPage() {
                   </label>
                 </div>
               </div>
+              {/* Role Selection */}
+              <div className="mt-5 border-t border-slate-700 pt-4">
+                <p className="text-sm font-semibold text-green-300 mb-2">Role</p>
+                <div className="flex flex-col gap-3">
+                  {ROLE_OPTIONS.map((opt) => (
+                    <label key={opt.value} className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="add-role"
+                        checked={addRole === opt.value}
+                        onChange={() => setAddRole(opt.value as 'admin' | 'manager' | 'superadmin')}
+                        disabled={addBusy}
+                        className="mt-1"
+                      />
+                      <div>
+                        <div className="font-semibold text-slate-100">{opt.label}</div>
+                        <div className="text-sm text-slate-400">{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {/* Managed Users (for Manager role) */}
+              {addRole === 'manager' && (
+                <div className="mt-5 border-t border-slate-700 pt-4">
+                  <p className="text-sm font-semibold text-green-300 mb-2">Assign Team Members</p>
+                  <p className="text-xs text-slate-400 mb-3">Select which admin users this manager can supervise.</p>
+                  <div className="max-h-40 overflow-y-auto bg-slate-700/50 rounded-lg p-3">
+                    {users.filter((u) => u.userId !== addUserId && u.role !== 'superadmin').length === 0 ? (
+                      <p className="text-sm text-slate-400">No other admin users available.</p>
+                    ) : (
+                      users
+                        .filter((u) => u.userId !== addUserId && u.role !== 'superadmin')
+                        .map((u) => (
+                          <label key={u.userId} className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer py-1">
+                            <input
+                              type="checkbox"
+                              checked={addManagedUserIds.includes(u.userId)}
+                              onChange={() => {
+                                setAddManagedUserIds((prev) =>
+                                  prev.includes(u.userId)
+                                    ? prev.filter((id) => id !== u.userId)
+                                    : [...prev, u.userId]
+                                );
+                              }}
+                              disabled={addBusy}
+                            />
+                            {u.name || u.userId} <span className="text-slate-500">({u.email})</span>
+                          </label>
+                        ))
+                    )}
+                  </div>
+                </div>
+              )}
               {addMsg && (
                 <div className="mt-4 text-sm">
                   <div className={addMsg.toLowerCase().includes('success') ? 'text-green-400' : 'text-red-400'}>
@@ -632,6 +733,7 @@ export default function CRMAdminUsersPage() {
                         </h3>
                         <p className="text-sm text-slate-400 mt-1">{u.email || '—'}</p>
                         <div className="mt-3 flex items-center gap-2 flex-wrap">
+                          <RoleBadge role={u.role} managedUserIds={u.managedUserIds} />
                           <PermissionBadges permissions={u.permissions} />
                           {u.createdAt && (
                             <span className="text-xs text-slate-500 ml-auto">
@@ -814,6 +916,62 @@ export default function CRMAdminUsersPage() {
                   </label>
                 </div>
               </div>
+
+              {/* Role Selection */}
+              <div className="mt-5 border-t border-slate-700 pt-4">
+                <p className="text-sm font-semibold text-purple-300 mb-2">Role</p>
+                <div className="flex flex-col gap-3">
+                  {ROLE_OPTIONS.map((opt) => (
+                    <label key={opt.value} className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit-role"
+                        checked={editRole === opt.value}
+                        onChange={() => setEditRole(opt.value as 'admin' | 'manager' | 'superadmin')}
+                        disabled={editBusy}
+                        className="mt-1"
+                      />
+                      <div>
+                        <div className="font-semibold text-slate-100">{opt.label}</div>
+                        <div className="text-sm text-slate-400">{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Managed Users (for Manager role) */}
+              {editRole === 'manager' && (
+                <div className="mt-5 border-t border-slate-700 pt-4">
+                  <p className="text-sm font-semibold text-purple-300 mb-2">Assign Team Members</p>
+                  <p className="text-xs text-slate-400 mb-3">Select which admin users this manager can supervise.</p>
+                  <div className="max-h-40 overflow-y-auto bg-slate-700/50 rounded-lg p-3">
+                    {users.filter((u) => u.userId !== selectedUser?.userId && u.role !== 'superadmin').length === 0 ? (
+                      <p className="text-sm text-slate-400">No other admin users available.</p>
+                    ) : (
+                      users
+                        .filter((u) => u.userId !== selectedUser?.userId && u.role !== 'superadmin')
+                        .map((u) => (
+                          <label key={u.userId} className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer py-1">
+                            <input
+                              type="checkbox"
+                              checked={editManagedUserIds.includes(u.userId)}
+                              onChange={() => {
+                                setEditManagedUserIds((prev) =>
+                                  prev.includes(u.userId)
+                                    ? prev.filter((id) => id !== u.userId)
+                                    : [...prev, u.userId]
+                                );
+                              }}
+                              disabled={editBusy}
+                            />
+                            {u.name || u.userId} <span className="text-slate-500">({u.email})</span>
+                          </label>
+                        ))
+                    )}
+                  </div>
+                </div>
+              )}
 
               {editMsg && (
                 <div className="mt-4 text-sm">

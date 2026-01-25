@@ -96,6 +96,23 @@ export async function PUT(
       update.password = await bcrypt.hash(password, salt);
     }
 
+    // Role (optional)
+    if (body.role !== undefined) {
+      const validRoles = ['superadmin', 'manager', 'admin', 'user'];
+      const role = String(body.role || '').trim();
+      if (role && validRoles.includes(role)) {
+        update.role = role;
+      }
+    }
+
+    // Managed User IDs (for manager role)
+    if (body.managedUserIds !== undefined) {
+      const managedIds = Array.isArray(body.managedUserIds)
+        ? body.managedUserIds.filter((id: any) => typeof id === 'string' && id.trim()).map((id: string) => id.trim())
+        : [];
+      update.managedUserIds = managedIds;
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
@@ -121,7 +138,7 @@ export async function PUT(
       new Types.ObjectId(id),
       { $set: update },
       { new: true }
-    ).select('_id userId email permissions createdAt');
+    ).select('_id userId email name permissions role managedUserIds createdAt');
 
     return NextResponse.json(
       { success: true, data: updated, message: 'Admin user updated successfully' },

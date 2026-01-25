@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all admin users (minimal fields for assignment UI)
     const adminUsers = await User.find({ isAdmin: true })
-      .select('_id userId email name role isAdmin createdAt')
+      .select('_id userId email name role managedUserIds permissions isAdmin createdAt')
       .lean();
 
     return NextResponse.json({ success: true, data: adminUsers }, { status: 200 });
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { userId, email, password, name, permissions, permissionsV2, convertExisting } = await request.json();
+    const { userId, email, password, name, permissions, permissionsV2, role, managedUserIds, convertExisting } = await request.json();
 
     // Validation
     if (!userId || !email || !password) {
@@ -54,6 +54,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Validate role
+    const validRoles = ['superadmin', 'manager', 'admin', 'user'];
+    const finalRole = validRoles.includes(role) ? role : 'admin';
+    
+    // Validate managedUserIds (for manager role)
+    const finalManagedUserIds = finalRole === 'manager' && Array.isArray(managedUserIds)
+      ? managedUserIds.filter((id: any) => typeof id === 'string' && id.trim())
+      : [];
 
     // Default permissions if none provided
     const finalPermissions = Array.isArray(permissions) && permissions.length > 0 
@@ -108,9 +117,10 @@ export async function POST(request: NextRequest) {
         const hashedPassword = await bcrypt.hash(password, salt);
         
         existingEmail.isAdmin = true;
-        existingEmail.role = 'admin';
+        existingEmail.role = finalRole;
         existingEmail.permissions = finalPermissions;
         existingEmail.permissionsV2 = permissionsV2 || undefined;
+        existingEmail.managedUserIds = finalManagedUserIds;
         existingEmail.password = hashedPassword;
         if (name) existingEmail.name = name;
         // Keep the original userId, or update if provided
@@ -141,6 +151,8 @@ export async function POST(request: NextRequest) {
               name: existingEmail.name,
               permissions: existingEmail.permissions,
               permissionsV2: existingEmail.permissionsV2,
+              role: existingEmail.role,
+              managedUserIds: existingEmail.managedUserIds,
               createdAt: existingEmail.createdAt,
             },
             message: 'Existing user converted to admin successfully',
@@ -180,9 +192,10 @@ export async function POST(request: NextRequest) {
       name: name || userId, // Use provided name or default to userId
       password: hashedPassword,
       isAdmin: true,
-      role: 'admin',
+      role: finalRole,
       permissions: finalPermissions,
       permissionsV2: permissionsV2 || undefined,
+      managedUserIds: finalManagedUserIds,
     });
 
     await newAdminUser.save();
@@ -197,6 +210,8 @@ export async function POST(request: NextRequest) {
           name: newAdminUser.name,
           permissions: newAdminUser.permissions,
           permissionsV2: newAdminUser.permissionsV2,
+          role: newAdminUser.role,
+          managedUserIds: newAdminUser.managedUserIds,
           createdAt: newAdminUser.createdAt,
         },
         message: 'Admin user created successfully',
