@@ -1,0 +1,145 @@
+# CloudFormation Outputs for Meta Conversions API Gateway
+# Add these outputs to your CloudFormation stack: Conversions-API-Gateway-707598524418962
+
+Outputs:
+  # Meta Conversions API Gateway Configuration
+  ConversionsAPIGatewayId:
+    Description: Meta Conversions API Gateway ID
+    Value: "707598524418962"
+    Export:
+      Name: !Sub "${AWS::StackName}-GatewayId"
+
+  MetaPixelId:
+    Description: Meta Pixel ID for conversions tracking
+    Value: "906922940547021"
+    Export:
+      Name: !Sub "${AWS::StackName}-PixelId"
+
+  WebsiteDomain:
+    Description: Website domain registered with Meta Pixel
+    Value: "swaryoga.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-Domain"
+
+  # Next.js API Endpoints
+  ConversionsTrackingEndpoint:
+    Description: API endpoint for conversion tracking
+    Value: !Sub "https://swaryoga.com/api/meta/conversions/track"
+    Export:
+      Name: !Sub "${AWS::StackName}-TrackingEndpoint"
+
+  # Configuration Status
+  PixelInitialized:
+    Description: Pixel initialization status
+    Value: "true"
+    Export:
+      Name: !Sub "${AWS::StackName}-PixelInitialized"
+
+  ServerSideTrackingEnabled:
+    Description: Server-side Conversions API tracking status
+    Value: "true"
+    Export:
+      Name: !Sub "${AWS::StackName}-ServerSideTrackingEnabled"
+
+  # Event Types Supported
+  SupportedEventTypes:
+    Description: List of supported conversion event types
+    Value: "lead,page_view,purchase,view_content,add_to_cart,initiate_checkout,custom"
+    Export:
+      Name: !Sub "${AWS::StackName}-SupportedEventTypes"
+
+  # PII Hashing Configuration
+  PIIHashingMethod:
+    Description: PII hashing algorithm used
+    Value: "SHA256"
+    Export:
+      Name: !Sub "${AWS::StackName}-PIIHashingMethod"
+
+  PIIHashingStatus:
+    Description: PII data hashing status
+    Value: "Enabled"
+    Export:
+      Name: !Sub "${AWS::StackName}-PIIHashingStatus"
+
+  # Meta Business Account
+  MetaBusinessRegion:
+    Description: Meta Business Account region
+    Value: "India"
+    Export:
+      Name: !Sub "${AWS::StackName}-Region"
+
+  MetaCurrency:
+    Description: Currency for conversions tracking
+    Value: "INR"
+    Export:
+      Name: !Sub "${AWS::StackName}-Currency"
+
+  # Code Implementation Files
+  APIGatewayLibraryPath:
+    Description: Server-side conversion tracking library
+    Value: "lib/meta-conversions/api-gateway.ts"
+    Export:
+      Name: !Sub "${AWS::StackName}-LibraryPath"
+
+  APIRouteEndpointPath:
+    Description: Next.js API route endpoint
+    Value: "app/api/meta/conversions/track/route.ts"
+    Export:
+      Name: !Sub "${AWS::StackName}-RoutePath"
+
+  # Environment Variables Required
+  RequiredEnvVariable:
+    Description: Environment variable needed for API authentication
+    Value: "META_CONVERSIONS_API_TOKEN"
+    Export:
+      Name: !Sub "${AWS::StackName}-EnvVar"
+
+  # Documentation
+  SetupGuideLocation:
+    Description: Setup guide for Conversions API Gateway
+    Value: "META_CONVERSIONS_API_SETUP.md"
+    Export:
+      Name: !Sub "${AWS::StackName}-SetupGuide"
+
+  # Monitoring & Testing
+  MetaEventsManagerURL:
+    Description: URL to view events in Meta Events Manager
+    Value: "https://business.facebook.com/events-manager/"
+    Export:
+      Name: !Sub "${AWS::StackName}-EventsManagerURL"
+
+  MetaBusinessSuiteURL:
+    Description: URL to Meta Business Suite
+    Value: "https://business.facebook.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-BusinessSuiteURL"
+
+  # Status & Timestamps
+  StackCreationDate:
+    Description: Stack creation timestamp
+    Value: "2026-01-25 15:52:11 UTC+0530"
+    Export:
+      Name: !Sub "${AWS::StackName}-CreatedDate"
+
+  IntegrationStatus:
+    Description: Overall integration status
+    Value: "CREATE_IN_PROGRESS → Ready for testing"
+    Export:
+      Name: !Sub "${AWS::StackName}-Status"
+
+  # Quick Reference
+  QuickStartCommand:
+    Description: Quick start - send test conversion
+    Value: |
+      curl -X POST https://swaryoga.com/api/meta/conversions/track \
+        -H "Content-Type: application/json" \
+        -d '{"eventType":"lead","data":{"email":"test@example.com","phone":"9876543210","workshopName":"Test"}}'
+    Export:
+      Name: !Sub "${AWS::StackName}-QuickStart"
+
+  # Next Steps
+  NextSteps:
+    Description: Next steps after stack creation
+    Value: "1. Add META_CONVERSIONS_API_TOKEN to .env.local 2. Deploy code 3. Register domain in Meta 4. Test with Pixel Helper"
+    Export:
+      Name: !Sub "${AWS::StackName}-NextSteps"

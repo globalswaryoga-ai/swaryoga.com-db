@@ -69,7 +69,23 @@ export default function RootLayout({
         <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
         <Script src="https://unpkg.com/@phosphor-icons/web@2.1.1" strategy="afterInteractive" />
         
-        {/* Meta Pixel Code */}
+        {/* Google Tag Manager (GTM) - Install through this for recommended setup */}
+        <Script
+          id="gtm-script"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+              })(window,document,'script','dataLayer','GTM-5MB3M7KZ');
+              window.dataLayer = window.dataLayer || [];
+            `,
+          }}
+        />
+
+        {/* Meta Pixel Code - Latest version with event tracking */}
         <Script
           id="meta-pixel"
           strategy="afterInteractive"
@@ -83,8 +99,38 @@ export default function RootLayout({
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('init', '330513095220128');
+              fbq('init', '906922940547021', {
+                em: 'swaryoga',
+                _uf: 'bam'
+              });
               fbq('track', 'PageView');
+              
+              // Track website/domain info
+              fbq('set', 'UserProperties', {
+                country: 'IN',
+                external_id: window.location.hostname
+              });
+              
+              // Enhanced tracking for cost optimization
+              document.addEventListener('DOMContentLoaded', function() {
+                // Track when user views content (sessions, workshops, investments)
+                const contentElements = document.querySelectorAll('[data-track-view]');
+                contentElements.forEach(el => {
+                  el.addEventListener('click', function() {
+                    const contentName = this.getAttribute('data-content-name');
+                    const contentType = this.getAttribute('data-content-type');
+                    const price = this.getAttribute('data-price');
+                    if (contentName) {
+                      fbq('track', 'ViewContent', {
+                        content_name: contentName,
+                        content_type: contentType || 'product',
+                        value: price || undefined,
+                        currency: 'INR'
+                      });
+                    }
+                  });
+                });
+              });
             `,
           }}
         />
