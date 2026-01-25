@@ -619,7 +619,6 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
 
   // MESSAGE node - send text
   if (nextNode.type === 'message') {
-  if (nextNode.type === 'message') {
     replyObj = {
       text: applySpintax(nextNode.messageText || ''),
       spintaxEnabled: nextNode.spintaxEnabled,
