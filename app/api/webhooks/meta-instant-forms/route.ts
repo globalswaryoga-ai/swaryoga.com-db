@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
   const challenge = req.nextUrl.searchParams.get('hub.challenge');
 
   if (verifyToken === process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN) {
-    return NextResponse.json({ hub.challenge: challenge }, { status: 200 });
+    return NextResponse.json({ 'hub.challenge': challenge }, { status: 200 });
   }
 
   return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
