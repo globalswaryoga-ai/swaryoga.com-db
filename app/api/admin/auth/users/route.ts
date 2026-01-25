@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { userId, email, password, name, permissions, permissionsV2 } = await request.json();
+    const { userId, email, password, name, permissions, permissionsV2, convertExisting } = await request.json();
 
     // Validation
     if (!userId || !email || !password) {
@@ -101,15 +101,70 @@ export async function POST(request: NextRequest) {
       email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
     });
     if (existingEmail) {
-      // If the user exists but is not an admin, return a more helpful error
+      // Super admin can convert existing non-admin user to admin
+      if (!existingEmail.isAdmin && convertExisting) {
+        // Update existing user to become admin
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+        
+        existingEmail.isAdmin = true;
+        existingEmail.role = 'admin';
+        existingEmail.permissions = finalPermissions;
+        existingEmail.permissionsV2 = permissionsV2 || undefined;
+        existingEmail.password = hashedPassword;
+        if (name) existingEmail.name = name;
+        // Keep the original userId, or update if provided
+        if (userId && userId !== existingEmail.userId) {
+          // Check if the new userId is unique
+          const userIdCheck = await User.findOne({ 
+            userId: { $regex: new RegExp(`^${userId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            _id: { $ne: existingEmail._id }
+          });
+          if (userIdCheck) {
+            return NextResponse.json(
+              { error: `Username "${userId}" already exists` },
+              { status: 409 }
+            );
+          }
+          existingEmail.userId = userId.trim();
+        }
+        
+        await existingEmail.save();
+        
+        return NextResponse.json(
+          {
+            success: true,
+            data: {
+              _id: existingEmail._id,
+              userId: existingEmail.userId,
+              email: existingEmail.email,
+              name: existingEmail.name,
+              permissions: existingEmail.permissions,
+              permissionsV2: existingEmail.permissionsV2,
+              createdAt: existingEmail.createdAt,
+            },
+            message: 'Existing user converted to admin successfully',
+            converted: true,
+          },
+          { status: 200 }
+        );
+      }
+      
+      // If the user exists but is not an admin, offer to convert
       if (!existingEmail.isAdmin) {
         return NextResponse.json(
-          { error: 'Email already exists for a non-admin user. You can only use unique emails for admin users. (If you want to convert this user to admin, please update their permissions.)', userId: existingEmail.userId, isAdmin: false },
+          { 
+            error: 'Email already exists for a non-admin user. Set convertExisting=true to convert this user to admin.', 
+            existingUserId: existingEmail.userId, 
+            existingName: existingEmail.name,
+            isAdmin: false,
+            canConvert: true 
+          },
           { status: 409 }
         );
       }
       return NextResponse.json(
-        { error: `Email "${normalizedEmail}" already exists` },
+        { error: `Email "${normalizedEmail}" already exists for an admin user` },
         { status: 409 }
       );
     }

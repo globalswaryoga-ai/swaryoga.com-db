@@ -6,8 +6,10 @@ import {
   handleCrmError,
   formatCrmSuccess,
   buildMetadata,
+  isSuperAdmin,
 } from '@/lib/crm-handlers';
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { verifyToken } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -21,11 +23,18 @@ function escapeRegexLiteral(input: string): string {
 /**
  * Conversations API
  * Returns one row per leadId with last message + unread count.
+ * 
+ * Access Control:
+ * - Super admin: can see ALL conversations
+ * - Regular admin: can only see conversations for leads assigned to them
  */
 export async function GET(request: NextRequest) {
   try {
     const viewerUserId = verifyAdminAccess(request);
-    const superAdmin = viewerUserId === 'admincrm' || viewerUserId === 'admin';
+    // Get token to check permissions properly
+    const token = request.headers.get('authorization')?.slice('Bearer '.length);
+    const decoded = verifyToken(token);
+    const superAdmin = isSuperAdmin(decoded);
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
 
@@ -227,19 +236,14 @@ export async function GET(request: NextRequest) {
     pipeline.push({ $unwind: { path: '$lead', preserveNullAndEmptyArrays: true } });
 
     // Access control:
-    // - Super admin (admincrm) can see all conversations.
-    // - Other admins can only see leads assigned to them.
-    // - Unassigned leads are hidden from non-super-admin.
+    // - Super admin (admincrm/admin) can see all conversations.
+    // - Regular admins can ONLY see conversations for leads assigned to them.
+    //   They cannot see unassigned leads or leads assigned to others.
     if (!superAdmin) {
-      // Show conversations that are either assigned to the viewer OR currently unassigned
-      // (new inbound leads arrive unassigned by default).
+      // STRICT: Only show conversations for leads explicitly assigned to this admin
       pipeline.push({
         $match: {
-          $or: [
-            { 'lead.assignedToUserId': viewerUserId },
-            { 'lead.assignedToUserId': { $exists: false } },
-            { 'lead.assignedToUserId': { $in: [null, ''] } },
-          ],
+          'lead.assignedToUserId': viewerUserId,
         },
       });
     }

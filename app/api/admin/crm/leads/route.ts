@@ -51,21 +51,19 @@ export async function GET(request: NextRequest) {
     const filter: any = {};
 
     // Multi-user access control:
-    // - Super-admin can see all leads and optionally filter by assigned user.
-    // - Other admins see their own leads.
-    // - EXCEPTION: When selectAll=true (used by Broadcast page), ALL admins can see all leads
-    //   to enable proper broadcast functionality. This is a deliberate override.
-    // IMPORTANT: Historical/legacy records may be missing assignedToUserId,
-    // but still belong to the admin via createdByUserId. Broadcast needs
-    // those leads visible for bulk messaging.
-    if (superAdmin || selectAll) {
-      // Super admin OR broadcast mode: optionally filter by specific user
+    // - Super-admin can see ALL leads and optionally filter by assigned user.
+    // - Regular admins can ONLY see leads assigned to them (strict filtering).
+    //   They cannot see unassigned leads or leads assigned to others.
+    if (superAdmin) {
+      // Super admin: optionally filter by specific user, otherwise show ALL
       if (userIdParam && String(userIdParam).trim()) {
         const uid = String(userIdParam).trim();
         filter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
       }
       // Otherwise no filter - show ALL leads
     } else {
+      // Regular admin: STRICT filtering - only their own assigned leads
+      // They must have leads explicitly assigned to them
       filter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 

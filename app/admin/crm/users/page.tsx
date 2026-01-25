@@ -218,6 +218,31 @@ export default function CRMAdminUsersPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
+        // Check if we can convert existing user
+        if (data?.canConvert && data?.existingUserId) {
+          const confirmConvert = window.confirm(
+            `Email "${email}" already exists for user "${data.existingName || data.existingUserId}". \n\nDo you want to convert this user to an admin?`
+          );
+          if (confirmConvert) {
+            // Retry with convertExisting flag
+            const retryResponse = await fetch('/api/admin/auth/users', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ userId, email, password, name, permissions, convertExisting: true }),
+            });
+            const retryData = await retryResponse.json().catch(() => ({}));
+            if (!retryResponse.ok) {
+              throw new Error(retryData?.error || 'Failed to convert user');
+            }
+            setAddMsg(retryData?.converted ? 'User converted to admin successfully!' : 'User added successfully.');
+            setAddOpen(false);
+            await fetchUsers(token);
+            return;
+          }
+        }
         throw new Error(data?.error || 'Failed to add user');
       }
       setAddMsg('User added successfully.');
