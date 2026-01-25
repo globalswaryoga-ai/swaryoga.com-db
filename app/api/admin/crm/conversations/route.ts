@@ -7,6 +7,7 @@ import {
   formatCrmSuccess,
   buildMetadata,
   isSuperAdmin,
+  getVisibleUserIds,
 } from '@/lib/crm-handlers';
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
@@ -24,8 +25,9 @@ function escapeRegexLiteral(input: string): string {
  * Conversations API
  * Returns one row per leadId with last message + unread count.
  * 
- * Access Control:
+ * Access Control (3-tier):
  * - Super admin: can see ALL conversations
+ * - Manager (MR Admin): can see conversations for leads assigned to them OR their team
  * - Regular admin: can only see conversations for leads assigned to them
  */
 export async function GET(request: NextRequest) {
@@ -35,6 +37,7 @@ export async function GET(request: NextRequest) {
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
     const decoded = verifyToken(token);
     const superAdmin = isSuperAdmin(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded);
     const { limit, skip } = parsePagination(request);
     const url = new URL(request.url);
 
@@ -235,17 +238,27 @@ export async function GET(request: NextRequest) {
     });
     pipeline.push({ $unwind: { path: '$lead', preserveNullAndEmptyArrays: true } });
 
-    // Access control:
-    // - Super admin (admincrm/admin) can see all conversations.
-    // - Regular admins can ONLY see conversations for leads assigned to them.
-    //   They cannot see unassigned leads or leads assigned to others.
-    if (!superAdmin) {
-      // STRICT: Only show conversations for leads explicitly assigned to this admin
-      pipeline.push({
-        $match: {
-          'lead.assignedToUserId': viewerUserId,
-        },
-      });
+    // Access control (3-tier):
+    // - Super admin: can see all conversations
+    // - Manager (MR Admin): can see conversations for leads assigned to them OR their team
+    // - Regular admin: can ONLY see conversations for leads assigned to them
+    if (visibleUserIds !== null) {
+      // Not super admin - apply user filter
+      if (visibleUserIds.length === 1) {
+        // Regular admin: only their own leads
+        pipeline.push({
+          $match: {
+            'lead.assignedToUserId': visibleUserIds[0],
+          },
+        });
+      } else {
+        // Manager: can see their team's leads
+        pipeline.push({
+          $match: {
+            'lead.assignedToUserId': { $in: visibleUserIds },
+          },
+        });
+      }
     }
 
     const postMatch: any = {};

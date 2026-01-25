@@ -104,15 +104,82 @@ export const getViewerUserId = (decoded: any): string => {
 };
 
 /**
- * Check if the current user is a super admin
+ * Check if the current user is a super admin (full access to everything)
  */
 export const isSuperAdmin = (decoded: any): boolean => {
   return (
     decoded?.userId === 'admincrm' ||
     decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && 
-      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
+    decoded?.role === 'superadmin' ||
+    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('all'))
   );
+};
+
+/**
+ * Check if the current user is a manager (MR Admin)
+ * Managers can see data of admin users assigned to them + manage broadcasts/templates
+ */
+export const isManager = (decoded: any): boolean => {
+  return (
+    decoded?.role === 'manager' ||
+    (Array.isArray(decoded?.permissions) && decoded.permissions.includes('manager'))
+  );
+};
+
+/**
+ * Get list of user IDs that the current user can view data for
+ * - Super Admin: returns null (means ALL users)
+ * - Manager: returns [self, ...managedUserIds]
+ * - Admin: returns [self]
+ */
+export const getVisibleUserIds = (decoded: any): string[] | null => {
+  const viewerUserId = getViewerUserId(decoded);
+  
+  // Super admin can see ALL data
+  if (isSuperAdmin(decoded)) {
+    return null; // null means no filter - see all
+  }
+  
+  // Manager can see their own data + data of users they manage
+  if (isManager(decoded)) {
+    const managedUsers = Array.isArray(decoded?.managedUserIds) 
+      ? decoded.managedUserIds.map((u: any) => String(u).trim()).filter(Boolean)
+      : [];
+    return [viewerUserId, ...managedUsers];
+  }
+  
+  // Regular admin only sees their own data
+  return [viewerUserId];
+};
+
+/**
+ * Build user filter for data access control
+ * Returns a MongoDB filter for assignedToUserId/createdByUserId
+ */
+export const buildUserAccessFilter = (decoded: any, fieldName: string = 'assignedToUserId'): Record<string, any> => {
+  const visibleUserIds = getVisibleUserIds(decoded);
+  
+  // Super admin - no filter
+  if (visibleUserIds === null) {
+    return {};
+  }
+  
+  // Manager or regular admin - filter by visible users
+  if (visibleUserIds.length === 1) {
+    return { 
+      $or: [
+        { [fieldName]: visibleUserIds[0] }, 
+        { createdByUserId: visibleUserIds[0] }
+      ] 
+    };
+  }
+  
+  return { 
+    $or: [
+      { [fieldName]: { $in: visibleUserIds } }, 
+      { createdByUserId: { $in: visibleUserIds } }
+    ] 
+  };
 };
 
 /**

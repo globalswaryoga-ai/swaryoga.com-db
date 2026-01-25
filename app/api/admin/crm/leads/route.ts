@@ -6,7 +6,9 @@ import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { 
   escapeRegexLiteral, 
   getViewerUserId, 
-  isSuperAdmin, 
+  isSuperAdmin,
+  isManager,
+  getVisibleUserIds,
   normalizePhone 
 } from '@/lib/crm-handlers';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
@@ -29,6 +31,8 @@ export async function GET(request: NextRequest) {
     }
 
     const superAdmin = isSuperAdmin(decoded);
+    const manager = isManager(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded);
 
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
@@ -50,20 +54,32 @@ export async function GET(request: NextRequest) {
 
     const filter: any = {};
 
-    // Multi-user access control:
-    // - Super-admin can see ALL leads and optionally filter by assigned user.
-    // - Regular admins can ONLY see leads assigned to them (strict filtering).
-    //   They cannot see unassigned leads or leads assigned to others.
-    if (superAdmin) {
+    // Multi-user access control (3-tier):
+    // - Super-admin: see ALL leads, optionally filter by specific user
+    // - Manager (MR Admin): see leads assigned to themselves OR their team members
+    // - Regular admin: ONLY see leads assigned to them
+    if (visibleUserIds === null) {
       // Super admin: optionally filter by specific user, otherwise show ALL
       if (userIdParam && String(userIdParam).trim()) {
         const uid = String(userIdParam).trim();
         filter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
       }
       // Otherwise no filter - show ALL leads
+    } else if (visibleUserIds.length > 1) {
+      // Manager: can see their team's leads
+      if (userIdParam && String(userIdParam).trim() && visibleUserIds.includes(userIdParam)) {
+        // Filter to specific team member
+        const uid = String(userIdParam).trim();
+        filter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
+      } else {
+        // Show all team leads
+        filter.$or = [
+          { assignedToUserId: { $in: visibleUserIds } }, 
+          { createdByUserId: { $in: visibleUserIds } }
+        ];
+      }
     } else {
       // Regular admin: STRICT filtering - only their own assigned leads
-      // They must have leads explicitly assigned to them
       filter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 

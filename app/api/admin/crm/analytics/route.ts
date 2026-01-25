@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { BroadcastRunMessage, Lead, SalesReport, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
-import { getViewerUserId, isSuperAdmin } from '@/lib/crm-handlers';
+import { getViewerUserId, isSuperAdmin, getVisibleUserIds } from '@/lib/crm-handlers';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -12,8 +12,9 @@ export const dynamic = 'force-dynamic';
  * CRM Analytics dashboard API
  * GET with views: overview, leads, sales, messages, conversion, trends
  * 
- * Access Control:
+ * Access Control (3-tier):
  * - Super admin: can see ALL data
+ * - Manager (MR Admin): can see data for leads assigned to them OR their team
  * - Regular admin: can only see data for leads assigned to them
  */
 
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     if (!viewerUserId) {
       return NextResponse.json({ error: 'Unauthorized: Missing user identity' }, { status: 401 });
     }
-    const superAdmin = isSuperAdmin(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded);
 
     const url = new URL(request.url);
     const view = url.searchParams.get('view') || 'overview'; // overview, leads, sales, messages, conversion, trends
@@ -52,11 +53,27 @@ export async function GET(request: NextRequest) {
 
     const hasDateRange = Object.keys(dateRange).length > 0;
 
-    // Build user filter for non-super-admins
-    const userLeadFilter = superAdmin ? {} : { 
-      $or: [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }] 
-    };
-    const userSalesFilter = superAdmin ? {} : { reportedByUserId: viewerUserId };
+    // Build user filter based on 3-tier access control
+    let userLeadFilter: any = {};
+    let userSalesFilter: any = {};
+    
+    if (visibleUserIds === null) {
+      // Super admin: no filter
+      userLeadFilter = {};
+      userSalesFilter = {};
+    } else if (visibleUserIds.length === 1) {
+      // Regular admin: only their own data
+      userLeadFilter = { 
+        $or: [{ assignedToUserId: visibleUserIds[0] }, { createdByUserId: visibleUserIds[0] }] 
+      };
+      userSalesFilter = { reportedByUserId: visibleUserIds[0] };
+    } else {
+      // Manager: their team's data
+      userLeadFilter = { 
+        $or: [{ assignedToUserId: { $in: visibleUserIds } }, { createdByUserId: { $in: visibleUserIds } }] 
+      };
+      userSalesFilter = { reportedByUserId: { $in: visibleUserIds } };
+    }
 
     let analytics: any = {};
 

@@ -9,9 +9,10 @@ export interface TokenPayload {
   // Admin JWTs use a different payload shape.
   isAdmin?: boolean;
   username?: string;
-  role?: string;
+  role?: string; // 'superadmin' | 'manager' | 'admin'
   permissions?: string[];
   permissionsV2?: Record<string, Record<string, boolean>>;
+  managedUserIds?: string[]; // For managers: list of user IDs they supervise
 }
 
 export const generateToken = (payload: TokenPayload): string => {
@@ -44,7 +45,11 @@ export const verifyToken = (token?: string): TokenPayload | null => {
 
     if (decoded && typeof decoded === 'object') {
       // Ensure isAdmin is set if role is admin or if specifically present
-      const isAdmin = decoded.isAdmin === true || decoded.role === 'admin' || decoded.role === 'Admin';
+      const isAdmin = decoded.isAdmin === true || 
+                      decoded.role === 'admin' || 
+                      decoded.role === 'Admin' ||
+                      decoded.role === 'manager' ||
+                      decoded.role === 'superadmin';
       
       // Return normalized payload
       return {

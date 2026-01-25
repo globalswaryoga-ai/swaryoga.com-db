@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       isAdmin: user.isAdmin,
       role: user.role,
       permissions: user.permissions,
+      managedUserIds: user.managedUserIds || [], // For managers: IDs of users they supervise
     });
 
     return NextResponse.json(
@@ -75,7 +76,8 @@ export async function POST(request: Request) {
           email: user.email,
           role: user.role,
           isAdmin: user.isAdmin,
-          permissions: user.permissions
+          permissions: user.permissions,
+          managedUserIds: user.managedUserIds || [],
         }
       },
       { status: 200 }

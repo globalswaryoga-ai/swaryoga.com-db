@@ -7,6 +7,8 @@ import {
   buildMetadata,
   isValidObjectId,
   toObjectId,
+  getViewerUserId,
+  getVisibleUserIds,
 } from '@/lib/crm-handlers';
 import { getSalesReport, getLead } from '@/lib/schemas/enterpriseSchemas';
 import mongoose from 'mongoose';
@@ -14,18 +16,6 @@ import { verifyToken } from '@/lib/auth';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
-
-function getViewerUserId(decoded: any): string {
-  return String(decoded?.userId || decoded?.username || '').trim();
-}
-
-function isSuperAdmin(decoded: any): boolean {
-  return (
-    decoded?.userId === 'admin' ||
-    (Array.isArray(decoded?.permissions) && 
-      (decoded.permissions.includes('all') || decoded.permissions.includes('broadcast')))
-  );
-}
 
 function csvEscape(v: any): string {
   const s = v === null || v === undefined ? '' : String(v);
@@ -90,7 +80,7 @@ export async function GET(request: NextRequest) {
     const viewerUserId = getViewerUserId(decoded);
     if (!viewerUserId) throw new Error('Unauthorized: Missing user identity');
 
-    const superAdmin = isSuperAdmin(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded);
 
     const url = new URL(request.url);
     const view = url.searchParams.get('view') || 'list';
@@ -109,14 +99,24 @@ export async function GET(request: NextRequest) {
 
     const filter: any = {};
 
-    // Multi-user access:
-    // - super-admin can see all sales and can filter by reporter
-    // - other admins see only their own recorded sales
-    if (superAdmin) {
+    // Multi-user access (3-tier):
+    // - super-admin: can see all sales and can filter by reporter
+    // - manager: can see their team's sales, optionally filter by team member
+    // - regular admin: see only their own recorded sales
+    if (visibleUserIds === null) {
+      // Super admin: optionally filter by reporter
       if (reportedByUserIdParam && String(reportedByUserIdParam).trim()) {
         filter.reportedByUserId = String(reportedByUserIdParam).trim();
       }
+    } else if (visibleUserIds.length > 1) {
+      // Manager: can see team's sales
+      if (reportedByUserIdParam && visibleUserIds.includes(reportedByUserIdParam)) {
+        filter.reportedByUserId = String(reportedByUserIdParam).trim();
+      } else {
+        filter.reportedByUserId = { $in: visibleUserIds };
+      }
     } else {
+      // Regular admin: only their own sales
       filter.reportedByUserId = viewerUserId;
     }
 
@@ -356,7 +356,7 @@ export async function PUT(request: NextRequest) {
     const viewerUserId = getViewerUserId(decoded);
     if (!viewerUserId) throw new Error('Unauthorized: Missing user identity');
 
-    const superAdmin = isSuperAdmin(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded);
 
     const body = await request.json().catch(() => null);
     if (!body) throw new Error('Invalid JSON body');
@@ -368,7 +368,10 @@ export async function PUT(request: NextRequest) {
     await connectDB();
     const existing = await SalesReport.findById(saleId).lean();
     if (!existing) throw new Error('Sale record not found');
-    if (!superAdmin && String((existing as any).reportedByUserId || '') !== viewerUserId) {
+    
+    const saleOwnerId = String((existing as any).reportedByUserId || '');
+    // Check access: super admin (visibleUserIds=null) can edit any, manager can edit team's, regular admin only own
+    if (visibleUserIds !== null && !visibleUserIds.includes(saleOwnerId)) {
       throw new Error('Unauthorized: Cannot edit other user sales');
     }
 
@@ -430,7 +433,7 @@ export async function DELETE(request: NextRequest) {
     const viewerUserId = getViewerUserId(decoded);
     if (!viewerUserId) throw new Error('Unauthorized: Missing user identity');
 
-    const superAdmin = isSuperAdmin(decoded);
+    const visibleUserIds = getVisibleUserIds(decoded);
 
     const url = new URL(request.url);
     const saleId = url.searchParams.get('saleId');
@@ -440,7 +443,10 @@ export async function DELETE(request: NextRequest) {
     await connectDB();
     const existing = await SalesReport.findById(saleId).lean();
     if (!existing) throw new Error('Sale record not found');
-    if (!superAdmin && String((existing as any).reportedByUserId || '') !== viewerUserId) {
+    
+    const saleOwnerId = String((existing as any).reportedByUserId || '');
+    // Check access: super admin (visibleUserIds=null) can delete any, manager can delete team's, regular admin only own
+    if (visibleUserIds !== null && !visibleUserIds.includes(saleOwnerId)) {
       throw new Error('Unauthorized: Cannot delete other user sales');
     }
 

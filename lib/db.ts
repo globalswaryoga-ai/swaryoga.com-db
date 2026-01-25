@@ -140,12 +140,16 @@ const userSchema = new mongoose.Schema({
   // Admin user fields (optional, for admin authentication)
   userId: { type: String, sparse: true }, // Admin username, e.g., "admincrm"
   isAdmin: { type: Boolean, default: false },
-  role: { type: String, enum: ['admin', 'user'], default: 'user' },
+  role: { 
+    type: String, 
+    enum: ['superadmin', 'manager', 'admin', 'user'], 
+    default: 'user' 
+  }, // superadmin=full access, manager=team lead, admin=basic admin, user=regular
   
   // DEPRECATED: Legacy permissions array (kept for backward compatibility)
   permissions: { 
     type: [String], 
-    enum: ['all', 'crm', 'whatsapp', 'email', 'broadcasts', 'analytics', 'users', 'workshops', 'templates', 'settings', 'payments', 'reports'], 
+    enum: ['all', 'manager', 'crm', 'whatsapp', 'email', 'broadcasts', 'analytics', 'users', 'workshops', 'templates', 'settings', 'payments', 'reports'], 
     default: [],
     sparse: true 
   },
@@ -167,6 +171,10 @@ const userSchema = new mongoose.Schema({
   
   // User assignment for multi-admin CRM (which leads this admin can access)
   assignedLeadIds: { type: [String], default: [] }, // Array of Lead IDs assigned to this admin
+  
+  // Manager assignment: which admin users this manager supervises
+  // Only relevant for role='manager'. These are userId strings of subordinate admins.
+  managedUserIds: { type: [String], default: [] },
   
   // Regular user fields
   name: { type: String, trim: true },
