@@ -82,17 +82,24 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const User = getUser();
 
-    // Check if userId already exists
-    const existingUserId = await User.findOne({ userId });
+    // Normalize email to lowercase for consistency
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if userId already exists (case-insensitive)
+    const existingUserId = await User.findOne({ 
+      userId: { $regex: new RegExp(`^${userId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
+    });
     if (existingUserId) {
       return NextResponse.json(
-        { error: 'Username already exists' },
+        { error: `Username "${userId}" already exists (existing: "${existingUserId.userId}")` },
         { status: 409 }
       );
     }
 
-    // Check if email already exists
-    const existingEmail = await User.findOne({ email });
+    // Check if email already exists (case-insensitive)
+    const existingEmail = await User.findOne({ 
+      email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } 
+    });
     if (existingEmail) {
       // If the user exists but is not an admin, return a more helpful error
       if (!existingEmail.isAdmin) {
@@ -102,7 +109,7 @@ export async function POST(request: NextRequest) {
         );
       }
       return NextResponse.json(
-        { error: 'Email already exists' },
+        { error: `Email "${normalizedEmail}" already exists` },
         { status: 409 }
       );
     }
@@ -113,8 +120,8 @@ export async function POST(request: NextRequest) {
 
     // Create new admin user
     const newAdminUser = new User({
-      userId,
-      email,
+      userId: userId.trim(),
+      email: normalizedEmail,
       name: name || userId, // Use provided name or default to userId
       password: hashedPassword,
       isAdmin: true,
