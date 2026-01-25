@@ -50,16 +50,32 @@ function hashPII(value: string): string {
 }
 
 /**
+ * Generate appsecret_proof for Meta API (required for server-side calls)
+ */
+function generateAppSecretProof(accessToken: string, appSecret: string): string {
+  return crypto
+    .createHmac('sha256', appSecret)
+    .update(accessToken)
+    .digest('hex');
+}
+
+/**
  * Send conversion event to Meta Conversions API
  */
 export async function sendConversionEvent(event: ConversionEvent) {
   try {
     const pixelId = '906922940547021';
     const accessToken = process.env.META_CONVERSIONS_API_TOKEN;
+    const appSecret = process.env.META_APP_SECRET;
 
     if (!accessToken) {
       console.warn('⚠️  META_CONVERSIONS_API_TOKEN not set');
       return { success: false, error: 'Missing access token' };
+    }
+
+    if (!appSecret) {
+      console.warn('⚠️  META_APP_SECRET not set');
+      return { success: false, error: 'Missing app secret for appsecret_proof' };
     }
 
     // Hash user data (PII normalization)
@@ -86,6 +102,9 @@ export async function sendConversionEvent(event: ConversionEvent) {
       }
     });
 
+    // Generate appsecret_proof
+    const appSecretProof = generateAppSecretProof(accessToken, appSecret);
+
     const payload = {
       data: [
         {
@@ -100,6 +119,7 @@ export async function sendConversionEvent(event: ConversionEvent) {
         },
       ],
       access_token: accessToken,
+      appsecret_proof: appSecretProof,
     };
 
     const response = await fetch(
