@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   trackFormSubmission,
+  trackCRMLeadEvent,
   trackPageView,
   trackPurchase,
   trackViewContent,
@@ -20,7 +21,7 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { eventType, data, userId } = body;
+    const { eventType, data, userId, testEventCode } = body;
 
     // Get client IP and user agent for server-side tracking
     const clientIp =
@@ -33,7 +34,15 @@ export async function POST(request: NextRequest) {
 
     switch (eventType) {
       case 'lead':
-        result = await trackFormSubmission(data, clientIp, userAgent);
+        result = await trackFormSubmission(data, clientIp, userAgent, {
+          actionSource: data.actionSource,
+          testEventCode,
+        });
+        break;
+
+      case 'crm_lead':
+        // For CRM/system-generated leads
+        result = await trackCRMLeadEvent(data, testEventCode);
         break;
 
       case 'page_view':
@@ -74,11 +83,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         eventId: result.eventId,
+        eventsReceived: result.eventsReceived,
         message: `${eventType} event tracked successfully`,
       });
     } else {
       return NextResponse.json(
-        { success: false, error: result.error },
+        { success: false, error: result.error, details: result.details },
         { status: 400 }
       );
     }

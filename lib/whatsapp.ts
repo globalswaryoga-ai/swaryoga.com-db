@@ -4,6 +4,36 @@
  */
 
 import crypto from 'crypto';
+import { generatePresignedUrl } from './aws-s3';
+
+/**
+ * Convert S3 URL to a publicly accessible signed URL (for Meta API)
+ * Meta's servers need to fetch the media, so the URL must be accessible
+ */
+async function getPublicMediaUrl(url: string): Promise<string> {
+  if (!url) return url;
+  
+  // Check if it's an S3 URL from our bucket
+  const s3Pattern = /https:\/\/([^.]+)\.s3\.([^.]+)\.amazonaws\.com\/(.+)/;
+  const match = url.match(s3Pattern);
+  
+  if (match) {
+    const key = decodeURIComponent(match[3]);
+    console.log(`[WHATSAPP] 🔑 Generating signed URL for S3 key: ${key}`);
+    try {
+      const signedUrl = await generatePresignedUrl(key, { expiresIn: 3600 }); // 1 hour
+      console.log(`[WHATSAPP] ✅ Signed URL generated (${signedUrl.substring(0, 80)}...)`);
+      return signedUrl;
+    } catch (err) {
+      console.error(`[WHATSAPP] ❌ Failed to generate signed URL:`, err);
+      // Fall back to original URL
+      return url;
+    }
+  }
+  
+  // Not an S3 URL, return as-is
+  return url;
+}
 
 export function normalizePhone(raw: string): string {
   // IMPORTANT: We standardize phone numbers across the app as **digits-only**.
@@ -289,6 +319,9 @@ export async function sendWhatsAppMedia(
 ): Promise<WhatsAppSendMediaResult> {
   const env = getWhatsAppEnv();
   const to = normalizePhone(toRaw);
+  
+  // Convert S3 URLs to publicly accessible signed URLs
+  const publicMediaUrl = await getPublicMediaUrl(mediaUrl);
 
   // If Cloud API is configured, try it first
   if (env) {
@@ -303,7 +336,7 @@ export async function sendWhatsAppMedia(
         to,
         type: mediaTypeSlug,
         [mediaTypeSlug]: {
-          link: mediaUrl,
+          link: publicMediaUrl, // Use the signed/public URL
         },
       };
 
@@ -311,6 +344,10 @@ export async function sendWhatsAppMedia(
         payload[mediaTypeSlug].caption = String(caption).trim();
       }
 
+      console.log(`[WHATSAPP] 📤 Sending ${mediaTypeSlug} to ${to} via Meta API`);
+      console.log(`[WHATSAPP] 🔗 Original URL: ${mediaUrl}`);
+      console.log(`[WHATSAPP] 🔗 Public URL: ${publicMediaUrl.substring(0, 100)}...`);
+      
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -327,11 +364,21 @@ export async function sendWhatsAppMedia(
       if (res.ok) {
         const waMessageId =
           Array.isArray(data?.messages) && data.messages[0]?.id ? String(data.messages[0].id) : undefined;
+        console.log(`[WHATSAPP] ✅ Media sent successfully, messageId: ${waMessageId}`);
         return { waMessageId, raw: { ...data, provider: 'meta' } };
       }
-      console.warn('[WHATSAPP] Meta Cloud API failed (Media):', data?.error?.message || JSON.stringify(data));
+      
+      // Log detailed error from Meta API
+      const errorDetails = {
+        code: data?.error?.code,
+        message: data?.error?.message,
+        type: data?.error?.type,
+        fbtrace_id: data?.error?.fbtrace_id,
+        url: mediaUrl,
+      };
+      console.error('[WHATSAPP] ❌ Meta Cloud API failed (Media):', JSON.stringify(errorDetails, null, 2));
     } catch (err) {
-      console.warn('[WHATSAPP] Meta Cloud API error (Media):', err instanceof Error ? err.message : String(err));
+      console.error('[WHATSAPP] ❌ Meta Cloud API error (Media):', err instanceof Error ? err.message : String(err));
     }
   }
 

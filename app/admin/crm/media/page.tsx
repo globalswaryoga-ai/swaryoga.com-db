@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { Upload, Image, Video, FileText, Globe, Lock, Users, Settings, Trash2, Copy, ExternalLink, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import Link from 'next/link';
+import { MediaPreview, detectMediaType } from '@/components/admin/crm';
 
 type AccessLevel = 'public' | 'admin' | 'community';
 type FileType = 'images' | 'videos' | 'documents';
@@ -321,6 +322,20 @@ export default function MediaManagerPage() {
                     key={file.id}
                     className="p-3 bg-slate-700/50 rounded-lg border border-slate-600"
                   >
+                    {/* Media Preview */}
+                    <div className="mb-3">
+                      <MediaPreview 
+                        media={{
+                          url: file.url,
+                          type: detectMediaType(file.url),
+                          name: file.name,
+                          size: file.size,
+                        }}
+                        size="sm"
+                        showDownload={true}
+                      />
+                    </div>
+                    
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate">{file.name}</p>
@@ -349,15 +364,6 @@ export default function MediaManagerPage() {
                         >
                           {copiedUrl === file.url ? <CheckCircle size={16} /> : <Copy size={16} />}
                         </button>
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 bg-slate-600 text-slate-300 rounded-lg hover:bg-slate-500 transition-all"
-                          title="Open"
-                        >
-                          <ExternalLink size={16} />
-                        </a>
                       </div>
                     </div>
                   </div>

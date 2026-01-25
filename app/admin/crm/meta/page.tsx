@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { useCRM } from '@/hooks/useCRM';
-import { LoadingSpinner } from '@/components/admin/crm';
+import { LoadingSpinner, MediaPreview, InlineMediaPreview, getFilenameFromUrl } from '@/components/admin/crm';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
 import { useModal } from '@/hooks/useModal';
@@ -50,8 +50,9 @@ type MetaInboxDiagnostics = {
 type ConversationRow = {
   _id: string;
   leadId: string;
-  leadNumber?: number | string; // ADDED
-  name?: string;
+  leadNumber?: number | string;
+  name?: string | null;
+  hasLead?: boolean;
   phoneNumber: string;
   lastMessageContent?: string;
   lastMessageAt?: string;
@@ -68,6 +69,14 @@ type Message = {
   direction: 'inbound' | 'outbound';
   createdAt: string;
   status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
+  media?: {
+    kind?: 'image' | 'video' | 'document' | 'sticker';
+    url?: string;
+    fileName?: string;
+    mimeType?: string;
+  };
+  sentByLabel?: string;
+  senderDisplayName?: string;
 };
 
 type LeadFormValues = {
@@ -422,14 +431,21 @@ export default function MetaInboxPage() {
       });
 
       if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
+      const result = await res.json();
       
-      if (data.url) {
+      // API returns { success: true, data: { url: ... } } or { url: ... }
+      const uploadedUrl = result?.data?.url || result?.url;
+      
+      if (uploadedUrl) {
+        console.log('[Meta] 📤 Media uploaded to S3:', uploadedUrl);
         // Store media separately for sending as media, not as text URL
         setAttachedMedia({
-          url: data.url,
+          url: uploadedUrl,
           type: uploadType
         });
+      } else {
+        console.error('[Meta] Upload response missing URL:', result);
+        alert('Upload succeeded but URL not returned');
       }
     } catch (err) {
       console.error(err);
@@ -1201,11 +1217,32 @@ export default function MetaInboxPage() {
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex justify-between items-center mb-1">
-                      <div className="font-[800] text-slate-900 truncate tracking-tight text-[14px]">
-                        {conv.name || conv.phoneNumber}
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="min-w-0 flex-1">
+                        {/* Name or Phone Number */}
+                        {conv.name && conv.hasLead ? (
+                          <>
+                            <div className="font-[800] text-slate-900 truncate tracking-tight text-[14px]">
+                              {conv.name}
+                            </div>
+                            <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1 mt-0.5">
+                              <i className="ph ph-whatsapp-logo text-green-600 text-[12px]"></i>
+                              <span>{conv.phoneNumber}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="font-[700] text-slate-700 truncate tracking-tight text-[14px] flex items-center gap-2">
+                            <i className="ph ph-whatsapp-logo text-green-600 text-[14px]"></i>
+                            <span>{conv.phoneNumber}</span>
+                            {!conv.hasLead && (
+                              <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">
+                                NEW
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100/50 px-2 py-0.5 rounded-lg shrink-0">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100/50 px-2 py-0.5 rounded-lg shrink-0 ml-2">
                         {conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : 'Jan 10'}
                       </div>
                     </div>
@@ -1217,10 +1254,6 @@ export default function MetaInboxPage() {
                            #{conv.leadNumber}
                          </span>
                        )}
-                       <span className="flex items-center gap-1">
-                         <i className="ph ph-phone-call text-[10px]"></i>
-                         <span>{conv.phoneNumber}</span>
-                       </span>
                     </div>
 
                     {/* Labels Display */}
@@ -1478,46 +1511,36 @@ export default function MetaInboxPage() {
                             ? 'bg-blue-600 text-white rounded-tr-none shadow-[0_8px_20px_rgba(37,99,235,0.15)] ring-1 ring-blue-500/10'
                             : 'bg-emerald-500 text-white rounded-tl-none shadow-[0_8px_15px_rgba(16,185,129,0.15)] border border-emerald-400'
                         }`}>
-                          {/* Media Rendering */}
-                          {msg.media && msg.media.url && (
-                            <div className="mb-3 rounded-2xl overflow-hidden bg-black/5 border border-white/10">
-                              {/* Better media detection including stickers and documents */}
-                              {msg.media.kind === 'image' || msg.media.kind === 'sticker' || (!msg.media.kind && msg.media.url.match(/\.(jpg|jpeg|png|webp|gif)$/i)) ? (
-                                <img 
-                                  src={msg.media.url} 
-                                  alt="WhatsApp Media" 
-                                  className="w-full max-h-[350px] object-contain cursor-pointer transition-transform hover:scale-[1.02]"
-                                  onClick={() => window.open(msg.media.url, '_blank')}
-                                />
-                              ) : msg.media.kind === 'video' || (!msg.media.kind && msg.media.url.match(/\.(mp4|mov|avi|webm)$/i)) ? (
-                                <video 
-                                  src={msg.media.url} 
-                                  controls 
-                                  className="w-full max-h-[350px]"
-                                />
-                              ) : (
-                                <div className="flex items-center gap-3 p-4 bg-white/10 backdrop-blur-sm rounded-xl">
-                                  <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
-                                    <i className="ph-fill ph-file-text text-xl"></i>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold uppercase tracking-wider opacity-70">Document</p>
-                                    <a 
-                                      href={msg.media.url} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="text-sm font-semibold truncate block hover:underline"
-                                    >
-                                      {msg.media.url.split('/').pop() || 'Download File'}
-                                    </a>
-                                  </div>
+                          {/* Media Rendering - Using unified InlineMediaPreview component */}
+                          {(() => {
+                            // Check for media in various places
+                            const mediaUrl = msg.media?.url || (msg as any).metadata?.mediaUrl || (msg as any).mediaUrl;
+                            const mediaKind = msg.media?.kind || (msg as any).metadata?.mediaKind || 'image';
+                            
+                            if (mediaUrl) {
+                              return (
+                                <div className="mb-3">
+                                  <InlineMediaPreview 
+                                    url={mediaUrl} 
+                                    type={mediaKind === 'sticker' ? 'image' : mediaKind}
+                                    className="rounded-xl overflow-hidden"
+                                  />
                                 </div>
-                              )}
-                            </div>
-                          )}
+                              );
+                            }
+                            return null;
+                          })()}
 
                           <div className="whitespace-pre-wrap leading-relaxed font-medium">
-                            {msg.messageContent && msg.messageContent !== '(media)' && msg.messageContent !== '[media]' ? msg.messageContent : ''}
+                            {msg.messageContent && 
+                             msg.messageContent !== '(media)' && 
+                             msg.messageContent !== '[media]' &&
+                             msg.messageContent !== '[image]' &&
+                             msg.messageContent !== '[video]' &&
+                             msg.messageContent !== '[document]' &&
+                             !msg.messageContent.startsWith('🖼') // Hide placeholder emoji
+                              ? msg.messageContent 
+                              : ''}
                           </div>
                           
                           <div className={`text-[10px] mt-2.5 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-blue-100' : 'justify-start text-emerald-50 font-[800]'}`}>
@@ -1724,29 +1747,24 @@ export default function MetaInboxPage() {
                         accept={uploadType === 'image' ? "image/*" : uploadType === 'video' ? "video/*" : "*"}
                       />
 
-                      {/* Media Preview */}
+                      {/* Media Preview - Using unified MediaPreview component */}
                       {attachedMedia && (
                         <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200 mb-2">
-                          <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
-                            {attachedMedia.type === 'image' && (
-                              <img src={attachedMedia.url} alt="attached" className="w-full h-full object-cover" />
-                            )}
-                            {attachedMedia.type === 'video' && (
-                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-100 to-rose-200">
-                                <i className="ph-fill ph-video-camera text-2xl text-rose-600"></i>
-                              </div>
-                            )}
-                            {attachedMedia.type === 'document' && (
-                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
-                                <i className="ph-fill ph-file-text text-2xl text-blue-600"></i>
-                              </div>
-                            )}
-                          </div>
+                          <MediaPreview 
+                            media={{ 
+                              url: attachedMedia.url, 
+                              type: attachedMedia.type,
+                              name: getFilenameFromUrl(attachedMedia.url)
+                            }}
+                            size="sm"
+                            showDownload={false}
+                            showExpand
+                          />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
                               {attachedMedia.type} attached
                             </p>
-                            <p className="text-xs text-slate-500 truncate mt-1">{attachedMedia.url.split('/').pop()}</p>
+                            <p className="text-xs text-slate-500 truncate mt-1">{getFilenameFromUrl(attachedMedia.url)}</p>
                           </div>
                           <button
                             onClick={() => setAttachedMedia(null)}

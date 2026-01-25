@@ -108,6 +108,14 @@ export async function POST(request: NextRequest) {
       provider: providerValue,
       sentByLabel: userId,
       sentByUserId: userId,
+      // Save media info immediately so it's visible in UI even if pending
+      ...(media?.url && {
+        media: {
+          url: media.url,
+          kind: media.kind || 'image',
+        },
+        messageType: 'media',
+      }),
     });
 
     console.log(`[SEND:${requestId}] 💾 Message created: ${messageRecord._id}`);

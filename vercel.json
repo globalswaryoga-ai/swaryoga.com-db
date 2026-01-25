@@ -1,6 +1,16 @@
 {
   "version": 2,
   "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/admin/crm/chatbot-actions/run",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/admin/crm/scheduled-messages/run",
+      "schedule": "* * * * *"
+    }
+  ],
   "builds": [
     {
       "src": "package.json",

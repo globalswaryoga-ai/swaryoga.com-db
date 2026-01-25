@@ -29,3 +29,22 @@ export {
   ResponsiveModal,
   ResponsiveStat,
 } from './Responsive';
+// Media components
+export {
+  MediaPreview,
+  InlineMediaPreview,
+  detectMediaType,
+  getFilenameFromUrl,
+  formatFileSize,
+  type MediaFile,
+  type MediaType,
+  type MediaPreviewProps,
+} from './MediaPreview';
+
+export {
+  MediaUpload,
+  type UploadedFile,
+  type MediaUploadProps,
+  type UploadFileType,
+  type AccessLevel,
+} from './MediaUpload';

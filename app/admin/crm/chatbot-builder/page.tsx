@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,21 +15,16 @@ type ChatbotFlow = {
   startNodeId?: string;
   nodes?: Array<{
     nodeId: string;
-    type: 'message' | 'question' | 'buttons' | 'template' | 'condition' | 'delay' | 'end' | 'label';
+    type: string;
     messageText?: string;
     questionText?: string;
-    questionType?: string;
     options?: Array<{ label: string; value: string; nextNodeId?: string }>;
     nextNodeId?: string;
     delaySeconds?: number;
     assignLabels?: string[];
-    timerMinutes?: number;
-    timerAction?: string;
-    templateName?: string;
-    conditionField?: string;
-    conditionOp?: string;
-    conditionValue?: string;
   }>;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export default function ChatbotBuilderPage() {
@@ -41,27 +36,10 @@ export default function ChatbotBuilderPage() {
   const [flows, setFlows] = useState<ChatbotFlow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [selectedFlow, setSelectedFlow] = useState<ChatbotFlow | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-
-  const [flowName, setFlowName] = useState('');
-  const [flowDesc, setFlowDesc] = useState('');
-
-  const [nodeType, setNodeType] = useState<
-    'message' | 'question' | 'buttons' | 'template' | 'condition' | 'label' | 'delay' | 'end'
-  >('message');
-  const [nodeText, setNodeText] = useState('');
-  const [nodeDelay, setNodeDelay] = useState('0');
-  const [nodeTimer, setNodeTimer] = useState('');
-  const [nodeLabels, setNodeLabels] = useState('');
-  const [nodeOptions, setNodeOptions] = useState<Array<{ label: string; value: string }>>([]);
-  const [newOptionLabel, setNewOptionLabel] = useState('');
-  const [nodeTemplateName, setNodeTemplateName] = useState('');
-  const [nodeConditionField, setNodeConditionField] = useState('text');
-  const [nodeConditionOp, setNodeConditionOp] = useState('contains');
-  const [nodeConditionValue, setNodeConditionValue] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newFlowName, setNewFlowName] = useState('');
+  const [newFlowDesc, setNewFlowDesc] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const fetchFlows = useCallback(async () => {
     setLoading(true);
@@ -82,475 +60,220 @@ export default function ChatbotBuilderPage() {
       return;
     }
     fetchFlows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, router]);
+  }, [token, router, fetchFlows]);
 
   const createFlow = async () => {
-    const name = flowName.trim();
+    const name = newFlowName.trim();
     if (!name) {
       setError('Flow name is required');
       return;
     }
     try {
+      setCreating(true);
       setError(null);
       const created = await crmFetch('/api/admin/crm/chatbot-flows', {
         method: 'POST',
-        body: { name, description: flowDesc, enabled: true, nodes: [] },
+        body: { name, description: newFlowDesc, enabled: true, nodes: [] },
       });
-      setFlows((prev) => [created, ...prev]);
-      setSelectedFlow(created);
-      setFlowName('');
-      setFlowDesc('');
-      setIsEditing(false);
+      // Redirect to visual builder
+      router.push(`/admin/crm/chatbots/builder/${created._id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create flow');
+      setCreating(false);
     }
   };
 
-  const addNode = async () => {
-    if (!selectedFlow) return;
-    const text = nodeText.trim();
-
-    const needsText = nodeType === 'message' || nodeType === 'question' || nodeType === 'buttons';
-    if (needsText && !text) {
-      setError('Node text is required');
-      return;
-    }
-
-    if (nodeType === 'template' && !nodeTemplateName.trim()) {
-      setError('Template name is required');
-      return;
-    }
-
-    if (nodeType === 'condition' && !nodeConditionValue.trim()) {
-      setError('Condition value is required');
-      return;
-    }
-
+  const toggleFlowEnabled = async (flow: ChatbotFlow) => {
     try {
-      setError(null);
-      const nodeId = String(Date.now());
-      const newNode: any = {
-        nodeId,
-        type: nodeType,
-        delaySeconds: Number(nodeDelay || 0),
-      };
-
-      if (nodeType === 'message') {
-        newNode.messageText = text;
-      } else if (nodeType === 'question') {
-        newNode.questionText = text;
-        newNode.options = nodeOptions;
-      } else if (nodeType === 'buttons') {
-        newNode.messageText = text;
-        newNode.options = nodeOptions;
-      } else if (nodeType === 'template') {
-        newNode.templateName = nodeTemplateName.trim();
-        newNode.messageText = text || undefined;
-      } else if (nodeType === 'delay') {
-        // purely time-based node (delaySeconds)
-        newNode.messageText = text || undefined;
-      } else if (nodeType === 'condition') {
-        newNode.conditionField = nodeConditionField;
-        newNode.conditionOp = nodeConditionOp;
-        newNode.conditionValue = nodeConditionValue.trim();
-      } else if (nodeType === 'label') {
-        if (!nodeLabels.trim()) {
-          setError('Labels are required for label node');
-          return;
-        }
-        newNode.assignLabels = nodeLabels.split(',').map((l) => l.trim()).filter(Boolean);
-      } else if (nodeType === 'end') {
-        newNode.messageText = text || undefined;
-      }
-
-      if (nodeTimer) newNode.timerMinutes = Number(nodeTimer);
-      if (nodeLabels) newNode.assignLabels = nodeLabels.split(',').map((l) => l.trim());
-
-      const updated = await crmFetch(`/api/admin/crm/chatbot-flows/${selectedFlow._id}`, {
+      await crmFetch(`/api/admin/crm/chatbot-flows/${flow._id}`, {
         method: 'PUT',
-        body: {
-          nodes: [...(selectedFlow.nodes || []), newNode],
-          startNodeId: selectedFlow.startNodeId || nodeId,
-        },
+        body: { enabled: !flow.enabled },
       });
-
-      setSelectedFlow(updated);
-      setNodeText('');
-      setNodeDelay('0');
-      setNodeTimer('');
-      setNodeLabels('');
-      setNodeOptions([]);
-      setNodeTemplateName('');
-      setNodeConditionField('text');
-      setNodeConditionOp('contains');
-      setNodeConditionValue('');
+      setFlows(prev => prev.map(f => f._id === flow._id ? { ...f, enabled: !f.enabled } : f));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add node');
-    }
-  };
-
-  const deleteNode = async (nodeId: string) => {
-    if (!selectedFlow) return;
-    try {
-      setError(null);
-      const updated = await crmFetch(`/api/admin/crm/chatbot-flows/${selectedFlow._id}`, {
-        method: 'PUT',
-        body: {
-          nodes: (selectedFlow.nodes || []).filter((n) => n.nodeId !== nodeId),
-        },
-      });
-      setSelectedFlow(updated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete node');
+      setError('Failed to update flow');
     }
   };
 
   const deleteFlow = async (id: string) => {
-    if (!confirm('Delete this flow?')) return;
+    if (!confirm('Are you sure you want to delete this flow?')) return;
     try {
-      setError(null);
       await crmFetch(`/api/admin/crm/chatbot-flows/${id}`, { method: 'DELETE' });
-      setFlows((prev) => prev.filter((f) => f._id !== id));
-      setSelectedFlow(null);
+      setFlows(prev => prev.filter(f => f._id !== id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete flow');
+      setError('Failed to delete flow');
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-white p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <PageHeader
-          title="Chatbot Builder"
-          subtitle="Create and manage chatbot conversation flows"
-          action={
-            <div className="flex gap-2">
-              <Link
-                href="/admin/crm/chatbot-settings"
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-              >
-                Settings
-              </Link>
-              <button
-                onClick={() => setIsEditing(!isEditing)}
-                className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-black font-semibold"
-              >
-                {isEditing ? 'Cancel' : '+ New Flow'}
-              </button>
-            </div>
-          }
-        />
+    <div className="min-h-screen bg-gray-50">
+      <PageHeader 
+        title="Chatbot Flow Builder" 
+        subtitle={`${flows.length} flows`}
+        breadcrumbs={[
+          { label: 'CRM', href: '/admin/crm' },
+          { label: 'Chatbots', href: '/admin/crm/chatbots' },
+          { label: 'Flow Builder' },
+        ]}
+      />
 
-        {error ? <AlertBox type="error" message={error} onClose={() => setError(null)} /> : null}
-
-        <div className="grid gap-6 grid-cols-3">
-          {/* LEFT: Flows list */}
-          <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-emerald-50">
-            <h2 className="font-extrabold text-white mb-4">Flows</h2>
-
-            {isEditing ? (
-              <div className="space-y-3 mb-6 pb-6 border-b border-white/20">
-                <input
-                  value={flowName}
-                  onChange={(e) => setFlowName(e.target.value)}
-                  placeholder="Flow name"
-                  className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
-                />
-                <textarea
-                  value={flowDesc}
-                  onChange={(e) => setFlowDesc(e.target.value)}
-                  placeholder="Description (optional)"
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
-                />
-                <button
-                  onClick={createFlow}
-                  className="w-full px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                >
-                  Create
-                </button>
-              </div>
-            ) : null}
-
-            {loading ? (
-              <LoadingSpinner />
-            ) : flows.length === 0 ? (
-              <div className="text-emerald-50/80">No flows yet.</div>
-            ) : (
-              <div className="space-y-2">
-                {flows.map((f) => (
-                  <div
-                    key={f._id}
-                    className={`w-full text-left px-3 py-2 rounded-lg border ${
-                      selectedFlow?._id === f._id
-                        ? 'bg-emerald-600/40 border-emerald-400'
-                        : 'bg-white/5 hover:bg-white/10 border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFlow(f)}
-                        className="flex-1 text-left"
-                      >
-                        <div className="font-bold text-white">{f.name}</div>
-                        <div className="text-sm text-emerald-50/80">{(f.nodes || []).length} nodes</div>
-                      </button>
-
-                      <div className="flex gap-1 pt-1">
-                        <Link 
-                          href={`/admin/crm/chatbots/builder/${f._id}`}
-                          className="p-1.5 rounded-md hover:bg-emerald-500/30 text-emerald-300 transition-colors"
-                          title="Open Canvas Builder"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        </Link>
-                        <button
-                          onClick={() => deleteFlow(f._id)}
-                          className="p-1.5 rounded-md hover:bg-red-500/30 text-red-300 transition-colors"
-                          title="Delete"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        {error && (
+          <div className="mb-6">
+            <AlertBox type="error" message={error} onClose={() => setError(null)} />
           </div>
+        )}
 
-          {/* CENTER: Node editor */}
-          <div className="col-span-2 space-y-6">
-            {!selectedFlow ? (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-12 text-center text-emerald-50/80">
-                <p>Select a flow or create a new one to get started</p>
-              </div>
-            ) : (
-              <>
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                  <h2 className="font-extrabold text-white mb-4">Flow: {selectedFlow.name}</h2>
-                  <p className="text-emerald-50/80 mb-4">{selectedFlow.description || 'No description'}</p>
+        {/* Actions Bar */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin/crm/chatbots"
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              ← Back to Chatbots
+            </Link>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold flex items-center gap-2"
+          >
+            <span>➕</span> Create New Flow
+          </button>
+        </div>
 
-                  <div className="space-y-4 border-t border-white/20 pt-4 mt-4">
+        {/* Flows Grid */}
+        {flows.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+            <div className="text-6xl mb-4">🤖</div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">No Chatbot Flows Yet</h3>
+            <p className="text-gray-600 mb-6">
+              Create your first automated conversation flow with our visual builder
+            </p>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold"
+            >
+              Create First Flow
+            </button>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {flows.map((flow) => (
+              <div
+                key={flow._id}
+                className="bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all overflow-hidden"
+              >
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                      <label className="block text-sm font-bold text-emerald-50 mb-2">Node Type</label>
-                      <select
-                        value={nodeType}
-                        onChange={(e) => setNodeType(e.target.value as any)}
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-bold"
-                      >
-                        <option value="message">Message</option>
-                        <option value="question">Question</option>
-                        <option value="buttons">Buttons</option>
-                        <option value="template">Send Template</option>
-                        <option value="condition">Condition</option>
-                        <option value="label">Assign Labels</option>
-                        <option value="delay">Delay Only</option>
-                        <option value="end">End</option>
-                      </select>
+                      <h3 className="font-bold text-gray-900 text-lg">{flow.name}</h3>
+                      {flow.description && (
+                        <p className="text-sm text-gray-500 line-clamp-2">{flow.description}</p>
+                      )}
                     </div>
-
-                    {(nodeType === 'message' || nodeType === 'question' || nodeType === 'buttons' || nodeType === 'template' || nodeType === 'end' || nodeType === 'delay') && (
-                      <div>
-                        <label className="block text-sm font-bold text-emerald-50 mb-2">
-                          {nodeType === 'question' ? 'Question Text' : 'Message Text'}
-                        </label>
-                        <textarea
-                          value={nodeText}
-                          onChange={(e) => setNodeText(e.target.value)}
-                          rows={3}
-                          className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
-                          placeholder={
-                            nodeType === 'template'
-                              ? 'Optional message before/after template'
-                              : nodeType === 'delay'
-                                ? 'Optional message (sent before delay)'
-                                : nodeType === 'end'
-                                  ? 'Optional goodbye message'
-                                  : 'Enter message or question...'
-                          }
-                        />
-                      </div>
-                    )}
-
-                    {nodeType === 'template' && (
-                      <div>
-                        <label className="block text-sm font-bold text-emerald-50 mb-2">Template Name</label>
-                        <input
-                          value={nodeTemplateName}
-                          onChange={(e) => setNodeTemplateName(e.target.value)}
-                          placeholder="e.g. welcome_new_lead"
-                          className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
-                        />
-                        <div className="text-xs text-emerald-50/70 mt-1">
-                          Tip: use the exact WhatsApp template name (not the DB id).
-                        </div>
-                      </div>
-                    )}
-
-                    {nodeType === 'condition' && (
-                      <div className="space-y-2">
-                        <label className="block text-sm font-bold text-emerald-50">Condition</label>
-                        <div className="grid grid-cols-3 gap-2">
-                          <select
-                            value={nodeConditionField}
-                            onChange={(e) => setNodeConditionField(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-bold"
-                          >
-                            <option value="text">Incoming text</option>
-                            <option value="label">Lead label</option>
-                            <option value="phone">Phone</option>
-                          </select>
-                          <select
-                            value={nodeConditionOp}
-                            onChange={(e) => setNodeConditionOp(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-bold"
-                          >
-                            <option value="contains">contains</option>
-                            <option value="equals">equals</option>
-                            <option value="startsWith">startsWith</option>
-                          </select>
-                          <input
-                            value={nodeConditionValue}
-                            onChange={(e) => setNodeConditionValue(e.target.value)}
-                            placeholder="value"
-                            className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
-                          />
-                        </div>
-                        <div className="text-xs text-emerald-50/70">
-                          This node stores the condition now; we’ll wire execution rules next.
-                        </div>
-                      </div>
-                    )}
-
-                    {(nodeType === 'question' || nodeType === 'buttons') && (
-                      <div>
-                        <label className="block text-sm font-bold text-emerald-50 mb-2">Options</label>
-                        <div className="space-y-2">
-                          {nodeOptions.map((opt, idx) => (
-                            <div key={idx} className="flex gap-2">
-                              <input
-                                value={opt.label}
-                                readOnly
-                                className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white text-sm"
-                              />
-                              <button
-                                onClick={() => setNodeOptions((p) => p.filter((_, i) => i !== idx))}
-                                className="px-3 py-2 rounded-lg bg-red-500/20 text-red-100 hover:bg-red-500/30 text-sm font-bold"
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex gap-2 mt-2">
-                          <input
-                            value={newOptionLabel}
-                            onChange={(e) => setNewOptionLabel(e.target.value)}
-                            placeholder="e.g. Yes"
-                            className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 text-sm"
-                          />
-                          <button
-                            onClick={() => {
-                              if (newOptionLabel.trim()) {
-                                setNodeOptions((p) => [...p, { label: newOptionLabel, value: newOptionLabel }]);
-                                setNewOptionLabel('');
-                              }
-                            }}
-                            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm"
-                          >
-                            Add
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-bold text-emerald-50 mb-2">Delay (seconds)</label>
-                        <input
-                          type="number"
-                          value={nodeDelay}
-                          onChange={(e) => setNodeDelay(e.target.value)}
-                          min="0"
-                          className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-bold text-emerald-50 mb-2">Timer (minutes)</label>
-                        <input
-                          type="number"
-                          value={nodeTimer}
-                          onChange={(e) => setNodeTimer(e.target.value)}
-                          min="0"
-                          className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
-                          placeholder="Optional"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold text-emerald-50 mb-2">Labels (comma-separated)</label>
-                      <input
-                        value={nodeLabels}
-                        onChange={(e) => setNodeLabels(e.target.value)}
-                        placeholder="e.g. inquiry, urgent"
-                        className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400"
-                      />
-                      {nodeType === 'label' ? (
-                        <div className="text-xs text-emerald-50/70 mt-1">
-                          This node will assign labels to the lead.
-                        </div>
-                      ) : null}
-                    </div>
-
                     <button
-                      onClick={addNode}
-                      className="w-full px-4 py-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-black font-bold"
+                      onClick={() => toggleFlowEnabled(flow)}
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        flow.enabled 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
                     >
-                      Add Node
+                      {flow.enabled ? '✅ Active' : '❌ Inactive'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                    <span>📊 {flow.nodes?.length || 0} nodes</span>
+                    {flow.updatedAt && (
+                      <span>🕐 {new Date(flow.updatedAt).toLocaleDateString()}</span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/admin/crm/chatbots/builder/${flow._id}`}
+                      className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold text-center"
+                    >
+                      ✏️ Edit Flow
+                    </Link>
+                    <button
+                      onClick={() => deleteFlow(flow._id)}
+                      className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-semibold border border-red-200"
+                    >
+                      🗑️
                     </button>
                   </div>
                 </div>
-
-                {/* Node list */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6">
-                  <h3 className="font-extrabold text-white mb-4">Nodes ({(selectedFlow.nodes || []).length})</h3>
-                  {(selectedFlow.nodes || []).length === 0 ? (
-                    <div className="text-emerald-50/80">No nodes yet. Add one above.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {(selectedFlow.nodes || []).map((node) => (
-                        <div key={node.nodeId} className="rounded-xl border border-white/10 bg-black/10 p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="font-bold text-white">{node.type}</div>
-                              <div className="text-sm text-emerald-50/80">
-                                {node.messageText || node.questionText || 'No content'}
-                              </div>
-                              {node.delaySeconds ? (
-                                <div className="text-xs text-emerald-50/60 mt-1">Delay: {node.delaySeconds}s</div>
-                              ) : null}
-                            </div>
-                            <button
-                              onClick={() => deleteNode(node.nodeId)}
-                              className="px-3 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-100 font-bold text-sm"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+              </div>
+            ))}
           </div>
-        </div>
+        )}
+
+        {/* Create Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Create New Flow</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Flow Name *
+                  </label>
+                  <input
+                    value={newFlowName}
+                    onChange={(e) => setNewFlowName(e.target.value)}
+                    placeholder="e.g. Welcome Flow"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Description (optional)
+                  </label>
+                  <textarea
+                    value={newFlowDesc}
+                    onChange={(e) => setNewFlowDesc(e.target.value)}
+                    placeholder="What does this flow do?"
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewFlowName('');
+                    setNewFlowDesc('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createFlow}
+                  disabled={creating || !newFlowName.trim()}
+                  className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold disabled:opacity-50"
+                >
+                  {creating ? 'Creating...' : 'Create & Open Builder'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

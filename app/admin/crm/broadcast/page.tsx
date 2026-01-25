@@ -257,8 +257,9 @@ export default function BroadcastPage() {
       const url = `/api/admin/crm/leads${params.toString() ? `?${params.toString()}` : ''}`;
       const res: any = await crm.fetch(url, { method: 'GET' });
 
-      const rows: LeadRow[] = Array.isArray(res?.data?.leads) ? res.data.leads : [];
-    const serverTotal: number = Number(res?.data?.total ?? rows.length ?? 0);
+      // useCRM.fetch returns result.data directly, so leads/total are at top level
+      const rows: LeadRow[] = Array.isArray(res?.leads) ? res.leads : [];
+      const serverTotal: number = Number(res?.total ?? rows.length ?? 0);
 
       const normalizeStatus = (s: any) => String(s || '').trim().toLowerCase();
       const statusBucket = (s: any): 'lead' | 'prospect' | 'customer' | 'inactive' | '' => {

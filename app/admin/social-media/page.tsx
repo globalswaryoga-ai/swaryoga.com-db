@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trash2, Link as LinkIcon, Calendar, Image, Play, X, Plus } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
+import { MediaPreview, InlineMediaPreview } from '@/components/admin/crm';
 
 interface SocialAccount {
   _id: string;
@@ -631,16 +632,17 @@ export default function SocialMediaAdmin() {
                       {newPostImages.length > 0 && (
                         <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
                           {newPostImages.map((img, idx) => (
-                            <div key={`${img.url}-${idx}`} className="relative rounded-lg overflow-hidden border border-slate-700 bg-slate-950">
-                              <img src={img.url} alt={img.name || 'uploaded image'} className="w-full h-24 object-cover" />
-                              <button
-                                type="button"
-                                onClick={() => setNewPostImages((prev) => prev.filter((_, i) => i !== idx))}
-                                className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
-                                title="Remove"
-                              >
-                                <X size={16} />
-                              </button>
+                            <div key={`${img.url}-${idx}`} className="relative">
+                              <MediaPreview 
+                                media={{
+                                  url: img.url,
+                                  type: 'image',
+                                  name: img.name,
+                                }}
+                                size="sm"
+                                showDownload={false}
+                                onRemove={() => setNewPostImages((prev) => prev.filter((_, i) => i !== idx))}
+                              />
                             </div>
                           ))}
                         </div>
@@ -716,25 +718,16 @@ export default function SocialMediaAdmin() {
                       {newPostVideos.length > 0 && (
                         <div className="mt-4 space-y-3">
                           {newPostVideos.map((vid, idx) => (
-                            <div key={`${vid.url}-${idx}`} className="relative rounded-lg overflow-hidden border border-slate-700 bg-slate-950 p-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <a
-                                  href={vid.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-emerald-300 hover:text-emerald-200 text-sm break-all"
-                                >
-                                  {vid.name || vid.url}
-                                </a>
-                                <button
-                                  type="button"
-                                  onClick={() => setNewPostVideos((prev) => prev.filter((_, i) => i !== idx))}
-                                  className="bg-black/60 hover:bg-black/80 text-white rounded-full p-1"
-                                  title="Remove"
-                                >
-                                  <X size={16} />
-                                </button>
-                              </div>
+                            <div key={`${vid.url}-${idx}`} className="relative">
+                              <MediaPreview 
+                                media={{
+                                  url: vid.url,
+                                  type: 'video',
+                                  name: vid.name,
+                                }}
+                                size="sm"
+                                onRemove={() => setNewPostVideos((prev) => prev.filter((_, i) => i !== idx))}
+                              />
                             </div>
                           ))}
                         </div>
@@ -835,29 +828,30 @@ export default function SocialMediaAdmin() {
                           <p className="text-white mb-3">{post.content.text}</p>
 
                           {post.content.images && post.content.images.length > 0 && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                              {post.content.images.map((img, idx) => (
-                                <div key={`${img.url}-${idx}`} className="rounded-lg overflow-hidden border border-slate-700 bg-slate-950">
-                                  <img src={img.url} alt={img.altText || 'post image'} className="w-full h-24 object-cover" />
-                                </div>
-                              ))}
+                            <div className="mb-3">
+                              <MediaPreview 
+                                media={post.content.images.map((img) => ({
+                                  url: img.url,
+                                  type: 'image' as const,
+                                  name: img.caption || img.altText,
+                                }))}
+                                size="sm"
+                                showDownload={true}
+                              />
                             </div>
                           )}
 
                           {post.content.videos && post.content.videos.length > 0 && (
-                            <div className="space-y-2 mb-3">
-                              {post.content.videos.map((vid, idx) => (
-                                <a
-                                  key={`${vid.url}-${idx}`}
-                                  href={vid.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-2 text-emerald-300 hover:text-emerald-200 text-sm break-all"
-                                >
-                                  <Play size={16} />
-                                  {vid.title || vid.url}
-                                </a>
-                              ))}
+                            <div className="mb-3">
+                              <MediaPreview 
+                                media={post.content.videos.map((vid) => ({
+                                  url: vid.url,
+                                  type: 'video' as const,
+                                  name: vid.title,
+                                }))}
+                                size="sm"
+                                showDownload={true}
+                              />
                             </div>
                           )}
 

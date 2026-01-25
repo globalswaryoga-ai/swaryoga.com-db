@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { MediaPreview } from '@/components/admin/crm';
 import {
   Users, MessageSquare, MessageCircle, Send, Mail, Phone, MoreVertical, Trash2, Edit, Shield,
   Search, ChevronDown, Plus, Filter, Download, ArrowRight, CheckCircle, AlertCircle,
@@ -1259,14 +1260,17 @@ export default function AdminCommunityPage() {
                        <div>
                           <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Post Images</label>
                           <div className="flex flex-wrap gap-3">
-                             {editPostImages.map((url, idx) => (
-                                <div key={idx} className="relative group w-24 h-24 rounded-2xl overflow-hidden border">
-                                   <img src={normalizeImageUrl(url)} className="w-full h-full object-cover" alt="" />
-                                   <button onClick={() => setEditPostImages(prev => prev.filter((_, i) => i !== idx))} className="absolute inset-0 bg-red-500/80 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
-                                      <Trash2 size={16} />
-                                   </button>
-                                </div>
-                             ))}
+                             {editPostImages.length > 0 && (
+                                <MediaPreview 
+                                   media={editPostImages.map((url) => ({
+                                      url: normalizeImageUrl(url),
+                                      type: 'image' as const,
+                                   }))}
+                                   size="sm"
+                                   showDownload={false}
+                                   onRemove={(index) => setEditPostImages(prev => prev.filter((_, i) => i !== index))}
+                                />
+                             )}
                              <label className={`w-24 h-24 flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer hover:border-indigo-400 transition-all ${uploadingEditImage ? 'bg-indigo-50' : 'bg-slate-50'}`}>
                                 {uploadingEditImage ? <Loader className="animate-spin text-indigo-600" size={20} /> : <Plus className="text-slate-400" />}
                                 <input type="file" className="hidden" accept="image/*" onChange={handleEditImageUpload} disabled={uploadingEditImage} />

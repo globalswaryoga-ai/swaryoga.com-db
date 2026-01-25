@@ -1,7 +1,8 @@
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
-import { Lead, WhatsAppAutomationRule, WhatsAppMessage, ChatbotFlow } from '@/lib/schemas/enterpriseSchemas';
+import { Lead, WhatsAppAutomationRule, WhatsAppMessage, ChatbotFlow, getChatbotScheduledAction } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppText, sendWhatsAppPresence } from '@/lib/whatsapp';
+import { getBotResponse, searchKnowledgeBase, isAdminAvailable } from '@/lib/chatbot/knowledge-bot';
 
 type InboundContext = {
   leadId: string;
@@ -36,6 +37,21 @@ function isQuestion(text: string): boolean {
 }
 
 async function maybeAIReply(lead: any, ctx: InboundContext): Promise<string | null> {
+  // First, try knowledge base
+  const kbEnabled = getEnvFlag('WHATSAPP_KNOWLEDGE_BASE_ENABLED', true);
+  if (kbEnabled) {
+    try {
+      const kbResult = await searchKnowledgeBase(ctx.body, { preferShortAnswer: true });
+      if (kbResult.found && kbResult.confidence >= 0.6) {
+        console.log(`[AI Reply] Using knowledge base answer (confidence: ${kbResult.confidence})`);
+        return kbResult.answer;
+      }
+    } catch (kbErr) {
+      console.warn('[AI Reply] Knowledge base search failed:', kbErr);
+    }
+  }
+
+  // Fall back to OpenAI if enabled
   const enabled = getEnvFlag('WHATSAPP_AI_AGENT_ENABLED', false);
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -347,57 +363,370 @@ async function advanceChatbotFlow(lead: any, ctx: InboundContext, flow: any): Pr
   let nextNodeId = currentNode.nextNodeId;
   let replyObj: any = null;
 
-  // 1) Logic to determine next node based on input
-  if (currentNode.type === 'question' || currentNode.type === 'buttons') {
-    const userInput = ctx.body.trim().toLowerCase();
-    const matchedOption = currentNode.options?.find((opt: any) => 
-      String(opt.label || '').toLowerCase() === userInput || 
-      String(opt.value || '').toLowerCase() === userInput
+  // ==========================================
+  // 0) Check if user was waiting for reply and just responded
+  // ==========================================
+  if (state.waitingForReply && ctx.body.trim()) {
+    console.log(`[Chatbot] User replied while waiting - cancelling timeout`);
+    
+    // Cancel pending timeout action
+    const ChatbotScheduledAction = getChatbotScheduledAction();
+    await ChatbotScheduledAction.updateMany(
+      { leadId: lead._id, actionType: 'wait_reply_timeout', status: 'pending' },
+      { $set: { status: 'cancelled', executedAt: ctx.now } }
     );
-
-    if (matchedOption) {
-      nextNodeId = matchedOption.nextNodeId;
-    } else if (currentNode.questionType === 'text') {
-      // For free text questions, we just move to nextNodeId if it exists
-      nextNodeId = currentNode.nextNodeId;
-    } else {
-      return { text: `I'm sorry, I didn't understand that. Please choose one of: ${currentNode.options.map((o: any) => o.label).join(', ')}` };
+    
+    // Handle reply delay if specified
+    const replyDelayMin = state.replyDelayMinutes || currentNode.replyDelayMinutes || 0;
+    if (replyDelayMin > 0) {
+      console.log(`[Chatbot] Reply delay: ${replyDelayMin} minutes before continuing`);
+      
+      const executeAt = new Date(ctx.now.getTime() + replyDelayMin * 60 * 1000);
+      await ChatbotScheduledAction.create({
+        leadId: lead._id,
+        phoneNumber: ctx.fromPhone,
+        flowId: flow._id,
+        actionType: 'delayed_message',
+        status: 'pending',
+        sourceNodeId: state.nodeId,
+        targetNodeId: currentNode.nextNodeId,
+        executeAt,
+        metadata: { replyDelayMin, userReply: ctx.body.substring(0, 200) }
+      });
+      
+      // Update state to show we're in reply delay
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { 
+          'metadata.chatbotFlowState': { 
+            flowId: state.flowId, 
+            nodeId: state.nodeId, 
+            waitingForReply: false,
+            replyDelayScheduled: true,
+            scheduledAt: executeAt,
+            updatedAt: ctx.now 
+          } 
+        } }
+      );
+      
+      return null; // Message will be sent after delay
+    }
+    
+    // No reply delay - advance immediately
+    nextNodeId = currentNode.nextNodeId;
+    if (nextNodeId) {
+      // Clear waiting state and continue
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNodeId, updatedAt: ctx.now } } }
+      );
+      // Fetch updated lead and continue with next node
+      const updatedLead = await Lead.findById(lead._id).lean();
+      return advanceChatbotFlow(updatedLead, { ...ctx, body: '' }, flow);
     }
   }
 
-  // 2) Get the next node's content
-  const nextNode = flow.nodes?.find((n: any) => n.nodeId === nextNodeId);
-  if (nextNode) {
-    console.log(`[Chatbot] Advancing to next node: ${nextNodeId}`);
-    
-    // Assign labels if defined
-    if (Array.isArray(nextNode.assignLabels) && nextNode.assignLabels.length > 0) {
-      await Lead.updateOne({ _id: lead._id }, { $addToSet: { labels: { $each: nextNode.assignLabels } } });
-    }
+  // ==========================================
+  // 1) Handle current node based on type
+  // ==========================================
+  
+  // BUTTONS node - match user input to button option
+  if (currentNode.type === 'buttons') {
+    const userInput = ctx.body.trim().toLowerCase();
+    const matchedOption = currentNode.options?.find((opt: any) => {
+      const labelMatch = String(opt.label || '').toLowerCase();
+      const valueMatch = String(opt.value || '').toLowerCase();
+      // Match by full text, number (1, 2, 3), or partial contains
+      return labelMatch === userInput || 
+             valueMatch === userInput ||
+             userInput.includes(labelMatch) ||
+             labelMatch.includes(userInput);
+    });
 
-    if (nextNode.type === 'message' || nextNode.type === 'question' || nextNode.type === 'buttons') {
-      replyObj = {
-        text: nextNode.messageText || nextNode.questionText,
-        spintaxEnabled: nextNode.spintaxEnabled,
-        presenceType: nextNode.presenceType,
-        presenceDelay: nextNode.presenceDelay
+    if (matchedOption) {
+      nextNodeId = matchedOption.nextNodeId || currentNode.nextNodeId;
+      console.log(`[Chatbot] Button matched: "${matchedOption.label}" -> ${nextNodeId}`);
+    } else {
+      // Show button options again
+      const buttonLabels = currentNode.options?.map((o: any, i: number) => `${i + 1}. ${o.label}`).join('\n') || '';
+      return { 
+        text: `Please choose one of these options:\n${buttonLabels}`,
+        spintaxEnabled: false,
+        presenceType: 'composing',
+        presenceDelay: 1
       };
-    } else if (nextNode.type === 'template') {
-       // ... placeholder
-    } else if (nextNode.type === 'end') {
-      replyObj = { text: nextNode.messageText || 'Thank you!' };
-      await Lead.updateOne({ _id: lead._id }, { $unset: { 'metadata.chatbotFlowState': 1 } });
-      return replyObj;
     }
+  }
+  
+  // QUESTION node - handle user text response
+  if (currentNode.type === 'question') {
+    const userInput = ctx.body.trim().toLowerCase();
+    
+    // If multiple choice, match options
+    if (currentNode.questionType === 'multiple_choice' && currentNode.options?.length > 0) {
+      const matchedOption = currentNode.options?.find((opt: any) => 
+        String(opt.label || '').toLowerCase() === userInput || 
+        String(opt.value || '').toLowerCase() === userInput
+      );
+      if (matchedOption) {
+        nextNodeId = matchedOption.nextNodeId || currentNode.nextNodeId;
+      } else {
+        return { text: `Please choose one of: ${currentNode.options.map((o: any) => o.label).join(', ')}` };
+      }
+    } else {
+      // Free text - store in variable if defined
+      if (currentNode.variableName) {
+        const vars = md.chatbotVariables || {};
+        vars[currentNode.variableName] = ctx.body.trim();
+        await Lead.updateOne({ _id: lead._id }, { $set: { 'metadata.chatbotVariables': vars } });
+      }
+      nextNodeId = currentNode.nextNodeId;
+    }
+  }
 
-    // Update state to the new node
+  // ==========================================
+  // 2) Get the next node and process it
+  // ==========================================
+  const nextNode = flow.nodes?.find((n: any) => n.nodeId === nextNodeId);
+  if (!nextNode) {
+    await Lead.updateOne({ _id: lead._id }, { $unset: { 'metadata.chatbotFlowState': 1 } });
+    return null;
+  }
+
+  console.log(`[Chatbot] Advancing to next node: ${nextNodeId} (${nextNode.type})`);
+    
+  // Assign labels if defined
+  if (Array.isArray(nextNode.assignLabels) && nextNode.assignLabels.length > 0) {
+    await Lead.updateOne({ _id: lead._id }, { $addToSet: { labels: { $each: nextNode.assignLabels } } });
+  }
+  
+  // Remove labels if defined
+  if (Array.isArray(nextNode.removeLabels) && nextNode.removeLabels.length > 0) {
+    await Lead.updateOne({ _id: lead._id }, { $pull: { labels: { $in: nextNode.removeLabels } } });
+  }
+
+  // ==========================================
+  // 3) Process next node by type
+  // ==========================================
+  
+  // DELAY node - wait, then auto-advance to next node
+  if (nextNode.type === 'delay') {
+    // Calculate total delay in seconds from flexible unit fields
+    let delaySec = nextNode.delaySeconds || 0;
+    if (nextNode.delayMinutes) delaySec += nextNode.delayMinutes * 60;
+    if (nextNode.delayHours) delaySec += nextNode.delayHours * 3600;
+    if (delaySec === 0) delaySec = 3; // Default 3 seconds
+    
+    console.log(`[Chatbot] Delay node: ${delaySec}s delay`);
+    
+    // For short delays (30 seconds or less), wait synchronously
+    if (delaySec <= 30) {
+      await sleep(delaySec * 1000);
+      
+      // Auto-advance past delay node
+      if (nextNode.nextNodeId) {
+        await Lead.updateOne(
+          { _id: lead._id },
+          { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now } } }
+        );
+        return advanceChatbotFlow(lead, { ...ctx, body: '' }, flow);
+      }
+    } else {
+      // For long delays, schedule an action to execute later
+      const ChatbotScheduledAction = getChatbotScheduledAction();
+      const executeAt = new Date(ctx.now.getTime() + delaySec * 1000);
+      
+      await ChatbotScheduledAction.create({
+        leadId: lead._id,
+        phoneNumber: ctx.fromPhone,
+        flowId: flow._id,
+        actionType: 'delayed_message',
+        status: 'pending',
+        sourceNodeId: nextNodeId,
+        targetNodeId: nextNode.nextNodeId,
+        executeAt,
+        metadata: { delaySec, flowState: state }
+      });
+      
+      // Update lead state to the delay node (will be advanced by scheduler)
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { 
+          'metadata.chatbotFlowState': { 
+            flowId: state.flowId, 
+            nodeId: nextNodeId, 
+            scheduledAt: executeAt,
+            updatedAt: ctx.now 
+          } 
+        } }
+      );
+      
+      console.log(`[Chatbot] Scheduled delayed action for ${executeAt.toISOString()}`);
+      return null; // Don't send anything now, scheduler will handle it
+    }
+  }
+  
+  // WAIT_REPLY node - wait for user response with timeout
+  if (nextNode.type === 'wait_reply') {
+    const timeoutMinutes = nextNode.waitTimeoutMinutes || 60;
+    const replyDelayMin = nextNode.replyDelayMinutes || 0;
+    
+    console.log(`[Chatbot] Wait for reply: timeout=${timeoutMinutes}m, replyDelay=${replyDelayMin}m`);
+    
+    // Schedule a timeout action
+    const ChatbotScheduledAction = getChatbotScheduledAction();
+    const timeoutAt = new Date(ctx.now.getTime() + timeoutMinutes * 60 * 1000);
+    
+    // Cancel any existing wait_reply timeouts for this lead
+    await ChatbotScheduledAction.updateMany(
+      { leadId: lead._id, actionType: 'wait_reply_timeout', status: 'pending' },
+      { $set: { status: 'cancelled' } }
+    );
+    
+    await ChatbotScheduledAction.create({
+      leadId: lead._id,
+      phoneNumber: ctx.fromPhone,
+      flowId: flow._id,
+      actionType: 'wait_reply_timeout',
+      status: 'pending',
+      sourceNodeId: nextNodeId,
+      targetNodeId: nextNode.nextNodeId, // Continue path if user replies in time
+      timeoutNodeId: nextNode.timeoutNodeId || nextNode.fallbackNodeId, // Timeout fallback
+      executeAt: timeoutAt,
+      waitingForReply: true,
+      replyDelayMinutes: replyDelayMin,
+      metadata: { timeoutMinutes, flowState: state }
+    });
+    
+    // Update lead state to waiting for reply
+    await Lead.updateOne(
+      { _id: lead._id },
+      { $set: { 
+        'metadata.chatbotFlowState': { 
+          flowId: state.flowId, 
+          nodeId: nextNodeId, 
+          waitingForReply: true,
+          replyDelayMinutes: replyDelayMin,
+          timeoutAt,
+          updatedAt: ctx.now 
+        } 
+      } }
+    );
+    
+    console.log(`[Chatbot] Waiting for reply, timeout at ${timeoutAt.toISOString()}`);
+    return null; // Wait for user to reply
+  }
+
+  // MESSAGE node - send text
+  if (nextNode.type === 'message') {
+  if (nextNode.type === 'message') {
+    replyObj = {
+      text: applySpintax(nextNode.messageText || ''),
+      spintaxEnabled: nextNode.spintaxEnabled,
+      presenceType: nextNode.presenceType || 'composing',
+      presenceDelay: nextNode.presenceDelay || 1
+    };
+    
+    // Auto-advance if message has a nextNodeId (it's just info, not expecting input)
+    if (nextNode.nextNodeId) {
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now } } }
+      );
+    }
+  }
+  
+  // QUESTION or BUTTONS node - send and wait for response
+  if (nextNode.type === 'question' || nextNode.type === 'buttons') {
+    let text = nextNode.messageText || nextNode.questionText || '';
+    
+    // Add button labels for buttons node
+    if (nextNode.type === 'buttons' && nextNode.options?.length > 0) {
+      const buttonLabels = nextNode.options.map((o: any, i: number) => `${i + 1}. ${o.label}`).join('\n');
+      text = text ? `${text}\n\n${buttonLabels}` : buttonLabels;
+    }
+    
+    replyObj = {
+      text: applySpintax(text),
+      spintaxEnabled: nextNode.spintaxEnabled,
+      presenceType: nextNode.presenceType || 'composing',
+      presenceDelay: nextNode.presenceDelay || 1
+    };
+    
+    // Update state to this node (waiting for user input)
     await Lead.updateOne(
       { _id: lead._id },
       { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNodeId, updatedAt: ctx.now } } }
     );
-  } else {
-    // No next node? End flow.
-    await Lead.updateOne({ _id: lead._id }, { $unset: { 'metadata.chatbotFlowState': 1 } });
+  }
+  
+  // TEMPLATE node - send WhatsApp template
+  if (nextNode.type === 'template') {
+    replyObj = {
+      templateId: nextNode.templateId,
+      templateName: nextNode.templateName,
+      isTemplate: true
+    };
+    if (nextNode.nextNodeId) {
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now } } }
+      );
+    }
+  }
+  
+  // CRM_UPDATE node - update lead and auto-advance
+  if (nextNode.type === 'crm_update') {
+    if (nextNode.leadUpdates && typeof nextNode.leadUpdates === 'object') {
+      await Lead.updateOne({ _id: lead._id }, { $set: nextNode.leadUpdates });
+      console.log(`[Chatbot] CRM update applied:`, nextNode.leadUpdates);
+    }
+    if (nextNode.nextNodeId) {
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: nextNode.nextNodeId, updatedAt: ctx.now } } }
+      );
+      return advanceChatbotFlow(lead, { ...ctx, body: '' }, flow);
+    }
+  }
+  
+  // CONDITION node - evaluate and branch
+  if (nextNode.type === 'condition') {
+    const field = nextNode.conditionField || 'text';
+    const op = nextNode.conditionOp || 'contains';
+    const val = String(nextNode.conditionValue || '').toLowerCase();
+    
+    let testValue = '';
+    if (field === 'text') testValue = ctx.body.toLowerCase();
+    else if (field === 'lead_status') testValue = String(lead.status || '').toLowerCase();
+    else if (field === 'label') testValue = (lead.labels || []).join(',').toLowerCase();
+    
+    let matched = false;
+    if (op === 'contains') matched = testValue.includes(val);
+    else if (op === 'equals') matched = testValue === val;
+    else if (op === 'startsWith') matched = testValue.startsWith(val);
+    else if (op === 'endsWith') matched = testValue.endsWith(val);
+    
+    const targetNodeId = matched ? nextNode.nextNodeId : nextNode.fallbackNodeId;
+    console.log(`[Chatbot] Condition: ${field} ${op} "${val}" = ${matched} -> ${targetNodeId}`);
+    
+    if (targetNodeId) {
+      await Lead.updateOne(
+        { _id: lead._id },
+        { $set: { 'metadata.chatbotFlowState': { flowId: state.flowId, nodeId: targetNodeId, updatedAt: ctx.now } } }
+      );
+      return advanceChatbotFlow(lead, ctx, flow);
+    }
+  }
+  
+  // END node - finish flow
+  if (nextNode.type === 'end') {
+    replyObj = { 
+      text: applySpintax(nextNode.messageText || 'Thank you!'),
+      presenceType: 'composing',
+      presenceDelay: 1
+    };
+    await Lead.updateOne({ _id: lead._id }, { $unset: { 'metadata.chatbotFlowState': 1, 'metadata.chatbotVariables': 1 } });
   }
 
   return replyObj;
@@ -430,6 +759,31 @@ export async function handleInboundWhatsAppAutomations(input: {
     now,
     wasFirstInbound: Boolean(input.wasFirstInbound),
   };
+
+  // Check if knowledge base auto-reply is enabled (when admin unavailable)
+  const kbAutoReplyEnabled = getEnvFlag('WHATSAPP_KB_AUTO_REPLY', true);
+  if (kbAutoReplyEnabled) {
+    try {
+      const adminStatus = await isAdminAvailable();
+      if (!adminStatus.available) {
+        console.log(`[Automation] Admin unavailable (${adminStatus.reason}), checking knowledge base...`);
+        const botResponse = await getBotResponse(body, {
+          leadId: String(lead._id),
+          phoneNumber: fromPhone,
+        });
+        
+        if (botResponse.shouldRespond && botResponse.response) {
+          console.log(`[Automation] Sending KB auto-reply (source: ${botResponse.source}, confidence: ${botResponse.confidence})`);
+          await sendOutboundText(lead, fromPhone, botResponse.response, {
+            automation: { source: botResponse.source, confidence: botResponse.confidence, kb: true }
+          });
+          return; // Don't process other rules when KB auto-replied
+        }
+      }
+    } catch (kbErr) {
+      console.error('[Automation] KB auto-reply error:', kbErr);
+    }
+  }
 
   const rules = await WhatsAppAutomationRule.find({ enabled: true })
     .sort({ createdAt: 1 })

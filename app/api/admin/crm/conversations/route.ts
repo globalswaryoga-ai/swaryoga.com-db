@@ -116,12 +116,111 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Join lead for name/labels/status
+    // Normalize message phone number for matching (remove + and non-digits)
+    pipeline.push({
+      $addFields: {
+        _normalizedPhone: {
+          $replaceAll: {
+            input: {
+              $replaceAll: {
+                input: {
+                  $replaceAll: {
+                    input: {
+                      $replaceAll: {
+                        input: {
+                          $replaceAll: {
+                            input: '$phoneNumber',
+                            find: '+',
+                            replacement: '',
+                          },
+                        },
+                        find: ' ',
+                        replacement: '',
+                      },
+                    },
+                    find: '-',
+                    replacement: '',
+                  },
+                },
+                find: '(',
+                replacement: '',
+              },
+            },
+            find: ')',
+            replacement: '',
+          },
+        },
+      },
+    });
+
+    // Join lead for name/labels/status using normalized phone number comparison
     pipeline.push({
       $lookup: {
         from: 'leads',
-        localField: 'phoneNumber',
-        foreignField: 'phoneNumber',
+        let: { msgPhone: '$_normalizedPhone' },
+        pipeline: [
+          {
+            $addFields: {
+              _leadNormalizedPhone: {
+                $replaceAll: {
+                  input: {
+                    $replaceAll: {
+                      input: {
+                        $replaceAll: {
+                          input: {
+                            $replaceAll: {
+                              input: {
+                                $replaceAll: {
+                                  input: { $ifNull: ['$phoneNumber', ''] },
+                                  find: '+',
+                                  replacement: '',
+                                },
+                              },
+                              find: ' ',
+                              replacement: '',
+                            },
+                          },
+                          find: '-',
+                          replacement: '',
+                        },
+                      },
+                      find: '(',
+                      replacement: '',
+                    },
+                  },
+                  find: ')',
+                  replacement: '',
+                },
+              },
+            },
+          },
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  // Exact match after normalization
+                  { $eq: ['$_leadNormalizedPhone', '$$msgPhone'] },
+                  // Match if lead phone is 10 digits (no country code) and message has 91 prefix
+                  {
+                    $and: [
+                      { $eq: [{ $strLenCP: '$_leadNormalizedPhone' }, 10] },
+                      { $eq: [{ $substrCP: ['$$msgPhone', 0, 2] }, '91'] },
+                      { $eq: [{ $substrCP: ['$$msgPhone', 2, 10] }, '$_leadNormalizedPhone'] },
+                    ],
+                  },
+                  // Match if message phone is 10 digits and lead has 91 prefix
+                  {
+                    $and: [
+                      { $eq: [{ $strLenCP: '$$msgPhone' }, 10] },
+                      { $eq: [{ $substrCP: ['$_leadNormalizedPhone', 0, 2] }, '91'] },
+                      { $eq: [{ $substrCP: ['$_leadNormalizedPhone', 2, 10] }, '$$msgPhone'] },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
         as: 'lead',
       },
     });
@@ -163,25 +262,26 @@ export async function GET(request: NextRequest) {
         _id: '$phoneNumber',
         leadId: '$lead._id',
         leadNumber: '$lead.leadNumber',
+        // Return actual lead name - simple: just use lead.name (or displayName if available)
         name: {
-          $ifNull: [
-            {
-              $cond: [
-                { $and: [{ $ne: ['$lead.displayName', null] }, { $ne: ['$lead.displayName', ''] }] },
-                '$lead.displayName',
-                {
-                  $cond: [
-                    { $and: [{ $ne: ['$lead.title', null] }, { $ne: ['$lead.title', ''] }, { $ne: ['$lead.name', null] }, { $ne: ['$lead.name', ''] }] },
-                    { $concat: ['$lead.title', '. ', '$lead.name'] },
-                    {
-                      $ifNull: ['$lead.name', '$phoneNumber']
-                    }
-                  ]
-                }
+          $cond: {
+            if: { $ifNull: ['$lead._id', false] },
+            then: {
+              $ifNull: [
+                { $cond: [{ $gt: [{ $strLenCP: { $ifNull: ['$lead.displayName', ''] } }, 0] }, '$lead.displayName', null] },
+                { $cond: [{ $gt: [{ $strLenCP: { $ifNull: ['$lead.name', ''] } }, 0] }, '$lead.name', null] }
               ]
             },
-            '$phoneNumber'
-          ]
+            else: null
+          }
+        },
+        // Flag to indicate if lead exists in database
+        hasLead: { 
+          $cond: [
+            { $ifNull: ['$lead._id', false] }, 
+            true, 
+            false
+          ] 
         },
         status: '$lead.status',
         labels: '$lead.labels',
@@ -226,8 +326,9 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Sort by most recent activity
-    pipeline.push({ $sort: { lastMessageAt: -1 } });
+    // Sort: unread chats first, then by most recent activity
+    // This ensures users with unread messages always appear at the top
+    pipeline.push({ $sort: { unreadCount: -1, lastMessageAt: -1 } });
 
     // Count and pagination
     const countPipeline = [...pipeline, { $count: 'total' }];

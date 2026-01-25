@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchParams } from 'next/navigation';
+import { InlineMediaPreview, MediaPreview, detectMediaType, getFilenameFromUrl } from '@/components/admin/crm';
 import { 
   Paperclip, 
   Zap, 
@@ -66,6 +67,8 @@ function QRWhatsAppInboxPageContent() {
   const [lastHealthData, setLastHealthData] = useState<any>(null);
 
   const [loggingInNewNumber, setLoggingInNewNumber] = useState(false);
+  const [forceResetting, setForceResetting] = useState(false);
+  const [forceResetInstructions, setForceResetInstructions] = useState<string[] | null>(null);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
@@ -1757,6 +1760,51 @@ function QRWhatsAppInboxPageContent() {
     }
   };
 
+  // Force reset session - for "Try again later" errors
+  const handleForceReset = async () => {
+    if (forceResetting) return;
+    
+    if (!confirm('This will clear the WhatsApp session and attempt to force a fresh start. Continue?')) {
+      return;
+    }
+    
+    setForceResetting(true);
+    setForceResetInstructions(null);
+    setBridgeError(null);
+    
+    try {
+      showToast('🔄 Resetting session...', 'info');
+      
+      const res = await fetch('/api/admin/crm/whatsapp/force-reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      
+      const data = await res.json();
+      
+      if (data.success && data.qr) {
+        // Got a new QR code!
+        setQr(data.qr);
+        showToast('✅ Session reset! Scan the new QR code.', 'success');
+        setForceResetInstructions(null);
+      } else if (data.instructions) {
+        // Show instructions to user
+        setForceResetInstructions(data.instructions);
+        showToast('⚠️ Manual steps required - see instructions below', 'warning');
+      } else {
+        setBridgeError(data.message || data.error || 'Reset failed');
+      }
+    } catch (err) {
+      console.error('[ForceReset] Error:', err);
+      setBridgeError(err instanceof Error ? err.message : 'Force reset failed');
+    } finally {
+      setForceResetting(false);
+    }
+  };
+
   const refreshQr = async () => {
     try {
       setBridgeError(null);
@@ -2508,7 +2556,7 @@ function QRWhatsAppInboxPageContent() {
                             style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif" }}
                           >
 
-                        {/* Media Content */}
+                        {/* Media Content - Using unified InlineMediaPreview */}
                         {wantsMediaLoad ? (
                           <div className="space-y-2">
                             <div className="text-sm text-[#0f3a4d]/70">📎 Media message</div>
@@ -2522,47 +2570,11 @@ function QRWhatsAppInboxPageContent() {
                           </div>
                         ) : resolvedMediaUrl ? (
                           <div className="space-y-2">
-                            {isImage && (
-                              <div className="relative bg-[#F5EBE0]/60 rounded-lg overflow-hidden">
-                                <img
-                                  src={resolvedMediaUrl}
-                                  alt="image"
-                                  className="w-full h-auto max-w-xs object-cover rounded-lg"
-                                  onError={(e) => {
-                                    console.error('[image] Load error:', resolvedMediaUrl);
-                                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22%3E%3Crect fill=%22%23e2e8f0%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 font-family=%22sans-serif%22 font-size=%2214%22 fill=%22%2364748b%22%3E📷 Failed to load%3C/text%3E%3C/svg%3E';
-                                  }}
-                                />
-                              </div>
-                            )}
-
-                            {isVideo && (
-                              <div className="relative bg-[#0f3a4d] rounded-lg overflow-hidden">
-                                <video
-                                  src={resolvedMediaUrl}
-                                  controls
-                                  className="w-full h-auto max-w-xs object-cover rounded-lg"
-                                >
-                                  Your browser does not support the video tag.
-                                </video>
-                              </div>
-                            )}
-
-                            {!isImage && !isVideo && (
-                              <div className="space-y-2">
-                                <div className="text-sm text-[#0f3a4d]/70">📎 Attachment</div>
-                                <a
-                                  href={resolvedMediaUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  download={cachedMedia?.filename || undefined}
-                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F5EBE0] border border-[#E8DFD5] text-xs font-bold text-[#0f3a4d] hover:bg-[#E8DFD5]"
-                                >
-                                  {isPDF ? 'Open PDF' : 'Open / Download'}
-                                </a>
-                              </div>
-                            )}
-
+                            <InlineMediaPreview 
+                              url={resolvedMediaUrl}
+                              type={isImage ? 'image' : isVideo ? 'video' : 'document'}
+                              className="rounded-lg overflow-hidden max-w-xs"
+                            />
                             {msg.body && msg.body.trim() && (
                               <div className="break-words font-normal">{msg.body}</div>
                             )}
@@ -2693,37 +2705,21 @@ function QRWhatsAppInboxPageContent() {
                     const isImage = file?.type.startsWith('image/');
                     const isVideo = file?.type.startsWith('video/');
                     const isAudio = file?.type.startsWith('audio/');
+                    const mediaType = isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'document';
                     
                     return (
                       <div key={idx} className="relative flex-shrink-0">
-                        {isImage ? (
-                          <img 
-                            src={preview} 
-                            alt="Preview" 
-                            className="w-16 h-16 object-cover rounded-lg border border-[#E8DFD5]" 
-                          />
-                        ) : isVideo ? (
-                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-[#E8DFD5] flex items-center justify-center">
-                            <span className="text-2xl">🎬</span>
-                          </div>
-                        ) : isAudio ? (
-                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-[#E8DFD5] flex items-center justify-center">
-                            <span className="text-2xl">🔊</span>
-                          </div>
-                        ) : (
-                          <div className="w-16 h-16 bg-slate-300 rounded-lg border border-[#E8DFD5] flex items-center justify-center">
-                            <span className="text-2xl">📄</span>
-                          </div>
-                        )}
-                        <button 
-                          onClick={() => removePendingMedia(idx)}
-                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm hover:bg-red-600"
-                        >
-                          <X size={12} />
-                        </button>
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-[8px] text-white px-1 py-0.5 truncate rounded-b-lg">
-                          {pendingMedia[idx]?.name}
-                        </div>
+                        <MediaPreview 
+                          media={{
+                            url: preview,
+                            type: mediaType,
+                            name: pendingMedia[idx]?.name
+                          }}
+                          size="sm"
+                          showDownload={false}
+                          showExpand={false}
+                          onRemove={() => removePendingMedia(idx)}
+                        />
                       </div>
                     );
                   })}
@@ -3185,20 +3181,63 @@ function QRWhatsAppInboxPageContent() {
                   <li>Point your phone at this screen to capture the code.</li>
                 </ol>
 
-                <div className="mt-5 flex gap-3">
+                {/* Troubleshooting help for common issues */}
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs font-bold text-amber-800 mb-1">⚠️ Getting "Try again later"?</p>
+                  <ul className="text-xs text-amber-700 space-y-1">
+                    <li>• Click <strong>Force Reset</strong> below to clear session</li>
+                    <li>• On your phone: WhatsApp → Settings → Linked Devices → Log out all</li>
+                    <li>• Wait 5 minutes, then try scanning again</li>
+                  </ul>
+                </div>
+
+                {/* Force Reset Instructions (shown after force reset) */}
+                {forceResetInstructions && forceResetInstructions.length > 0 && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs font-bold text-blue-800 mb-2">📋 Follow these steps:</p>
+                    <ul className="text-xs text-blue-700 space-y-1">
+                      {forceResetInstructions.map((instruction, idx) => (
+                        <li key={idx}>{instruction}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-col gap-2">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={refreshQr}
+                      className="flex-1 bg-[#0f3a4d] hover:bg-[#1a4d66] text-white py-2.5 rounded-lg font-bold transition-all"
+                    >
+                      Refresh QR
+                    </button>
+                    <button
+                      onClick={handleDisconnect}
+                      disabled={disconnecting}
+                      className="flex-1 bg-[#0f3a4d] hover:bg-black disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all"
+                      title="Logout by disconnecting the current session"
+                    >
+                      {disconnecting ? 'Logging out…' : 'Logout'}
+                    </button>
+                  </div>
+                  
+                  {/* Force Reset Button - for "Try again later" errors */}
                   <button
-                    onClick={refreshQr}
-                    className="flex-1 bg-[#0f3a4d] hover:bg-[#1a4d66] text-white py-2.5 rounded-lg font-bold transition-all"
+                    onClick={handleForceReset}
+                    disabled={forceResetting}
+                    className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                    title="Force reset session if getting 'Try again later' error"
                   >
-                    Refresh QR
-                  </button>
-                  <button
-                    onClick={handleDisconnect}
-                    disabled={disconnecting}
-                    className="flex-1 bg-[#0f3a4d] hover:bg-black disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all"
-                    title="Logout by disconnecting the current session"
-                  >
-                    {disconnecting ? 'Logging out…' : 'Logout'}
+                    {forceResetting ? (
+                      <>
+                        <span className="animate-spin">🔄</span>
+                        Resetting Session...
+                      </>
+                    ) : (
+                      <>
+                        🔧 Force Reset Session
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

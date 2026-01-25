@@ -13,6 +13,7 @@ interface ConversionEvent {
   eventTime?: number;
   eventId?: string;
   eventSourceUrl?: string;
+  actionSource?: 'website' | 'email' | 'app' | 'phone_call' | 'chat' | 'physical_store' | 'system_generated' | 'other';
   optOut?: boolean;
   userData?: {
     email?: string;
@@ -26,6 +27,9 @@ interface ConversionEvent {
     externalId?: string;
     clientIpAddress?: string;
     clientUserAgent?: string;
+    leadId?: string | number; // Meta Lead Ads lead ID
+    fbClickId?: string; // fbc parameter
+    fbBrowserId?: string; // fbp parameter
   };
   customData?: {
     value?: number;
@@ -33,6 +37,8 @@ interface ConversionEvent {
     contentName?: string;
     contentType?: string;
     contentId?: string;
+    eventSource?: string;
+    leadEventSource?: string;
     [key: string]: any;
   };
   testEventCode?: string;
@@ -50,6 +56,21 @@ function hashPII(value: string): string {
 }
 
 /**
+ * Normalize and hash phone number for Meta
+ * Removes non-digits and ensures country code
+ */
+function normalizeAndHashPhone(phone: string): string {
+  if (!phone) return '';
+  // Remove all non-digits
+  let normalized = phone.replace(/\D/g, '');
+  // Add India country code if 10 digits
+  if (normalized.length === 10) {
+    normalized = '91' + normalized;
+  }
+  return hashPII(normalized);
+}
+
+/**
  * Generate appsecret_proof for Meta API (required for server-side calls)
  */
 function generateAppSecretProof(accessToken: string, appSecret: string): string {
@@ -64,7 +85,7 @@ function generateAppSecretProof(accessToken: string, appSecret: string): string 
  */
 export async function sendConversionEvent(event: ConversionEvent) {
   try {
-    const pixelId = '906922940547021';
+    const pixelId = process.env.META_PIXEL_ID || '906922940547021';
     const accessToken = process.env.META_CONVERSIONS_API_TOKEN;
     const appSecret = process.env.META_APP_SECRET;
 
@@ -73,57 +94,68 @@ export async function sendConversionEvent(event: ConversionEvent) {
       return { success: false, error: 'Missing access token' };
     }
 
-    if (!appSecret) {
-      console.warn('⚠️  META_APP_SECRET not set');
-      return { success: false, error: 'Missing app secret for appsecret_proof' };
+    // Hash user data (PII normalization)
+    const userData: Record<string, any> = {};
+    
+    if (event.userData) {
+      // Hash email - Meta expects array format for em
+      if (event.userData.email) {
+        userData.em = [hashPII(event.userData.email)];
+      }
+      // Hash phone - Meta expects array format for ph
+      if (event.userData.phone) {
+        userData.ph = [normalizeAndHashPhone(event.userData.phone)];
+      }
+      // Hash other PII
+      if (event.userData.firstName) userData.fn = hashPII(event.userData.firstName);
+      if (event.userData.lastName) userData.ln = hashPII(event.userData.lastName);
+      if (event.userData.city) userData.ct = hashPII(event.userData.city);
+      if (event.userData.state) userData.st = hashPII(event.userData.state);
+      if (event.userData.zipCode) userData.zp = hashPII(event.userData.zipCode);
+      if (event.userData.country) userData.country = hashPII(event.userData.country);
+      // Non-hashed fields
+      if (event.userData.externalId) userData.external_id = event.userData.externalId;
+      if (event.userData.clientIpAddress) userData.client_ip_address = event.userData.clientIpAddress;
+      if (event.userData.clientUserAgent) userData.client_user_agent = event.userData.clientUserAgent;
+      if (event.userData.leadId) userData.lead_id = event.userData.leadId;
+      if (event.userData.fbClickId) userData.fbc = event.userData.fbClickId;
+      if (event.userData.fbBrowserId) userData.fbp = event.userData.fbBrowserId;
     }
 
-    // Hash user data (PII normalization)
-    const userData = event.userData
-      ? {
-          em: event.userData.email ? hashPII(event.userData.email) : undefined,
-          ph: event.userData.phone ? hashPII(event.userData.phone.replace(/\D/g, '')) : undefined,
-          fn: event.userData.firstName ? hashPII(event.userData.firstName) : undefined,
-          ln: event.userData.lastName ? hashPII(event.userData.lastName) : undefined,
-          ct: event.userData.city ? hashPII(event.userData.city) : undefined,
-          st: event.userData.state ? hashPII(event.userData.state) : undefined,
-          zp: event.userData.zipCode ? hashPII(event.userData.zipCode) : undefined,
-          country: event.userData.country ? hashPII(event.userData.country) : undefined,
-          external_id: event.userData.externalId,
-          client_ip_address: event.userData.clientIpAddress,
-          client_user_agent: event.userData.clientUserAgent,
-        }
-      : {};
-
-    // Remove undefined values
-    Object.keys(userData).forEach((key) => {
-      if (userData[key] === undefined) {
-        delete userData[key];
-      }
-    });
-
-    // Generate appsecret_proof
-    const appSecretProof = generateAppSecretProof(accessToken, appSecret);
-
-    const payload = {
-      data: [
-        {
-          event_name: event.eventName,
-          event_time: event.eventTime || Math.floor(Date.now() / 1000),
-          event_id: event.eventId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          event_source_url: event.eventSourceUrl,
-          opt_out: event.optOut || false,
-          user_data: userData,
-          custom_data: event.customData || {},
-          test_event_code: event.testEventCode,
-        },
-      ],
-      access_token: accessToken,
-      appsecret_proof: appSecretProof,
+    // Build event data
+    const eventData: Record<string, any> = {
+      event_name: event.eventName,
+      event_time: event.eventTime || Math.floor(Date.now() / 1000),
+      event_id: event.eventId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      action_source: event.actionSource || 'website',
+      user_data: userData,
     };
 
+    // Add optional fields
+    if (event.eventSourceUrl) eventData.event_source_url = event.eventSourceUrl;
+    if (event.optOut) eventData.opt_out = event.optOut;
+    if (event.customData && Object.keys(event.customData).length > 0) {
+      eventData.custom_data = event.customData;
+    }
+
+    const payload: Record<string, any> = {
+      data: [eventData],
+      access_token: accessToken,
+    };
+
+    // Add test event code if provided
+    if (event.testEventCode) {
+      payload.test_event_code = event.testEventCode;
+    }
+
+    // Add appsecret_proof if app secret is available (recommended for security)
+    if (appSecret) {
+      payload.appsecret_proof = generateAppSecretProof(accessToken, appSecret);
+    }
+
+    // Use Facebook Graph API (not Instagram)
     const response = await fetch(
-      `https://graph.instagram.com/v18.0/${pixelId}/events`,
+      `https://graph.facebook.com/v21.0/${pixelId}/events`,
       {
         method: 'POST',
         headers: {
@@ -140,17 +172,20 @@ export async function sendConversionEvent(event: ConversionEvent) {
       return {
         success: false,
         error: data.error?.message || 'API request failed',
+        details: data.error,
       };
     }
 
     console.log('✅ Conversion event sent to Meta:', {
       eventName: event.eventName,
-      eventId: payload.data[0].event_id,
+      eventId: eventData.event_id,
+      eventsReceived: data.events_received,
     });
 
     return {
       success: true,
-      eventId: payload.data[0].event_id,
+      eventId: eventData.event_id,
+      eventsReceived: data.events_received,
       data: data,
     };
   } catch (error) {
@@ -164,6 +199,7 @@ export async function sendConversionEvent(event: ConversionEvent) {
 
 /**
  * Track form submission (Lead event)
+ * Supports both website leads and CRM/system-generated leads
  */
 export async function trackFormSubmission(
   formData: {
@@ -173,13 +209,26 @@ export async function trackFormSubmission(
     lastName?: string;
     workshopName?: string;
     workshopId?: string;
+    leadId?: string | number; // Meta Lead Ads ID
+    eventSource?: string; // e.g., 'crm', 'website', 'whatsapp'
   },
   clientIp?: string,
-  userAgent?: string
+  userAgent?: string,
+  options?: {
+    actionSource?: 'website' | 'system_generated' | 'other';
+    testEventCode?: string;
+  }
 ) {
+  // Determine action source based on context
+  const actionSource = options?.actionSource || 
+    (formData.leadId ? 'system_generated' : 'website');
+
   return sendConversionEvent({
     eventName: 'Lead',
-    eventSourceUrl: typeof window !== 'undefined' ? window.location.href : undefined,
+    actionSource,
+    eventSourceUrl: actionSource === 'website' && typeof window !== 'undefined' 
+      ? window.location.href 
+      : 'https://swaryoga.com',
     userData: {
       email: formData.email,
       phone: formData.phone,
@@ -187,13 +236,54 @@ export async function trackFormSubmission(
       lastName: formData.lastName,
       clientIpAddress: clientIp,
       clientUserAgent: userAgent,
+      leadId: formData.leadId,
     },
     customData: {
       contentName: formData.workshopName,
       contentType: 'workshop',
       contentId: formData.workshopId,
       currency: 'INR',
+      event_source: formData.eventSource || 'crm',
+      lead_event_source: 'Swar Yoga CRM',
     },
+    testEventCode: options?.testEventCode,
+  });
+}
+
+/**
+ * Track CRM lead (system-generated lead from CRM)
+ * Use this for leads imported or created in CRM
+ */
+export async function trackCRMLeadEvent(
+  leadData: {
+    email?: string;
+    phone?: string;
+    firstName?: string;
+    lastName?: string;
+    leadId?: string | number;
+    source?: string;
+    workshopName?: string;
+  },
+  testEventCode?: string
+) {
+  return sendConversionEvent({
+    eventName: 'Lead',
+    actionSource: 'system_generated',
+    eventSourceUrl: 'https://swaryoga.com',
+    userData: {
+      email: leadData.email,
+      phone: leadData.phone,
+      firstName: leadData.firstName,
+      lastName: leadData.lastName,
+      leadId: leadData.leadId,
+    },
+    customData: {
+      event_source: 'crm',
+      lead_event_source: 'Swar Yoga CRM',
+      content_name: leadData.workshopName,
+      source: leadData.source,
+    },
+    testEventCode,
   });
 }
 
@@ -408,6 +498,7 @@ export async function trackCustomEvent(
 export default {
   sendConversionEvent,
   trackFormSubmission,
+  trackCRMLeadEvent,
   trackPageView,
   trackPurchase,
   trackViewContent,

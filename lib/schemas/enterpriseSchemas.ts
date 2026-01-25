@@ -1128,15 +1128,27 @@ const ChatbotFlowSchema = new mongoose.Schema(
         nodeId: { type: String, required: true },
         type: {
           type: String,
-          enum: ['message', 'question', 'buttons', 'template', 'condition', 'delay', 'end'],
+          enum: [
+            // Basic nodes
+            'message', 'question', 'buttons', 'template', 'condition', 'delay', 'end',
+            // Advanced nodes - Actions
+            'api_call', 'webhook', 'crm_update', 'assign_agent', 'notification',
+            // Advanced nodes - Logic
+            'branch', 'loop', 'variable', 'random',
+            // Advanced nodes - Media
+            'image', 'document', 'audio', 'video', 'location',
+            // Advanced nodes - Integration
+            'knowledge_base', 'ai_response', 'calendar', 'payment'
+          ],
           default: 'message',
         },
         
         // Content depending on type
         messageText: String,
         templateId: mongoose.Schema.Types.ObjectId,
+        templateName: String,
         questionText: String,
-        questionType: { type: String, enum: ['text', 'multiple_choice', 'number'] },
+        questionType: { type: String, enum: ['text', 'multiple_choice', 'number', 'email', 'phone', 'date'] },
         
         // Presence / Delay features
         presenceType: { type: String, enum: ['composing', 'recording', 'paused', 'none'], default: 'none' },
@@ -1149,25 +1161,106 @@ const ChatbotFlowSchema = new mongoose.Schema(
             label: String,
             value: String,
             nextNodeId: String,
+            icon: String,
           },
         ],
         
         // Routing
         nextNodeId: String,
+        fallbackNodeId: String, // Used when condition fails or timeout
         
         // Delay in seconds before showing this node
         delaySeconds: { type: Number, default: 0 },
         
         // Labels to assign to conversation
         assignLabels: { type: [String], default: [] },
+        removeLabels: { type: [String], default: [] },
         
         // Timer (minutes until this node expires or triggers action)
         timerMinutes: Number,
-        timerAction: String, // e.g. 'escalate_to_human', 'end_flow'
+        timerAction: String, // e.g. 'escalate_to_human', 'end_flow', 'goto_node'
+        timerTargetNodeId: String,
+        
+        // Condition node settings
+        conditionField: String, // 'text', 'label', 'phone', 'variable', 'time', 'lead_status'
+        conditionOp: String, // 'contains', 'equals', 'startsWith', 'endsWith', 'regex', 'gt', 'lt'
+        conditionValue: String,
+        conditionBranches: [{
+          condition: String,
+          value: String,
+          nextNodeId: String,
+        }],
+        
+        // API/Webhook node settings
+        apiUrl: String,
+        apiMethod: { type: String, enum: ['GET', 'POST', 'PUT', 'DELETE'], default: 'POST' },
+        apiHeaders: mongoose.Schema.Types.Mixed,
+        apiBody: mongoose.Schema.Types.Mixed,
+        apiResponseVariable: String,
+        
+        // CRM Update node settings
+        leadUpdates: mongoose.Schema.Types.Mixed, // { status: 'prospect', workshopName: '...' }
+        
+        // Assign Agent node settings
+        assignToUserId: String,
+        assignToTeam: String,
+        assignRoundRobin: Boolean,
+        
+        // Notification node settings
+        notificationType: { type: String, enum: ['email', 'sms', 'push', 'webhook'], default: 'email' },
+        notificationRecipient: String,
+        notificationSubject: String,
+        notificationBody: String,
+        
+        // Variable node settings
+        variableName: String,
+        variableValue: String,
+        variableSource: String, // 'input', 'api_response', 'fixed', 'random'
+        
+        // Media node settings
+        mediaUrl: String,
+        mediaCaption: String,
+        mediaFilename: String,
+        
+        // Knowledge Base node settings
+        kbCategory: String,
+        kbFallbackText: String,
+        
+        // AI Response node settings
+        aiPrompt: String,
+        aiModel: String,
+        aiMaxTokens: Number,
+        
+        // Calendar node settings
+        calendarAction: String, // 'show_slots', 'book', 'cancel'
+        calendarEventType: String,
+        
+        // Payment node settings
+        paymentAmount: Number,
+        paymentCurrency: String,
+        paymentDescription: String,
+        paymentSuccessNodeId: String,
+        paymentFailNodeId: String,
+        
+        // Visual position (for flow builder)
+        position: {
+          x: Number,
+          y: Number,
+        },
         
         metadata: mongoose.Schema.Types.Mixed,
       },
     ],
+    
+    // Global variables for the flow
+    variables: mongoose.Schema.Types.Mixed,
+    
+    // Triggers that can start this flow
+    triggers: [{
+      type: { type: String, enum: ['keyword', 'first_message', 'button_click', 'api', 'scheduled'] },
+      value: String,
+      enabled: { type: Boolean, default: true },
+    }],
     
     metadata: mongoose.Schema.Types.Mixed,
   },
@@ -1217,6 +1310,161 @@ const ChatbotSettingsSchema = new mongoose.Schema(
 );
 
 ChatbotSettingsSchema.index({ createdByUserId: 1 });
+
+// ============================================================================
+// 18B. KNOWLEDGE BASE — FAQ/Knowledge articles for AI auto-reply
+// ============================================================================
+const KnowledgeBaseArticleSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true, index: true },
+    content: { type: String, required: true }, // The answer/response content
+    shortAnswer: { type: String, trim: true }, // Quick reply version (optional)
+    
+    // Categorization
+    category: { 
+      type: String, 
+      enum: ['general', 'workshops', 'pricing', 'schedule', 'booking', 'payment', 'refund', 'location', 'other'],
+      default: 'general',
+      index: true
+    },
+    subcategory: { type: String, trim: true },
+    
+    // Matching keywords & phrases (for semantic matching)
+    keywords: { type: [String], default: [], index: true },
+    triggerPhrases: { type: [String], default: [] }, // Exact phrases that trigger this article
+    
+    // Language support
+    language: { type: String, enum: ['en', 'hi', 'mr', 'auto'], default: 'auto', index: true },
+    
+    // Priority for matching (higher = more important)
+    priority: { type: Number, default: 0, index: true },
+    
+    // Usage tracking
+    usageCount: { type: Number, default: 0 },
+    lastUsedAt: { type: Date },
+    helpfulCount: { type: Number, default: 0 },
+    notHelpfulCount: { type: Number, default: 0 },
+    
+    // Status
+    enabled: { type: Boolean, default: true, index: true },
+    createdByUserId: { type: String, trim: true, index: true },
+    
+    // Optional: Link to specific workshop or product
+    workshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workshop' },
+    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'knowledge_base_articles' }
+);
+
+KnowledgeBaseArticleSchema.index({ enabled: 1, category: 1, priority: -1 });
+KnowledgeBaseArticleSchema.index({ keywords: 1 });
+KnowledgeBaseArticleSchema.index({ '$**': 'text' }); // Full-text search
+
+// ============================================================================
+// 18C. CHATBOT CONVERSATION STATE — Track user's position in chatbot flows
+// ============================================================================
+const ChatbotConversationStateSchema = new mongoose.Schema(
+  {
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    phoneNumber: { type: String, required: true, trim: true, index: true },
+    
+    // Current flow state
+    activeFlowId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatbotFlow' },
+    currentNodeId: { type: String, trim: true },
+    flowStartedAt: { type: Date },
+    
+    // Conversation context
+    collectedData: mongoose.Schema.Types.Mixed, // { name: 'John', interest: 'online', ... }
+    previousResponses: { type: [String], default: [] },
+    
+    // Admin availability tracking
+    adminLastSeenAt: { type: Date },
+    waitingForAdmin: { type: Boolean, default: false },
+    escalatedAt: { type: Date },
+    
+    // Bot vs Human mode
+    mode: { 
+      type: String, 
+      enum: ['bot', 'human', 'hybrid'],
+      default: 'bot',
+      index: true
+    },
+    
+    // Last activity
+    lastMessageAt: { type: Date },
+    lastBotReplyAt: { type: Date },
+    messageCount: { type: Number, default: 0 },
+    
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'chatbot_conversation_states' }
+);
+
+ChatbotConversationStateSchema.index({ phoneNumber: 1 }, { unique: true });
+ChatbotConversationStateSchema.index({ leadId: 1 });
+ChatbotConversationStateSchema.index({ mode: 1, waitingForAdmin: 1 });
+
+// ============================================================================
+// 18D. CHATBOT SCHEDULED ACTIONS — Delayed messages & wait-for-reply timeouts
+// ============================================================================
+const ChatbotScheduledActionSchema = new mongoose.Schema(
+  {
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+    phoneNumber: { type: String, required: true, trim: true, index: true },
+    flowId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatbotFlow', required: true },
+    
+    // Action type
+    actionType: {
+      type: String,
+      enum: ['delayed_message', 'wait_reply_timeout', 'scheduled_node'],
+      required: true,
+      index: true,
+    },
+    
+    // Current state
+    status: {
+      type: String,
+      enum: ['pending', 'processing', 'completed', 'cancelled', 'failed'],
+      default: 'pending',
+      index: true,
+    },
+    
+    // Node info
+    sourceNodeId: { type: String, trim: true }, // Node that created this action
+    targetNodeId: { type: String, trim: true }, // Node to execute after action
+    timeoutNodeId: { type: String, trim: true }, // Node for timeout fallback (wait_reply)
+    
+    // Timing
+    executeAt: { type: Date, required: true, index: true }, // When to execute
+    createdAt: { type: Date, default: Date.now },
+    executedAt: { type: Date },
+    
+    // Wait for reply specific
+    waitingForReply: { type: Boolean, default: false },
+    replyDelayMinutes: { type: Number, default: 0 }, // Delay after user replies
+    
+    // Message content (for delayed messages)
+    messageType: { type: String, enum: ['text', 'template', 'media'], default: 'text' },
+    messageContent: { type: String },
+    templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate' },
+    templateVariables: mongoose.Schema.Types.Mixed,
+    mediaUrl: { type: String },
+    mediaCaption: { type: String },
+    
+    // Error tracking
+    retryCount: { type: Number, default: 0 },
+    lastError: { type: String },
+    
+    metadata: mongoose.Schema.Types.Mixed,
+  },
+  { timestamps: true, collection: 'chatbot_scheduled_actions' }
+);
+
+ChatbotScheduledActionSchema.index({ status: 1, executeAt: 1 });
+ChatbotScheduledActionSchema.index({ leadId: 1, status: 1 });
+ChatbotScheduledActionSchema.index({ phoneNumber: 1, waitingForReply: 1 });
 
 // ============================================================================
 // 19. CRM RECEIPTS — Printable receipts generated when a lead enters sales/enrolled
@@ -1450,6 +1698,9 @@ export function getBroadcastRun() { return getModel('BroadcastRun', BroadcastRun
 export function getBroadcastRunMessage() { return getModel('BroadcastRunMessage', BroadcastRunMessageSchema); }
 export function getChatbotFlow() { return getModel('ChatbotFlow', ChatbotFlowSchema); }
 export function getChatbotSettings() { return getModel('ChatbotSettings', ChatbotSettingsSchema); }
+export function getKnowledgeBaseArticle() { return getModel('KnowledgeBaseArticle', KnowledgeBaseArticleSchema); }
+export function getChatbotConversationState() { return getModel('ChatbotConversationState', ChatbotConversationStateSchema); }
+export function getChatbotScheduledAction() { return getModel('ChatbotScheduledAction', ChatbotScheduledActionSchema); }
 export function getCrmReceipt() { return getModel('CrmReceipt', CrmReceiptSchema); }
 export function getMediaFile() { return getModel('MediaFile', MediaFileSchema); }
 export function getEmailTemplate() { return getModel('EmailTemplate', EmailTemplateSchema); }
@@ -1485,6 +1736,9 @@ export const BroadcastRun = createModelProxy('BroadcastRun', BroadcastRunSchema)
 export const BroadcastRunMessage = createModelProxy('BroadcastRunMessage', BroadcastRunMessageSchema);
 export const ChatbotFlow = createModelProxy('ChatbotFlow', ChatbotFlowSchema);
 export const ChatbotSettings = createModelProxy('ChatbotSettings', ChatbotSettingsSchema);
+export const KnowledgeBaseArticle = createModelProxy('KnowledgeBaseArticle', KnowledgeBaseArticleSchema);
+export const ChatbotConversationState = createModelProxy('ChatbotConversationState', ChatbotConversationStateSchema);
+export const ChatbotScheduledAction = createModelProxy('ChatbotScheduledAction', ChatbotScheduledActionSchema);
 export const CrmReceipt = createModelProxy('CrmReceipt', CrmReceiptSchema);
 export const MediaFile = createModelProxy('MediaFile', MediaFileSchema);
 export const EmailTemplate = createModelProxy('EmailTemplate', EmailTemplateSchema);
