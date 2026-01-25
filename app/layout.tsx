@@ -99,17 +99,8 @@ export default function RootLayout({
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('init', '906922940547021', {
-                em: 'swaryoga',
-                _uf: 'bam'
-              });
+              fbq('init', '906922940547021');
               fbq('track', 'PageView');
-              
-              // Track website/domain info
-              fbq('set', 'UserProperties', {
-                country: 'IN',
-                external_id: window.location.hostname
-              });
               
               // Enhanced tracking for cost optimization
               document.addEventListener('DOMContentLoaded', function() {
