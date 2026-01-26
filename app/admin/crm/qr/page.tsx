@@ -2536,6 +2536,15 @@ function QRWhatsAppInboxPageContent() {
                     const ackColor = msg.ack === 3 ? 'text-blue-500' : 'text-[#0f3a4d]/60';
                     const ackDisplay = renderAckStatus(msg.ack);
 
+                    // Format message timestamp
+                    const formatTime = (ts: number | Date | string | undefined) => {
+                      if (!ts) return '';
+                      const date = typeof ts === 'number' ? new Date(ts * (ts < 1e12 ? 1000 : 1)) : new Date(ts);
+                      if (isNaN(date.getTime())) return '';
+                      return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    };
+                    const messageTime = formatTime(msg.timestamp || msg.sentAt);
+
                     // Media handling:
                     // - Bridge message list provides `hasMedia` but not the bytes/URL.
                     // - We lazily fetch base64 via `/messages/media/:msgId` and cache it.
@@ -2598,18 +2607,13 @@ function QRWhatsAppInboxPageContent() {
                           <div className="break-words font-normal">{msg.body}</div>
                         )}
 
-                        {msg.fromMe && ackDisplay && (
-                          <div className={`text-[11px] mt-0.5 flex items-center gap-0.5 justify-end font-medium tracking-tight ${ackColor}`}>
-                            {ackDisplay}
-                          </div>
-                        )}
-                        
-                        {/* Sender name below message for outbound */}
-                        {msg.fromMe && (
-                          <div className="text-[9px] text-[#0f3a4d]/50 mt-1 text-right italic">
-                            - Swar Yoga Team
-                          </div>
-                        )}
+                        {/* Time and status row */}
+                        <div className={`text-[10px] mt-1 flex items-center gap-1 ${msg.fromMe ? 'justify-end' : 'justify-start'} text-[#0f3a4d]/50`}>
+                          {messageTime && <span>{messageTime}</span>}
+                          {msg.fromMe && ackDisplay && (
+                            <span className={`font-medium ${ackColor}`}>{ackDisplay}</span>
+                          )}
+                        </div>
                         </div>
                       </div>
                     </div>
