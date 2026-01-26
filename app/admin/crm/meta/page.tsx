@@ -1553,7 +1553,7 @@ export default function MetaInboxPage() {
                         <div className={`max-w-[72%] px-4 py-2.5 rounded-xl text-[15px] relative group transition-all duration-200 ${
                           msg.direction === 'outbound'
                             ? 'bg-[#d9fdd3] text-gray-900 rounded-tr-sm shadow-sm border border-[#c5e1a5]'
-                            : 'bg-[#25D366] text-white rounded-tl-sm shadow-sm'
+                            : 'bg-[#075E54] text-white rounded-tl-sm shadow-sm'
                         }`}>
                           {/* Media Rendering - Using unified InlineMediaPreview component */}
                           {(() => {

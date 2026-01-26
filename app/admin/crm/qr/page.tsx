@@ -3092,7 +3092,7 @@ function QRWhatsAppInboxPageContent() {
                             className={`inline-block max-w-[75%] rounded-xl px-4 py-2.5 text-[15px] leading-relaxed shadow-sm transition-all duration-200 ${
                               msg.fromMe
                                 ? 'bg-[#d9fdd3] text-gray-900 rounded-tr-sm border border-[#c5e1a5] ml-auto'
-                                : 'bg-[#25D366] text-white rounded-tl-sm mr-auto'
+                                : 'bg-[#075E54] text-white rounded-tl-sm mr-auto'
                             }`}
                             style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif", whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                           >
