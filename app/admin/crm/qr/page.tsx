@@ -88,6 +88,15 @@ function QRWhatsAppInboxPageContent() {
   const [showNewContactModal, setShowNewContactModal] = useState(false);
   const [newContactName, setNewContactName] = useState('');
   
+  // Sidebar Tab State: 'chats' | 'groups' | 'status'
+  const [sidebarTab, setSidebarTab] = useState<'chats' | 'groups' | 'status'>('chats');
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupParticipants, setNewGroupParticipants] = useState('');
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  
   // Toast notifications
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1775,6 +1784,86 @@ function QRWhatsAppInboxPageContent() {
     }
   };
 
+  // Load groups list from bridge
+  const loadGroupsList = useCallback(async () => {
+    if (status !== 'connected') return;
+    
+    setLoadingGroups(true);
+    try {
+      const res = await bridgeFetch('/groups', { method: 'GET' }, 15_000);
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(data.groups || []);
+      } else {
+        // Try to get groups from the chats list (fallback)
+        const groupsFromChats = chats.filter(c => c.isGroup);
+        setGroups(groupsFromChats);
+      }
+    } catch (err) {
+      console.warn('[loadGroupsList] Failed:', err);
+      // Fallback: filter groups from existing chats
+      const groupsFromChats = chats.filter(c => c.isGroup);
+      setGroups(groupsFromChats);
+    } finally {
+      setLoadingGroups(false);
+    }
+  }, [bridgeFetch, status, chats]);
+
+  // Create new group
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim() || !newGroupParticipants.trim()) {
+      showToast('Please enter group name and at least one participant', 'error');
+      return;
+    }
+    
+    setCreatingGroup(true);
+    try {
+      // Parse participants (comma-separated phone numbers)
+      const participants = newGroupParticipants
+        .split(',')
+        .map(p => p.trim().replace(/\D/g, ''))
+        .filter(p => p.length >= 10);
+      
+      if (participants.length === 0) {
+        showToast('Please enter valid phone numbers', 'error');
+        return;
+      }
+      
+      const res = await bridgeFetch('/groups/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: newGroupName.trim(),
+          participants
+        })
+      }, 15_000);
+      
+      if (res.ok) {
+        const data = await res.json();
+        showToast(`Group "${newGroupName}" created!`, 'success');
+        setShowCreateGroupModal(false);
+        setNewGroupName('');
+        setNewGroupParticipants('');
+        // Refresh groups list
+        await loadGroupsList();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to create group', 'error');
+      }
+    } catch (err) {
+      console.error('Failed to create group:', err);
+      showToast('Failed to create group', 'error');
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  // Load groups when tab changes
+  useEffect(() => {
+    if (sidebarTab === 'groups' && status === 'connected') {
+      loadGroupsList();
+    }
+  }, [sidebarTab, status, loadGroupsList]);
+
   // Load group details
   const loadGroupDetails = async (groupId: string | { _serialized: string }) => {
     try {
@@ -2277,34 +2366,82 @@ function QRWhatsAppInboxPageContent() {
           )}
         </div>
 
+        {/* Tabs: Chats | Groups | Status */}
+        <div className="flex border-b border-slate-200 bg-[#FAFAF8]">
+          <button
+            onClick={() => setSidebarTab('chats')}
+            className={`flex-1 py-2 text-xs font-bold transition-colors ${
+              sidebarTab === 'chats' 
+                ? 'text-green-700 border-b-2 border-green-600 bg-green-50' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            💬 Chats
+          </button>
+          <button
+            onClick={() => setSidebarTab('groups')}
+            className={`flex-1 py-2 text-xs font-bold transition-colors ${
+              sidebarTab === 'groups' 
+                ? 'text-purple-700 border-b-2 border-purple-600 bg-purple-50' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            👥 Groups
+          </button>
+          <button
+            onClick={() => setSidebarTab('status')}
+            className={`flex-1 py-2 text-xs font-bold transition-colors ${
+              sidebarTab === 'status' 
+                ? 'text-blue-700 border-b-2 border-blue-600 bg-blue-50' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            🔵 Status
+          </button>
+        </div>
+
         {/* Search */}
         <div className="p-3 border-b border-slate-100 bg-[#FAFAF8] space-y-3">
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Search or start a new chat"
+              placeholder={sidebarTab === 'groups' ? 'Search groups...' : 'Search or start a new chat'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 px-4 py-2 bg-[#F5EBE0]/60 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#E8A645]"
             />
-            <button
-              onClick={() => setShowNewLeadModal(true)}
-              title="Add new lead"
-              className="px-4 py-2 bg-purple-200 hover:bg-purple-300 text-purple-900 border border-purple-400 rounded-lg font-bold transition-colors flex items-center gap-2"
-            >
-              <Plus size={16} />
-              <span className="text-xs hidden sm:inline">Lead</span>
-            </button>
+            {sidebarTab === 'groups' ? (
+              <button
+                onClick={() => setShowCreateGroupModal(true)}
+                title="Create new group"
+                className="px-4 py-2 bg-purple-200 hover:bg-purple-300 text-purple-900 border border-purple-400 rounded-lg font-bold transition-colors flex items-center gap-2"
+              >
+                <Plus size={16} />
+                <span className="text-xs hidden sm:inline">Group</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowNewLeadModal(true)}
+                title="Add new lead"
+                className="px-4 py-2 bg-purple-200 hover:bg-purple-300 text-purple-900 border border-purple-400 rounded-lg font-bold transition-colors flex items-center gap-2"
+              >
+                <Plus size={16} />
+                <span className="text-xs hidden sm:inline">Lead</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Chats List */}
+        {/* Content based on tab */}
         <div className="flex-1 overflow-y-auto">
-          {chats.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-slate-400">
-              <p className="text-sm">No conversations</p>
-            </div>
-          ) : (
+          {/* Chats Tab */}
+          {sidebarTab === 'chats' && (
+            <>
+              {chats.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-slate-400">
+                  <p className="text-sm">No conversations</p>
+                </div>
+              ) : (
             chats
               // Filter by search query
               .filter((chat) =>
@@ -2429,6 +2566,32 @@ function QRWhatsAppInboxPageContent() {
                         })()}
                       </p>
                       
+                      {/* WhatsApp JID - show full ID */}
+                      <p className="text-[9px] text-purple-600/70 font-mono truncate" title="WhatsApp JID">
+                        🆔 {typeof chat.id === 'string' ? chat.id : chat.id?._serialized || 'N/A'}
+                      </p>
+                      
+                      {/* Last Seen indicator */}
+                      {chat.timestamp && (
+                        <p className="text-[9px] text-green-600/70 truncate">
+                          🕐 Last seen: {(() => {
+                            const ts = chat.timestamp * 1000;
+                            const date = new Date(ts);
+                            const now = new Date();
+                            const diffMs = now.getTime() - date.getTime();
+                            const diffMins = Math.floor(diffMs / 60000);
+                            const diffHours = Math.floor(diffMs / 3600000);
+                            const diffDays = Math.floor(diffMs / 86400000);
+                            
+                            if (diffMins < 1) return 'Just now';
+                            if (diffMins < 60) return `${diffMins}m ago`;
+                            if (diffHours < 24) return `${diffHours}h ago`;
+                            if (diffDays < 7) return `${diffDays}d ago`;
+                            return date.toLocaleDateString();
+                          })()}
+                        </p>
+                      )}
+                      
                       {/* Lead Details Tags: ID, Status, Label - third line */}
                       {(chat.leadId || chat.leadStatus || chat.leadLabel) && (
                         <div className="flex items-center gap-1 flex-wrap mt-1">
@@ -2481,6 +2644,108 @@ function QRWhatsAppInboxPageContent() {
                   </div>
                 </div>
               ))
+              )}
+            </>
+          )}
+
+          {/* Groups Tab */}
+          {sidebarTab === 'groups' && (
+            <>
+              {loadingGroups ? (
+                <div className="flex items-center justify-center h-32 text-slate-400">
+                  <RefreshCw className="animate-spin" size={20} />
+                  <span className="ml-2 text-sm">Loading groups...</span>
+                </div>
+              ) : groups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-32 text-slate-400 p-4">
+                  <p className="text-sm">No groups found</p>
+                  <button
+                    onClick={() => setShowCreateGroupModal(true)}
+                    className="mt-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold hover:bg-purple-200"
+                  >
+                    Create New Group
+                  </button>
+                </div>
+              ) : (
+                groups
+                  .filter((group) =>
+                    group.name?.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .map((group) => (
+                    <div
+                      key={group.id}
+                      onClick={() => {
+                        setSelectedChat({ ...group, isGroup: true });
+                        setActivePhone(null);
+                        setActiveLeadId(null);
+                        setActiveName(group.name);
+                      }}
+                      className={`p-4 border-b border-slate-100 cursor-pointer transition-all ${
+                        selectedChat?.id === group.id
+                          ? 'bg-purple-50 border-l-4 border-l-purple-500'
+                          : 'hover:bg-[#F5EBE0]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="relative flex-shrink-0">
+                          {group.profilePicUrl ? (
+                            <img
+                              src={group.profilePicUrl}
+                              alt={group.name}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                              👥
+                            </div>
+                          )}
+                          <div className="absolute -bottom-1 -right-1 bg-purple-500 text-white text-[8px] font-bold rounded-full px-1">
+                            {group.memberCount || '?'}
+                          </div>
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-[#0f3a4d] truncate text-sm">
+                            {group.name || 'Unnamed Group'}
+                          </p>
+                          <p className="text-[9px] text-purple-600/70 font-mono truncate" title="Group JID">
+                            🆔 {group.id}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            {group.memberCount} members
+                          </p>
+                          {group.lastMessage && (
+                            <p className="text-[11px] text-slate-400 truncate mt-1">
+                              {group.lastMessage.body || 'No messages'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </>
+          )}
+
+          {/* Status Tab */}
+          {sidebarTab === 'status' && (
+            <div className="p-4 text-center text-slate-400">
+              <div className="text-4xl mb-3">🔵</div>
+              <p className="text-sm font-medium mb-2">WhatsApp Status</p>
+              <p className="text-xs text-slate-400 mb-4">
+                Status viewing is limited in WhatsApp Web API.
+                Use your phone to view and post status updates.
+              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                <p className="font-bold">💡 Tip</p>
+                <p>Open WhatsApp on your phone to:</p>
+                <ul className="mt-1 text-left list-disc list-inside">
+                  <li>View friends' status updates</li>
+                  <li>Post your own status</li>
+                  <li>React to status updates</li>
+                </ul>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -2566,6 +2831,35 @@ function QRWhatsAppInboxPageContent() {
                       📱 {activePhone}
                     </p>
                   )}
+                  
+                  {/* WhatsApp JID & Last Seen Row */}
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    {/* WhatsApp JID */}
+                    <span className="text-[9px] text-purple-600/80 font-mono" title="WhatsApp JID">
+                      🆔 {typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id?._serialized || 'N/A'}
+                    </span>
+                    
+                    {/* Last Seen */}
+                    {selectedChat.timestamp && (
+                      <span className="text-[9px] text-green-600/80">
+                        🕐 {(() => {
+                          const ts = selectedChat.timestamp * 1000;
+                          const date = new Date(ts);
+                          const now = new Date();
+                          const diffMs = now.getTime() - date.getTime();
+                          const diffMins = Math.floor(diffMs / 60000);
+                          const diffHours = Math.floor(diffMs / 3600000);
+                          const diffDays = Math.floor(diffMs / 86400000);
+                          
+                          if (diffMins < 1) return 'Online';
+                          if (diffMins < 60) return `${diffMins}m ago`;
+                          if (diffHours < 24) return `${diffHours}h ago`;
+                          if (diffDays < 7) return `${diffDays}d ago`;
+                          return date.toLocaleDateString();
+                        })()}
+                      </span>
+                    )}
+                  </div>
                   
                   {/* Compact Lead Tags */}
                   {activeLeadId && (
@@ -3695,6 +3989,73 @@ function QRWhatsAppInboxPageContent() {
                 className="flex-1 px-4 py-2.5 bg-[#0f3a4d] hover:bg-[#1a4d66] disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors"
               >
                 Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      {showCreateGroupModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#FAFAF8] rounded-lg p-6 w-full max-w-md shadow-xl animate-in">
+            <h2 className="text-lg font-bold mb-4 text-[#0f3a4d] flex items-center gap-2">
+              👥 Create New Group
+            </h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#0f3a4d] mb-1">Group Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter group name"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-[#E8DFD5] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  autoFocus
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-[#0f3a4d] mb-1">
+                  Participants (comma-separated phone numbers)
+                </label>
+                <textarea
+                  placeholder="e.g., 919876543210, 919812345678"
+                  value={newGroupParticipants}
+                  onChange={(e) => setNewGroupParticipants(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-[#E8DFD5] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Enter phone numbers with country code, separated by commas
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowCreateGroupModal(false);
+                  setNewGroupName('');
+                  setNewGroupParticipants('');
+                }}
+                className="flex-1 px-4 py-2.5 bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] rounded-lg font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateGroup}
+                disabled={creatingGroup || !newGroupName.trim() || !newGroupParticipants.trim()}
+                className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+              >
+                {creatingGroup ? (
+                  <>
+                    <RefreshCw className="animate-spin" size={16} />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Group'
+                )}
               </button>
             </div>
           </div>

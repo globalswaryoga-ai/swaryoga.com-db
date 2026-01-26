@@ -457,6 +457,150 @@ app.get('/contact/:contactId', authenticate, async (req, res) => {
   }
 });
 
+// Get presence/online status for a contact
+app.get('/presence/:contactId', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { contactId } = req.params;
+    const formattedId = contactId.includes('@') ? contactId : `${contactId}@c.us`;
+    
+    // Get chat and contact info
+    const chat = await client.getChatById(formattedId);
+    const contact = await client.getContactById(formattedId);
+    
+    // Note: WhatsApp Web doesn't always expose real-time online status
+    // We can get the last seen from chat timestamp
+    res.json({
+      id: formattedId,
+      name: contact.name || contact.pushname || 'Unknown',
+      lastSeen: chat.timestamp || null,
+      isGroup: chat.isGroup || false,
+      // WWebJS doesn't have real-time presence, but we return available data
+      presence: 'unavailable',
+      lastSeenFormatted: chat.timestamp ? new Date(chat.timestamp * 1000).toISOString() : null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all groups
+app.get('/groups', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const chats = await client.getChats();
+    const groups = await Promise.all(
+      chats
+        .filter(c => c.isGroup)
+        .slice(0, 50)
+        .map(async (g) => {
+          let profilePicUrl = null;
+          let memberCount = 0;
+          try {
+            profilePicUrl = await g.getProfilePicUrl();
+          } catch (e) {}
+          try {
+            const participants = await g.getParticipants();
+            memberCount = participants.length;
+          } catch (e) {}
+          
+          return {
+            id: g.id._serialized,
+            name: g.name,
+            memberCount,
+            profilePicUrl,
+            unreadCount: g.unreadCount,
+            timestamp: g.timestamp,
+            lastMessage: g.lastMessage ? {
+              body: g.lastMessage.body,
+              fromMe: g.lastMessage.fromMe
+            } : null
+          };
+        })
+    );
+    
+    res.json({ groups });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create a new group
+app.post('/groups/create', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { name, participants } = req.body;
+    if (!name || !participants || !Array.isArray(participants) || participants.length === 0) {
+      return res.status(400).json({ error: 'Name and at least one participant required' });
+    }
+    
+    // Format participants to include @c.us suffix
+    const formattedParticipants = participants.map(p => 
+      p.includes('@') ? p : `${p}@c.us`
+    );
+    
+    const result = await client.createGroup(name, formattedParticipants);
+    res.json({ 
+      success: true, 
+      groupId: result.gid._serialized,
+      title: result.title || name
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get WhatsApp status updates
+app.get('/status', authenticate, async (req, res) => {
+  // Note: This shadows the unauthenticated /status endpoint above
+  // We need to rename this to /statuses
+});
+
+// Get status updates (story-like)
+app.get('/statuses', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    // WWebJS doesn't have direct status/stories API
+    // Return empty for now - this feature is limited in WhatsApp Web API
+    res.json({ 
+      statuses: [],
+      message: 'WhatsApp Web API has limited status support'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Post a text status
+app.post('/status/text', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { text, backgroundColor } = req.body;
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+    
+    // WWebJS doesn't have direct status posting API
+    // This is a placeholder - status posting requires additional implementation
+    res.json({ 
+      success: false, 
+      message: 'Status posting not directly supported by WhatsApp Web API. Use the phone app.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/qr', async (req, res) => {
   // QR should never be cached by proxies/browsers.
   res.setHeader('Cache-Control', 'no-store, max-age=0');
