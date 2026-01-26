@@ -73,6 +73,11 @@ export default function WorkshopDetailPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'batches' | 'videos' | 'free'>('batches');
+  
+  // Video upload state
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('adminToken');
@@ -178,6 +183,13 @@ export default function WorkshopDetailPage() {
 
   const handleCreateVideo = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // If file selected, upload first
+    if (selectedFile && !videoForm.s3Key) {
+      await handleVideoUpload();
+      return;
+    }
+    
     if (!videoForm.title || !videoForm.s3Key) return;
 
     setSubmitting(true);
@@ -202,6 +214,7 @@ export default function WorkshopDetailPage() {
           accessType: 'enrolled',
           recordedDate: new Date().toISOString().split('T')[0],
         });
+        setSelectedFile(null);
         fetchVideos();
       } else {
         alert(data.error || 'Failed to add video');
@@ -210,6 +223,101 @@ export default function WorkshopDetailPage() {
       alert(err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleVideoUpload = async () => {
+    if (!selectedFile || !videoForm.title) {
+      alert('Please select a file and enter a title');
+      return;
+    }
+
+    setUploadingVideo(true);
+    setUploadProgress(0);
+
+    try {
+      // 1. Get presigned upload URL
+      const token = localStorage.getItem('adminToken');
+      const presignedRes = await fetch('/api/admin/workshops/videos/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          workshopId,
+          batchId: selectedBatch,
+          workshopSlug: workshop?.slug,
+          batchNumber: batches.find(b => b._id === selectedBatch)?.batchNumber || 'general',
+          dayNumber: videoForm.dayNumber,
+          filename: selectedFile.name,
+          contentType: selectedFile.type,
+          title: videoForm.title,
+          description: videoForm.description,
+          accessType: videoForm.accessType,
+          recordedDate: videoForm.recordedDate,
+        }),
+      });
+
+      const presignedData = await presignedRes.json();
+      if (!presignedRes.ok) {
+        throw new Error(presignedData.error || 'Failed to get upload URL');
+      }
+
+      // 2. Upload directly to S3
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent);
+        }
+      };
+
+      await new Promise((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(xhr.response);
+          } else {
+            reject(new Error(`Upload failed: ${xhr.statusText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Upload failed'));
+        xhr.open('PUT', presignedData.uploadUrl);
+        xhr.setRequestHeader('Content-Type', selectedFile.type);
+        xhr.send(selectedFile);
+      });
+
+      // 3. Confirm upload completion
+      await fetch('/api/admin/workshops/videos/upload', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          videoId: presignedData.videoId,
+          s3Key: presignedData.s3Key,
+        }),
+      });
+
+      // Success!
+      setShowVideoModal(false);
+      setVideoForm({
+        title: '',
+        description: '',
+        s3Key: '',
+        dayNumber: videoForm.dayNumber + 1,
+        accessType: 'enrolled',
+        recordedDate: new Date().toISOString().split('T')[0],
+      });
+      setSelectedFile(null);
+      fetchVideos();
+      alert('✅ Video uploaded successfully!');
+    } catch (err: any) {
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setUploadingVideo(false);
+      setUploadProgress(0);
     }
   };
 
@@ -630,18 +738,98 @@ export default function WorkshopDetailPage() {
                   />
                 </div>
 
+                {/* Video File Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">S3 Key *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Upload Video File
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-orange-400 transition-colors">
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setSelectedFile(file);
+                          // Auto-generate title from filename if empty
+                          if (!videoForm.title) {
+                            const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+                            setVideoForm(prev => ({ ...prev, title: name }));
+                          }
+                        }
+                      }}
+                      className="hidden"
+                      id="video-upload"
+                      disabled={uploadingVideo}
+                    />
+                    <label
+                      htmlFor="video-upload"
+                      className="cursor-pointer block"
+                    >
+                      {selectedFile ? (
+                        <div className="text-green-600">
+                          <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <p className="font-medium">{selectedFile.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="text-gray-500">
+                          <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          <p className="text-sm">Click to select video file</p>
+                          <p className="text-xs text-gray-400">MP4, MOV, WebM (max 500MB)</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                  {uploadingVideo && (
+                    <div className="mt-2">
+                      <div className="flex items-center gap-2 text-sm text-blue-600">
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Uploading... {uploadProgress}%
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                        <div
+                          className="bg-orange-500 h-2 rounded-full transition-all"
+                          style={{ width: `${uploadProgress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">OR enter S3 key manually</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">S3 Key</label>
                   <input
                     type="text"
                     value={videoForm.s3Key}
-                    onChange={(e) => setVideoForm({ ...videoForm, s3Key: e.target.value })}
+                    onChange={(e) => {
+                      setVideoForm({ ...videoForm, s3Key: e.target.value });
+                      if (e.target.value) setSelectedFile(null);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                     placeholder="workshops/pranayama/batch1/day1.mp4"
-                    required
+                    disabled={!!selectedFile}
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Enter the S3 key path for the video file
+                    For existing S3 files only
                   </p>
                 </div>
 
@@ -695,17 +883,21 @@ export default function WorkshopDetailPage() {
               <div className="flex gap-3 mt-6">
                 <button
                   type="button"
-                  onClick={() => setShowVideoModal(false)}
+                  onClick={() => {
+                    setShowVideoModal(false);
+                    setSelectedFile(null);
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  disabled={uploadingVideo}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || !videoForm.title || !videoForm.s3Key}
+                  disabled={submitting || uploadingVideo || !videoForm.title || (!videoForm.s3Key && !selectedFile)}
                   className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
                 >
-                  {submitting ? 'Adding...' : 'Add Video'}
+                  {uploadingVideo ? `Uploading ${uploadProgress}%...` : submitting ? 'Adding...' : selectedFile ? 'Upload & Add' : 'Add Video'}
                 </button>
               </div>
             </form>

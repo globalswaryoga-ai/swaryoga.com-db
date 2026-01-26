@@ -415,4 +415,92 @@ export function isCommunityKey(key: string): boolean {
   return key.startsWith('community/');
 }
 
+/**
+ * Check if a key is for workshop content
+ */
+export function isWorkshopKey(key: string): boolean {
+  return key.startsWith('workshops/');
+}
 
+// ============================================
+// WORKSHOP VIDEO UPLOAD FUNCTIONS
+// ============================================
+
+/**
+ * Upload WORKSHOP VIDEO - only enrolled members can access via signed URLs
+ * Path: workshops/{workshopSlug}/batch{batchNumber}/day{dayNumber}/{filename}
+ * 
+ * These videos are:
+ * - Non-downloadable (served via signed URLs only)
+ * - Non-shareable (device tracking with 3-device limit)
+ * - Watermarked on playback
+ */
+export async function uploadWorkshopVideo(
+  fileBuffer: Buffer,
+  fileName: string,
+  options: {
+    workshopSlug: string;
+    batchNumber?: number | string;
+    dayNumber?: number;
+  }
+): Promise<{ key: string; url: string }> {
+  const { workshopSlug, batchNumber = 'general', dayNumber = 1 } = options;
+  
+  const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const key = `workshops/${workshopSlug}/batch${batchNumber}/day${dayNumber}/${Date.now()}-${cleanFileName}`;
+  
+  const url = await uploadToS3(fileBuffer, key, { 
+    accessLevel: 'admin', // Private - requires signed URL
+    metadata: {
+      'workshop': workshopSlug,
+      'batch': String(batchNumber),
+      'day': String(dayNumber),
+      'shareable': 'false',
+      'downloadable': 'false',
+    }
+  });
+  
+  return { key, url };
+}
+
+/**
+ * List all videos for a workshop batch
+ */
+export async function listWorkshopVideos(
+  workshopSlug: string, 
+  batchNumber?: number | string
+): Promise<{ key: string; size: number; lastModified: Date }[]> {
+  const bucket = DEFAULT_BUCKET;
+  const prefix = batchNumber 
+    ? `workshops/${workshopSlug}/batch${batchNumber}/`
+    : `workshops/${workshopSlug}/`;
+  
+  try {
+    const response = await s3Client.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+    }));
+    
+    return (response.Contents || []).map(item => ({
+      key: item.Key || '',
+      size: item.Size || 0,
+      lastModified: item.LastModified || new Date(),
+    }));
+  } catch (error) {
+    console.error('❌ List workshop videos error:', error);
+    return [];
+  }
+}
+
+/**
+ * Get signed URL for workshop video (short expiry for security)
+ */
+export async function getWorkshopVideoUrl(
+  key: string,
+  expiresIn: number = 3600 // 1 hour default
+): Promise<string> {
+  if (!key.startsWith('workshops/')) {
+    throw new Error('Invalid workshop video key');
+  }
+  return await generatePresignedUrl(key, { expiresIn });
+}
