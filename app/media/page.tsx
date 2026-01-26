@@ -256,153 +256,134 @@ export default function MediaPage() {
         )}
 
         {!loading && posts.length > 0 && (
-          <div className="space-y-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {posts.map((post) => {
               const blocks = safeSort(post.blocks || [], (b) => b.order);
-              const leftItems = safeSort(post.leftSidebar?.items || [], (i) => i.order);
-              const rightItems = safeSort(post.rightSidebar?.items || [], (i) => i.order);
+              const firstBlock = blocks[0];
+              const mediaUrl = firstBlock?.media?.url || '';
 
               return (
-                <article key={post._id} className="bg-white rounded-[3rem] shadow-sm overflow-hidden border border-swar-primary/5 hover:shadow-xl transition-all duration-700">
-                  <div className="p-8 md:p-12 border-b border-swar-primary/5">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          {post.category && (
-                            <span className="bg-swar-primary/10 text-swar-primary px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-widest">
-                              {post.category}
-                            </span>
-                          )}
-                          {post.publishedAt && (
-                            <span className="text-swar-text-tertiary text-sm font-bold">
-                              {formatDate(post.publishedAt)}
-                            </span>
-                          )}
-                        </div>
-                        <h2 className="text-3xl md:text-4xl font-bold text-swar-text tracking-tight">{post.title}</h2>
+                <article 
+                  key={post._id} 
+                  className="bg-white rounded-3xl shadow-sm overflow-hidden border border-swar-primary/5 hover:shadow-xl hover:-translate-y-1 transition-all duration-500 flex flex-col group"
+                >
+                  {/* Card Image */}
+                  <div className="relative aspect-[4/3] overflow-hidden bg-swar-bg">
+                    {mediaUrl ? (
+                      firstBlock?.media?.type === 'video' ? (
+                        <video
+                          preload="metadata"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                        >
+                          <source src={mediaUrl} />
+                        </video>
+                      ) : (
+                        <img
+                          src={mediaUrl}
+                          alt={firstBlock?.media?.altText || post.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                        />
+                      )
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-swar-primary/5 to-swar-accent/5">
+                        <span className="text-6xl opacity-30">🧘</span>
                       </div>
-
-                      <div className="flex gap-4 flex-wrap">
-                        {post.socialMediaLinks?.facebookLink && (
-                          <a className="bg-[#1877F2]/10 text-[#1877F2] p-3 rounded-2xl hover:bg-[#1877F2] hover:text-white transition-all font-bold text-sm" href={post.socialMediaLinks.facebookLink} target="_blank" rel="noreferrer">
-                            <Facebook className="w-5 h-5 inline-block mr-1 -mt-0.5" /> Facebook
-                          </a>
-                        )}
-                        {post.socialMediaLinks?.instagramLink && (
-                          <a className="bg-[#E4405F]/10 text-[#E4405F] p-3 rounded-2xl hover:bg-[#E4405F] hover:text-white transition-all font-bold text-sm" href={post.socialMediaLinks.instagramLink} target="_blank" rel="noreferrer">
-                            <Instagram className="w-5 h-5 inline-block mr-1 -mt-0.5" /> Instagram
-                          </a>
-                        )}
-                        {post.socialMediaLinks?.twitterLink && (
-                          <a className="bg-swar-text/10 text-swar-text p-3 rounded-2xl hover:bg-black hover:text-white transition-all font-bold text-sm" href={post.socialMediaLinks.twitterLink} target="_blank" rel="noreferrer">
-                            <Twitter className="w-5 h-5 inline-block mr-1 -mt-0.5" /> X
-                          </a>
-                        )}
+                    )}
+                    
+                    {/* Category Badge */}
+                    {post.category && (
+                      <div className="absolute top-4 left-4">
+                        <span className="bg-swar-primary/90 text-white px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest shadow-lg">
+                          {post.category}
+                        </span>
                       </div>
-                    </div>
-
-                    {post.description && (
-                      <p className="text-swar-text-secondary mt-8 text-lg leading-relaxed whitespace-pre-line border-l-4 border-swar-primary/20 pl-6">
-                        {post.description}
-                      </p>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
-                    <aside className="lg:col-span-3 p-8 md:p-10 bg-swar-bg/50 border-b lg:border-b-0 lg:border-r border-swar-primary/5">
-                      <h3 className="text-xs font-extrabold text-swar-primary mb-6 uppercase tracking-[0.2em]">
-                        {post.leftSidebar?.title || "HIGHLIGHTS"}
-                      </h3>
-                      {leftItems.length === 0 ? (
-                        <p className="text-sm text-swar-text-tertiary italic">No details available</p>
-                      ) : (
-                        <ul className="space-y-6">
-                          {leftItems.map((it, idx) => (
-                            <li key={it._id || idx} className="group">
-                              <div className="text-sm font-extrabold text-swar-text mb-1 group-hover:text-swar-primary transition-colors">{it.label}</div>
-                              {it.content && <div className="text-sm text-swar-text-tertiary leading-relaxed">{it.content}</div>}
-                            </li>
-                          ))}
-                        </ul>
+                  {/* Card Content */}
+                  <div className="p-6 flex-1 flex flex-col">
+                    {/* Date */}
+                    {post.publishedAt && (
+                      <span className="text-swar-text-tertiary text-xs font-bold mb-2">
+                        {formatDate(post.publishedAt)}
+                      </span>
+                    )}
+                    
+                    {/* Title */}
+                    <h2 className="text-xl font-bold text-swar-text tracking-tight mb-3 line-clamp-2 group-hover:text-swar-primary transition-colors">
+                      {post.title}
+                    </h2>
+                    
+                    {/* Description */}
+                    {post.description && (
+                      <p className="text-swar-text-secondary text-sm leading-relaxed mb-4 line-clamp-3 flex-1">
+                        {post.description}
+                      </p>
+                    )}
+
+                    {/* Tags */}
+                    {post.tags && post.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {post.tags.slice(0, 3).map((tag, idx) => (
+                          <span key={idx} className="bg-swar-bg text-swar-text-tertiary px-2.5 py-1 rounded-lg text-[10px] font-bold">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Social Links */}
+                    <div className="flex items-center gap-3 pt-4 border-t border-swar-primary/5 mt-auto">
+                      {post.socialMediaLinks?.facebookLink && (
+                        <a 
+                          href={post.socialMediaLinks.facebookLink} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#1877F2]/10 text-[#1877F2] hover:bg-[#1877F2] hover:text-white transition-all"
+                        >
+                          <Facebook className="w-4 h-4" />
+                        </a>
                       )}
-                    </aside>
-
-                    <div className="lg:col-span-6 p-8 md:p-12">
-                      {blocks.length === 0 ? (
-                        <div className="text-center py-10 bg-swar-bg rounded-3xl border border-dashed border-swar-primary/20">
-                           <p className="text-swar-text-tertiary font-medium">No additional content blocks</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-12">
-                          {blocks.map((b, idx) => {
-                            const isTextLeft = b.type === 'left-text-right-image';
-                            const mediaUrl = b.media?.url || '';
-
-                            return (
-                              <div
-                                key={b._id || idx}
-                                className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center"
-                              >
-                                <div className={`${isTextLeft ? '' : 'md:order-2'} space-y-4`}>
-                                  {b.heading && <h4 className="text-2xl font-bold text-swar-text leading-tight">{b.heading}</h4>}
-                                  {b.text && <p className="text-swar-text-secondary leading-relaxed">{b.text}</p>}
-                                </div>
-
-                                <div className={isTextLeft ? '' : 'md:order-1'}>
-                                  <div className="rounded-[2rem] overflow-hidden shadow-lg border-4 border-white">
-                                    {mediaUrl ? (
-                                      b.media?.type === 'video' ? (
-                                        <video
-                                          controls
-                                          preload="metadata"
-                                          className="w-full h-full object-cover"
-                                        >
-                                          <source src={mediaUrl} />
-                                        </video>
-                                      ) : (
-                                        <img
-                                          src={mediaUrl}
-                                          alt={b.media?.altText || post.title}
-                                          loading="lazy"
-                                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
-                                        />
-                                      )
-                                    ) : (
-                                      <div className="w-full h-48 bg-swar-bg flex items-center justify-center">
-                                        <span className="text-swar-primary/10 text-4xl">🧘</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                  {b.media?.caption && (
-                                    <div className="text-xs font-bold text-swar-text-tertiary mt-4 text-center italic">
-                                      {b.media.caption}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                      {post.socialMediaLinks?.instagramLink && (
+                        <a 
+                          href={post.socialMediaLinks.instagramLink} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#E4405F]/10 text-[#E4405F] hover:bg-[#E4405F] hover:text-white transition-all"
+                        >
+                          <Instagram className="w-4 h-4" />
+                        </a>
                       )}
+                      {post.socialMediaLinks?.twitterLink && (
+                        <a 
+                          href={post.socialMediaLinks.twitterLink} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-swar-text/10 text-swar-text hover:bg-black hover:text-white transition-all"
+                        >
+                          <Twitter className="w-4 h-4" />
+                        </a>
+                      )}
+                      {post.socialMediaLinks?.whatsappLink && (
+                        <a 
+                          href={post.socialMediaLinks.whatsappLink} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all"
+                        >
+                          <Globe className="w-4 h-4" />
+                        </a>
+                      )}
+                      
+                      {/* Read More Link */}
+                      <a 
+                        href={`/media/${post._id}`}
+                        className="ml-auto flex items-center gap-1.5 text-swar-primary font-bold text-sm hover:gap-2.5 transition-all"
+                      >
+                        Read More <ArrowRight className="w-4 h-4" />
+                      </a>
                     </div>
-
-                    <aside className="lg:col-span-3 p-8 md:p-10 bg-swar-bg/50 border-t lg:border-t-0 lg:border-l border-swar-primary/5">
-                      <h3 className="text-xs font-extrabold text-swar-primary mb-6 uppercase tracking-[0.2em]">
-                        {post.rightSidebar?.title || "CONNECT"}
-                      </h3>
-                      {rightItems.length === 0 ? (
-                        <p className="text-sm text-swar-text-tertiary italic">Join our journey</p>
-                      ) : (
-                        <ul className="space-y-6">
-                          {rightItems.map((it, idx) => (
-                            <li key={it._id || idx} className="group">
-                              <div className="text-sm font-extrabold text-swar-text mb-1 group-hover:text-swar-primary transition-colors">{it.label}</div>
-                              {it.content && <div className="text-sm text-swar-text-tertiary leading-relaxed">{it.content}</div>}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </aside>
                   </div>
                 </article>
               );
