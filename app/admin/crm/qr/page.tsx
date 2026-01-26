@@ -2229,13 +2229,33 @@ function QRWhatsAppInboxPageContent() {
               .map((chat) => (
                 <div
                   key={typeof chat.id === 'string' ? chat.id : chat.id._serialized}
-                  onClick={() => {
+                  onClick={async () => {
                     setSelectedChat(chat);
                     // Extract phone number from chat id/name and set it for CRM message loading
                     const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
                     const phoneFromId = chatIdStr.split('@')[0].replace(/\D/g, '');
                     if (phoneFromId) setActivePhone(phoneFromId);
-                    if (chat.leadId) setActiveLeadId(chat.leadId);
+                    if (chat.leadId) {
+                      setActiveLeadId(chat.leadId);
+                      // Fetch full lead details including leadNumber
+                      try {
+                        const res = await fetch(`/api/admin/crm/leads/${chat.leadId}`, {
+                          headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (res.ok) {
+                          const lead = await res.json();
+                          if (lead.leadNumber) setActiveLeadNumber(lead.leadNumber);
+                          if (lead.status) setActiveStatus(lead.status?.toUpperCase());
+                          if (lead.labels?.[0]) setActiveLabel(lead.labels[0]);
+                          if (lead.name) setActiveName(lead.name);
+                        }
+                      } catch (e) { console.warn('Failed to fetch lead:', e); }
+                    } else {
+                      // Clear lead-specific state for non-lead chats
+                      setActiveLeadNumber(null);
+                      setActiveStatus(null);
+                      setActiveLabel(null);
+                    }
                     if (chat.displayName || chat.name) setActiveName(chat.displayName || chat.name);
                     markChatAsRead(chat);
                   }}
@@ -2481,23 +2501,16 @@ function QRWhatsAppInboxPageContent() {
                     </div>
                   )}
                   
-                  {/* Status/Online Indicator */}
-                  {activeLeadId && (
-                    <p className="text-[11px] text-[#0f3a4d]/60 mt-1">
-                      {selectedChat?.isOnline ? (
-                        <>✅ online</>
-                      ) : selectedChat?.lastSeen ? (
-                        <>⏰ last seen {new Date(selectedChat.lastSeen).toLocaleDateString()}</>
-                      ) : (
-                        <>offline</>
-                      )}
-                    </p>
-                  )}
-                  {!activeLeadId && !selectedChat.isGroup && !activePhone && (
-                    <p className="text-[11px] text-[#0f3a4d]/60">
-                      {status === 'connected' ? 'online' : 'offline'}
-                    </p>
-                  )}
+                  {/* Status/Online Indicator - Show bridge status */}
+                  <p className="text-[11px] text-[#0f3a4d]/60 mt-1">
+                    {status === 'connected' ? (
+                      <span className="text-green-600">🟢 Bridge Connected</span>
+                    ) : status === 'qr_ready' ? (
+                      <span className="text-yellow-600">📱 Scan QR to connect</span>
+                    ) : (
+                      <span className="text-red-500">🔴 Bridge Offline</span>
+                    )}
+                  </p>
                   {!activeLeadId && selectedChat.isGroup && selectedChat.memberCount && (
                     <p className="text-[11px] text-[#0f3a4d]/60">
                       Group · {selectedChat.memberCount} members
