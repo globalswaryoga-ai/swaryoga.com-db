@@ -603,12 +603,12 @@ export default function BroadcastPage() {
               </div>
 
               <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Admin user</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Admin user ({adminUsers.length})</div>
                 <select value={adminUserId} onChange={(e) => setAdminUserId(e.target.value)} style={{ width: '100%' }}>
                   <option value="">All</option>
                   {adminUsers.map((u) => (
-                    <option key={u._id} value={u.userId || ''}>
-                      {u.name || u.userId || u.email || u._id}
+                    <option key={u._id} value={u.userId || u._id || ''}>
+                      {u.name || u.email || u.userId || `User ${u._id?.slice(-4)}`}
                     </option>
                   ))}
                 </select>

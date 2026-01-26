@@ -170,7 +170,7 @@ export default function AutomationPage() {
   useEffect(() => {
     if (!mounted) return;
     if (!token) {
-      router.push('/admin/login');
+      window.location.href = '/admin/login';
       return;
     }
 
@@ -926,14 +926,14 @@ export default function AutomationPage() {
                     <div className="flex gap-2">
                       <button 
                         type="button"
-                        onClick={() => router.push(`/admin/crm/broadcast?listId=${list._id}`)}
+                        onClick={() => window.location.href = `/admin/crm/broadcast?listId=${list._id}`}
                         className="flex-1 px-3 py-2 bg-blue-500/20 text-blue-200 rounded-lg text-sm hover:bg-blue-500/30 transition-colors cursor-pointer"
                       >
                         Send
                       </button>
                       <button 
                         type="button"
-                        onClick={() => router.push(`/admin/crm/broadcast?listId=${list._id}&manage=true`)}
+                        onClick={() => window.location.href = `/admin/crm/broadcast?listId=${list._id}&manage=true`}
                         className="flex-1 px-3 py-2 bg-purple-500/20 text-purple-200 rounded-lg text-sm hover:bg-purple-500/30 transition-colors cursor-pointer"
                       >
                         Manage
