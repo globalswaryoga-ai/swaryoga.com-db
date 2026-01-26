@@ -63,16 +63,26 @@ async function ingestQRPayload(payload: any) {
   await connectDB();
 
   const { getWhatsAppMessage, getLead } = await import('@/lib/schemas/enterpriseSchemas');
+  const { isValidPhoneNumber } = await import('@/lib/whatsapp');
   const WhatsAppMessage = getWhatsAppMessage();
   const Lead = getLead();
 
   let created = 0;
+  let skippedInvalidPhone = 0;
+  
   for (const m of messages) {
     const text = (m.text || '').trim();
     if (!text) continue;
 
     const fromPhone = m.fromMe ? (m.to || m.from) : m.from;
     const normalizedPhone = normalizePhone(fromPhone);
+    
+    // Validate phone number - skip if it looks invalid (e.g., timestamp, group ID)
+    if (!isValidPhoneNumber(normalizedPhone)) {
+      console.warn(`[QR WEBHOOK] Skipping invalid phone: ${fromPhone} -> ${normalizedPhone}`);
+      skippedInvalidPhone++;
+      continue;
+    }
 
     const doc: any = {
       provider: 'whatsapp_qr',
@@ -152,7 +162,7 @@ async function ingestQRPayload(payload: any) {
     }
   }
 
-  return { count: created };
+  return { count: created, skippedInvalidPhone };
 }
 
 async function logQREvent(event: {

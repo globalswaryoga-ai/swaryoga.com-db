@@ -42,8 +42,23 @@ export function normalizePhone(raw: string): string {
   // - Meta Cloud API `to` format
   // - WhatsApp Web bridge formats
   // Common inbound formats include: "+91 98...", "0091 98...", "(98) ...".
-  // We remove everything except digits.
-  const digits = String(raw || '').replace(/\D/g, '');
+  
+  // Handle WhatsApp ID format: "919309986820@c.us" or "919309986820@lid"
+  let input = String(raw || '');
+  if (input.includes('@')) {
+    input = input.split('@')[0];
+  }
+  
+  // Remove everything except digits
+  const digits = input.replace(/\D/g, '');
+  
+  // Validate: phone numbers should be 10-15 digits
+  // Anything outside this range is likely not a phone number (e.g., timestamp, group ID)
+  if (digits.length < 10 || digits.length > 15) {
+    console.warn(`[normalizePhone] Invalid phone format: "${raw}" -> "${digits}" (${digits.length} digits)`);
+    return digits; // Return as-is but log warning
+  }
+  
   if (digits.length === 10) {
     return `91${digits}`;
   }
@@ -52,6 +67,14 @@ export function normalizePhone(raw: string): string {
     return digits.replace(/^0+/, '');
   }
   return digits;
+}
+
+/**
+ * Validate if a string looks like a valid phone number
+ */
+export function isValidPhoneNumber(phone: string): boolean {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 15;
 }
 
 export type WhatsAppSendTextResult = {

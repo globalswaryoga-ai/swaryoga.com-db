@@ -99,7 +99,27 @@ export async function POST(req: NextRequest) {
       const WhatsAppMessage = getWhatsAppMessage();
       const Lead = getLead();
       
-      const phone = typeof to === 'string' ? to.split('@')[0] : (to.user || to._serialized?.split('@')[0]);
+      // Extract phone number from `to` field
+      // Handle formats: "919309986820@c.us", "919309986820", or object { user: "919309986820" }
+      let rawPhone = typeof to === 'string' ? to.split('@')[0] : (to.user || to._serialized?.split('@')[0]);
+      
+      // Normalize: remove all non-digits
+      let phone = String(rawPhone || '').replace(/\D/g, '');
+      
+      // Validate phone number format (should be 10-15 digits, not a timestamp)
+      // Timestamps are typically > 13 digits and start with 17... (2020+)
+      if (!phone || phone.length < 10 || phone.length > 15) {
+        console.warn(`[QR SEND] Invalid phone number detected: ${phone} (raw: ${rawPhone})`);
+        // Try to get phone from leadId if provided
+        if (leadId) {
+          const existingLead = await Lead.findById(leadId);
+          if (existingLead?.phoneNumber) {
+            phone = existingLead.phoneNumber;
+            console.log(`[QR SEND] Recovered phone from leadId: ${phone}`);
+          }
+        }
+      }
+      
       const lead = await Lead.findOne({ phoneNumber: phone });
 
       const savedMessage = await WhatsAppMessage.create({
