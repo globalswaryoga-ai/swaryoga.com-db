@@ -216,6 +216,27 @@ export const MasterSwarYogaThreeMonth: WorkshopPaymentConfig = {
 };
 
 /**
+ * WEIGHT LOSS PROGRAM
+ * 90 Days
+ */
+export const WeightLossProgram: WorkshopPaymentConfig = {
+  slug: 'weight-loss',
+  name: 'Weight Loss Program',
+  shortName: 'Weight Loss',
+  duration: '90 days',
+  schedule: 'Varies by schedule',
+  basePrice: 3500,
+  currency: 'INR',
+  paymentLinks: {
+    online: {
+      english: 'https://u.payu.in/weight-loss-english-online',
+      hindi: 'https://u.payu.in/weight-loss-hindi-online',
+      marathi: 'https://u.payu.in/weight-loss-marathi-online',
+    },
+  },
+};
+
+/**
  * All workshops configuration
  * Use this to dynamically get payment links
  */
@@ -226,6 +247,7 @@ export const workshopPaymentConfig: Record<string, WorkshopPaymentConfig> = {
   'breathing-basics': BreathingBasics,
   'master-swar-yoga': MasterSwarYogaMonthly,
   'master-swar-yoga-3-month': MasterSwarYogaThreeMonth,
+  'weight-loss': WeightLossProgram,
 };
 
 /**

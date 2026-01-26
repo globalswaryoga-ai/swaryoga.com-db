@@ -45,7 +45,7 @@ const WORKSHOP_FEES: Record<string, { minPrice: number; maxPrice: number; curren
   'gurukul-organiser-training': { minPrice: 25000, maxPrice: 25000, currency: 'INR' },
   'naturopathy': { minPrice: 11000, maxPrice: 11000, currency: 'INR' },
   'meditation': { minPrice: 3300, maxPrice: 3300, currency: 'INR' },
-  'weight-loss': { minPrice: 12500, maxPrice: 12500, currency: 'INR' },
+  'weight-loss': { minPrice: 3500, maxPrice: 3500, currency: 'INR' },
   'pre-pregnancy': { minPrice: 15000, maxPrice: 15000, currency: 'INR' },
   'complete-health': { minPrice: 21000, maxPrice: 21000, currency: 'INR' },
 };
