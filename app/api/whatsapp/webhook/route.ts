@@ -270,9 +270,11 @@ async function handleWebhookPayload(payload: any) {
     }
 
     console.log('[WEBHOOK DEBUG] Connected to DB');
-    const { getWhatsAppMessage, getLead } = await import('@/lib/schemas/enterpriseSchemas');
+    const { getWhatsAppMessage, getLead, getBroadcastRunMessage, getBroadcastRun } = await import('@/lib/schemas/enterpriseSchemas');
     const WhatsAppMessage = getWhatsAppMessage();
     const Lead = getLead();
+    const BroadcastRunMessage = getBroadcastRunMessage();
+    const BroadcastRun = getBroadcastRun();
     console.log('[WEBHOOK DEBUG] Models loaded');
     
     if (!WhatsAppMessage || !Lead) {
@@ -307,12 +309,66 @@ async function handleWebhookPayload(payload: any) {
           if (status === 'failed') {
             const err = Array.isArray(st?.errors) ? st.errors[0] : undefined;
             update.failureReason = err?.title || err?.message || 'Failed';
+            update.failureCode = err?.code?.toString() || undefined;
           }
 
+          // Update WhatsAppMessage (single message tracking)
           await WhatsAppMessage.updateOne(
             { $or: [{ waMessageId }, { externalMessageId: waMessageId }] },
             { $set: update }
           );
+
+          // Also update BroadcastRunMessage if this was part of a broadcast
+          if (BroadcastRunMessage) {
+            const broadcastUpdate: any = { status, updatedAt: now };
+            if (status === 'delivered') broadcastUpdate.deliveredAt = now;
+            if (status === 'read') broadcastUpdate.readAt = now;
+            if (status === 'failed') {
+              const err = Array.isArray(st?.errors) ? st.errors[0] : undefined;
+              broadcastUpdate.failureReason = err?.title || err?.message || 'Failed';
+              broadcastUpdate.failureCode = err?.code?.toString() || undefined;
+            }
+            // 'blocked' detection: error code 131026 = blocked, 131047 = business account blocked
+            const errorCode = st?.errors?.[0]?.code;
+            if (errorCode === 131026 || errorCode === 131047 || errorCode === '131026' || errorCode === '131047') {
+              broadcastUpdate.status = 'blocked';
+            }
+            
+            const broadcastMsgResult = await BroadcastRunMessage.updateOne(
+              { waMessageId },
+              { $set: broadcastUpdate }
+            );
+            
+            // If a broadcast message was updated, also update the run stats
+            if (broadcastMsgResult.modifiedCount > 0 && BroadcastRun) {
+              const broadcastMsg = await BroadcastRunMessage.findOne({ waMessageId }).lean();
+              if (broadcastMsg && (broadcastMsg as any).runId) {
+                // Recalculate stats for the run
+                const runId = (broadcastMsg as any).runId;
+                const statCounts = await BroadcastRunMessage.aggregate([
+                  { $match: { runId } },
+                  { $group: { _id: '$status', count: { $sum: 1 } } },
+                ]);
+                const stats: any = { total: 0, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0, skipped: 0, blocked: 0 };
+                for (const c of statCounts) {
+                  const s = String(c._id || '').toLowerCase();
+                  const cnt = Number(c.count || 0);
+                  stats.total += cnt;
+                  if (s === 'pending' || s === 'sending') stats.pending += cnt;
+                  if (s === 'sent') stats.sent += cnt;
+                  if (s === 'delivered') stats.delivered += cnt;
+                  if (s === 'read') stats.read += cnt;
+                  if (s === 'failed') stats.failed += cnt;
+                  if (s === 'skipped') stats.skipped += cnt;
+                  if (s === 'blocked') stats.blocked += cnt;
+                }
+                await BroadcastRun.updateOne(
+                  { _id: runId },
+                  { $set: { stats, updatedAt: now } }
+                );
+              }
+            }
+          }
 
           await logWebhookEvent({
             kind: 'status_update',

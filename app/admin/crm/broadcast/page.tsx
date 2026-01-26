@@ -484,6 +484,9 @@ export default function BroadcastPage() {
           <Link href="/admin/crm" style={{ fontSize: 13, background: '#F3F4F6', padding: '6px 12px', borderRadius: 8, fontWeight: 700, textDecoration: 'none', color: '#374151' }}>
             🏠 Dashboard
           </Link>
+          <Link href="/admin/crm/broadcast/reports" style={{ fontSize: 13, background: '#3B82F6', color: '#fff', padding: '6px 12px', borderRadius: 8, fontWeight: 700, textDecoration: 'none' }}>
+            📊 Reports
+          </Link>
           <Link href="/admin/crm/automation" style={{ fontSize: 13 }}>
             Automation
           </Link>

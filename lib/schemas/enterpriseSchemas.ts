@@ -914,6 +914,9 @@ const BroadcastRunSchema = new mongoose.Schema(
     mode: { type: String, enum: ['now', 'schedule', 'delay'], default: 'now', index: true },
     scheduledAt: { type: Date, index: true },
 
+    // Provider: 'meta' (Cloud API) or 'qr' (WhatsApp Web Bridge)
+    provider: { type: String, enum: ['meta', 'qr'], default: 'meta', index: true },
+
     status: {
       type: String,
       enum: ['draft', 'scheduled', 'running', 'completed', 'cancelled', 'failed'],
@@ -940,8 +943,19 @@ const BroadcastRunSchema = new mongoose.Schema(
       total: { type: Number, default: 0 },
       pending: { type: Number, default: 0 },
       sent: { type: Number, default: 0 },
+      delivered: { type: Number, default: 0 },
+      read: { type: Number, default: 0 },
       failed: { type: Number, default: 0 },
       skipped: { type: Number, default: 0 },
+      blocked: { type: Number, default: 0 }, // User blocked or invalid number
+    },
+
+    // Cost tracking (Meta API charges per message, QR is free)
+    cost: {
+      currency: { type: String, default: 'INR' },
+      totalCost: { type: Number, default: 0 },
+      perMessageCost: { type: Number, default: 0 },
+      breakdown: mongoose.Schema.Types.Mixed, // { marketing: X, utility: Y, etc }
     },
 
     startedAt: Date,
@@ -963,17 +977,34 @@ const BroadcastRunMessageSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['pending', 'sending', 'sent', 'failed', 'skipped'],
+      enum: ['pending', 'sending', 'sent', 'delivered', 'read', 'failed', 'skipped', 'blocked'],
       default: 'pending',
       index: true,
     },
+    
+    // Delivery tracking
+    deliveredAt: Date,
+    readAt: Date,
+    
+    // Failure details
     failureReason: String,
+    failureCode: String, // e.g., 'invalid_number', 'blocked', 'rate_limit', 'network_error'
+    
+    // WhatsApp message tracking
     waMessageId: String,
-    provider: String,
+    provider: { type: String, enum: ['meta', 'qr'], default: 'meta' },
     sentAt: Date,
 
     // Link to actual WhatsAppMessage doc created by the send pipeline.
     whatsappMessageId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppMessage' },
+    
+    // Cost for this message (Meta charges vary by category)
+    cost: {
+      amount: { type: Number, default: 0 },
+      currency: { type: String, default: 'INR' },
+      category: String, // 'marketing', 'utility', 'authentication', 'service'
+    },
+    
     metadata: mongoose.Schema.Types.Mixed,
   },
   { timestamps: true, collection: 'broadcast_run_messages' }
@@ -981,6 +1012,7 @@ const BroadcastRunMessageSchema = new mongoose.Schema(
 
 BroadcastRunMessageSchema.index({ runId: 1, status: 1 });
 BroadcastRunMessageSchema.index({ leadId: 1, createdAt: -1 });
+BroadcastRunMessageSchema.index({ waMessageId: 1 }); // For webhook status updates
 
 // ============================================================================
 // 12. WHATSAPP AUTOMATION RULES - Welcome/greetings/chatbot/AI agent
