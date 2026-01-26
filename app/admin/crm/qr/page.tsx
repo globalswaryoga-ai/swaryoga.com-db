@@ -2326,19 +2326,16 @@ function QRWhatsAppInboxPageContent() {
                         </span>
                       </div>
                       
-                      {/* Phone number - second line (show if displayName is set and name is phone) */}
-                      {chat.displayName && (
-                        <p className="text-[11px] text-[#0f3a4d]/60 truncate">
-                          📱 {String(chat.name).replace(/\D/g, '').slice(-10)}
-                        </p>
-                      )}
-                      
-                      {/* Phone number - second line (show if no displayName and name is all digits) */}
-                      {!chat.displayName && /^\d+$/.test(String(chat.name)) && (
-                        <p className="text-[11px] text-[#0f3a4d]/60 truncate">
-                          📱 {chat.name}
-                        </p>
-                      )}
+                      {/* Phone number - always show below name */}
+                      <p className="text-[11px] text-[#0f3a4d]/60 truncate">
+                        📱 {(() => {
+                          // Extract phone from chat id or name
+                          const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+                          const phoneFromId = chatIdStr.split('@')[0].replace(/\D/g, '');
+                          const phoneFromName = String(chat.name || '').replace(/\D/g, '');
+                          return phoneFromId || phoneFromName || chat.name || 'No number';
+                        })()}
+                      </p>
                       
                       {/* Lead Details Tags: ID, Status, Label - third line */}
                       {(chat.leadId || chat.leadStatus || chat.leadLabel) && (
