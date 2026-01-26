@@ -3022,14 +3022,14 @@ function QRWhatsAppInboxPageContent() {
                     return (
                       <div key={idx} className={`flex flex-col gap-1 ${msg.fromMe ? 'items-end' : 'items-start'}`}>
                         {/* Message Bubble */}
-                        <div className={`flex gap-2 ${msg.fromMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`flex gap-2 ${msg.fromMe ? 'justify-end' : 'justify-start'} w-full`}>
                           <div
-                            className={`min-w-[100px] max-w-[72%] rounded-3xl px-6 py-4 text-[15px] leading-relaxed shadow-md font-medium transition-all duration-300 hover:scale-[1.01] ${
+                            className={`inline-block max-w-[85%] rounded-3xl px-5 py-3 text-[15px] leading-relaxed shadow-md font-medium transition-all duration-300 hover:scale-[1.01] ${
                               msg.fromMe
-                                ? 'bg-blue-600 text-white rounded-tr-none shadow-[0_8px_20px_rgba(37,99,235,0.15)] ring-1 ring-blue-500/10'
-                                : 'bg-emerald-500 text-white rounded-tl-none shadow-[0_8px_15px_rgba(16,185,129,0.15)] border border-emerald-400'
+                                ? 'bg-blue-600 text-white rounded-tr-none shadow-[0_8px_20px_rgba(37,99,235,0.15)] ring-1 ring-blue-500/10 ml-auto'
+                                : 'bg-emerald-500 text-white rounded-tl-none shadow-[0_8px_15px_rgba(16,185,129,0.15)] border border-emerald-400 mr-auto'
                             }`}
-                            style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif" }}
+                            style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif", whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                           >
                             {/* Media Content - Using unified InlineMediaPreview */}
                             {wantsMediaLoad ? (
