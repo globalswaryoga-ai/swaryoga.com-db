@@ -2480,7 +2480,9 @@ function QRWhatsAppInboxPageContent() {
                     if (phoneFromId) setActivePhone(phoneFromId);
                     if (chat.leadId) {
                       setActiveLeadId(chat.leadId);
-                      // Fetch full lead details including leadNumber
+                      // Set leadNumber from chat object first (immediate)
+                      if (chat.leadNumber) setActiveLeadNumber(chat.leadNumber);
+                      // Then try to fetch full lead details (may update with fresher data)
                       try {
                         const res = await fetch(`/api/admin/crm/leads/${chat.leadId}`, {
                           headers: { 'Authorization': `Bearer ${token}` }
@@ -2973,7 +2975,7 @@ function QRWhatsAppInboxPageContent() {
                         {/* Message Bubble */}
                         <div className={`flex gap-2 ${msg.fromMe ? 'justify-end' : 'justify-start'}`}>
                           <div
-                            className={`max-w-[72%] rounded-3xl px-6 py-4 text-[15px] leading-relaxed shadow-md font-medium transition-all duration-300 hover:scale-[1.01] ${
+                            className={`min-w-[100px] max-w-[72%] rounded-3xl px-6 py-4 text-[15px] leading-relaxed shadow-md font-medium transition-all duration-300 hover:scale-[1.01] ${
                               msg.fromMe
                                 ? 'bg-blue-600 text-white rounded-tr-none shadow-[0_8px_20px_rgba(37,99,235,0.15)] ring-1 ring-blue-500/10'
                                 : 'bg-emerald-500 text-white rounded-tl-none shadow-[0_8px_15px_rgba(16,185,129,0.15)] border border-emerald-400'
@@ -3006,7 +3008,7 @@ function QRWhatsAppInboxPageContent() {
                                   const tag = tagMatch ? tagMatch[1] : null;
                                   return (
                                     <div className="space-y-1">
-                                      {mainBody && <div className="break-words whitespace-pre-wrap">{mainBody}</div>}
+                                      {mainBody && <div className="whitespace-pre-wrap">{mainBody}</div>}
                                       {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
                                     </div>
                                   );
@@ -3020,7 +3022,7 @@ function QRWhatsAppInboxPageContent() {
                                 const tag = tagMatch ? tagMatch[1] : null;
                                 return (
                                   <div className="space-y-1">
-                                    {mainBody && <div className="break-words whitespace-pre-wrap">{mainBody}</div>}
+                                    {mainBody && <div className="whitespace-pre-wrap">{mainBody}</div>}
                                     {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
                                   </div>
                                 );
