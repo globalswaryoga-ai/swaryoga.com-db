@@ -120,6 +120,7 @@ export default function MetaInboxPage() {
   const [composerText, setComposerText] = useState('');
   const [attachedMedia, setAttachedMedia] = useState<{ url: string; type: 'image' | 'video' | 'document' } | null>(null);
   const [sending, setSending] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [showSidebar, setShowSidebar] = useState(true); // Added for sidebar toggle
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false); // Added for attachment popup
   const [showEmojiPicker, setShowEmojiPicker] = useState(false); // State for emoji picker
@@ -417,41 +418,66 @@ export default function MetaInboxPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', uploadType);
+    // File size limit (25MB)
+    const MAX_SIZE = 25 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert(`File too large. Maximum size: 25MB`);
+      return;
+    }
 
-      const res = await fetch('/api/admin/crm/upload/s3', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}` 
-        },
-        body: formData
+    try {
+      setUploadProgress(0);
+      
+      const uploadedUrl = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', uploadType);
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percent);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const result = JSON.parse(xhr.responseText);
+              const url = result?.data?.url || result?.url;
+              if (url) {
+                resolve(url);
+              } else {
+                reject(new Error('Upload succeeded but URL not returned'));
+              }
+            } catch (e) {
+              reject(new Error('Invalid response from server'));
+            }
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Network error')));
+        xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+        xhr.open('POST', '/api/admin/crm/upload/s3');
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(formData);
       });
 
-      if (!res.ok) throw new Error('Upload failed');
-      const result = await res.json();
-      
-      // API returns { success: true, data: { url: ... } } or { url: ... }
-      const uploadedUrl = result?.data?.url || result?.url;
-      
-      if (uploadedUrl) {
-        console.log('[Meta] 📤 Media uploaded to S3:', uploadedUrl);
-        // Store media separately for sending as media, not as text URL
-        setAttachedMedia({
-          url: uploadedUrl,
-          type: uploadType
-        });
-      } else {
-        console.error('[Meta] Upload response missing URL:', result);
-        alert('Upload succeeded but URL not returned');
-      }
-    } catch (err) {
+      console.log('[Meta] 📤 Media uploaded to S3:', uploadedUrl);
+      setAttachedMedia({
+        url: uploadedUrl,
+        type: uploadType
+      });
+    } catch (err: any) {
       console.error(err);
-      alert('Upload failed');
+      alert(err.message || 'Upload failed');
     } finally {
-        if (fileInputRef.current) fileInputRef.current.value = '';
+      setUploadProgress(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -1746,6 +1772,24 @@ export default function MetaInboxPage() {
                         onChange={handleFileUpload}
                         accept={uploadType === 'image' ? "image/*" : uploadType === 'video' ? "video/*" : "*"}
                       />
+
+                      {/* Upload Progress Bar */}
+                      {uploadProgress !== null && (
+                        <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-200 mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Uploading...</span>
+                              <span className="text-xs font-medium text-blue-600">{uploadProgress}%</span>
+                            </div>
+                            <div className="w-full bg-blue-200 rounded-full h-2">
+                              <div 
+                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Media Preview - Using unified MediaPreview component */}
                       {attachedMedia && (

@@ -143,6 +143,18 @@ function QRWhatsAppInboxPageContent() {
   // Cache lead data by phone number for sidebar display
   const [leadDataCache, setLeadDataCache] = useState<Record<string, any>>({});
 
+  // Right Sidebar State (CRM Details Panel)
+  const [showRightSidebar, setShowRightSidebar] = useState(true);
+  const [sidebarData, setSidebarData] = useState({
+    status: '',
+    labels: [] as string[],
+    notes: '',
+    followUpDate: '',
+    assignedTo: '',
+  });
+  const [savingSidebar, setSavingSidebar] = useState(false);
+  const labelOptions = ['New', 'Chatting/Replying', 'No Reply', 'Call Pending', 'Call Done', 'Interested', 'Enrolled'];
+
   // Quick Replies & Templates
   const [quickReplies, setQuickReplies] = useState<Array<{ id: string; message: string }>>([
     { id: '1', message: 'Thank you for contacting us!' },
@@ -978,6 +990,11 @@ function QRWhatsAppInboxPageContent() {
           
           const isOutbound = msg.direction === 'outbound';
           
+          // Extract media URL from the media object (CRM stores as media.url)
+          const mediaUrl = msg.media?.url || msg.mediaUrl;
+          const mediaType = msg.media?.kind || msg.messageType || 'text';
+          const mimeType = msg.media?.mimeType || msg.mimeType || '';
+          
           return {
             id: msg._id || msg.waMessageId,
             body: msg.messageContent || '',
@@ -985,9 +1002,13 @@ function QRWhatsAppInboxPageContent() {
             from: isOutbound ? 'Me' : msg.phoneNumber,
             to: isOutbound ? msg.phoneNumber : undefined,
             fromMe: isOutbound,
-            type: msg.messageType || 'text',
+            type: mediaType,
             status: msg.status,
             ack: isOutbound ? statusToAck(msg.status) : 0, // Only show ticks for outbound
+            // Media fields - extracted from CRM schema
+            mediaUrl: mediaUrl,
+            mimeType: mimeType,
+            hasMedia: Boolean(mediaUrl),
             _crmMessage: true,
           };
         });
@@ -1086,6 +1107,76 @@ function QRWhatsAppInboxPageContent() {
     
     return null;
   };
+
+  // Save sidebar CRM data
+  const handleSaveSidebar = async () => {
+    if (!activeLeadId || !token) {
+      showToast('No lead selected', 'error');
+      return;
+    }
+    
+    setSavingSidebar(true);
+    try {
+      const res = await fetch(`/api/admin/crm/leads/${activeLeadId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: sidebarData.status || undefined,
+          labels: sidebarData.labels.length > 0 ? sidebarData.labels : undefined,
+          notes: sidebarData.notes || undefined,
+          nextFollowUp: sidebarData.followUpDate || undefined,
+        }),
+      });
+      
+      if (res.ok) {
+        showToast('Lead updated successfully', 'success');
+        // Update local state
+        if (sidebarData.status) setActiveStatus(sidebarData.status.toUpperCase());
+        if (sidebarData.labels[0]) setActiveLabel(sidebarData.labels[0]);
+      } else {
+        const error = await res.json();
+        showToast(error.error || 'Failed to update lead', 'error');
+      }
+    } catch (err: any) {
+      console.error('Failed to save sidebar:', err);
+      showToast('Failed to save changes', 'error');
+    } finally {
+      setSavingSidebar(false);
+    }
+  };
+
+  // Load sidebar data when lead changes
+  useEffect(() => {
+    if (!activeLeadId || !token) {
+      setSidebarData({ status: '', labels: [], notes: '', followUpDate: '', assignedTo: '' });
+      return;
+    }
+    
+    const loadLeadDetails = async () => {
+      try {
+        const res = await fetch(`/api/admin/crm/leads/${activeLeadId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const lead = await res.json();
+          setSidebarData({
+            status: lead.status || '',
+            labels: lead.labels || [],
+            notes: lead.notes || '',
+            followUpDate: lead.nextFollowUp ? new Date(lead.nextFollowUp).toISOString().split('T')[0] : '',
+            assignedTo: lead.assignedToUserId || '',
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to load lead details for sidebar:', e);
+      }
+    };
+    
+    loadLeadDetails();
+  }, [activeLeadId, token]);
 
   // Send message
   const handleSendMessage = async () => {
@@ -2264,7 +2355,8 @@ function QRWhatsAppInboxPageContent() {
                         }
                       } catch (e) { console.warn('Failed to fetch lead:', e); }
                     } else {
-                      // Clear lead-specific state for non-lead chats
+                      // Clear ALL lead-specific state for non-lead chats (CRITICAL: include leadId!)
+                      setActiveLeadId(null);
                       setActiveLeadNumber(null);
                       setActiveStatus(null);
                       setActiveLabel(null);
@@ -2475,68 +2567,54 @@ function QRWhatsAppInboxPageContent() {
                     </p>
                   )}
                   
-                  {/* Lead Details: ID, Status, Label Tags */}
-                  {(activeLeadId || activeStatus || activeLabel) && (
-                    <div className="flex items-center gap-2 flex-wrap mt-1">
-                      {/* ID Tag */}
-                      {activeLeadId && (
-                        <span className="px-2 py-0.5 bg-pink-100 text-pink-700 text-[10px] font-bold rounded border border-pink-300">
-                          ID: {activeLeadNumber || activeLeadId.slice(-6)}
-                        </span>
-                      )}
-                      
-                      {/* Status Tag */}
+                  {/* Compact Lead Tags */}
+                  {activeLeadId && (
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                      <span className="px-1.5 py-0.5 bg-pink-100 text-pink-700 text-[9px] font-bold rounded">
+                        #{activeLeadNumber || activeLeadId.slice(-6)}
+                      </span>
                       {activeStatus && (
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
-                          activeStatus === 'LEAD' ? 'bg-green-100 text-green-700 border-green-300' :
-                          activeStatus === 'PROSPECT' ? 'bg-blue-100 text-blue-700 border-blue-300' :
-                          activeStatus === 'CUSTOMER' ? 'bg-purple-100 text-purple-700 border-purple-300' :
-                          activeStatus === 'INACTIVE' ? 'bg-gray-100 text-gray-700 border-gray-300' :
-                          'bg-[#F5EBE0]/60 text-[#0f3a4d] border-[#E8DFD5]'
+                        <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                          activeStatus === 'LEAD' ? 'bg-green-100 text-green-700' :
+                          activeStatus === 'PROSPECT' ? 'bg-blue-100 text-blue-700' :
+                          activeStatus === 'CUSTOMER' ? 'bg-purple-100 text-purple-700' :
+                          'bg-gray-100 text-gray-700'
                         }`}>
                           {activeStatus}
-                        </span>
-                      )}
-                      
-                      {/* Label Tag */}
-                      {activeLabel ? (
-                        <span className="px-2 py-0.5 bg-cyan-100 text-cyan-700 text-[10px] font-bold rounded border border-cyan-300">
-                          {activeLabel}
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 bg-cyan-100 text-cyan-700 text-[10px] font-bold rounded border border-cyan-300">
-                          NO LABEL
                         </span>
                       )}
                     </div>
                   )}
                   
-                  {/* Status/Online Indicator - Show bridge status */}
-                  <p className="text-[11px] text-[#0f3a4d]/60 mt-1">
-                    {status === 'connected' ? (
-                      <span className="text-green-600">🟢 Bridge Connected</span>
-                    ) : status === 'qr_ready' ? (
-                      <span className="text-yellow-600">📱 Scan QR to connect</span>
-                    ) : (
-                      <span className="text-red-500">🔴 Bridge Offline</span>
-                    )}
-                  </p>
+                  {/* Group info */}
                   {!activeLeadId && selectedChat.isGroup && selectedChat.memberCount && (
-                    <p className="text-[11px] text-[#0f3a4d]/60">
+                    <p className="text-[11px] text-[#0f3a4d]/60 mt-1">
                       Group · {selectedChat.memberCount} members
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Right: Close Button Only */}
-              <button
-                onClick={() => setSelectedChat(null)}
-                className="text-[#0f3a4d]/60 hover:text-[#0f3a4d] text-2xl leading-none"
-                aria-label="Close chat"
-              >
-                <X size={24} />
-              </button>
+              {/* Right: Sidebar Toggle + Close Button */}
+              <div className="flex items-center gap-2">
+                {/* Toggle Sidebar Button */}
+                <button
+                  onClick={() => setShowRightSidebar(!showRightSidebar)}
+                  className="hidden lg:flex px-2 py-1 text-xs font-bold rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors items-center gap-1"
+                  title={showRightSidebar ? 'Hide details' : 'Show details'}
+                >
+                  <span>📋</span> {showRightSidebar ? 'Hide' : 'Details'}
+                </button>
+                
+                {/* Close Button */}
+                <button
+                  onClick={() => setSelectedChat(null)}
+                  className="text-[#0f3a4d]/60 hover:text-[#0f3a4d] text-2xl leading-none"
+                  aria-label="Close chat"
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
 
             {/* Messages */}
@@ -2571,9 +2649,10 @@ function QRWhatsAppInboxPageContent() {
                     // Media handling:
                     // - Bridge message list provides `hasMedia` but not the bytes/URL.
                     // - We lazily fetch base64 via `/messages/media/:msgId` and cache it.
+                    // - CRM messages have media.url, optimistic messages have mediaUrl
                     const msgId = String(msg?.id || '');
                     const cachedMedia = msgId ? messageMediaCache[msgId] : undefined;
-                    const resolvedMediaUrl = msg.mediaUrl || cachedMedia?.dataUrl;
+                    const resolvedMediaUrl = msg.mediaUrl || msg.media?.url || cachedMedia?.dataUrl;
                     const mediaMime = String(msg.mimeType || msg.mimetype || cachedMedia?.mimetype || '');
                     const wantsMediaLoad = Boolean(msg.hasMedia) && !resolvedMediaUrl;
 
@@ -2862,6 +2941,155 @@ function QRWhatsAppInboxPageContent() {
           </div>
         )}
       </div>
+
+      {/* RIGHT SIDEBAR - CRM Details Panel */}
+      {showRightSidebar && selectedChat && (
+        <aside className="hidden lg:flex w-72 border-l border-slate-200/70 flex-col overflow-y-auto bg-white shrink-0">
+          {/* User Info Header */}
+          <div className="p-4 border-b border-slate-200/70 bg-gradient-to-br from-green-50 to-white">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-extrabold text-xl shadow-md">
+                {activeName ? activeName[0].toUpperCase() : 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-extrabold text-slate-900 leading-tight truncate">{activeName || 'Unknown'}</h3>
+                <p className="text-xs text-slate-500 truncate">📱 {activePhone || 'No number'}</p>
+              </div>
+            </div>
+            
+            {/* Online/Connection Status */}
+            <div className="flex items-center gap-2 text-xs">
+              {status === 'connected' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  Bridge Connected
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                  Bridge Offline
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* CRM Details Section */}
+          {activeLeadId ? (
+            <div className="p-4 space-y-5 flex-1 overflow-y-auto">
+              {/* Lead ID Badge */}
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-pink-100 text-pink-700 text-xs font-bold rounded-lg border border-pink-200">
+                  Lead ID: {activeLeadNumber || activeLeadId.slice(-6)}
+                </span>
+              </div>
+
+              {/* Status Dropdown */}
+              <section>
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Status</label>
+                <select 
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none bg-slate-50 font-semibold text-green-700"
+                  value={sidebarData.status}
+                  onChange={(e) => setSidebarData({ ...sidebarData, status: e.target.value })}
+                >
+                  <option value="">Select status...</option>
+                  <option value="lead">Lead</option>
+                  <option value="prospect">Prospect</option>
+                  <option value="customer">Customer</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </section>
+
+              {/* Labels Dropdown */}
+              <section>
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Labels</label>
+                <select 
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-slate-50"
+                  value={sidebarData.labels[0] || ''}
+                  onChange={(e) => setSidebarData({ ...sidebarData, labels: e.target.value ? [e.target.value] : [] })}
+                >
+                  <option value="">Select label...</option>
+                  {labelOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </section>
+
+              {/* Internal Notes */}
+              <section>
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Internal Notes</label>
+                <textarea 
+                  className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none min-h-[100px] bg-slate-50 placeholder:text-slate-400 resize-none"
+                  placeholder="Add notes about this customer..."
+                  value={sidebarData.notes}
+                  onChange={(e) => setSidebarData({ ...sidebarData, notes: e.target.value })}
+                />
+              </section>
+
+              {/* Follow Up Date */}
+              <section>
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Next Follow-up</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">📅</span>
+                  <input 
+                    type="date"
+                    className="w-full border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-slate-50" 
+                    value={sidebarData.followUpDate}
+                    onChange={(e) => setSidebarData({ ...sidebarData, followUpDate: e.target.value })}
+                  />
+                </div>
+              </section>
+
+              {/* Save Button */}
+              <button 
+                onClick={handleSaveSidebar}
+                disabled={savingSidebar}
+                className="w-full bg-green-600 text-white flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-extrabold hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {savingSidebar ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <span>💾</span>
+                )}
+                <span>Save Changes</span>
+              </button>
+            </div>
+          ) : (
+            /* No Lead - Show Create Lead Option */
+            <div className="p-4 flex-1 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                <span className="text-3xl">👤</span>
+              </div>
+              <p className="text-sm text-slate-500 mb-4">No lead record found for this contact</p>
+              <button 
+                onClick={() => {
+                  if (activePhone) {
+                    setNewLeadForm({
+                      ...newLeadForm,
+                      phone: activePhone,
+                      name: activeName || '',
+                    });
+                    setShowNewLeadModal(true);
+                  }
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors"
+              >
+                + Create Lead
+              </button>
+            </div>
+          )}
+        </aside>
+      )}
+
+      {/* Sidebar Toggle Button (when hidden on desktop) */}
+      {!showRightSidebar && selectedChat && (
+        <button
+          onClick={() => setShowRightSidebar(true)}
+          className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 w-8 h-16 bg-green-600 text-white rounded-l-lg items-center justify-center shadow-lg hover:bg-green-700 transition-colors z-30"
+          title="Show details panel"
+        >
+          <span className="text-lg">◀</span>
+        </button>
+      )}
 
       {/* Contact Details Side Panel */}
       {showContactPanel && contactDetails && (

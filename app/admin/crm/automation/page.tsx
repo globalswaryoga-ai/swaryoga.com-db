@@ -26,13 +26,24 @@ interface AutomationRule {
 interface ScheduledMessage {
   _id: string;
   name: string;
-  leadPhoneNumber: string;
-  leadName?: string;
-  messageType: 'text' | 'template';
-  messageContent: string;
-  scheduledFor: string;
-  status: 'pending' | 'sent' | 'failed';
+  messageType: 'text' | 'template' | 'media' | 'interactive';
+  messageContent?: string;
+  nextRunAt?: string;
+  lastRunAt?: string;
+  runCount?: number;
+  maxRuns?: number;
+  status: 'active' | 'paused' | 'completed' | 'cancelled' | 'failed';
+  targetType?: 'leadIds' | 'filter';
+  targetLeadIds?: string[];
+  targetFilter?: Record<string, unknown>;
+  recurrence?: {
+    frequency: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+    interval?: number;
+    weekdays?: number[];
+    monthDays?: number[];
+  };
   createdAt: string;
+  updatedAt?: string;
 }
 
 interface BroadcastList {
@@ -122,7 +133,8 @@ export default function AutomationPage() {
       const result = await crm.fetch('/api/admin/crm/scheduled-messages', {
         params: { limit: 100, skip: 0 },
       });
-      setScheduledMessages(result?.scheduled || []);
+      // API returns { data: { jobs } } or { jobs }
+      setScheduledMessages(result?.data?.jobs || result?.jobs || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch scheduled');
     } finally {
@@ -141,7 +153,8 @@ export default function AutomationPage() {
       const result = await crm.fetch('/api/admin/crm/broadcast-lists', {
         params: { limit: 100, skip: 0 },
       });
-      setBroadcastLists(result?.lists || []);
+      // API returns { data: { lists } } or { lists }
+      setBroadcastLists(result?.data?.lists || result?.lists || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch broadcasts');
     } finally {
@@ -322,6 +335,41 @@ export default function AutomationPage() {
       await fetchRules();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update rule');
+    } finally {
+      setLoadingScope('page');
+    }
+  };
+
+  // Scheduled Job Action Handlers
+  const handleScheduledJobAction = async (jobId: string, action: 'pause' | 'resume' | 'cancel') => {
+    try {
+      setError(null);
+      setLoadingScope('save');
+      await crm.fetch(`/api/admin/crm/scheduled-messages/${jobId}`, {
+        method: 'PUT',
+        body: { action },
+      });
+      setSuccess(`Job ${action === 'pause' ? 'paused' : action === 'resume' ? 'resumed' : 'cancelled'}`);
+      fetchScheduledMessages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${action} job`);
+    } finally {
+      setLoadingScope('page');
+    }
+  };
+
+  const handleDeleteScheduledJob = async (jobId: string) => {
+    if (!confirm('Are you sure you want to delete this scheduled job?')) return;
+    try {
+      setError(null);
+      setLoadingScope('save');
+      await crm.fetch(`/api/admin/crm/scheduled-messages/${jobId}`, {
+        method: 'DELETE',
+      });
+      setSuccess('Scheduled job deleted');
+      fetchScheduledMessages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete job');
     } finally {
       setLoadingScope('page');
     }
@@ -739,10 +787,12 @@ export default function AutomationPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-purple-500/20 bg-slate-800/50">
-                        <th className="px-6 py-3 text-left text-purple-200">Recipient</th>
+                        <th className="px-6 py-3 text-left text-purple-200">Name</th>
                         <th className="px-6 py-3 text-left text-purple-200">Message</th>
-                        <th className="px-6 py-3 text-left text-purple-200">Scheduled For</th>
+                        <th className="px-6 py-3 text-left text-purple-200">Next Run</th>
+                        <th className="px-6 py-3 text-left text-purple-200">Recurrence</th>
                         <th className="px-6 py-3 text-left text-purple-200">Status</th>
+                        <th className="px-6 py-3 text-left text-purple-200">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -750,25 +800,76 @@ export default function AutomationPage() {
                         <tr key={msg._id} className="border-b border-purple-500/10 hover:bg-slate-800/30">
                           <td className="px-6 py-3">
                             <div>
-                              <p className="text-white font-semibold">{msg.leadName || msg.leadPhoneNumber}</p>
+                              <p className="text-white font-semibold">{msg.name || 'Untitled Job'}</p>
+                              <p className="text-xs text-purple-400">
+                                {msg.targetLeadIds?.length || 0} recipients
+                              </p>
                             </div>
                           </td>
-                          <td className="px-6 py-3 text-purple-200">{msg.messageContent.substring(0, 50)}...</td>
                           <td className="px-6 py-3 text-purple-200">
-                            {new Date(msg.scheduledFor).toLocaleString()}
+                            {(msg.messageContent || '').substring(0, 50)}
+                            {(msg.messageContent?.length || 0) > 50 ? '...' : ''}
+                          </td>
+                          <td className="px-6 py-3 text-purple-200">
+                            {msg.nextRunAt ? new Date(msg.nextRunAt).toLocaleString() : '—'}
+                          </td>
+                          <td className="px-6 py-3 text-purple-200 text-xs">
+                            {msg.recurrence?.frequency === 'none' || !msg.recurrence?.frequency
+                              ? 'One-time'
+                              : `${msg.recurrence.frequency}${msg.recurrence.interval && msg.recurrence.interval > 1 ? ` (every ${msg.recurrence.interval})` : ''}`}
                           </td>
                           <td className="px-6 py-3">
                             <span
                               className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                msg.status === 'sent'
+                                msg.status === 'completed'
                                   ? 'bg-green-500/20 text-green-200'
-                                  : msg.status === 'pending'
+                                  : msg.status === 'active'
                                   ? 'bg-yellow-500/20 text-yellow-200'
+                                  : msg.status === 'paused'
+                                  ? 'bg-blue-500/20 text-blue-200'
                                   : 'bg-red-500/20 text-red-200'
                               }`}
                             >
                               {msg.status}
                             </span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="flex gap-1 flex-wrap">
+                              {msg.status === 'active' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleScheduledJobAction(msg._id, 'pause')}
+                                  className="px-2 py-1 text-xs bg-yellow-500/20 text-yellow-200 rounded hover:bg-yellow-500/30 transition-colors"
+                                >
+                                  Pause
+                                </button>
+                              )}
+                              {msg.status === 'paused' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleScheduledJobAction(msg._id, 'resume')}
+                                  className="px-2 py-1 text-xs bg-green-500/20 text-green-200 rounded hover:bg-green-500/30 transition-colors"
+                                >
+                                  Resume
+                                </button>
+                              )}
+                              {(msg.status === 'active' || msg.status === 'paused') && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleScheduledJobAction(msg._id, 'cancel')}
+                                  className="px-2 py-1 text-xs bg-orange-500/20 text-orange-200 rounded hover:bg-orange-500/30 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteScheduledJob(msg._id)}
+                                className="px-2 py-1 text-xs bg-red-500/20 text-red-200 rounded hover:bg-red-500/30 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
