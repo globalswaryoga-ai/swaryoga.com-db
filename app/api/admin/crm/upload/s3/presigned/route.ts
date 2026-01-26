@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     // Using indirect proxy link: /api/media/view/[key]
     const indirectUrl = `/api/media/view/${key}`;
     const region = process.env.AWS_REGION || 'ap-south-1';
-    const bucket = process.env.AWS_S3_BUCKET || 'swaryoga-media';
+    const bucket = process.env.AWS_S3_BUCKET || 'swarygoal1hindi';
 
     return NextResponse.json({ 
       success: true, 

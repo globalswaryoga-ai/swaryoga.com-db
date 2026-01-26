@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       originalName,
       fileName: fileName || originalName,
       s3Key,
-      s3Bucket: s3Bucket || process.env.AWS_S3_BUCKET || 'swaryoga-media',
+      s3Bucket: s3Bucket || process.env.AWS_S3_BUCKET || 'swarygoal1hindi',
       contentType,
       size,
       category: category || 'social_media',

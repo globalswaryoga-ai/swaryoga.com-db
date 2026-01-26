@@ -16,7 +16,7 @@ export async function GET(
 ) {
   try {
     const key = params.key.join('/');
-    const bucket = process.env.AWS_S3_BUCKET || 'swaryoga-media';
+    const bucket = process.env.AWS_S3_BUCKET || 'swarygoal1hindi';
 
     const command = new GetObjectCommand({
       Bucket: bucket,

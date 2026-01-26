@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     // Upload to S3 (no ACL - bucket policy controls public access)
     console.log('[S3 Upload] Uploading:', key, 'size:', buffer.length);
     const s3Url = await uploadToS3(buffer, key, {
-      bucket: process.env.AWS_S3_BUCKET || 'swaryoga-media',
+      bucket: process.env.AWS_S3_BUCKET || 'swarygoal1hindi',
       // ACL removed - use bucket policy for public access instead
       // This prevents 500 errors on buckets with "Block Public Access" enabled
       metadata: {

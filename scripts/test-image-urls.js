@@ -1,8 +1,8 @@
 const axios = require('axios');
 
 const urls = [
-  'https://swaryoga-media.s3.us-east-1.amazonaws.com/community-posts/test-image.jpg',
-  'https://swaryoga-media.s3.amazonaws.com/community-posts/test-image.jpg'
+  'https://swarygoal1hindi.s3.us-east-1.amazonaws.com/community-posts/test-image.jpg',
+  'https://swarygoal1hindi.s3.amazonaws.com/community-posts/test-image.jpg'
 ];
 
 async function check() {

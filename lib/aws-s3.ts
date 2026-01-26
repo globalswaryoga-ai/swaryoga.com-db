@@ -46,7 +46,7 @@ export interface S3PresignedUrlOptions {
   expiresIn?: number; // seconds, default 3600 (1 hour)
 }
 
-const DEFAULT_BUCKET = process.env.AWS_S3_BUCKET || 'swaryoga-media';
+const DEFAULT_BUCKET = process.env.AWS_S3_BUCKET || 'swarygoal1hindi';
 
 /**
  * Upload file to AWS S3

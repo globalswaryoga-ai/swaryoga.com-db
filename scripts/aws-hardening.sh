@@ -28,7 +28,7 @@ fi
 # Get current AWS account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 REGION=${AWS_REGION:-ap-south-1}
-BUCKET_NAME="swaryoga-media"
+BUCKET_NAME="swarygoal1hindi"
 INSTANCE_ID=${1:-i-0123456789abcdef0}
 
 echo -e "${BLUE}Account ID: ${NC}${ACCOUNT_ID}"

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const cleanName = fileName ? fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '') : `media-${timestamp}`;
     const key = `${category}/${timestamp}-${cleanName}`;
     const region = process.env.AWS_REGION || 'ap-south-1';
-    const bucket = process.env.AWS_S3_BUCKET || 'swaryoga-media';
+    const bucket = process.env.AWS_S3_BUCKET || 'swarygoal1hindi';
 
     await s3Client.send(new PutObjectCommand({
       Bucket: bucket,
