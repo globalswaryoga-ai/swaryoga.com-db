@@ -513,7 +513,7 @@ export default function BroadcastPage() {
                   // Use window.location to avoid React router throttling
                   window.location.href = `/admin/crm/broadcast?listId=${listIdValue}`;
                 }}
-                style={{{
+                style={{
                   padding: 12,
                   border: '1px solid #D1D5DB',
                   borderRadius: 8,
