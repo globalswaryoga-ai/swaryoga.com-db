@@ -26,6 +26,24 @@ import {
   CheckCircle
 } from 'lucide-react';
 
+/**
+ * Convert S3 URLs to proxied URLs for authenticated access
+ * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
+ */
+function getProxiedMediaUrl(url: string, authToken: string | null): string {
+  if (!url) return url;
+  
+  // Check if it's an S3 URL (our bucket)
+  const isS3Url = url.includes('.s3.') && url.includes('.amazonaws.com');
+  
+  if (isS3Url && authToken) {
+    // Proxy through our API which will generate a signed URL and fetch the content
+    return `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(authToken)}`;
+  }
+  
+  return url;
+}
+
 function QRWhatsAppInboxPageContent() {
   const token = useAuth();
   const searchParams = useSearchParams();
@@ -2946,21 +2964,24 @@ function QRWhatsAppInboxPageContent() {
                     // - CRM messages have media.url, optimistic messages have mediaUrl
                     const msgId = String(msg?.id || '');
                     const cachedMedia = msgId ? messageMediaCache[msgId] : undefined;
-                    const resolvedMediaUrl = msg.mediaUrl || msg.media?.url || cachedMedia?.dataUrl;
+                    const rawMediaUrl = msg.mediaUrl || msg.media?.url || cachedMedia?.dataUrl;
+                    // Proxy S3 URLs through our API to handle Block Public Access
+                    const resolvedMediaUrl = getProxiedMediaUrl(rawMediaUrl, token);
                     const mediaMime = String(msg.mimeType || msg.mimetype || cachedMedia?.mimetype || '');
-                    const wantsMediaLoad = Boolean(msg.hasMedia) && !resolvedMediaUrl;
+                    const wantsMediaLoad = Boolean(msg.hasMedia) && !rawMediaUrl;
 
+                    // Use rawMediaUrl for extension detection (proxied URL has query params)
                     const isImage = Boolean(
-                      resolvedMediaUrl &&
-                        (mediaMime.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(resolvedMediaUrl))
+                      rawMediaUrl &&
+                        (mediaMime.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(rawMediaUrl))
                     );
                     const isVideo = Boolean(
-                      resolvedMediaUrl &&
-                        (mediaMime.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm)$/i.test(resolvedMediaUrl))
+                      rawMediaUrl &&
+                        (mediaMime.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm)$/i.test(rawMediaUrl))
                     );
                     const isPDF = Boolean(
-                      resolvedMediaUrl &&
-                        (mediaMime === 'application/pdf' || /\.pdf$/i.test(resolvedMediaUrl))
+                      rawMediaUrl &&
+                        (mediaMime === 'application/pdf' || /\.pdf$/i.test(rawMediaUrl))
                     );
 
                     return (

@@ -7,6 +7,24 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox, MediaPreview, formatFileSize } from '@/components/admin/crm';
 
+/**
+ * Convert S3 URLs to proxied URLs for authenticated access
+ * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
+ */
+function getProxiedMediaUrl(url: string, authToken: string | null): string {
+  if (!url) return url;
+  
+  // Check if it's an S3 URL (our bucket)
+  const isS3Url = url.includes('.s3.') && url.includes('.amazonaws.com');
+  
+  if (isS3Url && authToken) {
+    // Proxy through our API which will generate a signed URL and fetch the content
+    return `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(authToken)}`;
+  }
+  
+  return url;
+}
+
 type ImageFile = {
   url: string;
   fileName: string;
@@ -405,7 +423,7 @@ export default function CreateTemplatePage() {
                   ) : (
                     <MediaPreview 
                       media={{
-                        url: imageFile.url,
+                        url: getProxiedMediaUrl(imageFile.url, token),
                         type: 'image',
                         name: imageFile.fileName,
                         size: imageFile.sizeBytes,
@@ -582,7 +600,7 @@ export default function CreateTemplatePage() {
                     <div className="space-y-2">
                       <MediaPreview 
                         media={documentFiles.map((doc, idx) => ({
-                          url: doc.url,
+                          url: getProxiedMediaUrl(doc.url, token),
                           type: 'document' as const,
                           name: doc.fileName,
                           size: doc.sizeBytes,
@@ -653,7 +671,7 @@ export default function CreateTemplatePage() {
                         <div className="mb-3">
                           <MediaPreview 
                             media={{
-                              url: imageFile.url,
+                              url: getProxiedMediaUrl(imageFile.url, token),
                               type: 'image',
                               name: imageFile.fileName,
                             }}

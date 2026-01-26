@@ -4,6 +4,25 @@ import { useState, useRef } from 'react';
 import { Upload, Image, Video, FileText, Globe, Lock, Users, Settings, Trash2, Copy, ExternalLink, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import Link from 'next/link';
 import { MediaPreview, detectMediaType } from '@/components/admin/crm';
+import { useAuth } from '@/hooks/useAuth';
+
+/**
+ * Convert S3 URLs to proxied URLs for authenticated access
+ * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
+ */
+function getProxiedMediaUrl(url: string, authToken: string | null): string {
+  if (!url) return url;
+  
+  // Check if it's an S3 URL (our bucket)
+  const isS3Url = url.includes('.s3.') && url.includes('.amazonaws.com');
+  
+  if (isS3Url && authToken) {
+    // Proxy through our API which will generate a signed URL and fetch the content
+    return `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(authToken)}`;
+  }
+  
+  return url;
+}
 
 type AccessLevel = 'public' | 'admin' | 'community';
 type FileType = 'images' | 'videos' | 'documents';
@@ -20,6 +39,7 @@ interface UploadedFile {
 }
 
 export default function MediaManagerPage() {
+  const token = useAuth();
   const [accessLevel, setAccessLevel] = useState<AccessLevel>('public');
   const [fileType, setFileType] = useState<FileType>('images');
   const [selectedCommunity, setSelectedCommunity] = useState('swar-yoga');
@@ -317,7 +337,10 @@ export default function MediaManagerPage() {
               </div>
             ) : (
               <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                {uploadedFiles.map((file) => (
+                {uploadedFiles.map((file) => {
+                  // Proxy S3 URLs for display
+                  const proxiedUrl = getProxiedMediaUrl(file.url, token);
+                  return (
                   <div 
                     key={file.id}
                     className="p-3 bg-slate-700/50 rounded-lg border border-slate-600"
@@ -326,7 +349,7 @@ export default function MediaManagerPage() {
                     <div className="mb-3">
                       <MediaPreview 
                         media={{
-                          url: file.url,
+                          url: proxiedUrl,
                           type: detectMediaType(file.url),
                           name: file.name,
                           size: file.size,
@@ -367,7 +390,8 @@ export default function MediaManagerPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             )}
           </div>

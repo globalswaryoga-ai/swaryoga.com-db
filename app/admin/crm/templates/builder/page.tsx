@@ -7,6 +7,24 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox } from '@/components/admin/crm';
 
+/**
+ * Convert S3 URLs to proxied URLs for authenticated access
+ * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
+ */
+function getProxiedMediaUrl(url: string, authToken: string | null): string {
+  if (!url) return url;
+  
+  // Check if it's an S3 URL (our bucket)
+  const isS3Url = url.includes('.s3.') && url.includes('.amazonaws.com');
+  
+  if (isS3Url && authToken) {
+    // Proxy through our API which will generate a signed URL and fetch the content
+    return `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(authToken)}`;
+  }
+  
+  return url;
+}
+
 type ImageFile = {
   url: string;
   fileName: string;
@@ -477,7 +495,7 @@ export default function CreateTemplatePage() {
                        </label>
                      ) : (
                        <div className="relative rounded-xl border border-gray-200 overflow-hidden bg-gray-50 group">
-                         <img src={headerImage.url} alt="Header" className="w-full max-h-64 object-cover" />
+                         <img src={getProxiedMediaUrl(headerImage.url, token)} alt="Header" className="w-full max-h-64 object-cover" />
                          <button 
                            type="button"
                            onClick={() => setHeaderImage(null)}
@@ -801,13 +819,13 @@ export default function CreateTemplatePage() {
                       {headerFormat === 'IMAGE' && headerImage && (
                         <div className="mb-3 rounded-lg overflow-hidden border border-gray-100">
                           {/* Changed from object-cover to h-auto to show full image */}
-                          <img src={headerImage.url} alt="Preview" className="w-full h-auto" />
+                          <img src={getProxiedMediaUrl(headerImage.url, token)} alt="Preview" className="w-full h-auto" />
                         </div>
                       )}
 
                       {headerFormat === 'VIDEO' && headerVideo && (
                         <div className="mb-3 rounded-lg overflow-hidden border border-gray-100 bg-black flex items-center justify-center">
-                           <video src={headerVideo.url} controls className="w-full max-h-64" />
+                           <video src={getProxiedMediaUrl(headerVideo.url, token)} controls className="w-full max-h-64" />
                         </div>
                       )}
 

@@ -12,6 +12,24 @@ import {
   Heart, Share2
 } from 'lucide-react';
 
+/**
+ * Convert S3 URLs to proxied URLs for authenticated access
+ * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
+ */
+function getProxiedMediaUrl(url: string, authToken: string | null): string {
+  if (!url) return url;
+  
+  // Check if it's an S3 URL (our bucket)
+  const isS3Url = url.includes('.s3.') && url.includes('.amazonaws.com');
+  
+  if (isS3Url && authToken) {
+    // Proxy through our API which will generate a signed URL and fetch the content
+    return `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(authToken)}`;
+  }
+  
+  return url;
+}
+
 type CommunityButton = {
   id: string;
   label: string;
@@ -211,21 +229,24 @@ export default function AdminCommunityPage() {
     return <div dangerouslySetInnerHTML={{ __html: formatted }} />;
   };
 
-  // Helper function to normalize image URLs
+  // Helper function to normalize and proxy image URLs
+  // S3 bucket has Block Public Access, so we need to proxy S3 URLs
   const normalizeImageUrl = (imageUrl: string): string => {
     if (!imageUrl) return '';
-    // If it's already a full URL, return as-is
-    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-      return imageUrl;
+    
+    let fullUrl = imageUrl;
+    
+    // If it's already a full URL, use as-is
+    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+      // If it's a filename or partial path, construct S3 URL
+      if (imageUrl && !imageUrl.startsWith('/')) {
+        const s3BaseUrl = 'https://swarygoal1hindi.s3.us-east-1.amazonaws.com/';
+        fullUrl = `${s3BaseUrl}${imageUrl}`;
+      }
     }
-    // If it's a filename or partial path, try to construct S3 URL
-    // This assumes images might be stored as just filenames
-    if (imageUrl && !imageUrl.startsWith('/')) {
-      // Try common S3 bucket URLs
-      const s3BaseUrl = 'https://swarygoal1hindi.s3.us-east-1.amazonaws.com/';
-      return `${s3BaseUrl}${imageUrl}`;
-    }
-    return imageUrl;
+    
+    // Proxy S3 URLs through our API
+    return getProxiedMediaUrl(fullUrl, token);
   };
 
   const [editedCommunities, setEditedCommunities] = useState<Record<string, string>>({});
