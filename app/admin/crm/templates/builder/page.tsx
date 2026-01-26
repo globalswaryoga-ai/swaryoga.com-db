@@ -199,8 +199,12 @@ export default function CreateTemplatePage() {
 
         return uploadedFile;
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Upload failed - check console');
-        return null;
+        // Keep the local preview even if S3 upload fails
+        // The tempFile with blob URL is already set above
+        console.error('Upload failed:', err);
+        setError(err instanceof Error ? err.message : 'Upload failed - using local preview');
+        // Return the temp file so preview still works
+        return tempFile;
       } finally {
         setUploading(false);
       }

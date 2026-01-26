@@ -73,17 +73,26 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Upload to S3
-    const s3Url = await uploadTemplateFileToS3({
-      file: fileBuffer,
-      fileName: file.name,
-      mimeType: mimeType,
-      fileType: fileType as 'image' | 'document' | 'video',
-      templateId: templateId,
-    });
+    let s3Url: string;
+    try {
+      s3Url = await uploadTemplateFileToS3({
+        file: fileBuffer,
+        fileName: file.name,
+        mimeType: mimeType,
+        fileType: fileType as 'image' | 'document' | 'video',
+        templateId: templateId,
+      });
+    } catch (uploadError) {
+      console.error('S3 upload error:', uploadError);
+      return NextResponse.json(
+        { error: `S3 Upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}` },
+        { status: 500 }
+      );
+    }
 
     if (!s3Url) {
       return NextResponse.json(
-        { error: 'Upload to S3 failed' },
+        { error: 'Upload to S3 failed - no URL returned' },
         { status: 500 }
       );
     }
