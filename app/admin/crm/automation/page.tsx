@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { PageHeader, LoadingSpinner, AlertBox } from '@/components/admin/crm';
+import { PageHeader, LoadingSpinner, AlertBox, TemplateSelector, type WhatsAppTemplate } from '@/components/admin/crm';
 
 type FetchScope = 'page' | 'rules' | 'scheduled' | 'broadcast' | 'save' | null;
 
@@ -494,15 +494,20 @@ export default function AutomationPage() {
                   </div>
 
                   {editRuleForm.actionType === 'send_template' ? (
-                    <div>
-                      <label htmlFor="edit-template-id" className="block text-sm font-bold text-purple-100 mb-2">Template ID</label>
-                      <input
-                        id="edit-template-id"
-                        name="actionTemplateId"
-                        value={editRuleForm.actionTemplateId}
-                        onChange={(e) => setEditRuleForm((p) => ({ ...p, actionTemplateId: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-purple-500/20 text-white"
-                        placeholder="Template ObjectId"
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold text-purple-100 mb-2">Select Template</label>
+                      <TemplateSelector
+                        token={token}
+                        selectedTemplateId={editRuleForm.actionTemplateId}
+                        onSelect={(template: WhatsAppTemplate) => {
+                          setEditRuleForm((p) => ({ ...p, actionTemplateId: template._id }));
+                        }}
+                        showSearch={true}
+                        showFilters={false}
+                        showPreview={true}
+                        mode="inline"
+                        maxHeight="300px"
+                        className="rounded-lg bg-slate-800/50 border border-purple-500/20"
                       />
                     </div>
                   ) : (

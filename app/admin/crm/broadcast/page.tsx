@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
-import { AlertBox, LoadingSpinner, AddToBroadcastModal } from '@/components/admin/crm';
+import { AlertBox, LoadingSpinner, AddToBroadcastModal, TemplateSelector, type WhatsAppTemplate } from '@/components/admin/crm';
 import { buildLabelOptions } from '@/lib/crm/labels';
 
 type LeadRow = {
@@ -806,103 +806,26 @@ export default function BroadcastPage() {
               </div>
             </div>
 
+            {/* Template Selector */}
             <div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Template</div>
-              <select
-                id="template-select"
-                name="template"
-                value={selectedTemplateId}
-                onChange={(e) => setSelectedTemplateId(e.target.value)}
-                style={{ width: '100%' }}
-              >
-                <option value="">Select template</option>
-                {templates.map((t) => (
-                  <option key={t._id} value={t._id}>
-                    {t.templateName}
-                    {t.category ? ` • ${t.category}` : ''}
-                    {t.status ? ` • ${t.status}` : ''}
-                  </option>
-                ))}
-              </select>
-
+              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8, fontWeight: 600 }}>📋 Select Template</div>
+              <TemplateSelector
+                token={token}
+                selectedTemplateId={selectedTemplateId}
+                onSelect={(template: WhatsAppTemplate) => {
+                  setSelectedTemplateId(template._id);
+                }}
+                showSearch={true}
+                showFilters={true}
+                showPreview={true}
+                mode="inline"
+                maxHeight="400px"
+              />
               <div style={{ marginTop: 8 }}>
-                <Link href="/admin/crm/whatsapp/templates" style={{ fontSize: 12 }}>
-                  Manage templates
+                <Link href="/admin/crm/whatsapp/templates" style={{ fontSize: 12, color: '#1E7F43', fontWeight: 600 }}>
+                  ✏️ Manage templates
                 </Link>
               </div>
-            </div>
-
-            <div
-              style={{
-                border: '1px solid rgba(17, 24, 39, 0.08)',
-                borderRadius: 14,
-                background: '#F9FAFB',
-                padding: 10,
-                minHeight: 220,
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#374151' }}>Preview</div>
-              {!selectedTemplate ? (
-                <div style={{ marginTop: 8, color: '#6B7280', fontSize: 13 }}>Pick a template to preview here.</div>
-              ) : (
-                <>
-                  {((selectedTemplatePreview?.headerMedia || selectedTemplate.headerMedia)?.kind === 'image') &&
-                  (selectedTemplatePreview?.headerMedia || selectedTemplate.headerMedia)?.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={(selectedTemplatePreview?.headerMedia || selectedTemplate.headerMedia)!.url!}
-                      alt="template header"
-                      style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 12, marginTop: 8 }}
-                    />
-                  ) : null}
-
-                  <div style={{ marginTop: 10, whiteSpace: 'pre-wrap', fontSize: 13, color: '#111827' }}>
-                    {selectedTemplatePreview?.body ?? selectedTemplate.templateContent}
-                  </div>
-
-                  {selectedTemplatePreview?.footer ? (
-                    <div style={{ marginTop: 10, fontSize: 12, color: '#6B7280' }}>{selectedTemplatePreview.footer}</div>
-                  ) : null}
-
-                  {Array.isArray(selectedTemplatePreview?.buttons) && selectedTemplatePreview!.buttons!.length ? (
-                    <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-                      {selectedTemplatePreview!.buttons!.map((b, idx) => (
-                        <div
-                          key={`${String(b?.title || 'btn')}-${idx}`}
-                          style={{
-                            border: '1px solid rgba(17, 24, 39, 0.12)',
-                            borderRadius: 10,
-                            background: '#fff',
-                            padding: '10px 12px',
-                            textAlign: 'center',
-                            fontSize: 13,
-                          }}
-                        >
-                          {String(b?.title || 'Button')}
-                        </div>
-                      ))}
-                    </div>
-                  ) : Array.isArray(selectedTemplate.buttons) && selectedTemplate.buttons.length ? (
-                    <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-                      {selectedTemplate.buttons.map((b, idx) => (
-                        <div
-                          key={`${String(b?.title || 'btn')}-${idx}`}
-                          style={{
-                            border: '1px solid rgba(17, 24, 39, 0.12)',
-                            borderRadius: 10,
-                            background: '#fff',
-                            padding: '10px 12px',
-                            textAlign: 'center',
-                            fontSize: 13,
-                          }}
-                        >
-                          {String(b?.title || 'Button')}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </>
-              )}
             </div>
 
             {/* Action row */}

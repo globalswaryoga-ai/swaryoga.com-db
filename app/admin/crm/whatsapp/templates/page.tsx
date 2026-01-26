@@ -83,11 +83,11 @@ type Template = {
 type StatusType = 'all' | 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'disabled';
 
 /**
- * Component to load template images via signed URLs
- * This fixes the issue of images not displaying in the template list
+ * Component to load template images via media proxy
+ * Uses the proxy API to handle S3 private bucket access
  */
 function TemplateImageThumbnail({ imageFile, token }: { imageFile: any; token: string | null }) {
-  const [signedUrl, setSignedUrl] = useState<string>('');
+  const [imageUrl, setImageUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -98,41 +98,10 @@ function TemplateImageThumbnail({ imageFile, token }: { imageFile: any; token: s
       return;
     }
 
-    const fetchSignedUrl = async () => {
-      try {
-        setLoading(true);
-        setError(false);
-        
-        // Try to get a signed URL for the image
-        const response = await fetch(
-          `/api/admin/crm/templates/image?url=${encodeURIComponent(imageFile.url)}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (!response.ok) {
-          // Fallback: if signed URL fails, use the original URL
-          setSignedUrl(imageFile.url);
-          setLoading(false);
-          return;
-        }
-
-        const data = await response.json();
-        if (data.success) {
-          setSignedUrl(data.url);
-        } else {
-          setSignedUrl(imageFile.url);
-        }
-      } catch (err) {
-        console.warn('[TemplateImageThumbnail] Could not generate signed URL, using original:', err);
-        setSignedUrl(imageFile.url);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSignedUrl();
+    // Use the media proxy API for reliable S3 image loading
+    const proxyUrl = `/api/admin/crm/media/proxy?url=${encodeURIComponent(imageFile.url)}&token=${encodeURIComponent(token)}`;
+    setImageUrl(proxyUrl);
+    setLoading(false);
   }, [imageFile?.url, token]);
 
   if (loading) {
@@ -147,20 +116,27 @@ function TemplateImageThumbnail({ imageFile, token }: { imageFile: any; token: s
     );
   }
 
+  if (error || !imageUrl) {
+    return (
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-gray-700">📷 Image</p>
+        <div className="h-24 w-24 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center">
+          <div className="text-gray-400 text-2xl">🖼️</div>
+        </div>
+        <p className="text-xs text-gray-500 truncate">{imageFile?.fileName || 'Image'}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1">
       <p className="text-xs font-semibold text-gray-700">📷 Image</p>
       <div className="h-24 w-24 bg-gray-100 rounded-lg overflow-hidden border border-gray-300 flex items-center justify-center">
         <img
-          src={signedUrl}
+          src={imageUrl}
           alt="Template image"
           className="w-full h-full object-cover"
-          onError={(e) => {
-            // Show placeholder if image fails to load
-            (e.target as HTMLImageElement).src =
-              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"%3E%3Cpath stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /%3E%3C/svg%3E';
-            setError(true);
-          }}
+          onError={() => setError(true)}
         />
       </div>
       <p className="text-xs text-gray-500 truncate">{imageFile?.fileName}</p>

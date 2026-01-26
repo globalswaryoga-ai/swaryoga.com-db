@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth';
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { useCRM } from '@/hooks/useCRM';
-import { LoadingSpinner, MediaPreview, InlineMediaPreview, getFilenameFromUrl } from '@/components/admin/crm';
+import { LoadingSpinner, MediaPreview, InlineMediaPreview, getFilenameFromUrl, TemplateSelector, type WhatsAppTemplate } from '@/components/admin/crm';
 import { useRouter } from 'next/navigation';
 import { usePathname } from 'next/navigation';
 import { useModal } from '@/hooks/useModal';
@@ -2162,12 +2162,30 @@ export default function MetaInboxPage() {
 
                     {actionModal.type === 'schedule' || actionModal.type === 'template' ? (
                       <div className="mt-4">
-                        <div className="text-sm font-semibold text-slate-700">
-                          This is wired as UI first.
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          Next we can connect it to templates/scheduler APIs and storage.
-                        </div>
+                        {actionModal.type === 'template' ? (
+                          <TemplateSelector
+                            token={token}
+                            onSelect={(template: WhatsAppTemplate) => {
+                              setDraft(template.templateContent || '');
+                              closeActionModal();
+                            }}
+                            onClose={closeActionModal}
+                            showSearch={true}
+                            showFilters={true}
+                            showPreview={true}
+                            mode="inline"
+                            maxHeight="400px"
+                          />
+                        ) : (
+                          <>
+                            <div className="text-sm font-semibold text-slate-700">
+                              Schedule message
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1">
+                              Coming soon: Schedule messages to be sent at a specific time.
+                            </div>
+                          </>
+                        )}
                         <div className="mt-4 text-right">
                           <button
                             type="button"

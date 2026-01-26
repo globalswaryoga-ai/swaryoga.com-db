@@ -48,3 +48,10 @@ export {
   type UploadFileType,
   type AccessLevel,
 } from './MediaUpload';
+
+// Template Selector component for WhatsApp templates
+export {
+  default as TemplateSelector,
+  type WhatsAppTemplate,
+  formatWhatsAppText,
+} from './TemplateSelector';

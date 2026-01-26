@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchParams } from 'next/navigation';
-import { InlineMediaPreview, MediaPreview, detectMediaType, getFilenameFromUrl } from '@/components/admin/crm';
+import { InlineMediaPreview, MediaPreview, detectMediaType, getFilenameFromUrl, TemplateSelector, type WhatsAppTemplate } from '@/components/admin/crm';
 import { 
   Paperclip, 
   Zap, 
@@ -3244,6 +3244,74 @@ function QRWhatsAppInboxPageContent() {
                   </div>
                 )}
               </div>
+
+              {/* Templates Panel */}
+              {showTemplates && (
+                <div className="absolute bottom-20 left-0 right-0 mx-4 z-50 animate-in slide-in-from-bottom-2 duration-200">
+                  <TemplateSelector
+                    token={token}
+                    onSelect={(template: WhatsAppTemplate) => {
+                      setNewMessage(template.templateContent || '');
+                      setShowTemplates(false);
+                    }}
+                    onClose={() => setShowTemplates(false)}
+                    showSearch={true}
+                    showFilters={true}
+                    showPreview={true}
+                    mode="inline"
+                    maxHeight="350px"
+                    className="shadow-2xl border border-[#E8DFD5] rounded-xl"
+                  />
+                </div>
+              )}
+
+              {/* Quick Replies Panel */}
+              {showQuickReplies && (
+                <div className="absolute bottom-20 left-0 right-0 mx-4 z-50 animate-in slide-in-from-bottom-2 duration-200">
+                  <div className="bg-white rounded-xl shadow-2xl border border-[#E8DFD5] overflow-hidden max-h-[300px]">
+                    <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                      <h3 className="font-bold text-gray-900">⚡ Quick Replies</h3>
+                      <button
+                        onClick={() => setShowQuickReplies(false)}
+                        className="p-1 rounded-lg hover:bg-gray-100"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="max-h-[200px] overflow-y-auto p-2 space-y-1">
+                      {quickReplies.map((qr) => (
+                        <button
+                          key={qr.id}
+                          onClick={() => insertQuickReply(qr.message)}
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F5EBE0] text-sm text-gray-700 transition-colors"
+                        >
+                          {qr.message}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="px-4 py-2 border-t border-gray-200 flex gap-2">
+                      <input
+                        type="text"
+                        value={newQuickReply}
+                        onChange={(e) => setNewQuickReply(e.target.value)}
+                        placeholder="Add new quick reply..."
+                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#00A884]/20 focus:border-[#00A884] outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          if (newQuickReply.trim()) {
+                            setQuickReplies([...quickReplies, { id: String(Date.now()), message: newQuickReply }]);
+                            setNewQuickReply('');
+                          }
+                        }}
+                        className="px-3 py-2 bg-[#00A884] text-white rounded-lg font-semibold text-sm hover:bg-[#008f6f] transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Hidden File Input */}
               <input
