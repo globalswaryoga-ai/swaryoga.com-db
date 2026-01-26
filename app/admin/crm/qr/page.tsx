@@ -515,22 +515,6 @@ function QRWhatsAppInboxPageContent() {
         // Skip the entire status polling - we'll rely on QR fetch to detect bridge availability
         // This eliminates all the unnecessary 404 requests to /status and /health
         scheduleNext();
-        return;
-        
-        const newStatus = normalizeBridgeStatus(data.status);
-        setStatusIfChanged(newStatus);
-
-        // Always set QR if it's in the response (regardless of status change)
-        if (typeof data.qr === 'string' && data.qr.length > 0) {
-          setQr(data.qr);
-          if (newStatus !== 'connected' && !showQRModalRef.current) {
-            setShowQRModal(true);
-          }
-        } else if (data.hasQr || newStatus === 'qr' || newStatus === 'disconnected') {
-          if (newStatus !== 'connected' && !showQRModalRef.current) {
-            setShowQRModal(true);
-          }
-        }
       } catch (err) {
         setStatusIfChanged('disconnected');
         const errorMsg = err instanceof Error ? err.message : 'Bridge not reachable';
@@ -2996,66 +2980,65 @@ function QRWhatsAppInboxPageContent() {
                             }`}
                             style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif" }}
                           >
-
-                        {/* Media Content - Using unified InlineMediaPreview */}
-                        {wantsMediaLoad ? (
-                          <div className="space-y-2">
-                            <div className="text-sm text-[#0f3a4d]/70">📎 Media message</div>
-                            <button
-                              onClick={() => loadMediaForMessage(msg, { force: true })}
-                              className="px-3 py-2 rounded-lg bg-white/20 text-white text-xs font-bold hover:bg-white/30 disabled:opacity-60"
-                              disabled={Boolean(messageMediaLoading[msgId])}
-                            >
-                              {messageMediaLoading[msgId] ? 'Loading…' : 'Load media'}
-                            </button>
-                          </div>
-                        ) : resolvedMediaUrl ? (
-                          <div className="space-y-2">
-                            <InlineMediaPreview 
-                              url={resolvedMediaUrl}
-                              type={isImage ? 'image' : isVideo ? 'video' : 'document'}
-                              className="rounded-lg overflow-hidden max-w-xs"
-                            />
-                            {msg.body && msg.body.trim() && (() => {
-                              // Extract [admincrm] or similar tags and show below message
-                              const tagMatch = msg.body.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
-                              const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : msg.body;
-                              const tag = tagMatch ? tagMatch[1] : null;
-                              return (
-                                <div className="space-y-1">
-                                  {mainBody && <div className="break-words whitespace-pre-wrap">{mainBody}</div>}
-                                  {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        ) : (
-                          (() => {
-                            // Extract [admincrm] or similar tags and show below message
-                            const tagMatch = msg.body?.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
-                            const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : (msg.body || '');
-                            const tag = tagMatch ? tagMatch[1] : null;
-                            return (
-                              <div className="space-y-1">
-                                {mainBody && <div className="break-words whitespace-pre-wrap">{mainBody}</div>}
-                                {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
+                            {/* Media Content - Using unified InlineMediaPreview */}
+                            {wantsMediaLoad ? (
+                              <div className="space-y-2">
+                                <div className="text-sm text-[#0f3a4d]/70">📎 Media message</div>
+                                <button
+                                  onClick={() => loadMediaForMessage(msg, { force: true })}
+                                  className="px-3 py-2 rounded-lg bg-white/20 text-white text-xs font-bold hover:bg-white/30 disabled:opacity-60"
+                                  disabled={Boolean(messageMediaLoading[msgId])}
+                                >
+                                  {messageMediaLoading[msgId] ? 'Loading…' : 'Load media'}
+                                </button>
                               </div>
-                            );
-                          })()
-                        )}
+                            ) : resolvedMediaUrl ? (
+                              <div className="space-y-2">
+                                <InlineMediaPreview 
+                                  url={resolvedMediaUrl}
+                                  type={isImage ? 'image' : isVideo ? 'video' : 'document'}
+                                  className="rounded-lg overflow-hidden max-w-xs"
+                                />
+                                {msg.body && msg.body.trim() && (() => {
+                                  // Extract [admincrm] or similar tags and show below message
+                                  const tagMatch = msg.body.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
+                                  const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : msg.body;
+                                  const tag = tagMatch ? tagMatch[1] : null;
+                                  return (
+                                    <div className="space-y-1">
+                                      {mainBody && <div className="break-words whitespace-pre-wrap">{mainBody}</div>}
+                                      {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              (() => {
+                                // Extract [admincrm] or similar tags and show below message
+                                const tagMatch = msg.body?.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
+                                const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : (msg.body || '');
+                                const tag = tagMatch ? tagMatch[1] : null;
+                                return (
+                                  <div className="space-y-1">
+                                    {mainBody && <div className="break-words whitespace-pre-wrap">{mainBody}</div>}
+                                    {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
+                                  </div>
+                                );
+                              })()
+                            )}
 
-                        {/* Time and status row */}
-                        <div className={`text-[10px] mt-2.5 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-blue-100' : 'justify-start text-emerald-50 font-[800]'}`}>
-                          {messageTime && <span className="uppercase tracking-wider">{messageTime}</span>}
-                          {msg.fromMe && ackDisplay && (
-                            <span className={`font-medium ${ackColor}`}>{ackDisplay}</span>
-                          )}
-                        </div>
+                            {/* Time and status row */}
+                            <div className={`text-[10px] mt-2.5 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-blue-100' : 'justify-start text-emerald-50 font-[800]'}`}>
+                              {messageTime && <span className="uppercase tracking-wider">{messageTime}</span>}
+                              {msg.fromMe && ackDisplay && (
+                                <span className={`font-medium ${ackColor}`}>{ackDisplay}</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </>
               )}
@@ -3314,7 +3297,7 @@ function QRWhatsAppInboxPageContent() {
               {/* Lead ID Badge */}
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 bg-pink-100 text-pink-700 text-xs font-bold rounded-lg border border-pink-200">
-                  Lead ID: {activeLeadNumber || activeLeadId.slice(-6)}
+                  Lead ID: {activeLeadNumber || 'N/A'}
                 </span>
               </div>
 
