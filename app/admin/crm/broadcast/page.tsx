@@ -197,10 +197,27 @@ export default function BroadcastPage() {
   const fetchAdminUsers = useCallback(async () => {
     try {
       const res: any = await crm.fetch('/api/admin/auth/users', { method: 'GET' });
-      const users = Array.isArray(res?.data) ? res.data : Array.isArray(res?.users) ? res.users : [];
+      console.log('[Broadcast] Admin users raw response:', res);
+      
+      // useCRM.fetch returns result.data directly if successful
+      // So res should already be the array of users
+      let users: AdminUserRow[] = [];
+      
+      if (Array.isArray(res)) {
+        // Direct array from useCRM
+        users = res;
+      } else if (Array.isArray(res?.data)) {
+        // Nested in data property
+        users = res.data;
+      } else if (Array.isArray(res?.users)) {
+        // Legacy format with users property
+        users = res.users;
+      }
+      
+      console.log('[Broadcast] Parsed admin users:', users.length, users.map((u: any) => u.name || u.userId || u.email));
       setAdminUsers(users);
-    } catch {
-      // not fatal
+    } catch (err) {
+      console.error('[Broadcast] Failed to fetch admin users:', err);
       setAdminUsers([]);
     }
   }, [crm]);
@@ -327,6 +344,7 @@ export default function BroadcastPage() {
 
   useEffect(() => {
     if (!token) return;
+    console.log('[Broadcast] Token available, fetching initial data...');
     void fetchAdminUsers();
     void fetchTemplates();
     void fetchBroadcastLists();
@@ -334,6 +352,14 @@ export default function BroadcastPage() {
     void fetchLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Ensure admin users are fetched even if other effects don't trigger
+  useEffect(() => {
+    if (token && adminUsers.length === 0) {
+      console.log('[Broadcast] Re-fetching admin users as list is empty');
+      void fetchAdminUsers();
+    }
+  }, [token, adminUsers.length, fetchAdminUsers]);
 
   useEffect(() => {
     if (!token) return;
