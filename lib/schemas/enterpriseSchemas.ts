@@ -230,7 +230,7 @@ const WhatsAppMessageSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'queued', 'sent', 'delivered', 'read', 'failed'],
+      enum: ['pending', 'queued', 'sent', 'delivered', 'read', 'failed', 'received'],
       default: 'queued',
       index: true,
     },
