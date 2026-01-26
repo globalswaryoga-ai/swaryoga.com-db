@@ -111,14 +111,47 @@ async function bootstrap() {
     setTimeout(() => process.exit(1), 3000);
   });
 
-  // Handle incoming messages
+  // Webhook URL for forwarding incoming messages to CRM
+  const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || 'https://crm.swaryoga.com/api/admin/crm/whatsapp/qr/webhook';
+
+  // Handle incoming messages - forward to CRM
   client.on('message', async msg => {
     console.log('[MSG IN] From:', msg.from, 'Body:', msg.body ? msg.body.substring(0, 50) : '(no body)');
+    
+    // Skip status broadcasts
+    if (msg.from === 'status@broadcast') return;
+    
     // Cache the chat when we receive a message
     try {
       const chat = await msg.getChat();
       if (chat) chatCache.set(chat.id._serialized, chat);
     } catch (e) {}
+    
+    // Forward to CRM webhook
+    try {
+      const payload = {
+        from: msg.from,
+        to: msg.to,
+        body: msg.body || '',
+        timestamp: msg.timestamp,
+        type: msg.type,
+        hasMedia: msg.hasMedia,
+        messageId: msg.id._serialized,
+        isForwarded: msg.isForwarded,
+        isStatus: msg.isStatus,
+      };
+      
+      const webhookRes = await axios.post(CRM_WEBHOOK_URL, payload, {
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-bridge-secret': BRIDGE_SECRET 
+        },
+        timeout: 10000
+      });
+      console.log('[WEBHOOK] Forwarded to CRM:', webhookRes.status);
+    } catch (webhookErr) {
+      console.error('[WEBHOOK ERROR]', webhookErr.message);
+    }
   });
 
   try { 
