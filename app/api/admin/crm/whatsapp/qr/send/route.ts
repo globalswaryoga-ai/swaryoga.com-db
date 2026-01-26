@@ -147,7 +147,10 @@ export async function POST(req: NextRequest) {
       }, { status: 503 });
     }
     
-    if (!bridgeOk) {
+    // Check if bridge returned success (bridgeData.success can be true even if HTTP isn't 200)
+    const bridgeSuccess = bridgeOk || bridgeData.success === true;
+    
+    if (!bridgeSuccess) {
         // Update DB status to failed if bridge rejected it
         if (savedDbMessageId) {
           try {
@@ -167,6 +170,11 @@ export async function POST(req: NextRequest) {
 
     // Extract WhatsApp message ID from bridge response
     const whatsappMessageId = bridgeData.id || bridgeData.messageId || bridgeData.key?.id;
+    
+    // Log if there was a warning from the bridge
+    if (bridgeData.warning) {
+      console.log(`[QR SEND] ⚠️ Bridge warning: ${bridgeData.warning}`);
+    }
 
     // 3. Update DB with success status and WhatsApp ID
     if (savedDbMessageId) {

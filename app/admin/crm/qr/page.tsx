@@ -938,11 +938,18 @@ function QRWhatsAppInboxPageContent() {
   // This is defined at component level so it can be used in multiple places
   const loadMessagesFromCRM = useCallback(async () => {
     try {
-      if (!activeLeadId && !activePhone) return [];
+      // Get phone from activePhone or from selectedChat
+      let phoneToUse = activePhone;
+      if (!phoneToUse && selectedChat) {
+        const chatIdStr = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id?._serialized || '';
+        phoneToUse = chatIdStr.split('@')[0].replace(/\D/g, '');
+      }
+      
+      if (!activeLeadId && !phoneToUse) return [];
       
       const params = new URLSearchParams();
       if (activeLeadId) params.append('leadId', activeLeadId);
-      if (activePhone) params.append('phoneNumber', activePhone);
+      if (phoneToUse) params.append('phoneNumber', phoneToUse);
       params.append('limit', '200');
       params.append('order', 'asc');
       
@@ -975,7 +982,7 @@ function QRWhatsAppInboxPageContent() {
       console.warn('[CRM Message Load Error]:', err);
     }
     return [];
-  }, [activeLeadId, activePhone, token]);
+  }, [activeLeadId, activePhone, selectedChat, token]);
 
   useEffect(() => {
     if (selectedChat && status === 'connected') {
@@ -1198,6 +1205,7 @@ function QRWhatsAppInboxPageContent() {
                 type: normalizedType,
                 url: mediaUrl,
                 caption: i === 0 ? newMessage : '',
+                leadId: activeLeadId || undefined,
               }),
             });
 
@@ -1271,7 +1279,7 @@ function QRWhatsAppInboxPageContent() {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ to: chatId, message: newMessage, type: 'text' })
+          body: JSON.stringify({ to: chatId, message: newMessage, type: 'text', leadId: activeLeadId || undefined })
         });
 
         if (res.ok) {
@@ -2222,6 +2230,12 @@ function QRWhatsAppInboxPageContent() {
                   key={typeof chat.id === 'string' ? chat.id : chat.id._serialized}
                   onClick={() => {
                     setSelectedChat(chat);
+                    // Extract phone number from chat id/name and set it for CRM message loading
+                    const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+                    const phoneFromId = chatIdStr.split('@')[0].replace(/\D/g, '');
+                    if (phoneFromId) setActivePhone(phoneFromId);
+                    if (chat.leadId) setActiveLeadId(chat.leadId);
+                    if (chat.displayName || chat.name) setActiveName(chat.displayName || chat.name);
                     markChatAsRead(chat);
                   }}
                   className={`p-4 border-b border-slate-100 cursor-pointer transition-all ${

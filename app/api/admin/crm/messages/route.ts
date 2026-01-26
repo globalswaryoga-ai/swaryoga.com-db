@@ -52,15 +52,25 @@ export async function GET(request: NextRequest) {
     const providerParam = url.searchParams.get('provider');
 
     // Provider filtering:
-    // - Default: Meta + legacy bridge
+    // - Default: Meta + QR bridge + legacy (undefined/null provider)
     // - provider=meta: Meta only
-    // - provider=qr: QR inbox only (no overlap)
+    // - provider=qr: QR bridge + legacy (includes undefined for backward compat)
     if (providerParam === 'meta') {
       filter.provider = 'meta';
     } else if (providerParam === 'qr') {
-      filter.provider = 'whatsapp_qr';
+      // Include both 'whatsapp_web_bridge' and legacy messages (no provider)
+      filter.$or = [
+        { provider: 'whatsapp_web_bridge' },
+        { provider: { $in: [null, undefined] } },
+        { provider: { $exists: false } }
+      ];
     } else {
-      filter.provider = { $in: ['meta', 'whatsapp_web_bridge'] };
+      // Default: Include all known providers + legacy messages without provider
+      filter.$or = [
+        { provider: { $in: ['meta', 'whatsapp_web_bridge'] } },
+        { provider: { $in: [null, undefined] } },
+        { provider: { $exists: false } }
+      ];
     }
 
     // Add date range filter
