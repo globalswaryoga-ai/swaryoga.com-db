@@ -89,6 +89,24 @@ type LeadFormValues = {
   assignedToUserId?: string;
 };
 
+/**
+ * Convert S3 URLs to proxied URLs for authenticated access
+ * S3 bucket has "Block Public Access" enabled, so we need to proxy through API
+ */
+function getProxiedMediaUrl(url: string, authToken: string | null): string {
+  if (!url) return url;
+  
+  // Check if it's an S3 URL (our bucket)
+  const isS3Url = url.includes('.s3.') && url.includes('.amazonaws.com');
+  
+  if (isS3Url && authToken) {
+    // Proxy through our API which will generate a signed URL and fetch the content
+    return `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(authToken)}`;
+  }
+  
+  return url;
+}
+
 export default function MetaInboxPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -1540,8 +1558,23 @@ export default function MetaInboxPage() {
                           {/* Media Rendering - Using unified InlineMediaPreview component */}
                           {(() => {
                             // Check for media in various places
-                            const mediaUrl = msg.media?.url || (msg as any).metadata?.mediaUrl || (msg as any).mediaUrl;
+                            const rawMediaUrl = msg.media?.url || (msg as any).metadata?.mediaUrl || (msg as any).mediaUrl;
                             const mediaKind = msg.media?.kind || (msg as any).metadata?.mediaKind || 'image';
+                            
+                            // Proxy S3 URLs through our API to handle bucket access restrictions
+                            const mediaUrl = rawMediaUrl ? getProxiedMediaUrl(rawMediaUrl, token) : null;
+                            
+                            // Debug: Log media info for troubleshooting
+                            if (msg.messageType === 'media' || msg.media) {
+                              console.log('[Meta Media Debug]', {
+                                msgId: msg._id,
+                                messageType: msg.messageType,
+                                hasMedia: !!msg.media,
+                                rawUrl: rawMediaUrl ? rawMediaUrl.substring(0, 50) + '...' : 'EMPTY',
+                                proxiedUrl: mediaUrl ? (mediaUrl.startsWith('/api') ? 'PROXIED' : 'DIRECT') : 'NONE',
+                                mediaKind,
+                              });
+                            }
                             
                             if (mediaUrl) {
                               return (
@@ -1554,6 +1587,17 @@ export default function MetaInboxPage() {
                                 </div>
                               );
                             }
+                            
+                            // Show placeholder if message claims to have media but URL is missing
+                            if (msg.messageType === 'media' || msg.media?.kind) {
+                              return (
+                                <div className="mb-3 flex items-center gap-2 p-3 bg-white/20 rounded-xl">
+                                  <span className="text-xl">📎</span>
+                                  <span className="text-sm opacity-80">Media attachment</span>
+                                </div>
+                              );
+                            }
+                            
                             return null;
                           })()}
 

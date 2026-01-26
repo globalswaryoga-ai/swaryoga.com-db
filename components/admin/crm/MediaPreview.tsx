@@ -551,8 +551,27 @@ export function InlineMediaPreview({
 }) {
   const mediaType = type || detectMediaType(url);
   const [expanded, setExpanded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  
+  // Don't render anything if no URL provided
+  if (!url || url.trim() === '') {
+    return null;
+  }
   
   if (mediaType === 'image') {
+    // Show fallback on error
+    if (imageError) {
+      return (
+        <div 
+          className={`flex items-center gap-2 p-3 bg-slate-100 rounded-lg ${className}`}
+          title={`Image failed to load: ${url}`}
+        >
+          <span className="text-xl">🖼️</span>
+          <span className="text-xs text-slate-500">Image not available</span>
+        </div>
+      );
+    }
+    
     return (
       <>
         <img 
@@ -560,6 +579,10 @@ export function InlineMediaPreview({
           alt="Media" 
           className={`max-w-[200px] max-h-[150px] rounded-lg cursor-pointer hover:opacity-90 ${className}`}
           onClick={() => setExpanded(true)}
+          onError={() => {
+            console.warn('[MediaPreview] Failed to load image:', url);
+            setImageError(true);
+          }}
         />
         {expanded && (
           <Lightbox 
