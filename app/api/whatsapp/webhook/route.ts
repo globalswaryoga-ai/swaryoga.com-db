@@ -347,8 +347,10 @@ async function handleWebhookPayload(payload: any) {
             // --- Media Handling ---
             let s3MediaUrl: string | undefined = undefined;
             let mimeType: string | undefined = undefined;
+            let mediaError: string | undefined = undefined;
+            const isMediaType = ['image', 'video', 'audio', 'document', 'sticker'].includes(type);
             
-            if (['image', 'video', 'audio', 'document', 'sticker'].includes(type)) {
+            if (isMediaType) {
               const mediaData = msg[type];
               const mediaId = mediaData?.id;
               
@@ -358,25 +360,37 @@ async function handleWebhookPayload(payload: any) {
                   const metaMediaUrl = await getWhatsAppMediaUrl(mediaId);
                   console.log(`[WEBHOOK MEDIA] Got Meta URL: ${metaMediaUrl?.substring(0, 80)}...`);
                   
+                  if (!metaMediaUrl) {
+                    throw new Error('Meta API returned empty media URL');
+                  }
+                  
                   const { buffer, contentType } = await downloadWhatsAppMedia(metaMediaUrl);
                   console.log(`[WEBHOOK MEDIA] Downloaded ${buffer.length} bytes, type: ${contentType}`);
                   
+                  if (!buffer || buffer.length === 0) {
+                    throw new Error('Downloaded empty buffer from Meta');
+                  }
+                  
                   mimeType = contentType;
                   const extension = contentType.split('/')[1]?.split(';')[0] || 'bin';
-                  const fileName = `whatsapp/${from}/${Date.now()}.${extension}`;
+                  const fileName = `whatsapp-inbound/${from}/${Date.now()}.${extension}`;
                   
                   s3MediaUrl = await uploadToS3(buffer, fileName, {
                     metadata: {
-                      'wa-message-id': inboundWaMessageId,
-                      'phone-number': from
+                      'wa-message-id': inboundWaMessageId || '',
+                      'phone-number': from,
+                      'media-type': type,
+                      'direction': 'inbound'
                     }
                   });
                   console.log(`[WEBHOOK MEDIA] ✅ Uploaded to S3: ${s3MediaUrl}`);
                 } catch (mediaErr: any) {
-                  console.error('[WEBHOOK MEDIA ERROR] Failed to process media:', mediaErr?.message || mediaErr);
-                  console.error('[WEBHOOK MEDIA ERROR] Stack:', mediaErr?.stack);
+                  mediaError = mediaErr?.message || 'Unknown media error';
+                  console.error('[WEBHOOK MEDIA ERROR] Failed to process media:', mediaError);
+                  console.error('[WEBHOOK MEDIA ERROR] Full error:', mediaErr);
                 }
               } else {
+                mediaError = 'No media ID in webhook payload';
                 console.warn(`[WEBHOOK MEDIA] No media ID found for ${type} message`);
               }
             }
@@ -434,11 +448,14 @@ async function handleWebhookPayload(payload: any) {
               : '';
             const ourBusinessNumber = ourDisplayPhone ? normalizePhone(ourDisplayPhone) : undefined;
             
+            // Determine message type - mark as 'media' if it was a media message (even if S3 upload failed)
+            const finalMessageType = isMediaType ? 'media' : 'text';
+            
             const insertData: any = {
               leadId: lead._id,
               phoneNumber: from,
               direction: 'inbound',
-              messageType: s3MediaUrl ? 'media' : 'text',
+              messageType: finalMessageType,
               messageContent: body,
               status: 'delivered',
               deliveredAt: now,
@@ -450,18 +467,22 @@ async function handleWebhookPayload(payload: any) {
               createdAt: now,
             };
 
-            if (s3MediaUrl) {
+            // Always save media info for media messages
+            if (isMediaType) {
               // Normalize kind for UI convenience
-              const mediaKind = (type === 'image' || type === 'sticker' || type === 'audio') 
+              const mediaKind = (type === 'image' || type === 'sticker') 
                 ? 'image' 
                 : type === 'video' 
                   ? 'video' 
-                  : 'document';
+                  : type === 'audio'
+                    ? 'audio'
+                    : 'document';
                   
               insertData.media = {
                 kind: mediaKind,
-                url: s3MediaUrl,
-                mimeType: mimeType,
+                url: s3MediaUrl || null, // May be null if upload failed
+                mimeType: mimeType || null,
+                error: mediaError || null, // Track why upload failed
               };
             }
 
