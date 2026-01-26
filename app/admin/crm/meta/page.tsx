@@ -1524,14 +1524,14 @@ export default function MetaInboxPage() {
                 </div>
               </div>
 
-              <div className="flex-1 p-8 overflow-y-auto bg-white flex flex-col gap-5">
+              <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-3" style={{ backgroundColor: '#e5ddd5', backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23d4cec4\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
                 {loadingMessages ? (
                   <div className="flex-1 flex items-center justify-center"><LoadingSpinner /></div>
                 ) : messages.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
-                    <i className="ph ph-chat-circle-dots text-5xl opacity-20"></i>
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-2">
+                    <i className="ph ph-chat-circle-dots text-5xl opacity-30"></i>
                     <p className="text-sm font-semibold">No messages yet</p>
-                    <p className="text-xs text-slate-400">Send a hello to start the conversation.</p>
+                    <p className="text-xs text-slate-500">Send a hello to start the conversation.</p>
                   </div>
                 ) : (
                   <>
@@ -1550,10 +1550,10 @@ export default function MetaInboxPage() {
                         key={msg._id} 
                         className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                       >
-                        <div className={`max-w-[72%] px-6 py-4 rounded-3xl text-[15px] relative group transition-all duration-300 hover:scale-[1.01] ${
+                        <div className={`max-w-[72%] px-4 py-2.5 rounded-xl text-[15px] relative group transition-all duration-200 ${
                           msg.direction === 'outbound'
-                            ? 'bg-blue-600 text-white rounded-tr-none shadow-[0_8px_20px_rgba(37,99,235,0.15)] ring-1 ring-blue-500/10'
-                            : 'bg-emerald-500 text-white rounded-tl-none shadow-[0_8px_15px_rgba(16,185,129,0.15)] border border-emerald-400'
+                            ? 'bg-[#dcf8c6] text-gray-900 rounded-tr-sm shadow-sm border border-[#c5e1a5]'
+                            : 'bg-white text-gray-900 rounded-tl-sm shadow-sm border border-gray-200'
                         }`}>
                           {/* Media Rendering - Using unified InlineMediaPreview component */}
                           {(() => {
@@ -1578,11 +1578,11 @@ export default function MetaInboxPage() {
                             
                             if (mediaUrl) {
                               return (
-                                <div className="mb-3">
+                                <div className="mb-2">
                                   <InlineMediaPreview 
                                     url={mediaUrl} 
                                     type={mediaKind === 'sticker' ? 'image' : mediaKind}
-                                    className="rounded-xl overflow-hidden"
+                                    className="rounded-lg overflow-hidden max-w-[280px]"
                                   />
                                 </div>
                               );
@@ -1591,9 +1591,9 @@ export default function MetaInboxPage() {
                             // Show placeholder if message claims to have media but URL is missing
                             if (msg.messageType === 'media' || msg.media?.kind) {
                               return (
-                                <div className="mb-3 flex items-center gap-2 p-3 bg-white/20 rounded-xl">
-                                  <span className="text-xl">📎</span>
-                                  <span className="text-sm opacity-80">Media attachment</span>
+                                <div className="mb-2 flex items-center gap-2 p-2.5 bg-gray-100 rounded-lg border border-gray-200">
+                                  <span className="text-lg">📎</span>
+                                  <span className="text-sm text-gray-600">Media attachment</span>
                                 </div>
                               );
                             }
@@ -1626,11 +1626,11 @@ export default function MetaInboxPage() {
                             );
                           })()}
                           
-                          <div className={`text-[10px] mt-2.5 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-blue-100' : 'justify-start text-emerald-50 font-[800]'}`}>
-                            <span className="uppercase tracking-wider">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-gray-500' : 'justify-start text-gray-500'}`}>
+                            <span className="tracking-wide">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {msg.direction === 'outbound' && (
                               <div className="flex items-center">
-                                <i className={`ph ph-checks text-xs ${msg.status === 'read' ? 'text-emerald-300 drop-shadow-[0_0_5px_rgba(110,231,183,1)]' : 'text-blue-200'}`}></i>
+                                <i className={`ph ph-checks text-xs ${msg.status === 'read' ? 'text-blue-500' : 'text-gray-400'}`}></i>
                               </div>
                             )}
                           </div>

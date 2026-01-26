@@ -57,9 +57,10 @@ export async function GET(request: NextRequest) {
     // - provider=qr: QR bridge messages only (separate pipeline)
     // - provider=all: All messages (admin analytics only)
     if (providerParam === 'qr') {
-      // QR inbox: Only QR bridge messages + legacy messages (no provider = old QR)
+      // QR inbox: All QR-related messages (bridge, webhook, legacy)
       filter.$or = [
         { provider: 'whatsapp_web_bridge' },
+        { provider: 'whatsapp_qr' },
         { provider: { $in: [null, undefined] } },
         { provider: { $exists: false } }
       ];

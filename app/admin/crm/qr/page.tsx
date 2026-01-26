@@ -1079,6 +1079,30 @@ function QRWhatsAppInboxPageContent() {
     return [];
   }, [activeLeadId, activePhone, selectedChat, token]);
 
+  // Load messages from Bridge directly
+  const loadMessagesFromBridge = useCallback(async (chatId: string) => {
+    try {
+      const res = await bridgeFetch(`/messages/${encodeURIComponent(chatId)}`, { method: 'GET' }, 15000);
+      if (res.ok) {
+        const data = await res.json();
+        const bridgeMessages = data?.messages || [];
+        return bridgeMessages.map((msg: any) => ({
+          id: msg.id,
+          body: msg.body || '',
+          timestamp: msg.timestamp,
+          fromMe: msg.fromMe,
+          type: msg.type || 'text',
+          hasMedia: msg.hasMedia,
+          ack: msg.ack,
+          _bridgeMessage: true,
+        }));
+      }
+    } catch (err) {
+      console.debug('[loadMessagesFromBridge] Error:', err);
+    }
+    return [];
+  }, [bridgeFetch]);
+
   // Load messages from CRM when a chat is selected (regardless of bridge status)
   useEffect(() => {
     if (selectedChat) {
@@ -1095,16 +1119,24 @@ function QRWhatsAppInboxPageContent() {
 
       const loadMessages = async () => {
         try {
-          // Load messages from CRM database (works regardless of bridge status)
+          // Load messages from CRM database first
           const crmMessages = await loadMessagesFromCRM();
           if (crmMessages.length > 0) {
             setMessages(crmMessages);
             setBridgeError(null);
             setLast404Chat(null);
           } else {
-            setLast404Chat(chatId);
-            if (messages.length !== 0) {
-              setMessages([]);
+            // If CRM has no messages, try loading directly from bridge
+            const bridgeMessages = await loadMessagesFromBridge(chatId);
+            if (bridgeMessages.length > 0) {
+              setMessages(bridgeMessages);
+              setBridgeError(null);
+              setLast404Chat(null);
+            } else {
+              setLast404Chat(chatId);
+              if (messages.length !== 0) {
+                setMessages([]);
+              }
             }
           }
         } catch (err) {
@@ -1120,7 +1152,7 @@ function QRWhatsAppInboxPageContent() {
     } else {
       setLast404Chat(null);
     }
-  }, [selectedChat, last404Chat, messages.length, loadMessagesFromCRM]);
+  }, [selectedChat, last404Chat, messages.length, loadMessagesFromCRM, loadMessagesFromBridge]);
 
   // Auto-scroll to latest message - only if messages actually changed
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
@@ -2962,9 +2994,9 @@ function QRWhatsAppInboxPageContent() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ backgroundColor: '#e5ddd5', backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23d4cec4\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
               {messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-slate-400">
+                <div className="flex items-center justify-center h-full text-slate-500">
                   <p>No messages yet</p>
                 </div>
               ) : (
@@ -3021,20 +3053,20 @@ function QRWhatsAppInboxPageContent() {
                         {/* Message Bubble */}
                         <div className={`flex gap-2 ${msg.fromMe ? 'justify-end' : 'justify-start'} w-full`}>
                           <div
-                            className={`inline-block max-w-[85%] rounded-3xl px-5 py-3 text-[15px] leading-relaxed shadow-md font-medium transition-all duration-300 hover:scale-[1.01] ${
+                            className={`inline-block max-w-[75%] rounded-xl px-4 py-2.5 text-[15px] leading-relaxed shadow-sm transition-all duration-200 ${
                               msg.fromMe
-                                ? 'bg-blue-600 text-white rounded-tr-none shadow-[0_8px_20px_rgba(37,99,235,0.15)] ring-1 ring-blue-500/10 ml-auto'
-                                : 'bg-emerald-500 text-white rounded-tl-none shadow-[0_8px_15px_rgba(16,185,129,0.15)] border border-emerald-400 mr-auto'
+                                ? 'bg-[#dcf8c6] text-gray-900 rounded-tr-sm border border-[#c5e1a5] ml-auto'
+                                : 'bg-white text-gray-900 rounded-tl-sm border border-gray-200 mr-auto'
                             }`}
                             style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif", whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                           >
                             {/* Media Content - Using unified InlineMediaPreview */}
                             {wantsMediaLoad ? (
                               <div className="space-y-2">
-                                <div className="text-sm text-[#0f3a4d]/70">📎 Media message</div>
+                                <div className="text-sm text-gray-600">📎 Media message</div>
                                 <button
                                   onClick={() => loadMediaForMessage(msg, { force: true })}
-                                  className="px-3 py-2 rounded-lg bg-white/20 text-white text-xs font-bold hover:bg-white/30 disabled:opacity-60"
+                                  className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 border border-gray-300 disabled:opacity-60"
                                   disabled={Boolean(messageMediaLoading[msgId])}
                                 >
                                   {messageMediaLoading[msgId] ? 'Loading…' : 'Load media'}
@@ -3076,8 +3108,8 @@ function QRWhatsAppInboxPageContent() {
                             )}
 
                             {/* Time and status row */}
-                            <div className={`text-[10px] mt-2.5 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-blue-100' : 'justify-start text-emerald-50 font-[800]'}`}>
-                              {messageTime && <span className="uppercase tracking-wider">{messageTime}</span>}
+                            <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-gray-500' : 'justify-start text-gray-500'}`}>
+                              {messageTime && <span className="tracking-wide">{messageTime}</span>}
                               {msg.fromMe && ackDisplay && (
                                 <span className={`font-medium ${ackColor}`}>{ackDisplay}</span>
                               )}

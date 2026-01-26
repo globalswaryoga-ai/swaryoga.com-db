@@ -85,7 +85,7 @@ async function ingestQRPayload(payload: any) {
     }
 
     const doc: any = {
-      provider: 'whatsapp_qr',
+      provider: 'whatsapp_web_bridge', // Unified provider for all QR/Bridge messages
       direction: m.fromMe ? 'outbound' : 'inbound',
       phoneNumber: normalizedPhone,
       messageContent: text,
@@ -106,7 +106,7 @@ async function ingestQRPayload(payload: any) {
     // Avoid duplicates when provider provides a stable id.
     if (m.messageId) {
       const existing = await WhatsAppMessage.findOne({
-        provider: 'whatsapp_qr',
+        provider: { $in: ['whatsapp_web_bridge', 'whatsapp_qr'] },
         waMessageId: m.messageId,
       }).select({ _id: 1 });
       if (existing) continue;
