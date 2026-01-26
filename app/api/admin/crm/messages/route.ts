@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
+import { verifyToken } from '@/lib/auth';
 import {
   verifyAdminAccess,
   parsePagination,
@@ -192,9 +193,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
     }
 
-    // Create message in database (with admin name appended as per user request)
+    // Create message in database (with admin display name in bold below message)
     const now = new Date();
-    const adminNameTag = ` [${userId}]`;
+    const decoded = verifyToken(request.headers.get('authorization')?.slice('Bearer '.length));
+    const adminDisplayName = decoded?.name || decoded?.username || userId;
+    const adminNameTag = `\n\n*${adminDisplayName}*`;
     const messageWithAdmin = messageContent ? String(messageContent).trim() + adminNameTag : '';
     
     const insertData: any = {

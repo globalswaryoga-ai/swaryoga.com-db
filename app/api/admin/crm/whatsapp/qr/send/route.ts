@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
     }
 
     // We append the admin name to the outgoing message so it's clear who sent it
-    const attributionTag = `\n\n- ${adminName}`;
+    // Format: message on top, admin name in bold below
+    const attributionTag = `\n\n*${adminName}*`;
     let finalMessage = message;
     let finalCaption = caption || message;
 

@@ -87,8 +87,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Add admin name to message content
-    const adminNameTag = ` [${userId}]`;
+    // Add admin display name to message content (bold, below the message)
+    const adminDisplayName = decoded.name || decoded.username || userId;
+    const adminNameTag = `\n\n*${adminDisplayName}*`;
     const finalMessageContent = hasText 
       ? String(messageContent).trim() + adminNameTag
       : '(media)';
