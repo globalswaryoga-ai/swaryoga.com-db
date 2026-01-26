@@ -1601,17 +1601,30 @@ export default function MetaInboxPage() {
                             return null;
                           })()}
 
-                          <div className="whitespace-pre-wrap leading-relaxed font-medium">
-                            {msg.messageContent && 
-                             msg.messageContent !== '(media)' && 
-                             msg.messageContent !== '[media]' &&
-                             msg.messageContent !== '[image]' &&
-                             msg.messageContent !== '[video]' &&
-                             msg.messageContent !== '[document]' &&
-                             !msg.messageContent.startsWith('🖼') // Hide placeholder emoji
-                              ? msg.messageContent 
-                              : ''}
-                          </div>
+                          {/* Message Content - Extract [admincrm] tag to show below */}
+                          {(() => {
+                            const content = msg.messageContent || '';
+                            // Skip media placeholders
+                            if (!content || 
+                                content === '(media)' || 
+                                content === '[media]' ||
+                                content === '[image]' ||
+                                content === '[video]' ||
+                                content === '[document]' ||
+                                content.startsWith('🖼')) {
+                              return null;
+                            }
+                            // Extract [admincrm] or similar tags
+                            const tagMatch = content.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
+                            const mainBody = tagMatch ? content.replace(tagMatch[0], '').trim() : content;
+                            const tag = tagMatch ? tagMatch[1] : null;
+                            return (
+                              <div className="space-y-1">
+                                {mainBody && <div className="whitespace-pre-wrap leading-relaxed font-medium">{mainBody}</div>}
+                                {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
+                              </div>
+                            );
+                          })()}
                           
                           <div className={`text-[10px] mt-2.5 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-blue-100' : 'justify-start text-emerald-50 font-[800]'}`}>
                             <span className="uppercase tracking-wider">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>

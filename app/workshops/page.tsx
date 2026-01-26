@@ -307,10 +307,17 @@ function WorkshopsPageInner() {
     'weight-loss',
   ];
 
-  // Ensure correct order: swar-yoga-basic-program first, master-swar-yoga second
+  // Ensure correct order: swar-yoga-basic-program first, master-swar-yoga second, then weight-loss and others
   const workshopsForDisplay = [
     sortedWorkshops.find(w => w.slug === 'swar-yoga-basic-program'),
     sortedWorkshops.find(w => w.slug === 'master-swar-yoga'),
+    sortedWorkshops.find(w => w.slug === 'weight-loss'),
+    sortedWorkshops.find(w => w.slug === '96-days-weight-loss'),
+    sortedWorkshops.find(w => w.slug === 'pre-pregnancy'),
+    // Include remaining workshops that aren't already pinned
+    ...sortedWorkshops.filter(w => 
+      !['swar-yoga-basic-program', 'master-swar-yoga', 'weight-loss', '96-days-weight-loss', 'pre-pregnancy'].includes(w.slug)
+    ),
   ].filter((w): w is WorkshopOverview => w !== undefined);
 
   // Filter workshops based on selected filters
