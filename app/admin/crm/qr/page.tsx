@@ -3055,18 +3055,18 @@ function QRWhatsAppInboxPageContent() {
                           <div
                             className={`inline-block max-w-[75%] rounded-xl px-4 py-2.5 text-[15px] leading-relaxed shadow-sm transition-all duration-200 ${
                               msg.fromMe
-                                ? 'bg-[#dcf8c6] text-gray-900 rounded-tr-sm border border-[#c5e1a5] ml-auto'
-                                : 'bg-white text-gray-900 rounded-tl-sm border border-gray-200 mr-auto'
+                                ? 'bg-[#d9fdd3] text-gray-900 rounded-tr-sm border border-[#c5e1a5] ml-auto'
+                                : 'bg-[#25D366] text-white rounded-tl-sm mr-auto'
                             }`}
                             style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif", whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                           >
                             {/* Media Content - Using unified InlineMediaPreview */}
                             {wantsMediaLoad ? (
                               <div className="space-y-2">
-                                <div className="text-sm text-gray-600">📎 Media message</div>
+                                <div className={`text-sm ${msg.fromMe ? 'text-gray-600' : 'text-white/80'}`}>📎 Media message</div>
                                 <button
                                   onClick={() => loadMediaForMessage(msg, { force: true })}
-                                  className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 border border-gray-300 disabled:opacity-60"
+                                  className={`px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-60 ${msg.fromMe ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300' : 'bg-white/20 text-white hover:bg-white/30'}`}
                                   disabled={Boolean(messageMediaLoading[msgId])}
                                 >
                                   {messageMediaLoading[msgId] ? 'Loading…' : 'Load media'}
@@ -3108,7 +3108,7 @@ function QRWhatsAppInboxPageContent() {
                             )}
 
                             {/* Time and status row */}
-                            <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-gray-500' : 'justify-start text-gray-500'}`}>
+                            <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-gray-500' : 'justify-start text-white/70'}`}>
                               {messageTime && <span className="tracking-wide">{messageTime}</span>}
                               {msg.fromMe && ackDisplay && (
                                 <span className={`font-medium ${ackColor}`}>{ackDisplay}</span>

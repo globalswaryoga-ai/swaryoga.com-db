@@ -1552,8 +1552,8 @@ export default function MetaInboxPage() {
                       >
                         <div className={`max-w-[72%] px-4 py-2.5 rounded-xl text-[15px] relative group transition-all duration-200 ${
                           msg.direction === 'outbound'
-                            ? 'bg-[#dcf8c6] text-gray-900 rounded-tr-sm shadow-sm border border-[#c5e1a5]'
-                            : 'bg-white text-gray-900 rounded-tl-sm shadow-sm border border-gray-200'
+                            ? 'bg-[#d9fdd3] text-gray-900 rounded-tr-sm shadow-sm border border-[#c5e1a5]'
+                            : 'bg-[#25D366] text-white rounded-tl-sm shadow-sm'
                         }`}>
                           {/* Media Rendering - Using unified InlineMediaPreview component */}
                           {(() => {
@@ -1591,9 +1591,9 @@ export default function MetaInboxPage() {
                             // Show placeholder if message claims to have media but URL is missing
                             if (msg.messageType === 'media' || msg.media?.kind) {
                               return (
-                                <div className="mb-2 flex items-center gap-2 p-2.5 bg-gray-100 rounded-lg border border-gray-200">
+                                <div className={`mb-2 flex items-center gap-2 p-2.5 rounded-lg ${msg.direction === 'outbound' ? 'bg-gray-100 border border-gray-200' : 'bg-white/20'}`}>
                                   <span className="text-lg">📎</span>
-                                  <span className="text-sm text-gray-600">Media attachment</span>
+                                  <span className={`text-sm ${msg.direction === 'outbound' ? 'text-gray-600' : 'text-white/80'}`}>Media attachment</span>
                                 </div>
                               );
                             }
@@ -1626,7 +1626,7 @@ export default function MetaInboxPage() {
                             );
                           })()}
                           
-                          <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-gray-500' : 'justify-start text-gray-500'}`}>
+                          <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-gray-500' : 'justify-start text-white/70'}`}>
                             <span className="tracking-wide">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {msg.direction === 'outbound' && (
                               <div className="flex items-center">
