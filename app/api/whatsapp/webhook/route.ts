@@ -354,9 +354,12 @@ async function handleWebhookPayload(payload: any) {
               
               if (mediaId) {
                 try {
-                  console.log(`[WEBHOOK MEDIA] Fetching media ID: ${mediaId}`);
+                  console.log(`[WEBHOOK MEDIA] Fetching media ID: ${mediaId} for type: ${type}`);
                   const metaMediaUrl = await getWhatsAppMediaUrl(mediaId);
+                  console.log(`[WEBHOOK MEDIA] Got Meta URL: ${metaMediaUrl?.substring(0, 80)}...`);
+                  
                   const { buffer, contentType } = await downloadWhatsAppMedia(metaMediaUrl);
+                  console.log(`[WEBHOOK MEDIA] Downloaded ${buffer.length} bytes, type: ${contentType}`);
                   
                   mimeType = contentType;
                   const extension = contentType.split('/')[1]?.split(';')[0] || 'bin';
@@ -368,10 +371,13 @@ async function handleWebhookPayload(payload: any) {
                       'phone-number': from
                     }
                   });
-                  console.log(`[WEBHOOK MEDIA] Uploaded to S3: ${s3MediaUrl}`);
-                } catch (mediaErr) {
-                  console.error('[WEBHOOK MEDIA ERROR] Failed to process media:', mediaErr);
+                  console.log(`[WEBHOOK MEDIA] ✅ Uploaded to S3: ${s3MediaUrl}`);
+                } catch (mediaErr: any) {
+                  console.error('[WEBHOOK MEDIA ERROR] Failed to process media:', mediaErr?.message || mediaErr);
+                  console.error('[WEBHOOK MEDIA ERROR] Stack:', mediaErr?.stack);
                 }
+              } else {
+                console.warn(`[WEBHOOK MEDIA] No media ID found for ${type} message`);
               }
             }
 
