@@ -147,9 +147,17 @@ export async function getWhatsAppMediaUrl(mediaId: string): Promise<string> {
   const env = getWhatsAppEnv();
   if (!env) throw new Error('Meta Cloud API not configured');
 
-  const { accessToken } = env;
-  const url = `https://graph.facebook.com/v24.0/${mediaId}`;
+  const { accessToken, appSecret } = env;
+  
+  // Build URL with optional appsecret_proof
+  let url = `https://graph.facebook.com/v24.0/${mediaId}`;
+  if (appSecret) {
+    const proof = generateAppSecretProof(accessToken, appSecret);
+    url += `?appsecret_proof=${proof}`;
+  }
 
+  console.log(`[getWhatsAppMediaUrl] Fetching media ${mediaId}`);
+  
   const res = await fetch(url, {
     method: 'GET',
     headers: {
@@ -159,9 +167,11 @@ export async function getWhatsAppMediaUrl(mediaId: string): Promise<string> {
 
   const data = await res.json();
   if (!res.ok) {
+    console.error('[getWhatsAppMediaUrl] Error:', data?.error);
     throw new Error(data?.error?.message || 'Failed to get media URL from Meta');
   }
 
+  console.log(`[getWhatsAppMediaUrl] Got URL: ${data.url?.substring(0, 60)}...`);
   return data.url; // This is the temporary URL to download the actual file
 }
 
@@ -174,6 +184,8 @@ export async function downloadWhatsAppMedia(tempUrl: string): Promise<{ buffer: 
 
   const { accessToken } = env;
 
+  console.log(`[downloadWhatsAppMedia] Downloading from Meta...`);
+  
   const res = await fetch(tempUrl, {
     method: 'GET',
     headers: {
@@ -182,13 +194,16 @@ export async function downloadWhatsAppMedia(tempUrl: string): Promise<{ buffer: 
   });
 
   if (!res.ok) {
-    throw new Error('Failed to download media from Meta URL');
+    const errorText = await res.text().catch(() => 'Unknown error');
+    console.error('[downloadWhatsAppMedia] Failed:', res.status, errorText);
+    throw new Error(`Failed to download media from Meta URL: ${res.status}`);
   }
 
   const arrayBuffer = await res.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const contentType = res.headers.get('content-type') || 'application/octet-stream';
 
+  console.log(`[downloadWhatsAppMedia] Downloaded ${buffer.length} bytes, type: ${contentType}`);
   return { buffer, contentType };
 }
 
