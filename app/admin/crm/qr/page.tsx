@@ -850,6 +850,55 @@ function QRWhatsAppInboxPageContent() {
             }
           }
         }
+        
+        // Also fetch groups from bridge and merge them
+        try {
+          const bridgeChatsRes = await fetch('/api/admin/crm/whatsapp/bridge-proxy?path=/chats', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          if (bridgeChatsRes.ok) {
+            const bridgeData = await bridgeChatsRes.json();
+            const bridgeChats = bridgeData.chats || [];
+            
+            // Filter only groups from bridge chats
+            const bridgeGroups = bridgeChats.filter((c: any) => c.isGroup);
+            
+            if (bridgeGroups.length > 0) {
+              setChats(prev => {
+                // Merge groups with existing chats (avoid duplicates)
+                const existingIds = new Set(prev.map(c => typeof c.id === 'string' ? c.id : c.id._serialized));
+                const newGroups = bridgeGroups
+                  .filter((g: any) => !existingIds.has(g.id))
+                  .map((g: any) => ({
+                    id: { _serialized: g.id },
+                    name: g.name || 'Group',
+                    displayName: g.name,
+                    isGroup: true,
+                    unreadCount: g.unreadCount || 0,
+                    timestamp: g.timestamp || 0,
+                    memberCount: g.participants?.length,
+                    _fromBridge: true,
+                  }));
+                
+                if (newGroups.length > 0) {
+                  console.log(`[loadChats] Added ${newGroups.length} groups from bridge`);
+                  return [...prev, ...newGroups];
+                }
+                return prev;
+              });
+              
+              // Also update groups state
+              setGroups(bridgeGroups.map((g: any) => ({
+                id: g.id,
+                name: g.name || 'Group',
+                participants: g.participants || [],
+              })));
+            }
+          }
+        } catch (bridgeErr) {
+          console.debug('[loadChats] Bridge groups fetch failed:', bridgeErr);
+        }
       };
 
       loadChats();

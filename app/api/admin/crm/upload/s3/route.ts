@@ -4,6 +4,14 @@ import { verifyToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
+    // Check AWS credentials first
+    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+      console.error('[S3 Upload] Missing AWS credentials - AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY not set');
+      return NextResponse.json({ 
+        error: 'S3 upload not configured. Please contact administrator.' 
+      }, { status: 503 });
+    }
+
     const authHeader = req.headers.get('authorization') || undefined;
     const decoded = verifyToken(authHeader);
     if (!decoded) {
@@ -48,8 +56,16 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('Upload error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+    // Check for common AWS errors
+    if (errorMessage.includes('credentials') || errorMessage.includes('AccessDenied')) {
+      return NextResponse.json(
+        { error: 'S3 credentials error. Please check AWS configuration.' }, 
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Upload failed' }, 
+      { error: errorMessage }, 
       { status: 500 }
     );
   }
