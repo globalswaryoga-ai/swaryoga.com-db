@@ -3048,6 +3048,42 @@ function QRWhatsAppInboxPageContent() {
                         (mediaMime === 'application/pdf' || /\.pdf$/i.test(rawMediaUrl))
                     );
 
+                    // Format WhatsApp-style text: *bold*, _italic_, ~strikethrough~
+                    const formatWhatsAppText = (text: string): React.ReactNode[] => {
+                      return text.split('\n').map((line, lineIdx) => {
+                        const parts: React.ReactNode[] = [];
+                        const regex = /(\*[^*]+\*)|(_[^_]+_)|(~[^~]+~)/g;
+                        let lastIndex = 0;
+                        let match;
+                        let keyIdx = 0;
+                        
+                        while ((match = regex.exec(line)) !== null) {
+                          if (match.index > lastIndex) {
+                            parts.push(line.slice(lastIndex, match.index));
+                          }
+                          const matched = match[0];
+                          const inner = matched.slice(1, -1);
+                          if (matched.startsWith('*')) {
+                            parts.push(<strong key={`b-${lineIdx}-${keyIdx++}`} className="font-bold">{inner}</strong>);
+                          } else if (matched.startsWith('_')) {
+                            parts.push(<em key={`i-${lineIdx}-${keyIdx++}`} className="italic">{inner}</em>);
+                          } else if (matched.startsWith('~')) {
+                            parts.push(<del key={`s-${lineIdx}-${keyIdx++}`} className="line-through">{inner}</del>);
+                          }
+                          lastIndex = regex.lastIndex;
+                        }
+                        if (lastIndex < line.length) {
+                          parts.push(line.slice(lastIndex));
+                        }
+                        return (
+                          <React.Fragment key={lineIdx}>
+                            {parts.length > 0 ? parts : line}
+                            {lineIdx < text.split('\n').length - 1 && <br />}
+                          </React.Fragment>
+                        );
+                      });
+                    };
+
                     return (
                       <div key={idx} className={`flex flex-col gap-1 ${msg.fromMe ? 'items-end' : 'items-start'}`}>
                         {/* Message Bubble */}
@@ -3074,11 +3110,13 @@ function QRWhatsAppInboxPageContent() {
                               </div>
                             ) : resolvedMediaUrl ? (
                               <div className="space-y-2">
-                                <InlineMediaPreview 
-                                  url={resolvedMediaUrl}
-                                  type={isImage ? 'image' : isVideo ? 'video' : 'document'}
-                                  className="rounded-lg overflow-hidden max-w-xs"
-                                />
+                                <div className="-mx-4 -mt-2.5">
+                                  <InlineMediaPreview 
+                                    url={resolvedMediaUrl}
+                                    type={isImage ? 'image' : isVideo ? 'video' : 'document'}
+                                    className="rounded-t-xl rounded-b-none w-full"
+                                  />
+                                </div>
                                 {msg.body && msg.body.trim() && (() => {
                                   // Extract [admincrm] or similar tags and show below message
                                   const tagMatch = msg.body.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
@@ -3086,7 +3124,7 @@ function QRWhatsAppInboxPageContent() {
                                   const tag = tagMatch ? tagMatch[1] : null;
                                   return (
                                     <div className="space-y-1">
-                                      {mainBody && <div className="whitespace-pre-wrap">{mainBody}</div>}
+                                      {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
                                       {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
                                     </div>
                                   );
@@ -3098,9 +3136,10 @@ function QRWhatsAppInboxPageContent() {
                                 const tagMatch = msg.body?.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
                                 const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : (msg.body || '');
                                 const tag = tagMatch ? tagMatch[1] : null;
+                                
                                 return (
                                   <div className="space-y-1">
-                                    {mainBody && <div className="whitespace-pre-wrap">{mainBody}</div>}
+                                    {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
                                     {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
                                   </div>
                                 );

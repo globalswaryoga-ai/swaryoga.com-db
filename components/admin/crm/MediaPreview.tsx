@@ -577,7 +577,7 @@ export function InlineMediaPreview({
         <img 
           src={url} 
           alt="Media" 
-          className={`max-w-[200px] max-h-[150px] rounded-lg cursor-pointer hover:opacity-90 ${className}`}
+          className={`w-full max-w-[320px] rounded-lg cursor-pointer hover:opacity-90 ${className}`}
           onClick={() => setExpanded(true)}
           onError={() => {
             console.warn('[MediaPreview] Failed to load image:', url);

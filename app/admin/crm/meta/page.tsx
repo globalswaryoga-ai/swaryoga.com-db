@@ -1578,11 +1578,11 @@ export default function MetaInboxPage() {
                             
                             if (mediaUrl) {
                               return (
-                                <div className="mb-2">
+                                <div className="mb-2 -mx-4 -mt-2.5">
                                   <InlineMediaPreview 
                                     url={mediaUrl} 
                                     type={mediaKind === 'sticker' ? 'image' : mediaKind}
-                                    className="rounded-lg overflow-hidden max-w-[280px]"
+                                    className="rounded-t-xl rounded-b-none w-full"
                                   />
                                 </div>
                               );
@@ -1618,9 +1618,58 @@ export default function MetaInboxPage() {
                             const tagMatch = content.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
                             const mainBody = tagMatch ? content.replace(tagMatch[0], '').trim() : content;
                             const tag = tagMatch ? tagMatch[1] : null;
+                            
+                            // Format WhatsApp-style text: *bold*, _italic_, ~strikethrough~
+                            const formatWhatsAppText = (text: string) => {
+                              // Split by newlines to preserve line breaks
+                              return text.split('\n').map((line, lineIdx) => {
+                                // Process each line for formatting
+                                const parts: React.ReactNode[] = [];
+                                let remaining = line;
+                                let keyIdx = 0;
+                                
+                                // Match *bold*, _italic_, ~strike~ patterns
+                                const regex = /(\*[^*]+\*)|(_[^_]+_)|(~[^~]+~)/g;
+                                let lastIndex = 0;
+                                let match;
+                                
+                                while ((match = regex.exec(line)) !== null) {
+                                  // Add text before match
+                                  if (match.index > lastIndex) {
+                                    parts.push(line.slice(lastIndex, match.index));
+                                  }
+                                  
+                                  const matched = match[0];
+                                  const inner = matched.slice(1, -1);
+                                  
+                                  if (matched.startsWith('*')) {
+                                    parts.push(<strong key={`b-${lineIdx}-${keyIdx++}`} className="font-bold">{inner}</strong>);
+                                  } else if (matched.startsWith('_')) {
+                                    parts.push(<em key={`i-${lineIdx}-${keyIdx++}`} className="italic">{inner}</em>);
+                                  } else if (matched.startsWith('~')) {
+                                    parts.push(<del key={`s-${lineIdx}-${keyIdx++}`} className="line-through">{inner}</del>);
+                                  }
+                                  
+                                  lastIndex = regex.lastIndex;
+                                }
+                                
+                                // Add remaining text
+                                if (lastIndex < line.length) {
+                                  parts.push(line.slice(lastIndex));
+                                }
+                                
+                                return (
+                                  <React.Fragment key={lineIdx}>
+                                    {parts.length > 0 ? parts : line}
+                                    {lineIdx < text.split('\n').length - 1 && <br />}
+                                  </React.Fragment>
+                                );
+                              });
+                            };
+                            
                             return (
                               <div className="space-y-1">
-                                {mainBody && <div className="whitespace-pre-wrap leading-relaxed font-medium">{mainBody}</div>}
+                                {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
                                 {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
                               </div>
                             );
