@@ -1079,9 +1079,10 @@ function QRWhatsAppInboxPageContent() {
     return [];
   }, [activeLeadId, activePhone, selectedChat, token]);
 
+  // Load messages from CRM when a chat is selected (regardless of bridge status)
   useEffect(() => {
-    if (selectedChat && status === 'connected') {
-      const chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized;
+    if (selectedChat) {
+      const chatId = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id?._serialized || '';
       
       // If this is a new "Lead Only" entry (no real chat yet), don't even try to fetch messages
       if (selectedChat.isLeadOnly && !messages.length) {
@@ -1094,22 +1095,18 @@ function QRWhatsAppInboxPageContent() {
 
       const loadMessages = async () => {
         try {
-          // **PERMANENT FIX**: Skip calling /messages endpoint entirely
-          // Minimal bridge doesn't have this endpoint, so load directly from CRM
+          // Load messages from CRM database (works regardless of bridge status)
           const crmMessages = await loadMessagesFromCRM();
           if (crmMessages.length > 0) {
             setMessages(crmMessages);
             setBridgeError(null);
+            setLast404Chat(null);
           } else {
             setLast404Chat(chatId);
             if (messages.length !== 0) {
               setMessages([]);
             }
           }
-          return;
-              setLast404Chat(null);
-
-          // (Removed: old bridge messages processing code - not needed for minimal bridge)
         } catch (err) {
           console.debug('[loadMessages] Exception:', err);
           // Silently fail - use cached messages
@@ -1117,13 +1114,13 @@ function QRWhatsAppInboxPageContent() {
       };
 
       loadMessages();
-      // Increase polling interval to 8s to reduce spam (bridge timeout is 12s)
+      // Poll for new messages every 8 seconds
       const interval = setInterval(loadMessages, 8000);
       return () => clearInterval(interval);
     } else {
       setLast404Chat(null);
     }
-  }, [selectedChat, status, bridgeUrl, last404Chat, messages.length, loadMessagesFromCRM]);
+  }, [selectedChat, last404Chat, messages.length, loadMessagesFromCRM]);
 
   // Auto-scroll to latest message - only if messages actually changed
   const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
