@@ -950,6 +950,7 @@ function QRWhatsAppInboxPageContent() {
       const params = new URLSearchParams();
       if (activeLeadId) params.append('leadId', activeLeadId);
       if (phoneToUse) params.append('phoneNumber', phoneToUse);
+      params.append('provider', 'qr'); // QR inbox only shows QR bridge messages
       params.append('limit', '200');
       params.append('order', 'asc');
       

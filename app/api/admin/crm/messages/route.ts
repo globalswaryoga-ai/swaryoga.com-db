@@ -51,26 +51,24 @@ export async function GET(request: NextRequest) {
 
     const providerParam = url.searchParams.get('provider');
 
-    // Provider filtering:
-    // - Default: Meta + QR bridge + legacy (undefined/null provider)
-    // - provider=meta: Meta only
-    // - provider=qr: QR bridge + legacy (includes undefined for backward compat)
-    if (providerParam === 'meta') {
-      filter.provider = 'meta';
-    } else if (providerParam === 'qr') {
-      // Include both 'whatsapp_web_bridge' and legacy messages (no provider)
+    // Provider filtering - STRICT SEPARATION:
+    // - Default (no param): Meta API messages only (main CRM inbox)
+    // - provider=meta: Meta API messages only
+    // - provider=qr: QR bridge messages only (separate pipeline)
+    // - provider=all: All messages (admin analytics only)
+    if (providerParam === 'qr') {
+      // QR inbox: Only QR bridge messages + legacy messages (no provider = old QR)
       filter.$or = [
         { provider: 'whatsapp_web_bridge' },
         { provider: { $in: [null, undefined] } },
         { provider: { $exists: false } }
       ];
+    } else if (providerParam === 'all') {
+      // All messages (for admin analytics/reports only)
+      // No provider filter - include everything
     } else {
-      // Default: Include all known providers + legacy messages without provider
-      filter.$or = [
-        { provider: { $in: ['meta', 'whatsapp_web_bridge'] } },
-        { provider: { $in: [null, undefined] } },
-        { provider: { $exists: false } }
-      ];
+      // Default & 'meta': Meta API messages only (main CRM inbox)
+      filter.provider = 'meta';
     }
 
     // Add date range filter
