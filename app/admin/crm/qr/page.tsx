@@ -973,7 +973,7 @@ function QRWhatsAppInboxPageContent() {
           timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : 0,
           from: msg.direction === 'inbound' ? msg.phoneNumber : 'Me',
           to: msg.direction === 'outbound' ? msg.phoneNumber : undefined,
-          isFromMe: msg.direction === 'outbound',
+          fromMe: msg.direction === 'outbound', // Must be 'fromMe' not 'isFromMe' for render
           type: msg.messageType || 'text',
           status: msg.status,
           _crmMessage: true, // Mark as from CRM
