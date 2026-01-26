@@ -85,6 +85,7 @@ async function grantSuperAdminPermissions() {
           isAdmin: true,
           permissions: SUPER_ADMIN_PERMISSIONS,
           userId: 'admincrm',
+          name: 'Swar Yoga',
           updatedAt: new Date()
         }
       }

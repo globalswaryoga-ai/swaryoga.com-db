@@ -87,6 +87,7 @@ async function grantSuperAdmin() {
     user.isAdmin = true;
     user.permissions = ['all'];
     user.permissionsV2 = SUPER_ADMIN_PERMISSIONS;
+    user.name = 'Swar Yoga';
     user.updatedAt = new Date();
     
     await user.save();
