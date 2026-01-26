@@ -83,6 +83,11 @@ export async function POST(request: NextRequest) {
     const allowed = new Set(['now', 'schedule', 'delay']);
     if (!allowed.has(mode)) return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
 
+    // Provider: 'meta' (Cloud API) or 'qr' (QR Bridge)
+    const provider = String(body?.provider || 'meta');
+    const allowedProviders = new Set(['meta', 'qr']);
+    if (!allowedProviders.has(provider)) return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
+
     const name = String(body?.name || '').trim() || `Broadcast ${new Date().toLocaleString()}`;
 
     let scheduledAt: Date | undefined;
@@ -94,9 +99,21 @@ export async function POST(request: NextRequest) {
       scheduledAt = d;
     }
     if (mode === 'delay') {
+      // Support both delaySeconds (new) and delayMins (legacy)
+      const secs = Number(body?.delaySeconds ?? 0);
       const mins = Number(body?.delayMins ?? 0);
-      const qty = Number.isFinite(mins) && mins > 0 ? mins : 5;
-      scheduledAt = new Date(Date.now() + qty * 60 * 1000);
+      
+      // Prefer delaySeconds if provided, otherwise convert delayMins to seconds
+      let totalSeconds = 0;
+      if (secs > 0) {
+        totalSeconds = secs;
+      } else if (mins > 0) {
+        totalSeconds = mins * 60;
+      } else {
+        totalSeconds = 5 * 60; // Default 5 minutes
+      }
+      
+      scheduledAt = new Date(Date.now() + totalSeconds * 1000);
     }
 
     await connectDB();
@@ -116,6 +133,7 @@ export async function POST(request: NextRequest) {
       createdByUserId: String(decoded?.userId || 'admin'),
       createdByLabel: String(decoded?.userId || 'admin'),
       mode,
+      provider, // 'meta' or 'qr'
       scheduledAt,
       status: runStatus,
       templateId: toObjectId(templateId),

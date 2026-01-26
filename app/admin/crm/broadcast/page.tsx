@@ -138,6 +138,7 @@ export default function BroadcastPage() {
 
   // Mode
   const [sendMode, setSendMode] = useState<'now' | 'schedule' | 'delay'>('now');
+  const [provider, setProvider] = useState<'meta' | 'qr'>('meta'); // WhatsApp provider selection
   const [scheduleAt, setScheduleAt] = useState('');
   const [delayMins, setDelayMins] = useState('5');
   
@@ -380,6 +381,7 @@ export default function BroadcastPage() {
 
       const payload: any = {
         mode: sendMode,
+        provider: provider, // 'meta' or 'qr'
         templateId: selectedTemplate._id,
         target: { leadIds },
       };
@@ -476,11 +478,16 @@ export default function BroadcastPage() {
         <div style={{ marginTop: 12, padding: 12, border: '1px solid rgba(17, 24, 39, 0.08)', borderRadius: 14, background: '#F9FAFB' }}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>📋 Your Broadcast Lists</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-            {broadcastLists.map((list) => (
+            {broadcastLists.map((list) => {
+              const listIdValue = String(list._id);
+              return (
               <button
-                key={list._id}
-                onClick={() => router.push(`/admin/crm/broadcast?listId=${list._id}`)}
-                style={{
+                key={listIdValue}
+                onClick={() => {
+                  // Use window.location to avoid React router throttling
+                  window.location.href = `/admin/crm/broadcast?listId=${listIdValue}`;
+                }}
+                style={{{
                   padding: 12,
                   border: '1px solid #D1D5DB',
                   borderRadius: 8,
@@ -503,7 +510,8 @@ export default function BroadcastPage() {
                   {list.description || 'No description'}
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -720,11 +728,58 @@ export default function BroadcastPage() {
           <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)', flexShrink: 0 }}>
             <div style={{ fontWeight: 800 }}>Message</div>
             <div style={{ fontSize: 12, color: '#6B7280' }}>
-              Select template, preview, then choose send mode
+              Select provider, template, preview, then choose send mode
             </div>
           </div>
 
           <div style={{ padding: 12, display: 'grid', gap: 10, overflowY: 'auto', flex: 1 }}>
+            {/* Provider Selection */}
+            <div>
+              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8, fontWeight: 600 }}>📱 Send via</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setProvider('meta')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    border: provider === 'meta' ? '2px solid #25D366' : '1px solid #D1D5DB',
+                    borderRadius: 10,
+                    background: provider === 'meta' ? '#ECFDF5' : '#fff',
+                    color: provider === 'meta' ? '#065F46' : '#374151',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ fontSize: 20, marginBottom: 4 }}>🟢</div>
+                  <div>Meta Cloud API</div>
+                  <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>Official WhatsApp Business</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProvider('qr')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    border: provider === 'qr' ? '2px solid #3B82F6' : '1px solid #D1D5DB',
+                    borderRadius: 10,
+                    background: provider === 'qr' ? '#EFF6FF' : '#fff',
+                    color: provider === 'qr' ? '#1E40AF' : '#374151',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  <div style={{ fontSize: 20, marginBottom: 4 }}>📲</div>
+                  <div>QR Bridge</div>
+                  <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>WhatsApp Web Session</div>
+                </button>
+              </div>
+            </div>
+
             <div>
               <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Template</div>
               <select

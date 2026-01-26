@@ -191,19 +191,42 @@ export async function processDueBroadcastRuns(options?: {
         result.attempted++;
 
         try {
-          // Reuse the existing send-template API so Cloud vs bridge logic stays centralized.
-          // However, we call internal lib? For now, simplest is to call send-template route
-          // through direct db update? No internal request in serverless.
-          // We'll mimic the route behavior by importing the shared sendWhatsAppTemplate/text helpers.
-          // (Keeping it small and reliable.)
-          const { buildCloudTemplateSendInput, sendWhatsAppTemplate, sendWhatsAppText } = await import('@/lib/whatsapp');
-
+          // Use the provider specified in the broadcast run ('meta' or 'qr')
+          const runProvider = String((run as any).provider || 'meta');
+          
           let apiResult: any;
-          try {
-            const cloudInput = buildCloudTemplateSendInput(template, to);
-            apiResult = await sendWhatsAppTemplate(cloudInput);
-          } catch {
-            apiResult = await sendWhatsAppText(to, String((template as any).templateContent || '').trim());
+          
+          if (runProvider === 'qr') {
+            // Send via QR Bridge
+            const bridgeUrl = process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3001';
+            const bridgeResponse = await fetch(`${bridgeUrl}/send-message`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: to.includes('@') ? to : `${to}@c.us`,
+                message: String((template as any).templateContent || '').trim(),
+              }),
+            });
+            
+            if (!bridgeResponse.ok) {
+              throw new Error(`QR Bridge error: ${bridgeResponse.status}`);
+            }
+            
+            const bridgeData = await bridgeResponse.json();
+            apiResult = {
+              waMessageId: bridgeData?.data?.id || bridgeData?.id || `qr_${Date.now()}`,
+              raw: { provider: 'qr' },
+            };
+          } else {
+            // Send via Meta Cloud API (default)
+            const { buildCloudTemplateSendInput, sendWhatsAppTemplate, sendWhatsAppText } = await import('@/lib/whatsapp');
+
+            try {
+              const cloudInput = buildCloudTemplateSendInput(template, to);
+              apiResult = await sendWhatsAppTemplate(cloudInput);
+            } catch {
+              apiResult = await sendWhatsAppText(to, String((template as any).templateContent || '').trim());
+            }
           }
 
           await WhatsAppMessage.updateOne(
