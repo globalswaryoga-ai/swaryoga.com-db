@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const BRIDGE_SECRET =
+  process.env.WHATSAPP_BRIDGE_SECRET ||
+  process.env.WHATSAPP_WEB_BRIDGE_SECRET ||
+  process.env.NEXT_PUBLIC_WHATSAPP_BRIDGE_SECRET ||
+  'swar-bridge-secret-2024';
+
 /**
  * Generic bridge proxy - forwards requests to the WhatsApp bridge
  * Avoids CORS errors when calling bridge directly from browser
@@ -14,7 +20,8 @@ export async function GET(request: NextRequest) {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'SwarYoga-Bridge-Proxy'
+        'User-Agent': 'SwarYoga-Bridge-Proxy',
+        'x-bridge-secret': BRIDGE_SECRET
       },
       signal: AbortSignal.timeout(15_000)
     });
@@ -112,7 +119,8 @@ export async function POST(request: NextRequest) {
     const fetchOptions: RequestInit = {
       method: 'POST',
       headers: {
-        'User-Agent': 'SwarYoga-Bridge-Proxy'
+        'User-Agent': 'SwarYoga-Bridge-Proxy',
+        'x-bridge-secret': BRIDGE_SECRET
       },
       signal: AbortSignal.timeout(15_000)
     };
