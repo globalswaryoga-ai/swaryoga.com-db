@@ -967,17 +967,30 @@ function QRWhatsAppInboxPageContent() {
         const crmMessages = payload?.data?.messages || [];
         
         // Convert CRM messages to display format
-        return crmMessages.map((msg: any) => ({
-          id: msg._id || msg.waMessageId,
-          body: msg.messageContent || '',
-          timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : 0,
-          from: msg.direction === 'inbound' ? msg.phoneNumber : 'Me',
-          to: msg.direction === 'outbound' ? msg.phoneNumber : undefined,
-          fromMe: msg.direction === 'outbound', // Must be 'fromMe' not 'isFromMe' for render
-          type: msg.messageType || 'text',
-          status: msg.status,
-          _crmMessage: true, // Mark as from CRM
-        }));
+        return crmMessages.map((msg: any) => {
+          // Convert status to ack for tick display
+          const statusToAck = (status: string) => {
+            if (status === 'read') return 3;      // Blue double tick
+            if (status === 'delivered') return 2; // Double tick
+            if (status === 'sent') return 1;      // Single tick
+            return 0;                             // Pending/no tick
+          };
+          
+          const isOutbound = msg.direction === 'outbound';
+          
+          return {
+            id: msg._id || msg.waMessageId,
+            body: msg.messageContent || '',
+            timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : 0,
+            from: isOutbound ? 'Me' : msg.phoneNumber,
+            to: isOutbound ? msg.phoneNumber : undefined,
+            fromMe: isOutbound,
+            type: msg.messageType || 'text',
+            status: msg.status,
+            ack: isOutbound ? statusToAck(msg.status) : 0, // Only show ticks for outbound
+            _crmMessage: true,
+          };
+        });
       }
     } catch (err) {
       console.warn('[CRM Message Load Error]:', err);
