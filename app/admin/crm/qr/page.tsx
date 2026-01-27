@@ -318,11 +318,13 @@ function QRWhatsAppInboxPageContent() {
       if (messageMediaCache[cacheKey]?.dataUrl) return;
       if (messageMediaLoading[cacheKey]) return;
       
-      // If message has a direct mediaUrl (from S3/cloud), use that instead of bridge
-      if (msg?.mediaUrl && !msg?._bridgeMessage) {
+      // If message has a direct mediaUrl or media.url (from S3/cloud), use that instead of bridge
+      const s3MediaUrl = msg?.mediaUrl || msg?.media?.url;
+      const s3MimeType = msg?.mimeType || msg?.media?.mimeType;
+      if (s3MediaUrl && !msg?._bridgeMessage) {
         setMessageMediaCache((prev) => ({
           ...prev,
-          [cacheKey]: { dataUrl: msg.mediaUrl, mimetype: msg.mimeType || 'image/jpeg' },
+          [cacheKey]: { dataUrl: s3MediaUrl, mimetype: s3MimeType || 'image/jpeg' },
         }));
         return;
       }
