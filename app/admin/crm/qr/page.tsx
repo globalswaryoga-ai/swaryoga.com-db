@@ -792,7 +792,8 @@ function QRWhatsAppInboxPageContent() {
         try {
           // **FIX**: Load conversations directly from CRM database
           // This ensures all messages (Meta + QR) are visible in the inbox
-          const res = await fetch('/api/admin/crm/conversations?limit=100', {
+          // Load ONLY QR conversations - separate from Meta inbox
+          const res = await fetch('/api/admin/crm/conversations?limit=100&provider=qr', {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,

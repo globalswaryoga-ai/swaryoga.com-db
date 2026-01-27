@@ -58,15 +58,15 @@ export async function GET(request: NextRequest) {
     if (providerParam === 'meta') {
       pipeline.push({ $match: { provider: 'meta' } });
     } else if (providerParam === 'qr') {
-      // IMPORTANT: QR pipeline must be completely separate.
-      // Any QR ingestion should write WhatsAppMessage.provider = 'whatsapp_qr'.
-      pipeline.push({ $match: { provider: 'whatsapp_qr' } });
+      // IMPORTANT: QR pipeline must be completely separate from Meta.
+      // QR messages use provider: 'whatsapp_web_bridge' or 'whatsapp_qr'
+      pipeline.push({ $match: { provider: { $in: ['whatsapp_qr', 'whatsapp_web_bridge'] } } });
     } else {
-      // Default (existing behavior)
+      // Default: Meta messages only (exclude QR bridge messages)
       pipeline.push({
         $match: {
           $or: [
-            { provider: { $in: ['meta', 'whatsapp_web_bridge'] } },
+            { provider: 'meta' },
             { provider: { $exists: false } },
             { provider: null },
             { provider: 'pending' },
