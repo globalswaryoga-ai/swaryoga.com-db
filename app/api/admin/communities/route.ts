@@ -1,8 +1,10 @@
 /**
- * Community API - Initialize system communities and manage community settings
+ * Community API - Full CRUD for communities
  * 
  * GET - List communities (with type filter)
- * POST - Initialize system communities (Global + Old Sadhak)
+ * POST - Create a new community OR Initialize system communities
+ * PUT - Update a community
+ * DELETE - Archive a community
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -90,29 +92,175 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Initialize system communities
-    const { global, oldSadhak } = await initializeSystemCommunities();
+    await connectDB();
+    const body = await request.json();
+    
+    // Check if this is a request to initialize system communities
+    if (body.initializeSystem) {
+      const { global, oldSadhak } = await initializeSystemCommunities();
+      return NextResponse.json({
+        success: true,
+        message: 'System communities initialized',
+        communities: {
+          global: { id: global._id, name: global.name, type: global.type },
+          oldSadhak: { id: oldSadhak._id, name: oldSadhak.name, type: oldSadhak.type },
+        },
+      });
+    }
+
+    // Create a new custom community
+    const { name, description, type, isPublic, icon, color, joinLink, whatsappGroupId } = body;
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'Community name is required' }, { status: 400 });
+    }
+
+    // Check for duplicate name
+    const existing = await Community.findOne({ 
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+      isArchived: false 
+    });
+    if (existing) {
+      return NextResponse.json({ error: 'A community with this name already exists' }, { status: 400 });
+    }
+
+    // Generate a URL-friendly ID from the name
+    const id = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+    const community = new Community({
+      id,
+      name: name.trim(),
+      description: description?.trim() || '',
+      type: type || 'workshop_active',
+      joinLink: joinLink?.trim() || '',
+      whatsappGroupId: whatsappGroupId?.trim() || '',
+      // Custom fields for UI (stored in description JSON or separate fields)
+      isArchived: false,
+      members: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await community.save();
 
     return NextResponse.json({
       success: true,
-      message: 'System communities initialized',
-      communities: {
-        global: {
-          id: global._id,
-          name: global.name,
-          type: global.type,
-        },
-        oldSadhak: {
-          id: oldSadhak._id,
-          name: oldSadhak.name,
-          type: oldSadhak.type,
-        },
+      message: 'Community created successfully',
+      community: {
+        _id: community._id,
+        id: community.id,
+        name: community.name,
+        description: community.description,
+        type: community.type,
+        memberCount: 0,
       },
     });
   } catch (error) {
-    console.error('Error initializing communities:', error);
+    console.error('Error creating community:', error);
     return NextResponse.json(
-      { error: 'Failed to initialize communities' },
+      { error: 'Failed to create community' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization') || undefined;
+    const decoded = verifyToken(authHeader);
+    if (!decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    await connectDB();
+    const body = await request.json();
+    const { communityId, name, description, type, joinLink, whatsappGroupId } = body;
+
+    if (!communityId) {
+      return NextResponse.json({ error: 'Community ID is required' }, { status: 400 });
+    }
+
+    const community = await Community.findById(communityId);
+    if (!community) {
+      return NextResponse.json({ error: 'Community not found' }, { status: 404 });
+    }
+
+    // Check for duplicate name if name is being changed
+    if (name && name.trim() !== community.name) {
+      const existing = await Community.findOne({ 
+        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+        _id: { $ne: communityId },
+        isArchived: false 
+      });
+      if (existing) {
+        return NextResponse.json({ error: 'A community with this name already exists' }, { status: 400 });
+      }
+    }
+
+    // Update fields
+    if (name) community.name = name.trim();
+    if (description !== undefined) community.description = description.trim();
+    if (type) community.type = type;
+    if (joinLink !== undefined) community.joinLink = joinLink.trim();
+    if (whatsappGroupId !== undefined) community.whatsappGroupId = whatsappGroupId.trim();
+    community.updatedAt = new Date();
+
+    await community.save();
+
+    return NextResponse.json({
+      success: true,
+      message: 'Community updated successfully',
+      community,
+    });
+  } catch (error) {
+    console.error('Error updating community:', error);
+    return NextResponse.json(
+      { error: 'Failed to update community' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization') || undefined;
+    const decoded = verifyToken(authHeader);
+    if (!decoded?.isAdmin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    await connectDB();
+    const { searchParams } = new URL(request.url);
+    const communityId = searchParams.get('communityId');
+
+    if (!communityId) {
+      return NextResponse.json({ error: 'Community ID is required' }, { status: 400 });
+    }
+
+    const community = await Community.findById(communityId);
+    if (!community) {
+      return NextResponse.json({ error: 'Community not found' }, { status: 404 });
+    }
+
+    // Don't allow deleting system communities
+    if (community.type === 'global') {
+      return NextResponse.json({ error: 'Cannot delete the global community' }, { status: 400 });
+    }
+
+    // Archive instead of delete (soft delete)
+    community.isArchived = true;
+    community.archivedAt = new Date();
+    community.updatedAt = new Date();
+    await community.save();
+
+    return NextResponse.json({
+      success: true,
+      message: 'Community archived successfully',
+    });
+  } catch (error) {
+    console.error('Error archiving community:', error);
+    return NextResponse.json(
+      { error: 'Failed to archive community' },
       { status: 500 }
     );
   }

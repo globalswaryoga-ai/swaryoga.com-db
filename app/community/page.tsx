@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home, AlertCircle, ExternalLink } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home, AlertCircle, ExternalLink, Menu, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { COMMUNITY_DESIGNS, CommunityDesign } from '@/lib/communityColorSystem';
 
@@ -84,6 +84,26 @@ function CommunityPageContent() {
   const [activePostForComment, setActivePostForComment] = useState<Post | null>(null);
   const [commentText, setCommentText] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
+
+  // Mobile sidebar state
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Close sidebar when route changes
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [selectedCommunity]);
+
+  // Prevent body scroll when sidebar is open
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileSidebarOpen]);
 
   const categories = [
     { id: 'all', label: '📋 All Posts' },
@@ -576,45 +596,152 @@ function CommunityPageContent() {
   const currentCommunity = communities.find((c) => c.id === selectedCommunity);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50">
       {/* Top Navigation Bar */}
-      <div className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-md">
-        <div className="container mx-auto px-6 sm:px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200" title="Home">
-              <Home size={24} className="text-green-600" />
+      <div className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2.5 rounded-xl bg-gradient-to-br from-green-500 to-green-600 text-white shadow-md active:scale-95 transition-all duration-200"
+              aria-label="Open sidebar"
+            >
+              <Menu size={20} />
+            </button>
+            <Link href="/" className="p-2 hover:bg-gray-100 rounded-xl transition-all duration-200 active:scale-95" title="Home">
+              <Home size={20} className="sm:w-6 sm:h-6 text-green-600" />
             </Link>
-            <Link href="/" className="text-2xl font-bold tracking-tight text-gray-900 hover:opacity-75 transition-opacity">
-              Swar Yoga 🧘
+            <Link href="/" className="text-lg sm:text-2xl font-bold tracking-tight text-gray-900 hover:opacity-75 transition-opacity">
+              Swar Yoga <span className="hidden sm:inline">🧘</span>
             </Link>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {user ? (
               <>
-                <div className="text-sm text-gray-600">
-                  <p className="font-semibold text-gray-900">{user.name}</p>
+                <div className="text-right hidden sm:block">
+                  <p className="font-semibold text-gray-900 text-sm">{user.name}</p>
                   <p className="text-xs text-gray-500">{user.email}</p>
+                </div>
+                <div className="sm:hidden w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold text-sm">
+                  {user.name.charAt(0).toUpperCase()}
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-800 text-white rounded-lg transition-all duration-200 text-sm font-bold shadow-md hover:shadow-lg border border-red-800"
+                  className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all duration-200 text-sm font-bold shadow-md active:scale-95"
                 >
                   <LogOut size={16} />
-                  Logout
+                  <span className="hidden sm:inline">Logout</span>
                 </button>
               </>
             ) : (
-              <div className="text-sm text-gray-500 font-medium">Not joined yet</div>
+              <div className="text-xs sm:text-sm text-gray-500 font-medium">Not joined</div>
             )}
           </div>
         </div>
       </div>
 
+      {/* Mobile Sidebar Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <div
+        className={`fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white z-50 transform transition-transform duration-300 ease-out lg:hidden shadow-2xl ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex flex-col h-full">
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gradient-to-r from-green-500 to-emerald-600">
+            <h2 className="text-lg font-bold text-white">Communities</h2>
+            <button
+              onClick={() => setMobileSidebarOpen(false)}
+              className="p-2 rounded-xl bg-white/20 text-white hover:bg-white/30 transition-colors active:scale-95"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Sidebar Content */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* User Profile Card - Mobile */}
+            {user ? (
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold shadow-md">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gray-900 font-semibold text-sm truncate">{user.name}</p>
+                    <p className="text-green-600 text-xs font-medium">✓ Member</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-4 shadow-sm">
+                <p className="text-blue-900 text-sm font-bold mb-2">👋 Join the Community</p>
+                <p className="text-blue-700 text-xs">Connect with fellow yoga practitioners</p>
+              </div>
+            )}
+
+            {/* Communities List - Mobile */}
+            <div className="space-y-2">
+              {communities.map(community => (
+                <button
+                  key={community.id}
+                  onClick={() => {
+                    setSelectedCommunity(community.id);
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-3.5 rounded-xl transition-all duration-200 active:scale-[0.98] ${
+                    selectedCommunity === community.id
+                      ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md`
+                      : `${community.design.color.light} text-gray-700 border hover:shadow-sm`
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <community.design.icon size={20} className={selectedCommunity === community.id ? 'text-white' : community.design.color.main} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{community.name}</p>
+                      <p className="text-xs opacity-75">{community.members} members</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Stats Card - Mobile */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4 shadow-sm">
+              <h3 className="text-sm font-bold text-gray-900 mb-3">📊 Stats</h3>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-white rounded-xl p-2">
+                  <p className="text-lg font-bold text-green-600">{posts.length}</p>
+                  <p className="text-[10px] text-gray-500">Posts</p>
+                </div>
+                <div className="bg-white rounded-xl p-2">
+                  <p className="text-lg font-bold text-green-600">{communityStats.global || 0}</p>
+                  <p className="text-[10px] text-gray-500">Members</p>
+                </div>
+                <div className="bg-white rounded-xl p-2">
+                  <p className="text-lg font-bold text-green-600">{communities.length}</p>
+                  <p className="text-[10px] text-gray-500">Groups</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
-      <div className="container mx-auto px-6 sm:px-6 py-10">
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-10">
+        <div className="grid lg:grid-cols-4 gap-6 lg:gap-8">
+          {/* Desktop Sidebar - Hidden on mobile */}
+          <div className="hidden lg:block lg:col-span-1">
             {/* User Profile Card */}
             {user ? (
               <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 mb-8 shadow-sm hover:shadow-md transition-all duration-300">
@@ -647,7 +774,7 @@ function CommunityPageContent() {
                   <div key={community.id} className="space-y-2">
                     <button
                       onClick={() => setSelectedCommunity(community.id)}
-                      className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 transform hover:scale-105 shadow-sm ${
+                      className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-sm ${
                         selectedCommunity === community.id
                           ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md hover:shadow-lg`
                           : `${community.design.color.light} text-gray-700 border hover:border-opacity-100 hover:bg-opacity-100 transition-colors`
@@ -670,7 +797,7 @@ function CommunityPageContent() {
                                 setJoiningCommunity(community);
                                 setShowJoinModal(true);
                               }}
-                              className="w-full px-4 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
+                              className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
                             >
                               ✓ Join Now
                             </button>
@@ -679,7 +806,7 @@ function CommunityPageContent() {
                                 setJoiningCommunity(community);
                                 setShowJoinModal(true);
                               }}
-                              className="w-full px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg border border-blue-900"
+                              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
                             >
                               🔄 Rejoin
                             </button>
@@ -691,7 +818,7 @@ function CommunityPageContent() {
                                 setRequestingCommunity(community);
                                 setShowRequestModal(true);
                               }}
-                              className="w-full px-4 py-2 bg-red-700 hover:bg-red-800 text-white rounded-lg text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
+                              className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
                             >
                               📋 Request Access
                             </button>
@@ -700,7 +827,7 @@ function CommunityPageContent() {
                                 setRequestingCommunity(community);
                                 setShowRequestModal(true);
                               }}
-                              className="w-full px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg border border-blue-900"
+                              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
                             >
                               🔄 Rejoin Request
                             </button>
@@ -736,25 +863,25 @@ function CommunityPageContent() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             {/* Community Header */}
-            <div className={`bg-gradient-to-br ${currentCommunity?.design.color.gradient} rounded-2xl p-10 mb-10 text-white shadow-2xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden`}>
+            <div className={`bg-gradient-to-br ${currentCommunity?.design.color.gradient} rounded-2xl p-6 sm:p-10 mb-6 sm:mb-10 text-white shadow-xl transition-all duration-300 relative overflow-hidden`}>
               {/* Background accent */}
-              <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -mr-48 -mt-48 blur-3xl"></div>
-              <div className="absolute bottom-0 left-0 w-72 h-72 bg-white/5 rounded-full -ml-36 -mb-36 blur-3xl"></div>
+              <div className="absolute top-0 right-0 w-48 sm:w-96 h-48 sm:h-96 bg-white/10 rounded-full -mr-24 sm:-mr-48 -mt-24 sm:-mt-48 blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-36 sm:w-72 h-36 sm:h-72 bg-white/5 rounded-full -ml-18 sm:-ml-36 -mb-18 sm:-mb-36 blur-3xl"></div>
               
-              <div className="relative z-10 flex items-center justify-between">
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0">
                 <div>
-                  <div className="text-6xl mb-4 drop-shadow-lg flex items-center">
-                    {currentCommunity?.design.icon && <currentCommunity.design.icon size={64} className="text-white" />}
+                  <div className="text-4xl sm:text-6xl mb-3 sm:mb-4 drop-shadow-lg flex items-center">
+                    {currentCommunity?.design.icon && <currentCommunity.design.icon size={48} className="sm:w-16 sm:h-16 text-white" />}
                   </div>
-                  <h1 className="text-4xl sm:text-5xl font-bold mb-2 drop-shadow-lg">{currentCommunity?.name}</h1>
-                  <p className="text-lg opacity-95 drop-shadow-md">{currentCommunity?.description}</p>
-                  <div className="mt-4 flex items-center gap-6 text-sm font-semibold">
+                  <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold mb-2 drop-shadow-lg">{currentCommunity?.name}</h1>
+                  <p className="text-sm sm:text-lg opacity-95 drop-shadow-md">{currentCommunity?.description}</p>
+                  <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm font-semibold">
                     <span>👥 {currentCommunity?.members} members</span>
-                    {currentCommunity?.isPublic && <span className="bg-white/40 px-4 py-1 rounded-full">🌐 Public</span>}
+                    {currentCommunity?.isPublic && <span className="bg-white/30 px-3 sm:px-4 py-1 rounded-full">🌐 Public</span>}
                   </div>
                 </div>
                 {!user && (
-                  <div className="flex gap-3 flex-col">
+                  <div className="flex gap-2 sm:gap-3 flex-row sm:flex-col">
                     {currentCommunity?.isPublic ? (
                       <>
                         <button
@@ -762,16 +889,16 @@ function CommunityPageContent() {
                             setJoiningCommunity(currentCommunity);
                             setShowJoinModal(true);
                           }}
-                          className="px-8 py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl text-lg"
+                          className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
                         >
-                          + Join Now
+                          + Join
                         </button>
                         <button
                           onClick={() => {
                             setJoiningCommunity(currentCommunity);
                             setShowJoinModal(true);
                           }}
-                          className="px-8 py-4 bg-blue-700 text-white rounded-xl font-bold hover:bg-blue-800 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl text-lg border-2 border-blue-900"
+                          className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
                         >
                           🔄 Rejoin
                         </button>
@@ -783,18 +910,18 @@ function CommunityPageContent() {
                             setRequestingCommunity(currentCommunity);
                             setShowRequestModal(true);
                           }}
-                          className="px-8 py-4 bg-red-700 text-white rounded-xl font-bold hover:bg-red-800 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl text-lg"
+                          className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
                         >
-                          📋 Request Access
+                          📋 Request
                         </button>
                         <button
                           onClick={() => {
                             setRequestingCommunity(currentCommunity);
                             setShowRequestModal(true);
                           }}
-                          className="px-8 py-4 bg-blue-700 text-white rounded-xl font-bold hover:bg-blue-800 transition-all transform hover:scale-105 shadow-lg hover:shadow-xl text-lg border-2 border-blue-900"
+                          className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
                         >
-                          🔄 Rejoin Request
+                          🔄 Rejoin
                         </button>
                       </>
                     )}
@@ -804,7 +931,7 @@ function CommunityPageContent() {
             </div>
 
             {/* Search and Filters */}
-            <div className="mb-8 space-y-4">
+            <div className="mb-6 sm:mb-8 space-y-3 sm:space-y-4">
               <div className="relative">
                 <Search className="absolute left-4 top-3 text-green-600" size={20} />
                 <input
@@ -812,12 +939,12 @@ function CommunityPageContent() {
                   placeholder="Search posts..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white text-gray-900 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500 shadow-sm hover:shadow-md transition-all duration-200"
+                  className="w-full pl-12 pr-4 py-3 bg-white text-gray-900 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 placeholder-gray-500 shadow-sm transition-all duration-200 text-sm sm:text-base"
                 />
               </div>
 
-              {/* Categories */}
-              <div className="flex flex-wrap gap-3">
+              {/* Categories - Horizontal scroll on mobile */}
+              <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
                 {categories.map(category => (
                   <button
                     key={category.id}
@@ -838,10 +965,10 @@ function CommunityPageContent() {
                         setViewMode('posts');
                       }
                     }}
-                    className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-sm ${
+                    className={`shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 active:scale-95 shadow-sm whitespace-nowrap ${
                       selectedCategory === category.id && viewMode === 'posts'
-                        ? 'bg-gradient-to-r from-green-700 to-green-800 text-white shadow-md hover:shadow-lg'
-                        : 'bg-white text-gray-700 border border-gray-300 hover:border-green-600 hover:bg-green-50'
+                        ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md'
+                        : 'bg-white text-gray-700 border border-gray-200 hover:border-green-500 hover:bg-green-50'
                     }`}
                   >
                     {category.label}
@@ -852,10 +979,10 @@ function CommunityPageContent() {
                 {selectedCommunity !== 'global' && (
                   <button
                     onClick={() => setViewMode('videos')}
-                    className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-sm flex items-center gap-2 ${
+                    className={`shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 active:scale-95 shadow-sm flex items-center gap-2 whitespace-nowrap ${
                       viewMode === 'videos'
-                        ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md hover:shadow-lg'
-                        : 'bg-white text-gray-700 border border-gray-300 hover:border-purple-600 hover:bg-purple-50'
+                        ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md'
+                        : 'bg-white text-gray-700 border border-gray-200 hover:border-purple-500 hover:bg-purple-50'
                     }`}
                   >
                     🎥 Videos

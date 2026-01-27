@@ -236,9 +236,10 @@ export default function Navigation() {
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="lg:hidden p-2 text-swar-text hover:text-swar-primary hover:bg-swar-primary-light rounded-lg transition-all duration-200"
+                className="lg:hidden p-2.5 text-white bg-gradient-to-br from-swar-primary to-green-600 hover:from-green-600 hover:to-green-700 rounded-xl transition-all duration-200 shadow-md active:scale-95"
+                aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
               >
-                {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
             </div>
           </div>
@@ -246,14 +247,14 @@ export default function Navigation() {
           {/* Mobile Menu */}
           {isMenuOpen && (
             <div className="lg:hidden mt-4 pb-4 border-t border-swar-border animate-in slide-in-from-top duration-200">
-              <nav className="flex flex-col space-y-2 mt-4">
+              <nav className="flex flex-col space-y-1.5 mt-4">
                 {navigation.map((item) => (
                   <Link
                     key={item.name}
                     href={item.href}
-                    className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 touch-manipulation ${
+                    className={`px-4 py-3.5 rounded-xl font-medium transition-all duration-200 touch-manipulation active:scale-[0.98] ${
                       isActive(item.href) 
-                        ? 'text-swar-primary bg-swar-primary-light border-l-4 border-green-600' 
+                        ? 'text-white bg-gradient-to-r from-swar-primary to-green-600 shadow-md' 
                         : 'text-swar-text hover:text-swar-primary hover:bg-swar-primary-light'
                     }`}
                     onClick={closeMenu}
@@ -263,10 +264,10 @@ export default function Navigation() {
                 ))}
                 
                 {/* Mobile Actions */}
-                <div className="flex flex-col space-y-2 pt-4 border-t border-swar-border">
+                <div className="flex flex-col space-y-2 pt-4 mt-2 border-t border-swar-border">
                   <Link
                     href="/cart"
-                    className="flex items-center space-x-2 px-4 py-3 text-swar-text hover:text-swar-primary hover:bg-swar-primary-light rounded-lg transition-all duration-200 touch-manipulation"
+                    className="flex items-center space-x-3 px-4 py-3.5 text-swar-text hover:text-swar-primary hover:bg-swar-primary-light rounded-xl transition-all duration-200 touch-manipulation active:scale-[0.98]"
                     onClick={closeMenu}
                   >
                     <ShoppingCart className="h-5 w-5" />
@@ -277,7 +278,7 @@ export default function Navigation() {
                     <>
                       <Link
                         href="/profile"
-                        className="flex items-center space-x-2 px-4 py-3 bg-swar-primary-light text-swar-primary rounded-lg touch-manipulation"
+                        className="flex items-center space-x-3 px-4 py-3.5 bg-swar-primary-light text-swar-primary rounded-xl touch-manipulation active:scale-[0.98]"
                         onClick={closeMenu}
                       >
                         <User className="h-5 w-5" />
@@ -288,7 +289,7 @@ export default function Navigation() {
                           handleLogout();
                           setIsMenuOpen(false);
                         }}
-                        className="flex items-center space-x-2 px-4 py-3 text-red-600 hover:text-swar-primary hover:bg-red-50 rounded-lg transition-all duration-200 font-medium touch-manipulation"
+                        className="flex items-center space-x-3 px-4 py-3.5 text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 font-medium touch-manipulation active:scale-[0.98]"
                       >
                         <LogOut className="h-5 w-5" />
                         <span>Logout</span>
@@ -298,14 +299,14 @@ export default function Navigation() {
                     <>
                       <Link
                         href="/signin"
-                        className="flex items-center space-x-2 px-4 py-3 text-red-600 hover:text-swar-primary hover:bg-red-50 rounded-lg transition-all duration-200 font-medium touch-manipulation"
+                        className="flex items-center justify-center space-x-2 px-4 py-3.5 text-swar-primary border-2 border-swar-primary hover:bg-swar-primary-light rounded-xl transition-all duration-200 font-medium touch-manipulation active:scale-[0.98]"
                         onClick={closeMenu}
                       >
                         <span>Sign In</span>
                       </Link>
                       <Link
                         href="/signup"
-                        className="bg-gradient-to-r from-swar-primary to-green-700 text-white px-4 py-3 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 text-center font-medium shadow-lg touch-manipulation"
+                        className="bg-gradient-to-r from-swar-primary to-green-600 text-white px-4 py-3.5 rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 text-center font-medium shadow-lg touch-manipulation active:scale-[0.98]"
                         onClick={closeMenu}
                       >
                         Sign Up

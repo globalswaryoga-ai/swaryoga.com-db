@@ -130,9 +130,39 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
 export function getCommunityDesign(communityId: string): CommunityDesign {
   const design = COMMUNITY_DESIGNS.find(c => c.id === communityId);
   if (!design) {
-    throw new Error(`Community design not found for ID: ${communityId}`);
+    // Return a default design for dynamically created communities
+    return getDefaultCommunityDesign(communityId);
   }
   return design;
+}
+
+// Default design for communities not in the predefined list
+export function getDefaultCommunityDesign(communityId: string, communityName?: string): CommunityDesign {
+  // Generate a consistent color based on the community ID hash
+  const colorOptions = [
+    { light: 'bg-purple-50 border-purple-200', main: 'text-purple-600 bg-purple-100', dark: 'from-purple-600 to-purple-700', gradient: 'from-purple-500 to-pink-500' },
+    { light: 'bg-rose-50 border-rose-200', main: 'text-rose-600 bg-rose-100', dark: 'from-rose-600 to-rose-700', gradient: 'from-rose-500 to-red-500' },
+    { light: 'bg-cyan-50 border-cyan-200', main: 'text-cyan-600 bg-cyan-100', dark: 'from-cyan-600 to-cyan-700', gradient: 'from-cyan-500 to-blue-500' },
+    { light: 'bg-orange-50 border-orange-200', main: 'text-orange-600 bg-orange-100', dark: 'from-orange-600 to-orange-700', gradient: 'from-orange-500 to-amber-500' },
+    { light: 'bg-violet-50 border-violet-200', main: 'text-violet-600 bg-violet-100', dark: 'from-violet-600 to-violet-700', gradient: 'from-violet-500 to-purple-500' },
+    { light: 'bg-fuchsia-50 border-fuchsia-200', main: 'text-fuchsia-600 bg-fuchsia-100', dark: 'from-fuchsia-600 to-fuchsia-700', gradient: 'from-fuchsia-500 to-pink-500' },
+  ];
+  
+  // Simple hash to pick a consistent color
+  const hash = communityId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colorIndex = hash % colorOptions.length;
+  const color = colorOptions[colorIndex];
+
+  return {
+    id: communityId,
+    name: communityName || communityId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    icon: Globe, // Default icon
+    description: 'Custom yoga community',
+    color,
+    philosophy: 'Custom community created for specific yoga practice.',
+    members: 0,
+    isPublic: false
+  };
 }
 
 // Helper function to get all community designs

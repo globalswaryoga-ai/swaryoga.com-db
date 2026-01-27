@@ -17,9 +17,11 @@ import {
   Target,
   Settings,
   User,
+  X,
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearSession } from '@/lib/sessionManager';
+import { useEffect } from 'react';
 
 interface LifePlannerSidebarProps {
   isOpen: boolean;
@@ -29,6 +31,25 @@ interface LifePlannerSidebarProps {
 export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      onClose();
+    }
+  }, [pathname, onClose]);
+
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (isOpen && window.innerWidth < 768) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
   
   const handleNavClick = () => {
     // Auto-close sidebar on mobile when a link is clicked
@@ -70,33 +91,43 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
 
   return (
     <>
-      {isOpen ? (
-        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={onClose} />
-      ) : null}
+      {/* Mobile Backdrop with blur */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300" 
+          onClick={onClose} 
+        />
+      )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-swar-primary text-white transform transition-transform duration-300 ease-in-out ${
+        className={`fixed md:static inset-y-0 left-0 z-50 w-72 md:w-64 bg-gradient-to-b from-swar-primary to-emerald-800 text-white transform transition-all duration-300 ease-out shadow-2xl md:shadow-none ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
-        <div className="p-6 border-b border-swar-border flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+        {/* Header */}
+        <div className="p-4 md:p-6 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
             <img
               src="/logo.png"
               alt="Swar Yoga Logo"
-              className="w-10 h-10 rounded-lg bg-white/10 p-1"
+              className="w-10 h-10 rounded-xl bg-white/10 p-1 shadow-lg"
             />
             <div>
               <h2 className="font-bold text-lg text-white">Life Planner</h2>
-              <p className="text-xs text-swar-primary-light">Dashboard</p>
+              <p className="text-xs text-emerald-200">Dashboard</p>
             </div>
           </div>
-          <button onClick={onClose} className="md:hidden p-2 hover:bg-swar-primary-hover rounded-lg text-white" aria-label="Close sidebar">
-            ✕
+          <button 
+            onClick={onClose} 
+            className="md:hidden p-2.5 hover:bg-white/10 rounded-xl text-white transition-colors active:scale-95" 
+            aria-label="Close sidebar"
+          >
+            <X size={20} />
           </button>
         </div>
 
-        <nav className="p-6 space-y-2">
+        {/* Navigation */}
+        <nav className="p-3 md:p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-200px)] scrollbar-thin">
           {items.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -105,34 +136,35 @@ export default function LifePlannerSidebar({ isOpen, onClose }: LifePlannerSideb
                 key={item.href}
                 href={item.href}
                 onClick={handleNavClick}
-                className={`flex cursor-pointer items-center space-x-3 px-4 py-3 rounded-lg transition-all group font-medium ${
+                className={`flex cursor-pointer items-center space-x-3 px-4 py-3.5 md:py-3 rounded-xl transition-all group font-medium active:scale-[0.98] ${
                   active
-                    ? 'bg-swar-accent text-white shadow-md'
-                    : 'text-swar-primary-light hover:bg-swar-accent/20 hover:text-white'
+                    ? 'bg-white text-swar-primary shadow-lg'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 <Icon
-                  className={`h-5 w-5 transition-colors ${
-                    active ? 'text-white' : 'text-swar-primary-light group-hover:text-white'
+                  className={`h-5 w-5 transition-colors flex-shrink-0 ${
+                    active ? 'text-swar-primary' : 'text-white/70 group-hover:text-white'
                   }`}
                 />
-                <span>{item.label}</span>
-                {active && <ChevronRight className="h-5 w-5 ml-auto text-white font-bold" />}
+                <span className="truncate">{item.label}</span>
+                {active && <ChevronRight className="h-5 w-5 ml-auto text-swar-primary flex-shrink-0" />}
               </Link>
             );
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-swar-border">
-          <div className="text-xs text-swar-primary-light">
-            <p className="font-semibold text-white mb-2">Planner v1 (demo)</p>
-            <p>Vision Plan → Action Plan → Tasks → Reminders</p>
+        {/* Footer */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10 bg-gradient-to-t from-emerald-900/50 to-transparent">
+          <div className="text-xs text-emerald-200 mb-3 px-2">
+            <p className="font-semibold text-white">Planner v1</p>
+            <p className="mt-1 opacity-75">Vision → Action → Tasks</p>
           </div>
 
           <button
             type="button"
             onClick={logout}
-            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-white/10 hover:bg-white/20 text-white px-4 py-3 font-semibold transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-white px-4 py-3 font-semibold transition-all active:scale-[0.98]"
             title="Logout"
           >
             <LogOut className="h-5 w-5" />

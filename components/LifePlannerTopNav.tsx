@@ -158,39 +158,43 @@ export default function LifePlannerTopNav({
   };
 
   return (
-    <header className="bg-white border-b border-swar-border shadow-sm">
-      <div className="px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
+    <header className="bg-white border-b border-swar-border shadow-sm sticky top-0 z-40">
+      <div className="px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center space-x-2 sm:space-x-4">
           <button
             onClick={onToggleSidebar}
-            className="md:hidden p-2 rounded-lg bg-swar-primary-light hover:bg-swar-primary-light text-swar-primary"
+            className="md:hidden p-2.5 rounded-xl bg-gradient-to-br from-swar-primary to-emerald-600 text-white shadow-md active:scale-95 transition-all duration-200"
             aria-label="Toggle sidebar"
           >
-            {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
           
           {/* Logo and Title */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <img
               src="/logo.png"
               alt="Swar Yoga Logo"
-              className="w-10 h-10 rounded-lg"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg shadow-sm"
             />
-            <h1 className="text-lg sm:text-2xl font-bold text-swar-primary flex items-center space-x-2 whitespace-nowrap">
-              <span>🗓️</span>
+            <h1 className="text-base sm:text-2xl font-bold text-swar-primary flex items-center space-x-1 sm:space-x-2 whitespace-nowrap">
+              <span className="hidden sm:inline">🗓️</span>
               <span>Life Planner</span>
             </h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <HealthTracker />
-          <ServerStatus />
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          <div className="hidden sm:block">
+            <HealthTracker />
+          </div>
+          <div className="hidden sm:block">
+            <ServerStatus />
+          </div>
           
           {/* Back Button */}
           <button
             onClick={() => router.back()}
-            className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200 hover:scale-105 active:scale-95"
             title="Go Back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -199,28 +203,28 @@ export default function LifePlannerTopNav({
           
           <Link
             href="/life-planner/profile"
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 ${
               pathname === '/life-planner/profile'
-                ? 'bg-swar-primary-light text-swar-primary border border-green-300'
+                ? 'bg-swar-primary text-white shadow-md'
                 : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
             }`}
           >
-            <User className="h-5 w-5" />
+            <User className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="hidden sm:inline">Profile</span>
           </Link>
 
           <button
             onClick={logout}
-            className="p-2 rounded-lg bg-swar-primary-light text-red-600 hover:bg-red-200 transition-colors"
+            className="p-2 sm:p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm"
             title="Logout"
           >
-            <LogOut className="h-6 w-6" />
+            <LogOut className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
         </div>
       </div>
 
-      <div className="border-t border-swar-border px-2 sm:px-4 md:px-6 py-2 overflow-x-auto scroll-smooth">
-        <nav className="flex items-center gap-2 min-w-max">
+      <div className="border-t border-swar-border px-2 sm:px-4 md:px-6 py-2 overflow-x-auto scroll-smooth scrollbar-hide">
+        <nav className="flex items-center gap-1.5 sm:gap-2 min-w-max">
           {topTabs.map((tab) => {
             const Icon = tab.icon;
             const active = pathname === tab.href;
@@ -228,13 +232,13 @@ export default function LifePlannerTopNav({
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`shrink-0 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 rounded-lg px-3 py-2 text-[11px] sm:text-sm font-medium transition-colors text-center sm:text-left whitespace-nowrap ${
+                className={`shrink-0 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 rounded-xl px-3 sm:px-4 py-2.5 sm:py-2 text-[10px] sm:text-sm font-medium transition-all duration-200 text-center sm:text-left whitespace-nowrap active:scale-95 ${
                   active
-                    ? 'bg-swar-primary-light text-swar-primary border border-green-300'
-                    : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light'
+                    ? 'bg-swar-primary text-white shadow-md'
+                    : 'text-swar-text-secondary hover:text-swar-text hover:bg-swar-primary-light hover:scale-105'
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 sm:h-4 sm:w-4" />
                 <span>{tab.label}</span>
               </Link>
             );

@@ -124,44 +124,44 @@ export default function ExperiencesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
       {/* Header */}
-      <div className="bg-emerald-600 text-white py-12">
-        <div className="max-w-6xl mx-auto px-4">
-          <Link href="/community" className="text-emerald-100 hover:text-white mb-4 inline-flex items-center gap-2">
+      <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white py-8 sm:py-12">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <Link href="/community" className="text-emerald-100 hover:text-white mb-4 inline-flex items-center gap-2 text-sm sm:text-base active:scale-95 transition-transform">
             ← Back to Community
           </Link>
-          <h1 className="text-4xl font-bold mt-4">⭐ Community Experiences</h1>
-          <p className="text-emerald-100 mt-2">Real stories from our yoga community members</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mt-4">⭐ Community Experiences</h1>
+          <p className="text-emerald-100 mt-2 text-sm sm:text-base">Real stories from our yoga community members</p>
           
           {stats && (
-            <div className="flex flex-wrap gap-8 mt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold">{stats.avgRating?.toFixed(1) || '0.0'}</div>
-                <div className="text-emerald-200 text-sm">Average Rating</div>
+            <div className="flex flex-wrap gap-4 sm:gap-8 mt-6">
+              <div className="text-center bg-white/10 rounded-xl px-4 py-3 backdrop-blur-sm">
+                <div className="text-2xl sm:text-3xl font-bold">{stats.avgRating?.toFixed(1) || '0.0'}</div>
+                <div className="text-emerald-200 text-xs sm:text-sm">Average Rating</div>
               </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold">{stats.totalCount || 0}</div>
-                <div className="text-emerald-200 text-sm">Total Reviews</div>
+              <div className="text-center bg-white/10 rounded-xl px-4 py-3 backdrop-blur-sm">
+                <div className="text-2xl sm:text-3xl font-bold">{stats.totalCount || 0}</div>
+                <div className="text-emerald-200 text-xs sm:text-sm">Total Reviews</div>
               </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold">{stats.fiveStars || 0}</div>
-                <div className="text-emerald-200 text-sm">5-Star Reviews</div>
+              <div className="text-center bg-white/10 rounded-xl px-4 py-3 backdrop-blur-sm">
+                <div className="text-2xl sm:text-3xl font-bold">{stats.fiveStars || 0}</div>
+                <div className="text-emerald-200 text-xs sm:text-sm">5-Star Reviews</div>
               </div>
             </div>
-          )}
+          )}}
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Actions Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+          <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap scrollbar-hide">
             {communities.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setSelectedCommunity(c.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
                   selectedCommunity === c.id
-                    ? 'bg-emerald-600 text-white'
+                    ? 'bg-emerald-600 text-white shadow-md'
                     : 'bg-white text-gray-600 hover:bg-emerald-50 border border-gray-200'
                 }`}
               >
@@ -172,9 +172,9 @@ export default function ExperiencesPage() {
           
           <button
             onClick={() => setShowForm(!showForm)}
-            className="bg-emerald-600 text-white px-6 py-2 rounded-full font-medium hover:bg-emerald-700 transition-colors"
+            className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-emerald-700 transition-all active:scale-95 shadow-md whitespace-nowrap"
           >
-            {showForm ? '✕ Close' : '✍️ Share Your Experience'}
+            {showForm ? '✕ Close' : '✍️ Share Experience'}
           </button>
         </div>
 
@@ -284,22 +284,22 @@ export default function ExperiencesPage() {
           </div>
         ) : experiences.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
-            <div className="text-6xl mb-4">🌟</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No experiences yet</h3>
-            <p className="text-gray-500 mb-4">Be the first to share your yoga journey!</p>
+            <div className="text-5xl sm:text-6xl mb-4">🌟</div>
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No experiences yet</h3>
+            <p className="text-gray-500 mb-4 text-sm sm:text-base">Be the first to share your yoga journey!</p>
             <button
               onClick={() => setShowForm(true)}
-              className="bg-emerald-600 text-white px-6 py-2 rounded-full font-medium hover:bg-emerald-700"
+              className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-emerald-700 active:scale-95 transition-all"
             >
               Share Your Experience
             </button>
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {experiences.map((exp) => (
               <div
                 key={exp._id}
-                className={`bg-white rounded-2xl p-6 shadow-sm border ${exp.featured ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-100'} hover:shadow-md transition-shadow`}
+                className={`bg-white rounded-2xl p-5 sm:p-6 shadow-sm border ${exp.featured ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-100'} hover:shadow-md transition-all active:scale-[0.99]`}
               >
                 {exp.featured && (
                   <div className="bg-amber-100 text-amber-700 text-xs font-medium px-3 py-1 rounded-full inline-block mb-3">
@@ -308,14 +308,14 @@ export default function ExperiencesPage() {
                 )}
                 
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-xl">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-100 rounded-full flex items-center justify-center text-lg sm:text-xl font-semibold text-emerald-600">
                     {exp.userName.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <div className="font-semibold text-gray-900">{exp.userName}</div>
+                    <div className="font-semibold text-gray-900 text-sm sm:text-base">{exp.userName}</div>
                     <div className="flex gap-0.5">
                       {[1, 2, 3, 4, 5].map((star) => (
-                        <span key={star} className="text-sm">
+                        <span key={star} className="text-xs sm:text-sm">
                           {star <= exp.rating ? '⭐' : '☆'}
                         </span>
                       ))}
@@ -323,10 +323,10 @@ export default function ExperiencesPage() {
                   </div>
                 </div>
                 
-                <p className="text-gray-700 leading-relaxed">{exp.content}</p>
+                <p className="text-gray-700 leading-relaxed text-sm sm:text-base line-clamp-4">{exp.content}</p>
                 
-                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-                  <span>{communities.find(c => c.id === exp.communityId)?.name || 'Community'}</span>
+                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs sm:text-sm text-gray-500">
+                  <span className="bg-emerald-50 px-2 py-1 rounded-lg">{communities.find(c => c.id === exp.communityId)?.name || 'Community'}</span>
                   <span>{new Date(exp.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
                 </div>
               </div>

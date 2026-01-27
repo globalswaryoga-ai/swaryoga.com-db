@@ -99,45 +99,45 @@ export default function QuestionsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Header */}
-      <div className="bg-blue-600 text-white py-12">
-        <div className="max-w-4xl mx-auto px-4">
-          <Link href="/community" className="text-blue-100 hover:text-white mb-4 inline-flex items-center gap-2">
+      <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white py-8 sm:py-12">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <Link href="/community" className="text-blue-100 hover:text-white mb-4 inline-flex items-center gap-2 text-sm sm:text-base active:scale-95 transition-transform">
             ← Back to Community
           </Link>
-          <h1 className="text-4xl font-bold mt-4">❓ Questions & Answers</h1>
-          <p className="text-blue-100 mt-2">Get your yoga and wellness questions answered by experts</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mt-4">❓ Questions & Answers</h1>
+          <p className="text-blue-100 mt-2 text-sm sm:text-base">Get your yoga and wellness questions answered by experts</p>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Search & Actions */}
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <div className="flex-1 min-w-64">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6">
+          <div className="flex-1">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search questions..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
             />
           </div>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="bg-blue-600 text-white px-6 py-2 rounded-full font-medium hover:bg-blue-700 transition-colors whitespace-nowrap"
+            className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-all whitespace-nowrap active:scale-95 shadow-md"
           >
             {showForm ? '✕ Close' : '❓ Ask a Question'}
           </button>
         </div>
 
-        {/* Categories */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        {/* Categories - Horizontal scroll on mobile */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap scrollbar-hide">
           {categories.map((c) => (
             <button
               key={c.id}
               onClick={() => setSelectedCategory(c.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
                 selectedCategory === c.id
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'bg-white text-gray-600 hover:bg-blue-50 border border-gray-200'
               }`}
             >
@@ -247,55 +247,57 @@ export default function QuestionsPage() {
           </div>
         ) : questions.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
-            <div className="text-6xl mb-4">🤔</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No questions yet</h3>
-            <p className="text-gray-500 mb-4">Be the first to ask a question!</p>
+            <div className="text-5xl sm:text-6xl mb-4">🤔</div>
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">No questions yet</h3>
+            <p className="text-gray-500 mb-4 text-sm sm:text-base">Be the first to ask a question!</p>
             <button
               onClick={() => setShowForm(true)}
-              className="bg-blue-600 text-white px-6 py-2 rounded-full font-medium hover:bg-blue-700"
+              className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-blue-700 active:scale-95 transition-all"
             >
               Ask a Question
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {questions.map((q) => (
               <div
                 key={q._id}
-                className={`bg-white rounded-xl border ${q.featured ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-100'} overflow-hidden`}
+                className={`bg-white rounded-xl sm:rounded-2xl border ${q.featured ? 'border-amber-300 ring-2 ring-amber-100' : 'border-gray-100'} overflow-hidden transition-shadow hover:shadow-md`}
               >
                 <div
-                  className="p-5 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="p-4 sm:p-5 cursor-pointer hover:bg-gray-50 transition-colors active:bg-gray-100"
                   onClick={() => setExpandedId(expandedId === q._id ? null : q._id)}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      {q.featured && (
-                        <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-1 rounded-full mr-2">
-                          ⭐ Featured
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {q.featured && (
+                          <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-1 rounded-lg">
+                            ⭐ Featured
+                          </span>
+                        )}
+                        <span className="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-lg">
+                          {categories.find(c => c.id === q.category)?.icon} {q.category}
                         </span>
-                      )}
-                      <span className="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-full">
-                        {categories.find(c => c.id === q.category)?.icon} {q.category}
-                      </span>
-                      <h3 className="text-lg font-semibold text-gray-900 mt-2">{q.question}</h3>
-                      <p className="text-sm text-gray-500 mt-1">Asked by {q.userName}</p>
+                      </div>
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 line-clamp-2">{q.question}</h3>
+                      <p className="text-xs sm:text-sm text-gray-500 mt-1">Asked by {q.userName}</p>
                     </div>
-                    <div className="text-2xl text-gray-400">
+                    <div className="text-xl sm:text-2xl text-gray-400 shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-50">
                       {expandedId === q._id ? '−' : '+'}
                     </div>
                   </div>
                 </div>
                 
                 {expandedId === q._id && q.answer && (
-                  <div className="px-5 pb-5 border-t border-gray-100 bg-blue-50">
+                  <div className="px-4 sm:px-5 pb-4 sm:pb-5 border-t border-gray-100 bg-gradient-to-b from-blue-50 to-white">
                     <div className="pt-4">
-                      <div className="flex items-center gap-2 text-blue-700 font-medium mb-2">
-                        <span className="text-xl">💡</span> Expert Answer
+                      <div className="flex items-center gap-2 text-blue-700 font-medium mb-2 text-sm sm:text-base">
+                        <span className="text-lg sm:text-xl">💡</span> Expert Answer
                       </div>
-                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{q.answer}</p>
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm sm:text-base">{q.answer}</p>
                       {q.answeredAt && (
-                        <p className="text-sm text-gray-500 mt-3">
+                        <p className="text-xs sm:text-sm text-gray-500 mt-3">
                           Answered on {new Date(q.answeredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>
                       )}
