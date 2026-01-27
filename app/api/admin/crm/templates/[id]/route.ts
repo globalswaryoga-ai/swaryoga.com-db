@@ -153,6 +153,18 @@ export async function PUT(
 }
 
 /**
+ * PATCH /api/admin/crm/templates/[id]
+ * Partial update a template by ID (alias for PUT)
+ */
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  // PATCH is treated the same as PUT for partial updates
+  return PUT(request, context);
+}
+
+/**
  * DELETE /api/admin/crm/templates/[id]
  * Delete a template by ID
  */
@@ -196,4 +208,15 @@ export async function DELETE(
     const message = error instanceof Error ? error.message : 'Failed to delete template';
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+/**
+ * POST /api/admin/crm/templates/[id]
+ * Not supported - return 405 with helpful message
+ */
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Method Not Allowed. Use PUT or PATCH to update templates, or POST to /api/admin/crm/templates to create new ones.' },
+    { status: 405 }
+  );
 }
