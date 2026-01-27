@@ -5,6 +5,8 @@ import WhatsAppWidget from '@/components/WhatsAppWidget';
 import AppInitializer from '@/components/AppInitializer';
 import { CartProvider } from '@/lib/context/CartContext';
 import { Space_Grotesk } from 'next/font/google';
+import { siteConfig } from '@/lib/seo';
+import { OrganizationJsonLd, WebsiteJsonLd } from '@/components/seo/JsonLd';
 
 const spaceGrotesk = Space_Grotesk({ 
   subsets: ['latin'],
@@ -13,30 +15,55 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'Swar Yoga - Transform Your Life Through Yoga',
-  description: 'Discover authentic yoga classes, wellness products, and holistic health solutions at Swar Yoga.',
-  metadataBase: new URL('https://swaryoga.com'),
+  title: {
+    default: siteConfig.title,
+    template: `%s | ${siteConfig.name}`,
+  },
+  description: siteConfig.description,
+  keywords: siteConfig.keywords,
+  authors: [{ name: siteConfig.author }],
+  creator: siteConfig.author,
+  publisher: siteConfig.author,
+  metadataBase: new URL(siteConfig.url),
+  alternates: {
+    canonical: siteConfig.url,
+  },
   openGraph: {
-    title: 'Swar Yoga - Transform Your Life',
-    description: 'swaryoga.com - From Breath To Soul',
-    url: 'https://swaryoga.com',
-    siteName: 'Swar Yoga',
+    title: siteConfig.title,
+    description: siteConfig.description,
+    url: siteConfig.url,
+    siteName: siteConfig.name,
     images: [
       {
-        url: '/logo.png',
+        url: siteConfig.ogImage,
         width: 1200,
         height: 630,
-        alt: 'Swar Yoga Logo',
+        alt: siteConfig.name,
       },
     ],
-    locale: 'en_IN',
+    locale: siteConfig.locale,
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Swar Yoga - Transform Your Life',
-    description: 'swaryoga.com - From Breath To Soul',
-    images: ['/logo.png'],
+    title: siteConfig.title,
+    description: siteConfig.description,
+    images: [siteConfig.ogImage],
+    creator: siteConfig.twitterHandle,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
   },
 };
 
@@ -137,6 +164,10 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased bg-white text-swar-text overflow-x-hidden">
+        {/* Schema.org JSON-LD */}
+        <OrganizationJsonLd />
+        <WebsiteJsonLd />
+        
         <CartProvider>
           <AppInitializer />
           {children}
