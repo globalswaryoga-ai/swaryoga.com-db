@@ -1101,6 +1101,9 @@ function QRWhatsAppInboxPageContent() {
             mediaUrl: mediaUrl,
             mimeType: mimeType,
             hasMedia: Boolean(mediaUrl),
+            // Admin sender info for outbound messages
+            sentByLabel: msg.sentByLabel,
+            senderDisplayName: msg.senderDisplayName,
             _crmMessage: true,
           };
         });
@@ -3242,6 +3245,11 @@ function QRWhatsAppInboxPageContent() {
 
                             {/* Time and status row */}
                             <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-stone-500' : 'justify-start text-white/70'}`}>
+                              {/* Show sender name for outbound messages */}
+                              {msg.fromMe && (msg.sentByLabel || msg.senderDisplayName) && (
+                                <span className="font-medium text-teal-600">{msg.sentByLabel || msg.senderDisplayName}</span>
+                              )}
+                              {msg.fromMe && (msg.sentByLabel || msg.senderDisplayName) && <span className="opacity-50">•</span>}
                               {messageTime && <span className="tracking-wide">{messageTime}</span>}
                               {msg.fromMe && ackDisplay && (
                                 <span className={`font-medium ${ackColor}`}>{ackDisplay}</span>
