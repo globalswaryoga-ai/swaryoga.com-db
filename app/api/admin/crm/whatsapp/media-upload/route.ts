@@ -47,15 +47,15 @@ export async function POST(req: NextRequest) {
     if (!uploadRes.ok) {
       let errorData: any = { error: 'Failed to upload to S3' };
       
-      // Try to parse error as JSON, fallback to text if it fails
+      // Read response body once as text, then try to parse as JSON
+      const responseText = await uploadRes.text();
       try {
-        errorData = await uploadRes.json();
+        errorData = JSON.parse(responseText);
       } catch (jsonErr) {
-        const errorText = await uploadRes.text();
         errorData = {
           error: 'Bridge returned an error',
           status: uploadRes.status,
-          details: errorText.substring(0, 200) // Truncate long HTML error pages
+          details: responseText.substring(0, 200) // Truncate long HTML error pages
         };
       }
       
