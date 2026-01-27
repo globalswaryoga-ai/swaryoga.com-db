@@ -1374,15 +1374,31 @@ function CommunityPageContent() {
                           <span className="text-gray-500">{Array.isArray(post.comments) ? post.comments.length : (typeof post.comments === 'number' ? post.comments : 0)}</span>
                         </button>
                         <button 
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             e.preventDefault();
+                            const shareUrl = `${window.location.origin}/community/post/${post._id}`;
+                            const shareText = post.content.substring(0, 100);
+                            
                             if (navigator.share) {
-                              navigator.share({
-                                title: 'Swar Yoga Community',
-                                text: post.content.substring(0, 100),
-                                url: `${window.location.origin}/community/post/${post._id}`
-                              });
+                              try {
+                                await navigator.share({
+                                  title: 'Swar Yoga Community',
+                                  text: shareText,
+                                  url: shareUrl
+                                });
+                              } catch (err) {
+                                // User cancelled or share failed
+                              }
+                            } else {
+                              // Fallback: Copy to clipboard
+                              try {
+                                await navigator.clipboard.writeText(`${shareText}...\n\n${shareUrl}`);
+                                alert('✅ Link copied to clipboard!');
+                              } catch (err) {
+                                // Manual fallback
+                                prompt('Copy this link:', shareUrl);
+                              }
                             }
                           }}
                           className="flex items-center gap-2 text-gray-400 hover:text-emerald-600 transition-all hover:scale-105 ml-auto">
@@ -1715,13 +1731,15 @@ function CommunityPageContent() {
       {/* Comment Modal */}
       {showCommentModal && activePostForComment && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white border-2 border-emerald-500 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 p-6 text-white flex items-center justify-between">
+          <div className="bg-white border-2 border-emerald-500 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 p-6 text-white flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
                 <MessageCircle size={24} />
                 <div>
-                  <h3 className="text-lg font-black uppercase tracking-tighter leading-none mb-1">Add Comment</h3>
-                  <p className="text-[10px] uppercase font-bold opacity-75 tracking-tighter">Community Discussion</p>
+                  <h3 className="text-lg font-black uppercase tracking-tighter leading-none mb-1">Comments</h3>
+                  <p className="text-[10px] uppercase font-bold opacity-75 tracking-tighter">
+                    {Array.isArray(activePostForComment.comments) ? activePostForComment.comments.length : 0} Comments
+                  </p>
                 </div>
               </div>
               <button 
@@ -1736,41 +1754,76 @@ function CommunityPageContent() {
                 <Plus className="rotate-45" size={24} />
               </button>
             </div>
-            <div className="p-8 space-y-6">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Original Post Preview */}
               <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Replying to</p>
-                <p className="text-sm text-slate-600 font-medium line-clamp-2 italic">"{activePostForComment.content}"</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Original Post</p>
+                <p className="text-sm text-slate-600 font-medium line-clamp-3 italic">"{activePostForComment.content}"</p>
               </div>
               
-              <div className="space-y-4">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Your Message</label>
+              {/* Existing Comments */}
+              {Array.isArray(activePostForComment.comments) && activePostForComment.comments.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">All Comments</p>
+                  <div className="space-y-3 max-h-60 overflow-y-auto">
+                    {activePostForComment.comments.map((comment: any, index: number) => (
+                      <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                            {(comment.userId || 'U').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-slate-800 truncate">{comment.userName || comment.userId || 'Member'}</p>
+                            <p className="text-[10px] text-slate-400">
+                              {comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('en-IN', { 
+                                day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                              }) : 'Just now'}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-700">{comment.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* No Comments Yet */}
+              {(!Array.isArray(activePostForComment.comments) || activePostForComment.comments.length === 0) && (
+                <div className="text-center py-8">
+                  <MessageCircle className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                  <p className="text-slate-400 text-sm font-medium">No comments yet. Be the first to comment!</p>
+                </div>
+              )}
+              
+              {/* Add Comment Section */}
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Add Your Comment</label>
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Share your thoughts..."
-                  className="w-full h-32 px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-emerald-500 focus:bg-white transition-all font-medium text-sm resize-none"
-                  autoFocus
+                  className="w-full h-24 px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl outline-none focus:border-emerald-500 focus:bg-white transition-all font-medium text-sm resize-none"
                 />
-              </div>
-
-              <div className="flex gap-4">
-                <button
-                  onClick={() => {
-                    setShowCommentModal(false);
-                    setCommentText('');
-                    setActivePostForComment(null);
-                  }}
-                  className="flex-1 py-4 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddComment}
-                  disabled={commentLoading || !commentText.trim()}
-                  className="flex-1 py-4 px-6 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-200 hover:bg-emerald-700 disabled:opacity-50 transition-all active:scale-95"
-                >
-                  {commentLoading ? 'Posting...' : 'Submit Comment'}
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowCommentModal(false);
+                      setCommentText('');
+                      setActivePostForComment(null);
+                    }}
+                    className="flex-1 py-3 font-bold text-xs uppercase tracking-wide text-slate-400 hover:text-slate-600 transition-colors border border-slate-200 rounded-xl"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={handleAddComment}
+                    disabled={commentLoading || !commentText.trim()}
+                    className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-xl font-bold text-xs uppercase tracking-wide shadow-lg shadow-emerald-200 hover:bg-emerald-700 disabled:opacity-50 transition-all active:scale-95"
+                  >
+                    {commentLoading ? 'Posting...' : 'Post Comment'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
