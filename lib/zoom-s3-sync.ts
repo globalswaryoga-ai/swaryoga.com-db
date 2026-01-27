@@ -4,12 +4,14 @@
  * Only syncs: speaker_view and gallery_view (includes screen share)
  */
 
-import * as AWS from 'aws-sdk';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-// Configure AWS S3
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+// Configure AWS S3 (SDK v3)
+const s3Client = new S3Client({
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
   region: process.env.AWS_REGION || 'ap-south-1',
 });
 
@@ -117,14 +119,14 @@ async function uploadToS3(
   s3Key: string,
   contentType: string
 ): Promise<string> {
-  const params: AWS.S3.PutObjectRequest = {
+  const command = new PutObjectCommand({
     Bucket: S3_BUCKET,
     Key: s3Key,
     Body: buffer,
     ContentType: contentType,
-  };
+  });
 
-  await s3.upload(params).promise();
+  await s3Client.send(command);
 
   // Return the S3 URL
   return `https://${S3_BUCKET}.s3.${process.env.AWS_REGION || 'ap-south-1'}.amazonaws.com/${s3Key}`;
