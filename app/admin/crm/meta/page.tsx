@@ -2021,7 +2021,8 @@ export default function MetaInboxPage() {
                       <textarea 
                           className="w-full px-5 py-3 bg-transparent border-none focus:ring-0 resize-none max-h-40 min-h-[52px] placeholder:text-slate-400 font-medium text-slate-700 text-[15px]" 
                           placeholder="Type your message... (right-click misspelled words for suggestions)"
-                          spellCheck="true"
+                          spellCheck={true}
+                          lang="en"
                           rows={1}
                           value={composerText}
                           onChange={(e) => setComposerText(e.target.value)}

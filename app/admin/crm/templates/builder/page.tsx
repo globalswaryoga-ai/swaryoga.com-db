@@ -888,7 +888,10 @@ export default function CreateTemplatePage() {
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent text-sm ${
                       isOverLimit.bodyText ? 'border-red-400 bg-red-50' : 'border-gray-300'
                     }`}
-                    spellCheck
+                    spellCheck={true}
+                    lang="en"
+                    autoCorrect="off"
+                    autoCapitalize="off"
                   />
                   <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
                     <span>Bold: <code>*text*</code> | Italic: <code>_text_</code> | Variables: <code>{'{{1}}'}</code></span>
@@ -913,7 +916,8 @@ export default function CreateTemplatePage() {
                       isOverLimit.footerText ? 'border-red-400 bg-red-50' : 'border-gray-300'
                     }`}
                     maxLength={LIMITS.FOOTER_TEXT + 10}
-                    spellCheck
+                    spellCheck={true}
+                    lang="en"
                   />
                 </div>
 
