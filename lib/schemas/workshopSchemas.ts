@@ -13,6 +13,14 @@ export interface IWorkshop extends Document {
   price?: number;
   isActive: boolean;
   isFree: boolean;
+  // Zoom meeting info
+  zoomMeetingId?: number;
+  zoomJoinUrl?: string;
+  zoomStartUrl?: string;
+  zoomPassword?: string;
+  // Community info
+  communityId?: mongoose.Types.ObjectId;
+  communityName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +35,14 @@ const WorkshopSchema = new Schema<IWorkshop>({
   price: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
   isFree: { type: Boolean, default: false },
+  // Zoom meeting info
+  zoomMeetingId: { type: Number },
+  zoomJoinUrl: { type: String },
+  zoomStartUrl: { type: String },
+  zoomPassword: { type: String },
+  // Community info
+  communityId: { type: Schema.Types.ObjectId, ref: 'Community' },
+  communityName: { type: String },
 }, { timestamps: true });
 
 /**

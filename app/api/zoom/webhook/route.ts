@@ -113,7 +113,9 @@ export async function POST(request: NextRequest) {
       // Connect to database to log the sync
       await connectDB();
       const { getZoomRecordingSync } = await import('@/lib/schemas/enterpriseSchemas');
+      const { getWorkshop } = await import('@/lib/schemas/workshopSchemas');
       const ZoomRecordingSync = getZoomRecordingSync();
+      const Workshop = getWorkshop();
 
       // Check if already processed
       const existing = await ZoomRecordingSync.findOne({
@@ -123,6 +125,15 @@ export async function POST(request: NextRequest) {
       if (existing) {
         console.log('[Zoom Webhook] Recording already processed, skipping');
         return NextResponse.json({ message: 'Already processed' });
+      }
+
+      // Find linked workshop by Zoom meeting ID
+      const linkedWorkshop = await Workshop.findOne({
+        zoomMeetingId: meetingRecording.id,
+      });
+
+      if (linkedWorkshop) {
+        console.log('[Zoom Webhook] Found linked workshop:', linkedWorkshop.name);
       }
 
       // Sync recordings to S3
@@ -148,6 +159,8 @@ export async function POST(request: NextRequest) {
         errors: syncResult.errors,
         syncStatus: syncResult.success ? 'completed' : 'partial',
         syncedAt: new Date(),
+        // Link to workshop if found
+        workshopId: linkedWorkshop?._id,
       });
 
       await syncRecord.save();
@@ -157,6 +170,7 @@ export async function POST(request: NextRequest) {
         synced: syncResult.syncedFiles.length,
         skipped: syncResult.skippedFiles.length,
         errors: syncResult.errors.length,
+        linkedWorkshop: linkedWorkshop?.name || null,
       });
 
       return NextResponse.json({
@@ -164,6 +178,7 @@ export async function POST(request: NextRequest) {
         message: 'Recording synced to S3',
         synced: syncResult.syncedFiles.length,
         skipped: syncResult.skippedFiles.length,
+        workshopLinked: !!linkedWorkshop,
       });
     }
 

@@ -40,6 +40,27 @@ interface Workshop {
   price: number;
   isFree: boolean;
   isActive: boolean;
+  // Zoom info
+  zoomMeetingId?: number;
+  zoomJoinUrl?: string;
+  zoomPassword?: string;
+  // Community info
+  communityId?: string;
+  communityName?: string;
+}
+
+interface ZoomRecording {
+  _id: string;
+  topic: string;
+  startTime: string;
+  duration: number;
+  syncedAt: string;
+  galleryView: {
+    s3Url: string;
+    s3Key: string;
+    fileSize: number;
+    displayName: string;
+  } | null;
 }
 
 export default function WorkshopDetailPage() {
@@ -72,7 +93,10 @@ export default function WorkshopDetailPage() {
     recordedDate: new Date().toISOString().split('T')[0],
   });
   const [submitting, setSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'batches' | 'videos' | 'free'>('batches');
+  const [activeTab, setActiveTab] = useState<'batches' | 'videos' | 'free' | 'recordings'>('batches');
+  
+  // Zoom recordings state
+  const [recordings, setRecordings] = useState<ZoomRecording[]>([]);
   
   // Video upload state
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -141,14 +165,28 @@ export default function WorkshopDetailPage() {
     }
   }, [workshopId, selectedBatch, getAuthHeaders]);
 
+  const fetchRecordings = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/admin/workshops/${workshopId}/recordings`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (data.success) {
+        setRecordings(data.recordings);
+      }
+    } catch (err: any) {
+      console.error('Error fetching recordings:', err);
+    }
+  }, [workshopId]);
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchWorkshop(), fetchBatches()]);
+      await Promise.all([fetchWorkshop(), fetchBatches(), fetchRecordings()]);
       setLoading(false);
     };
     loadData();
-  }, [fetchWorkshop, fetchBatches]);
+  }, [fetchWorkshop, fetchBatches, fetchRecordings]);
 
   useEffect(() => {
     fetchVideos();
@@ -422,8 +460,39 @@ export default function WorkshopDetailPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Zoom & Community Info */}
+        {(workshop.zoomJoinUrl || workshop.communityName) && (
+          <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
+            {workshop.zoomJoinUrl && (
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📹</span>
+                <div>
+                  <p className="text-sm text-gray-500">Zoom Meeting</p>
+                  <a
+                    href={workshop.zoomJoinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline text-sm"
+                  >
+                    Join Meeting {workshop.zoomPassword && `(Password: ${workshop.zoomPassword})`}
+                  </a>
+                </div>
+              </div>
+            )}
+            {workshop.communityName && (
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">👥</span>
+                <div>
+                  <p className="text-sm text-gray-500">Community</p>
+                  <p className="text-sm font-medium">{workshop.communityName}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 flex-wrap">
           <button
             onClick={() => {
               setActiveTab('batches');
@@ -462,6 +531,19 @@ export default function WorkshopDetailPage() {
             }`}
           >
             Free Videos
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('recordings');
+              setSelectedBatch(null);
+            }}
+            className={`px-4 py-2 rounded-lg font-medium ${
+              activeTab === 'recordings'
+                ? 'bg-blue-500 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            📹 Zoom Recordings ({recordings.length})
           </button>
         </div>
 
@@ -627,6 +709,59 @@ export default function WorkshopDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Zoom Recordings Tab */}
+        {activeTab === 'recordings' && (
+          <div>
+            {recordings.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-lg shadow">
+                <span className="text-4xl mb-4 block">📹</span>
+                <p className="text-gray-500">No Zoom recordings synced yet.</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Recordings will appear here after your Zoom meetings end and auto-sync to S3.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recordings.map((rec) => (
+                  <div
+                    key={rec._id}
+                    className="bg-white rounded-lg shadow p-4 flex items-center gap-4"
+                  >
+                    <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <span className="text-3xl">👥</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900">{rec.topic}</h3>
+                      <p className="text-sm text-gray-500">
+                        {new Date(rec.startTime).toLocaleString('en-IN', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                        {' • '}
+                        {Math.floor(rec.duration / 60)}h {rec.duration % 60}m
+                        {rec.galleryView && ` • ${(rec.galleryView.fileSize / (1024 * 1024)).toFixed(1)} MB`}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Gallery View (Synced: {new Date(rec.syncedAt).toLocaleDateString()})
+                      </p>
+                    </div>
+                    {rec.galleryView && (
+                      <a
+                        href={rec.galleryView.s3Url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                      >
+                        ▶ Watch
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import connectDB from '@/lib/db';
+import connectDB, { Community } from '@/lib/db';
 import { getWorkshop, getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
+import { createZoomMeeting } from '@/lib/zoom-meetings';
 
 /**
  * GET /api/admin/workshops
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/admin/workshops
- * Create a new workshop
+ * Create a new workshop with auto Zoom meeting and community
  */
 export async function POST(req: NextRequest) {
   try {
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     const Workshop = getWorkshop();
 
     const body = await req.json();
-    const { name, description, thumbnail, level, duration, price, isFree } = body;
+    const { name, description, thumbnail, level, duration, price, isFree, startDate, meetingDuration } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Workshop name is required' }, { status: 400 });
@@ -82,6 +83,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workshop with this name already exists' }, { status: 400 });
     }
 
+    // 1. Create Community for this workshop
+    let community = null;
+    try {
+      const communityName = `${name} Community`;
+      community = await Community.create({
+        id: `workshop-${slug}`,
+        name: communityName,
+        description: `Community for ${name} workshop participants`,
+        members: [],
+      });
+      console.log(`[Workshop] Created community: ${communityName}`);
+    } catch (communityError: any) {
+      console.error('[Workshop] Failed to create community:', communityError.message);
+      // Continue without community - not critical
+    }
+
+    // 2. Create Zoom meeting if startDate provided
+    let zoomMeeting = null;
+    if (startDate) {
+      try {
+        zoomMeeting = await createZoomMeeting({
+          topic: name,
+          startTime: new Date(startDate),
+          duration: meetingDuration || 90, // Default 90 minutes
+          agenda: description || `Workshop: ${name}`,
+          autoRecording: 'cloud', // Auto cloud recording for S3 sync
+        });
+        console.log(`[Workshop] Created Zoom meeting: ${zoomMeeting.id}`);
+      } catch (zoomError: any) {
+        console.error('[Workshop] Failed to create Zoom meeting:', zoomError.message);
+        // Continue without Zoom - not critical
+      }
+    }
+
+    // 3. Create workshop with Zoom and community info
     const workshop = await Workshop.create({
       name,
       slug,
@@ -92,9 +128,29 @@ export async function POST(req: NextRequest) {
       price: price || 0,
       isFree: isFree || false,
       isActive: true,
+      // Zoom info
+      zoomMeetingId: zoomMeeting?.id,
+      zoomJoinUrl: zoomMeeting?.join_url,
+      zoomStartUrl: zoomMeeting?.start_url,
+      zoomPassword: zoomMeeting?.password,
+      // Community info
+      communityId: community?._id,
+      communityName: community?.name,
     });
 
-    return NextResponse.json({ success: true, workshop });
+    return NextResponse.json({ 
+      success: true, 
+      workshop,
+      zoomMeeting: zoomMeeting ? {
+        id: zoomMeeting.id,
+        joinUrl: zoomMeeting.join_url,
+        password: zoomMeeting.password,
+      } : null,
+      community: community ? {
+        id: community._id,
+        name: community.name,
+      } : null,
+    });
   } catch (error: any) {
     console.error('[Create Workshop Error]:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
