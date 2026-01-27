@@ -152,12 +152,22 @@ export default function AdminCommunityPage() {
   const [previewZoom, setPreviewZoom] = useState(1);
 
   // Posts Manager State
-  const [activeTab, setActiveTab] = useState<'members' | 'posts'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'posts' | 'recordings' | 'videos'>('members');
   const [communityPosts, setCommunityPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [postsPage, setPostsPage] = useState(1);
   const [postsLimit] = useState(20);
   const [totalPosts, setTotalPosts] = useState(0);
+  
+  // Recordings & Videos State
+  const [recordings, setRecordings] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [loadingRecordings, setLoadingRecordings] = useState(false);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
+  const [showUploadVideoModal, setShowUploadVideoModal] = useState(false);
   const [draftPosts, setDraftPosts] = useState(0);
   const [pendingMembers, setPendingMembers] = useState(0);
   const [lastActivityTime, setLastActivityTime] = useState<string>('');
@@ -685,10 +695,119 @@ export default function AdminCommunityPage() {
     }
   };
 
+  // Fetch Recordings (Zoom synced)
+  const fetchRecordings = async () => {
+    if (!token) return;
+    setLoadingRecordings(true);
+    try {
+      const res = await fetch(`/api/admin/communities/recordings-videos?communityId=${selectedCommunity}&type=recording`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('adminToken');
+        router.push('/admin/login');
+        return;
+      }
+      const json = await res.json();
+      if (json.success) {
+        setRecordings(json.content || []);
+      }
+    } catch (error) {
+      console.error('[Recordings] Fetch error:', error);
+    } finally {
+      setLoadingRecordings(false);
+    }
+  };
+
+  // Fetch Videos (manually uploaded)
+  const fetchVideos = async () => {
+    if (!token) return;
+    setLoadingVideos(true);
+    try {
+      const res = await fetch(`/api/admin/communities/recordings-videos?communityId=${selectedCommunity}&type=video`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('adminToken');
+        router.push('/admin/login');
+        return;
+      }
+      const json = await res.json();
+      if (json.success) {
+        setVideos(json.content || []);
+      }
+    } catch (error) {
+      console.error('[Videos] Fetch error:', error);
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  // Upload new video
+  const uploadNewVideo = async (file: File) => {
+    if (!token || !file) return;
+    setUploadingVideo(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('communityId', selectedCommunity);
+      formData.append('title', videoTitle || file.name);
+      formData.append('description', videoDescription);
+
+      const res = await fetch('/api/admin/communities/recordings-videos', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+
+      if (!res.ok) throw new Error('Upload failed');
+      
+      const json = await res.json();
+      if (json.success) {
+        alert('✅ Video uploaded successfully!');
+        setShowUploadVideoModal(false);
+        setVideoTitle('');
+        setVideoDescription('');
+        fetchVideos();
+      }
+    } catch (error: any) {
+      alert('❌ Upload failed: ' + error.message);
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  // Delete video/recording
+  const deleteVideo = async (contentId: string) => {
+    if (!confirm('Are you sure you want to delete this content?')) return;
+    
+    try {
+      const res = await fetch(`/api/admin/communities/recordings-videos?contentId=${contentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error('Delete failed');
+      
+      alert('✅ Content deleted successfully');
+      // Refresh both lists
+      fetchRecordings();
+      fetchVideos();
+    } catch (error: any) {
+      alert('❌ Delete failed: ' + error.message);
+    }
+  };
+
 
   useEffect(() => {
     if (activeTab === 'posts') {
       fetchCommunityPosts(1);
+    }
+    if (activeTab === 'recordings') {
+      fetchRecordings();
+    }
+    if (activeTab === 'videos') {
+      fetchVideos();
     }
   }, [selectedCommunity, activeTab, token]);
 
@@ -962,6 +1081,26 @@ export default function AdminCommunityPage() {
             >
               Posts ({totalPosts})
             </button>
+            <button
+              onClick={() => setActiveTab('recordings')}
+              className={`px-6 py-4 font-bold text-sm uppercase tracking-tight border-b-2 transition-all ${
+                activeTab === 'recordings'
+                  ? 'border-emerald-600 text-emerald-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              🎥 Recordings ({recordings.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('videos')}
+              className={`px-6 py-4 font-bold text-sm uppercase tracking-tight border-b-2 transition-all ${
+                activeTab === 'videos'
+                  ? 'border-purple-600 text-purple-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              📹 Videos ({videos.length})
+            </button>
           </div>
 
           {/* Members Search and Filter - Only show for members tab */}
@@ -1231,7 +1370,255 @@ export default function AdminCommunityPage() {
             )}
           </div>
         )}
+
+        {/* Recordings Tab */}
+        {activeTab === 'recordings' && (
+          <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">🎥 Zoom Recordings</h3>
+                  <p className="text-sm text-slate-500">Synced from Zoom meetings for this community</p>
+                </div>
+                <button
+                  onClick={fetchRecordings}
+                  className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-all flex items-center gap-2"
+                >
+                  <Loader size={16} className={loadingRecordings ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {loadingRecordings ? (
+              <div className="flex flex-col items-center justify-center h-80 space-y-4">
+                <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                <p className="text-sm text-slate-500">Loading recordings...</p>
+              </div>
+            ) : recordings.length === 0 ? (
+              <div className="bg-white rounded-[2.5rem] border border-slate-200/60 h-[400px] flex flex-col items-center justify-center text-center p-20 shadow-sm">
+                <VideoIcon size={48} className="text-slate-200 mb-6" />
+                <h3 className="text-xl font-bold text-slate-900 mb-2">No Recordings Yet</h3>
+                <p className="text-slate-500 text-sm">Zoom recordings will appear here once synced for this community.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {recordings.map(recording => (
+                  <div key={recording._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden hover:shadow-lg transition-all group">
+                    <div className="aspect-video bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center relative">
+                      {recording.thumbnailUrl ? (
+                        <img src={getProxiedMediaUrl(recording.thumbnailUrl, token)} alt={recording.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <VideoIcon size={48} className="text-emerald-300" />
+                      )}
+                      {recording.duration && (
+                        <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-lg font-bold">
+                          {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-5">
+                      <h4 className="font-bold text-slate-900 mb-1 line-clamp-2">{recording.title}</h4>
+                      <p className="text-xs text-slate-500 mb-3">
+                        {recording.recordedAt ? new Date(recording.recordedAt).toLocaleDateString() : new Date(recording.createdAt).toLocaleDateString()}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                          📊 {recording.views || 0} views
+                        </span>
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          {recording.s3Url && (
+                            <a 
+                              href={getProxiedMediaUrl(recording.s3Url, token)} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-500 border border-emerald-100"
+                            >
+                              <ArrowRight size={16} />
+                            </a>
+                          )}
+                          <button
+                            onClick={() => deleteVideo(recording._id)}
+                            className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Videos Tab */}
+        {activeTab === 'videos' && (
+          <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">📹 Uploaded Videos</h3>
+                  <p className="text-sm text-slate-500">Manually uploaded videos for this community</p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={fetchVideos}
+                    className="px-4 py-2 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all flex items-center gap-2"
+                  >
+                    <Loader size={16} className={loadingVideos ? 'animate-spin' : ''} />
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => setShowUploadVideoModal(true)}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all flex items-center gap-2"
+                  >
+                    <Upload size={16} />
+                    Upload Video
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {loadingVideos ? (
+              <div className="flex flex-col items-center justify-center h-80 space-y-4">
+                <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+                <p className="text-sm text-slate-500">Loading videos...</p>
+              </div>
+            ) : videos.length === 0 ? (
+              <div className="bg-white rounded-[2.5rem] border border-slate-200/60 h-[400px] flex flex-col items-center justify-center text-center p-20 shadow-sm">
+                <VideoIcon size={48} className="text-slate-200 mb-6" />
+                <h3 className="text-xl font-bold text-slate-900 mb-2">No Videos Yet</h3>
+                <p className="text-slate-500 text-sm mb-6">Upload videos to share exclusive content with this community.</p>
+                <button
+                  onClick={() => setShowUploadVideoModal(true)}
+                  className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 transition-all flex items-center gap-2"
+                >
+                  <Upload size={18} />
+                  Upload First Video
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {videos.map(video => (
+                  <div key={video._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden hover:shadow-lg transition-all group">
+                    <div className="aspect-video bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center relative">
+                      {video.thumbnailUrl ? (
+                        <img src={getProxiedMediaUrl(video.thumbnailUrl, token)} alt={video.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <VideoIcon size={48} className="text-purple-300" />
+                      )}
+                      {video.duration && (
+                        <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-lg font-bold">
+                          {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-5">
+                      <h4 className="font-bold text-slate-900 mb-1 line-clamp-2">{video.title}</h4>
+                      {video.description && (
+                        <p className="text-xs text-slate-500 mb-2 line-clamp-2">{video.description}</p>
+                      )}
+                      <p className="text-xs text-slate-400 mb-3">
+                        Uploaded {new Date(video.createdAt).toLocaleDateString()}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+                          📊 {video.views || 0} views
+                        </span>
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          {video.s3Url && (
+                            <a 
+                              href={getProxiedMediaUrl(video.s3Url, token)} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="p-2 hover:bg-purple-600 hover:text-white rounded-lg transition-all text-purple-500 border border-purple-100"
+                            >
+                              <ArrowRight size={16} />
+                            </a>
+                          )}
+                          <button
+                            onClick={() => deleteVideo(video._id)}
+                            className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Upload Video Modal */}
+      {showUploadVideoModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">📹 Upload Video</h3>
+              <button onClick={() => setShowUploadVideoModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <Plus className="rotate-45" size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Video Title</label>
+                <input 
+                  type="text" 
+                  value={videoTitle} 
+                  onChange={e => setVideoTitle(e.target.value)}
+                  placeholder="Enter video title..."
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-300 transition-all"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
+                <textarea 
+                  value={videoDescription} 
+                  onChange={e => setVideoDescription(e.target.value)}
+                  placeholder="Enter video description..."
+                  className="w-full h-24 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-300 transition-all resize-none"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Video File</label>
+                <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${uploadingVideo ? 'border-purple-300 bg-purple-50' : 'border-slate-200 hover:border-purple-300 hover:bg-purple-50'}`}>
+                  {uploadingVideo ? (
+                    <>
+                      <Loader className="animate-spin text-purple-600 mb-2" size={32} />
+                      <span className="text-sm font-bold text-purple-600">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="text-slate-400 mb-2" size={32} />
+                      <span className="text-sm font-medium text-slate-600">Click to select video</span>
+                      <span className="text-xs text-slate-400">MP4, WebM, MOV (max 500MB)</span>
+                    </>
+                  )}
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="video/*" 
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadNewVideo(file);
+                    }}
+                    disabled={uploadingVideo}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Post Modal */}
       {showEditPostModal && editingPost && (
