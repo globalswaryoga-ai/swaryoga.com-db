@@ -255,6 +255,7 @@ export default function CRMDashboard() {
               { href: '/admin/crm/devices', label: 'Devices', icon: '📱' },
               { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
               { href: '/admin/crm/chatbot', label: 'Chatbot (AI)', icon: '🤖' },
+              { href: '/admin/crm/investment', label: 'Investment', icon: '💹' },
             ].map((item) => (
               <Link
                 key={item.href}
