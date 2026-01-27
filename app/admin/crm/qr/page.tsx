@@ -101,6 +101,10 @@ function QRWhatsAppInboxPageContent() {
   const [editGroupDesc, setEditGroupDesc] = useState('');
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
   const [isEditingGroupDesc, setIsEditingGroupDesc] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [newMemberPhone, setNewMemberPhone] = useState('');
+  const [addingMember, setAddingMember] = useState(false);
+  const [gettingInviteLink, setGettingInviteLink] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
   const [showNewContactModal, setShowNewContactModal] = useState(false);
@@ -165,6 +169,10 @@ function QRWhatsAppInboxPageContent() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string | null>(null);
   const [assignedLeadIds, setAssignedLeadIds] = useState<Set<string>>(new Set());
+  
+  // Assign chat dropdown
+  const [showAssignDropdown, setShowAssignDropdown] = useState<string | null>(null);
+  const [assigningChat, setAssigningChat] = useState(false);
   
   // Track the phone parameter to always display at top
   const [activePhone, setActivePhone] = useState<string | null>(null);
@@ -623,6 +631,20 @@ function QRWhatsAppInboxPageContent() {
     });
   }, [messages, messageMediaCache, loadMediaForMessage]);
 
+  // Close assign dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showAssignDropdown) {
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-assign-dropdown]')) {
+          setShowAssignDropdown(null);
+        }
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showAssignDropdown]);
+
   // Fetch user list for assignment
   useEffect(() => {
     if (!token || !isSuperAdmin) return;
@@ -819,6 +841,9 @@ function QRWhatsAppInboxPageContent() {
               displayName: conv.name !== conv.phoneNumber ? conv.name : null,
               leadId: conv.leadId,
               leadNumber: conv.leadNumber,
+              leadStatus: conv.status,
+              leadLabel: conv.labels?.[0] || null,
+              assignedToUserId: conv.assignedToUserId || null,
               status: conv.status,
               labels: conv.labels || [],
               unreadCount: conv.unreadCount || 0,
@@ -1020,6 +1045,7 @@ function QRWhatsAppInboxPageContent() {
                 leadNumber: update.leadNumber, // Added
                 leadStatus: update.status,
                 leadLabel: update.label,
+                assignedToUserId: update.assignedToUserId || null,
               };
             }
             return chat;
@@ -1948,19 +1974,49 @@ function QRWhatsAppInboxPageContent() {
   };
 
   const loadContactDetails = async (contactId: string) => {
-    // TODO: Bridge /contact endpoint is broken (times out)
-    // Skip for now - contact details not critical for chat display
     try {
-      // If bridge is fixed in future, uncomment:
-      // const res = await bridgeFetch(`/contact/${contactId}`, { method: 'GET' }, 3_000);
-      // if (res.ok) {
-      //   const data = await res.json();
-      //   setContactDetails(data);
-      //   setShowContactPanel(true);
-      // }
-      console.warn('[loadContactDetails] Endpoint disabled - bridge /contact hangs');
+      // Get the _serialized ID if it's an object
+      const id = typeof contactId === 'string' ? contactId : (contactId as any)?._serialized;
+      if (!id) {
+        console.warn('[loadContactDetails] No valid contact ID');
+        return;
+      }
+      
+      const res = await bridgeFetch(`/contact/${encodeURIComponent(id)}`, { method: 'GET' }, 10_000);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.contact) {
+          setContactDetails({
+            ...data.contact,
+            name: data.contact.name || data.contact.pushname || data.contact.number,
+            profilePicture: data.contact.profilePicUrl,
+          });
+          setShowContactPanel(true);
+        }
+      } else {
+        const err = await parseBridgeError(res);
+        console.warn('[loadContactDetails] Failed:', err);
+        // Show basic details from selected chat
+        if (selectedChat) {
+          setContactDetails({
+            name: selectedChat.name,
+            number: activePhone || selectedChat.id?.replace?.('@c.us', ''),
+            profilePicture: selectedChat.profilePicture,
+          });
+          setShowContactPanel(true);
+        }
+      }
     } catch (err) {
       console.error('Failed to load contact details:', err);
+      // Fallback to basic details
+      if (selectedChat) {
+        setContactDetails({
+          name: selectedChat.name,
+          number: activePhone || selectedChat.id?.replace?.('@c.us', ''),
+          profilePicture: selectedChat.profilePicture,
+        });
+        setShowContactPanel(true);
+      }
     }
   };
 
@@ -2047,11 +2103,53 @@ function QRWhatsAppInboxPageContent() {
   // Load group details
   const loadGroupDetails = async (groupId: string | { _serialized: string }) => {
     try {
-      // **PERMANENT FIX**: Minimal bridge doesn't have /group endpoint
-      // Disable this functionality for minimal bridge mode
-      setBridgeError('Group details not available on minimal bridge.');
+      // Get the _serialized ID if it's an object
+      const id = typeof groupId === 'string' ? groupId : groupId?._serialized;
+      if (!id) {
+        console.warn('[loadGroupDetails] No valid group ID');
+        return;
+      }
+      
+      const res = await bridgeFetch(`/group/${encodeURIComponent(id)}`, { method: 'GET' }, 15_000);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.group) {
+          setGroupDetails(data.group);
+          setEditGroupName(data.group.name || '');
+          setEditGroupDesc(data.group.description || '');
+          setShowGroupPanel(true);
+        }
+      } else {
+        const err = await parseBridgeError(res);
+        console.warn('[loadGroupDetails] Failed:', err);
+        // Show basic details from selected chat
+        if (selectedChat) {
+          setGroupDetails({
+            id: id,
+            name: selectedChat.name,
+            participants: [],
+            participantCount: selectedChat.memberCount || 0,
+          });
+          setEditGroupName(selectedChat.name || '');
+          setEditGroupDesc('');
+          setShowGroupPanel(true);
+        }
+      }
     } catch (err) {
-      console.debug('Group details loading skipped:', err);
+      console.error('Failed to load group details:', err);
+      // Fallback to basic details
+      if (selectedChat) {
+        const id = typeof groupId === 'string' ? groupId : groupId?._serialized;
+        setGroupDetails({
+          id: id,
+          name: selectedChat.name,
+          participants: [],
+          participantCount: selectedChat.memberCount || 0,
+        });
+        setEditGroupName(selectedChat.name || '');
+        setEditGroupDesc('');
+        setShowGroupPanel(true);
+      }
     }
   };
 
@@ -2061,25 +2159,127 @@ function QRWhatsAppInboxPageContent() {
     try {
       setIsUpdatingGroup(true);
       const chatId = groupDetails.id;
-      const res = await bridgeFetch(`/group/${chatId}/settings`, {
+      
+      // Handle different update types
+      if (settings.subject) {
+        // Update group name/subject
+        const res = await bridgeFetch(`/group/${encodeURIComponent(chatId)}/subject`, {
+          method: 'POST',
+          body: JSON.stringify({ subject: settings.subject })
+        }, 10_000);
+        
+        if (!res.ok) {
+          const err = await parseBridgeError(res);
+          showToast(`Failed to update group name: ${err}`, 'error');
+          return;
+        }
+        showToast('Group name updated!', 'success');
+      }
+      
+      if (settings.description !== undefined) {
+        // Update group description
+        const res = await bridgeFetch(`/group/${encodeURIComponent(chatId)}/description`, {
+          method: 'POST',
+          body: JSON.stringify({ description: settings.description })
+        }, 10_000);
+        
+        if (!res.ok) {
+          const err = await parseBridgeError(res);
+          showToast(`Failed to update description: ${err}`, 'error');
+          return;
+        }
+        showToast('Group description updated!', 'success');
+      }
+      
+      // Refresh group details
+      await loadGroupDetails(chatId);
+      setIsEditingGroupName(false);
+      setIsEditingGroupDesc(false);
+    } catch (err) {
+      console.error('Failed to update group settings:', err);
+      showToast('Network error while updating group', 'error');
+    } finally {
+      setIsUpdatingGroup(false);
+    }
+  };
+
+  // Add member to group
+  const handleAddMember = async () => {
+    if (!groupDetails || !newMemberPhone.trim()) return;
+    
+    setAddingMember(true);
+    try {
+      const res = await bridgeFetch(`/group/${encodeURIComponent(groupDetails.id)}/add`, {
         method: 'POST',
-        body: JSON.stringify(settings)
+        body: JSON.stringify({ participants: [newMemberPhone.trim()] })
+      }, 15_000);
+      
+      if (res.ok) {
+        showToast('Member added successfully!', 'success');
+        setNewMemberPhone('');
+        setShowAddMemberModal(false);
+        // Refresh group details
+        await loadGroupDetails(groupDetails.id);
+      } else {
+        const err = await parseBridgeError(res);
+        showToast(`Failed to add member: ${err}`, 'error');
+      }
+    } catch (err) {
+      console.error('Failed to add member:', err);
+      showToast('Failed to add member', 'error');
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  // Get group invite link
+  const handleGetInviteLink = async () => {
+    if (!groupDetails) return;
+    
+    setGettingInviteLink(true);
+    try {
+      const res = await bridgeFetch(`/group/${encodeURIComponent(groupDetails.id)}/invite`, { method: 'GET' }, 10_000);
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.inviteLink) {
+          setGroupDetails({ ...groupDetails, inviteCode: data.inviteCode, inviteLink: data.inviteLink });
+          navigator.clipboard.writeText(data.inviteLink);
+          showToast('Invite link copied!', 'success');
+        }
+      } else {
+        const err = await parseBridgeError(res);
+        showToast(`Failed to get invite link: ${err}`, 'error');
+      }
+    } catch (err) {
+      console.error('Failed to get invite link:', err);
+      showToast('Failed to get invite link', 'error');
+    } finally {
+      setGettingInviteLink(false);
+    }
+  };
+
+  // Remove participant from group
+  const handleRemoveParticipant = async (participantId: string) => {
+    if (!groupDetails) return;
+    if (!confirm('Remove this member from the group?')) return;
+    
+    try {
+      const res = await bridgeFetch(`/group/${encodeURIComponent(groupDetails.id)}/remove`, {
+        method: 'POST',
+        body: JSON.stringify({ participant: participantId })
       }, 10_000);
       
       if (res.ok) {
-        // Refresh group details
-        await loadGroupDetails(chatId);
-        setIsEditingGroupName(false);
-        setIsEditingGroupDesc(false);
+        showToast('Member removed!', 'success');
+        await loadGroupDetails(groupDetails.id);
       } else {
         const err = await parseBridgeError(res);
-        alert(`Failed to update group: ${err}`);
+        showToast(`Failed to remove member: ${err}`, 'error');
       }
     } catch (err) {
-      console.error('Failed to update group settings:', err);
-      alert('Network error while updating group settings');
-    } finally {
-      setIsUpdatingGroup(false);
+      console.error('Failed to remove member:', err);
+      showToast('Failed to remove member', 'error');
     }
   };
 
@@ -2118,6 +2318,87 @@ function QRWhatsAppInboxPageContent() {
       });
     } catch (err) {
       console.error('Failed to mark chat as read:', err);
+    }
+  };
+
+  // Assign chat/lead to a user
+  const handleAssignChat = async (chat: any, assignToUserId: string) => {
+    if (!chat || assigningChat) return;
+    
+    setAssigningChat(true);
+    try {
+      // Extract phone number from chat
+      const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+      const phoneFromId = chatIdStr.split('@')[0].replace(/\D/g, '');
+      
+      if (chat.leadId) {
+        // If chat already has a leadId, update the lead's assignment
+        const res = await fetch(`/api/admin/crm/leads/${chat.leadId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ assignedToUserId: assignToUserId || null })
+        });
+        
+        if (res.ok) {
+          showToast(`Lead assigned successfully!`, 'success');
+          // Update the chat in state
+          setChats(prev => prev.map(c => {
+            const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+            const targetId = typeof chat.id === 'string' ? chat.id : chat.id?._serialized;
+            if (cId === targetId) {
+              return { ...c, assignedToUserId: assignToUserId };
+            }
+            return c;
+          }));
+        } else {
+          const err = await res.json();
+          showToast(err.error || 'Failed to assign lead', 'error');
+        }
+      } else {
+        // Create new lead from this chat and assign
+        const newLead = {
+          name: chat.name || chat.displayName || `WhatsApp ${phoneFromId}`,
+          phone: phoneFromId,
+          source: 'qr-whatsapp',
+          status: 'lead',
+          assignedToUserId: assignToUserId || undefined,
+        };
+        
+        const res = await fetch('/api/admin/crm/leads', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(newLead)
+        });
+        
+        if (res.ok) {
+          const lead = await res.json();
+          showToast(`Lead created and assigned!`, 'success');
+          // Update the chat in state with new leadId
+          setChats(prev => prev.map(c => {
+            const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+            const targetId = typeof chat.id === 'string' ? chat.id : chat.id?._serialized;
+            if (cId === targetId) {
+              return { ...c, leadId: lead._id, assignedToUserId: assignToUserId };
+            }
+            return c;
+          }));
+        } else {
+          const err = await res.json();
+          showToast(err.error || 'Failed to create lead', 'error');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to assign chat:', err);
+      showToast('Failed to assign', 'error');
+    } finally {
+      setAssigningChat(false);
+      setShowAssignDropdown(null);
     }
   };
 
@@ -2641,8 +2922,13 @@ function QRWhatsAppInboxPageContent() {
                 // but they won't be able to send messages (checked in send handler)
                 return true;
               })
-              // Sort by timestamp (newest first)
+              // Sort: unread first, then by timestamp (newest first)
               .sort((a, b) => {
+                // Unread messages first
+                const aUnread = a.unreadCount && a.unreadCount > 0 ? 1 : 0;
+                const bUnread = b.unreadCount && b.unreadCount > 0 ? 1 : 0;
+                if (bUnread !== aUnread) return bUnread - aUnread;
+                // Then by timestamp
                 const aTime = a.timestamp || 0;
                 const bTime = b.timestamp || 0;
                 return bTime - aTime;
@@ -2710,31 +2996,92 @@ function QRWhatsAppInboxPageContent() {
                         </div>
                       )}
                       
-                      {/* Unread Indicator Badge */}
+                      {/* Unread Indicator Badge - Red for unread, Blue for read */}
                       {chat.unreadCount && chat.unreadCount > 0 ? (
-                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
                           <span className="text-white text-[10px] font-bold">
                             {chat.unreadCount > 9 ? '9+' : chat.unreadCount}
                           </span>
                         </div>
                       ) : (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-teal-200 rounded-full border-2 border-white"></div>
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white"></div>
                       )}
                     </div>
                     
                     <div className="flex-1 min-w-0">
-                      {/* Name + Date on same line */}
+                      {/* Name + Date + Assign on same line */}
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-semibold text-stone-800 truncate text-sm">
                           {chat.displayName || chat.name || 'Unknown'}
                         </p>
-                        {/* Today's Date */}
-                        <span className="text-[11px] text-slate-400 whitespace-nowrap">
-                          {new Date().toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric'
-                          }).toUpperCase()}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          {/* Assign Icon (only for super admin / mr admin) */}
+                          {isSuperAdmin && !chat.isGroup && (
+                            <div className="relative" data-assign-dropdown>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const chatKey = typeof chat.id === 'string' ? chat.id : chat.id?._serialized;
+                                  setShowAssignDropdown(showAssignDropdown === chatKey ? null : chatKey);
+                                }}
+                                className="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-purple-600 transition-colors"
+                                title="Assign to user"
+                              >
+                                <UserPlus size={14} />
+                              </button>
+                              {/* Assign Dropdown */}
+                              {showAssignDropdown === (typeof chat.id === 'string' ? chat.id : chat.id?._serialized) && (
+                                <div className="absolute right-0 top-6 w-40 bg-white border border-slate-200 rounded-lg shadow-lg z-50" data-assign-dropdown>
+                                  <div className="p-2 border-b border-slate-100 text-xs font-bold text-slate-600">
+                                    Assign to:
+                                  </div>
+                                  <div className="max-h-40 overflow-y-auto">
+                                    {userOptions.length === 0 ? (
+                                      <div className="p-2 text-xs text-slate-400">No users found</div>
+                                    ) : (
+                                      userOptions.map((user) => (
+                                        <button
+                                          key={user.userId}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAssignChat(chat, user.userId);
+                                          }}
+                                          disabled={assigningChat}
+                                          className="w-full px-3 py-2 text-left text-xs hover:bg-purple-50 flex items-center gap-2 disabled:opacity-50"
+                                        >
+                                          <span className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-[10px] font-bold">
+                                            {(user.name || 'U').charAt(0).toUpperCase()}
+                                          </span>
+                                          <span className="truncate">{user.name || user.email}</span>
+                                          {chat.assignedToUserId === user.userId && (
+                                            <CheckCircle size={12} className="text-green-500 ml-auto" />
+                                          )}
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAssignChat(chat, '');
+                                    }}
+                                    disabled={assigningChat}
+                                    className="w-full px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 border-t border-slate-100 disabled:opacity-50"
+                                  >
+                                    ✕ Unassign
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {/* Today's Date */}
+                          <span className="text-[11px] text-slate-400 whitespace-nowrap">
+                            {new Date().toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric'
+                            }).toUpperCase()}
+                          </span>
+                        </div>
                       </div>
                       
                       {/* Phone number - always show below name */}
@@ -2774,13 +3121,20 @@ function QRWhatsAppInboxPageContent() {
                         </p>
                       )}
                       
-                      {/* Lead Details Tags: ID, Status, Label - third line */}
-                      {(chat.leadId || chat.leadStatus || chat.leadLabel) && (
+                      {/* Lead Details Tags: ID, Status, Label, Assigned - third line */}
+                      {(chat.leadId || chat.leadStatus || chat.leadLabel || chat.assignedToUserId) && (
                         <div className="flex items-center gap-1 flex-wrap mt-1">
                           {/* ID Tag */}
                           {chat.leadId && (
                             <span className="px-1.5 py-0.5 bg-pink-100 text-pink-700 text-[9px] font-bold rounded border border-pink-300 whitespace-nowrap">
                               ID: {chat.leadNumber || chat.leadId.toString().slice(-6)}
+                            </span>
+                          )}
+                          
+                          {/* Assigned To Tag */}
+                          {chat.assignedToUserId && (
+                            <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded border border-purple-300 whitespace-nowrap">
+                              👤 {userOptions.find(u => u.userId === chat.assignedToUserId)?.name?.split(' ')[0] || 'Assigned'}
                             </span>
                           )}
                           
@@ -2813,7 +3167,7 @@ function QRWhatsAppInboxPageContent() {
                       )}
                       
                       {/* Bottom line: Show last message or other info if no lead details */}
-                      {!(chat.leadId || chat.leadStatus || chat.leadLabel) && (
+                      {!(chat.leadId || chat.leadStatus || chat.leadLabel || chat.assignedToUserId) && (
                         <p className="text-[11px] text-[#0f3a4d]/60 truncate">
                           {chat.isGroup && chat.memberCount ? (
                             `Group · ${chat.memberCount} members`
@@ -3468,8 +3822,13 @@ function QRWhatsAppInboxPageContent() {
               <div className="flex items-end gap-2 px-3 py-2.5">
                 <textarea
                   value={newMessage}
-                  spellCheck={true}
+                  spellCheck="true"
+                  autoComplete="on"
+                  autoCorrect="on"
+                  autoCapitalize="sentences"
                   lang="en"
+                  data-gramm="true"
+                  data-gramm_editor="true"
                   onChange={(e) => {
                     setNewMessage(e.target.value);
                     e.target.style.height = 'auto';
@@ -3484,8 +3843,12 @@ function QRWhatsAppInboxPageContent() {
                       }
                     }
                   }}
-                  placeholder={pendingMedia.length > 0 ? "Add a caption..." : "Type a message... (right-click misspelled words for suggestions)"}
+                  placeholder={pendingMedia.length > 0 ? "Add a caption..." : "Type a message... (misspelled words will show red underline)"}
                   className="flex-1 w-full px-4 py-2.5 bg-white border border-stone-200 rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400 resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
+                  style={{ 
+                    WebkitTextDecorationStyle: 'wavy',
+                    textDecorationColor: 'red',
+                  }}
                   rows={1}
                 />
 
@@ -3951,17 +4314,18 @@ function QRWhatsAppInboxPageContent() {
             </div>
 
             {/* Invite Link */}
-            {groupDetails.inviteCode && (
+            {(groupDetails.inviteCode || groupDetails.inviteLink) && (
               <div className="p-4 border-b border-slate-100">
                 <p className="text-xs text-[#0f3a4d]/70 mb-2 font-semibold">INVITE LINK</p>
                 <div className="bg-[#F5EBE0] p-3 rounded-lg border border-[#E8DFD5]">
                   <p className="text-xs text-[#0f3a4d] break-all mb-2 font-mono">
-                    https://chat.whatsapp.com/{groupDetails.inviteCode}
+                    {groupDetails.inviteLink || `https://chat.whatsapp.com/${groupDetails.inviteCode}`}
                   </p>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(`https://chat.whatsapp.com/${groupDetails.inviteCode}`);
-                      alert('Invite link copied to clipboard!');
+                      const link = groupDetails.inviteLink || `https://chat.whatsapp.com/${groupDetails.inviteCode}`;
+                      navigator.clipboard.writeText(link);
+                      showToast('Invite link copied!', 'success');
                     }}
                     className="w-full px-3 py-2 bg-[#0f3a4d] hover:bg-[#1a4d66] text-white text-sm font-medium rounded transition-colors"
                   >
@@ -3992,25 +4356,42 @@ function QRWhatsAppInboxPageContent() {
             </div>
 
             {/* Participants */}
-            {groupDetails.participants && groupDetails.participants.length > 0 && (
-              <div className="p-4 border-b border-slate-100">
-                <p className="text-xs text-[#0f3a4d]/70 mb-2 font-semibold">
-                  PARTICIPANTS ({groupDetails.participants.length})
+            <div className="p-4 border-b border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-[#0f3a4d]/70 font-semibold">
+                  PARTICIPANTS ({groupDetails.participants?.length || 0})
                 </p>
+                <button
+                  onClick={() => setShowAddMemberModal(true)}
+                  className="text-purple-600 hover:text-purple-800 text-xs font-bold flex items-center gap-1"
+                >
+                  <UserPlus size={14} /> Add
+                </button>
+              </div>
+              {groupDetails.participants && groupDetails.participants.length > 0 ? (
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {groupDetails.participants.slice(0, 20).map((participant: any, idx: number) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[#F5EBE0]"
+                      className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[#F5EBE0] group"
                     >
                       <span className="text-sm text-[#0f3a4d] truncate">
                         {participant.id.replace('@c.us', '')}
                       </span>
-                      {(participant.isAdmin || participant.isSuperAdmin) && (
-                        <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
-                          Admin
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {(participant.isAdmin || participant.isSuperAdmin) && (
+                          <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
+                            Admin
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleRemoveParticipant(participant.id)}
+                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                          title="Remove member"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                   {groupDetails.participants.length > 20 && (
@@ -4019,17 +4400,73 @@ function QRWhatsAppInboxPageContent() {
                     </p>
                   )}
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-xs text-[#0f3a4d]/50 italic">No participants loaded</p>
+              )}
+            </div>
 
             {/* Actions */}
             <div className="p-4 space-y-2">
+              {!groupDetails.inviteCode && !groupDetails.inviteLink && (
+                <button 
+                  onClick={handleGetInviteLink}
+                  disabled={gettingInviteLink}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-medium transition-colors text-sm"
+                >
+                  {gettingInviteLink ? '⏳ Getting link...' : '🔗 Get Invite Link'}
+                </button>
+              )}
               <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] font-medium transition-colors text-sm">
                 🔔 Mute Group
               </button>
               <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-900 font-medium transition-colors text-sm">
                 🚪 Exit Group
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#FAFAF8] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-[#FAFAF8] p-4 border-b border-[#E8DFD5] flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[#0f3a4d]">Add Member</h3>
+              <button
+                onClick={() => setShowAddMemberModal(false)}
+                className="text-[#0f3a4d]/60 hover:text-[#0f3a4d] text-2xl leading-none"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#0f3a4d] mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  value={newMemberPhone}
+                  onChange={(e) => setNewMemberPhone(e.target.value)}
+                  placeholder="e.g., 919876543210"
+                  className="w-full px-3 py-2 border border-[#E8DFD5] rounded-lg focus:ring-2 focus:ring-purple-500 outline-none text-[#0f3a4d]"
+                />
+                <p className="text-xs text-[#0f3a4d]/60 mt-1">Enter phone number with country code (no + symbol)</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddMember}
+                  disabled={addingMember || !newMemberPhone.trim()}
+                  className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold rounded-lg transition-colors"
+                >
+                  {addingMember ? 'Adding...' : 'Add Member'}
+                </button>
+                <button
+                  onClick={() => setShowAddMemberModal(false)}
+                  className="px-4 py-2 bg-[#E8DFD5] text-[#0f3a4d] font-bold rounded-lg hover:bg-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

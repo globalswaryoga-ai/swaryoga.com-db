@@ -78,6 +78,7 @@ export async function GET(
       label: lead.label,
       email: lead.email,
       leadNumber: lead.leadNumber, // Include the 6-digit human-friendly ID
+      assignedToUserId: lead.assignedToUserId || null, // Include assignment
     });
   } catch (error) {
     console.error('[GET /api/admin/crm/leads/by-phone] Error:', error);

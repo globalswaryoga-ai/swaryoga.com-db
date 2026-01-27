@@ -1671,3 +1671,30 @@ script[src*="_vercel"] {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ===== SPELL CHECK STYLING ===== */
+/* Make spelling error underlines red and more visible */
+textarea[spellcheck="true"],
+input[spellcheck="true"] {
+  -webkit-text-decoration-color: red;
+  text-decoration-color: red;
+}
+
+/* Customize the misspelled word appearance in WebKit browsers */
+textarea::-webkit-misspelled,
+input::-webkit-misspelled {
+  text-decoration: underline wavy red;
+  text-decoration-thickness: 2px;
+}
+
+/* Firefox spelling error styling */
+textarea::-moz-misspelled,
+input::-moz-misspelled {
+  text-decoration: underline wavy red;
+}
+
+/* Grammar error styling */
+textarea::-webkit-grammar-error,
+input::-webkit-grammar-error {
+  text-decoration: underline wavy blue;
+}

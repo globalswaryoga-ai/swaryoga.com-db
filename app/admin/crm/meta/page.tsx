@@ -1762,12 +1762,18 @@ export default function MetaInboxPage() {
                             return (
                               <div className="space-y-1">
                                 {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
-                                {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
                               </div>
                             );
                           })()}
                           
                           <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-gray-500' : 'justify-start text-white/70'}`}>
+                            {/* Show "Swar Yoga" in bold black for outbound messages with admin tag */}
+                            {msg.direction === 'outbound' && (msg.messageContent || '').match(/\[(admincrm|admin|crm)\]\s*$/i) && (
+                              <>
+                                <span className="font-bold text-gray-900 text-[11px]">Swar Yoga</span>
+                                <span className="mx-1">•</span>
+                              </>
+                            )}
                             <span className="tracking-wide">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {msg.direction === 'outbound' && (
                               <div className="flex items-center">
@@ -2022,7 +2028,11 @@ export default function MetaInboxPage() {
                           className="w-full px-5 py-3 bg-transparent border-none focus:ring-0 resize-none max-h-40 min-h-[52px] placeholder:text-slate-400 font-medium text-slate-700 text-[15px]" 
                           placeholder="Type your message... (right-click misspelled words for suggestions)"
                           spellCheck={true}
+                          autoComplete="on"
+                          autoCorrect="on"
+                          autoCapitalize="sentences"
                           lang="en"
+                          data-gramm="true"
                           rows={1}
                           value={composerText}
                           onChange={(e) => setComposerText(e.target.value)}
@@ -2364,6 +2374,12 @@ export default function MetaInboxPage() {
                   <textarea 
                     className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none min-h-[110px] bg-slate-50 placeholder:text-slate-400"
                     placeholder="Add a remark about this customer..."
+                    spellCheck={true}
+                    autoComplete="on"
+                    autoCorrect="on"
+                    autoCapitalize="sentences"
+                    lang="en"
+                    data-gramm="true"
                     value={sidebarData.notes}
                     onChange={(e) => setSidebarData({ ...sidebarData, notes: e.target.value })}
                   />

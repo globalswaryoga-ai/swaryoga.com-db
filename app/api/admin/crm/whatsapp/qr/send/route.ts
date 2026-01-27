@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
     let { to, message, type, url, buttons, caption, leadId } = body;
     const viewerUserId = getViewerUserId(decoded);
     const superAdmin = decoded.userId === 'admincrm' || decoded.userId === 'admin';
-    const adminName = decoded.name || decoded.username || viewerUserId;
+    // Super admin shows as "Swar Yoga", others show their username
+    const adminName = superAdmin ? 'Swar Yoga' : (decoded.name || decoded.username || viewerUserId);
 
     // Validate and normalize `to` field
     if (!to) {

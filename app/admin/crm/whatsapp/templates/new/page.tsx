@@ -483,7 +483,12 @@ export default function CreateTemplatePage() {
                     value={bodyText}
                     onChange={(e) => setBodyText(e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent text-sm"
-                    spellCheck
+                    spellCheck={true}
+                    autoComplete="on"
+                    autoCorrect="on"
+                    autoCapitalize="sentences"
+                    lang="en"
+                    data-gramm="true"
                   />
                   <div className="mt-2 text-xs text-gray-500">
                     Bold: <code>*text*</code> | Italic: <code>_text_</code> | Variables: <code>{'{{firstName}}'}</code>

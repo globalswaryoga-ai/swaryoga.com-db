@@ -37,6 +37,18 @@ export async function PUT(
 
     const update: Record<string, any> = {};
 
+    // userId (optional - super admin only)
+    if (body.userId !== undefined) {
+      const userId = String(body.userId || '').trim();
+      if (!userId) {
+        return NextResponse.json({ error: 'userId cannot be empty' }, { status: 400 });
+      }
+      if (userId.length < 3) {
+        return NextResponse.json({ error: 'userId must be at least 3 characters' }, { status: 400 });
+      }
+      update.userId = userId;
+    }
+
     // Email (optional)
     if (body.email !== undefined) {
       const email = String(body.email || '').trim().toLowerCase();
@@ -124,6 +136,14 @@ export async function PUT(
     const existing = await User.findOne({ _id: new Types.ObjectId(id), isAdmin: true });
     if (!existing) {
       return NextResponse.json({ error: 'Admin user not found' }, { status: 404 });
+    }
+
+    // Prevent userId duplicates
+    if (update.userId) {
+      const dupUserId = await User.findOne({ userId: { $regex: new RegExp(`^${update.userId}$`, 'i') }, _id: { $ne: new Types.ObjectId(id) } });
+      if (dupUserId) {
+        return NextResponse.json({ error: 'Username (userId) already exists' }, { status: 409 });
+      }
     }
 
     // Prevent email duplicates

@@ -41,6 +41,7 @@ export default function CRMAdminUsersPage() {
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editName, setEditName] = useState('');
+  const [editUserId, setEditUserId] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'manager' | 'superadmin'>('admin');
   const [editManagedUserIds, setEditManagedUserIds] = useState<string[]>([]);
   const [permissionMode, setPermissionMode] = useState<'all' | 'selected'>('selected');
@@ -140,6 +141,7 @@ export default function CRMAdminUsersPage() {
 
   const openEdit = (u: AdminUserRow) => {
     setSelectedUser(u);
+    setEditUserId(String(u.userId || '').trim());
     setEditEmail(String(u.email || '').trim());
     setEditName(String(u.name || '').trim());
     setEditPassword('');
@@ -281,6 +283,12 @@ export default function CRMAdminUsersPage() {
     }
     if (!selectedUser?._id) return;
 
+    const userId = editUserId.trim();
+    if (!userId || userId.length < 3) {
+      setEditMsg('Username (userId) must be at least 3 characters.');
+      return;
+    }
+
     const email = editEmail.trim().toLowerCase();
     if (!email) {
       setEditMsg('Email is required.');
@@ -293,7 +301,7 @@ export default function CRMAdminUsersPage() {
       return;
     }
 
-    const body: Record<string, any> = { email, permissions };
+    const body: Record<string, any> = { userId, email, permissions };
     const name = editName.trim();
     if (name) {
       body.name = name;
@@ -329,6 +337,7 @@ export default function CRMAdminUsersPage() {
             u._id === String(updated._id)
               ? {
                   ...u,
+                  userId: updated?.userId ? String(updated.userId) : u.userId,
                   email: updated?.email ? String(updated.email) : u.email,
                   name: updated?.name ? String(updated.name) : u.name,
                   permissions: Array.isArray(updated?.permissions)
@@ -809,10 +818,13 @@ export default function CRMAdminUsersPage() {
                 <div>
                   <label className="block text-sm font-semibold text-purple-300 mb-1">Username (userId)</label>
                   <input
-                    value={selectedUser.userId}
-                    readOnly
-                    className="w-full border border-slate-600 rounded-lg px-3 py-2 bg-slate-700 text-slate-300"
+                    value={editUserId}
+                    onChange={(e) => setEditUserId(e.target.value)}
+                    className="w-full border border-slate-600 rounded-lg px-3 py-2 bg-slate-700 text-slate-100"
+                    placeholder="admin2"
+                    disabled={editBusy}
                   />
+                  <p className="mt-1 text-xs text-slate-400">This is the login username. Minimum 3 characters.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-purple-300 mb-1">Name</label>

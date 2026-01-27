@@ -88,7 +88,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Add admin display name to message content (bold, below the message)
-    const adminDisplayName = decoded.name || decoded.username || userId;
+    // Super admin (admincrm/admin) shows as "Swar Yoga", others show their username
+    const isSuperAdminUser = userId === 'admincrm' || userId === 'admin';
+    const adminDisplayName = isSuperAdminUser ? 'Swar Yoga' : (decoded.name || decoded.username || userId);
     const adminNameTag = `\n\n*${adminDisplayName}*`;
     const finalMessageContent = hasText 
       ? String(messageContent).trim() + adminNameTag
