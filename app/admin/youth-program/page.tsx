@@ -90,6 +90,124 @@ export default function YouthProgramPage() {
     }
   };
 
+  const [syncing, setSyncing] = useState(false);
+  const [zoomMeetings, setZoomMeetings] = useState<any[]>([]);
+
+  const listZoomMeetings = async () => {
+    try {
+      setMessage('Fetching Zoom meetings...');
+      const res = await fetch('/api/admin/zoom/sync-recordings?topic=youth&from=2026-01-01&to=2026-01-31', {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setZoomMeetings(data.meetings || []);
+        setMessage(`✅ Found ${data.meetings?.length || 0} Youth Program meetings`);
+      } else {
+        setError(`Error: ${data.error}\n${data.requiredScope ? `Required scope: ${data.requiredScope}` : ''}`);
+      }
+    } catch (err) {
+      setError('Failed to fetch Zoom meetings');
+    }
+  };
+
+  const syncMeeting = async (meetingId: string) => {
+    if (!community) {
+      setError('Create community first before syncing recordings');
+      return;
+    }
+    
+    try {
+      setSyncing(true);
+      setMessage(`Syncing meeting ${meetingId}...`);
+      
+      const res = await fetch('/api/admin/zoom/sync-recordings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({
+          meetingId,
+          communityId: community.id,
+          syncToS3: true,
+          addToCommunity: true,
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        if (data.alreadySynced) {
+          setMessage(`ℹ️ Meeting already synced on ${new Date(data.existingSync.syncedAt).toLocaleDateString()}`);
+        } else {
+          setMessage(`✅ Synced! ${data.results?.synced || 0} recordings added to community`);
+          fetchData();
+          listZoomMeetings(); // Refresh list to show synced status
+        }
+      } else {
+        setError(data.error || 'Sync failed');
+      }
+    } catch (err) {
+      setError('Failed to sync meeting');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const syncAllMeetings = async () => {
+    if (!community) {
+      setError('Create community first');
+      return;
+    }
+    
+    const unsyncedMeetings = zoomMeetings.filter(m => !m.synced);
+    if (unsyncedMeetings.length === 0) {
+      setMessage('All meetings already synced!');
+      return;
+    }
+    
+    setSyncing(true);
+    setMessage(`Syncing ${unsyncedMeetings.length} meetings...`);
+    
+    let synced = 0;
+    let errors = 0;
+    
+    for (const meeting of unsyncedMeetings) {
+      try {
+        const res = await fetch('/api/admin/zoom/sync-recordings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify({
+            meetingId: meeting.id,
+            communityId: community.id,
+            syncToS3: true,
+            addToCommunity: true,
+          }),
+        });
+        
+        const data = await res.json();
+        if (data.success && !data.alreadySynced) {
+          synced++;
+        }
+      } catch {
+        errors++;
+      }
+      
+      // Small delay to avoid rate limiting
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    
+    setSyncing(false);
+    setMessage(`✅ Sync complete! ${synced} synced, ${errors} errors`);
+    fetchData();
+    listZoomMeetings();
+  };
+
   const checkZoomRecordings = async () => {
     try {
       setMessage('Checking Zoom recordings...');
@@ -223,32 +341,93 @@ export default function YouthProgramPage() {
         {/* Zoom Integration */}
         {community && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">Zoom Cloud Recordings</h2>
+            <h2 className="text-lg font-semibold mb-4">📹 Sync Zoom Cloud Recordings</h2>
             <p className="text-gray-600 mb-4">
-              9 recordings from Youth Program meeting. Click below to check availability.
+              Sync 9 Youth Program recordings from Zoom Cloud to S3 and add to community.
             </p>
-            <div className="flex gap-3">
+            
+            <div className="flex flex-wrap gap-3 mb-4">
+              <button
+                onClick={listZoomMeetings}
+                disabled={syncing}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+              >
+                🔍 List Zoom Meetings
+              </button>
+              <button
+                onClick={syncAllMeetings}
+                disabled={syncing || zoomMeetings.length === 0}
+                className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50"
+              >
+                {syncing ? '⏳ Syncing...' : '🚀 Sync All to S3'}
+              </button>
               <button
                 onClick={checkZoomRecordings}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
               >
-                📹 Check Zoom Recordings
+                📋 Check via API (legacy)
               </button>
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
                 className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
               >
-                ➕ Add Recording Manually
+                ➕ Add Manually
               </button>
             </div>
 
+            {/* Zoom Meetings List */}
+            {zoomMeetings.length > 0 && (
+              <div className="mt-4 border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Date</th>
+                      <th className="px-4 py-2 text-left">Topic</th>
+                      <th className="px-4 py-2 text-left">Duration</th>
+                      <th className="px-4 py-2 text-left">Files</th>
+                      <th className="px-4 py-2 text-left">Status</th>
+                      <th className="px-4 py-2 text-left">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {zoomMeetings.map((meeting) => (
+                      <tr key={meeting.id} className="border-t">
+                        <td className="px-4 py-2">{new Date(meeting.startTime).toLocaleDateString()}</td>
+                        <td className="px-4 py-2 max-w-xs truncate">{meeting.topic}</td>
+                        <td className="px-4 py-2">{meeting.duration} min</td>
+                        <td className="px-4 py-2">{meeting.recordingCount}</td>
+                        <td className="px-4 py-2">
+                          {meeting.synced ? (
+                            <span className="text-green-600">✅ Synced</span>
+                          ) : (
+                            <span className="text-amber-600">⏳ Pending</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2">
+                          {!meeting.synced && (
+                            <button
+                              onClick={() => syncMeeting(meeting.id)}
+                              disabled={syncing}
+                              className="text-blue-600 hover:underline disabled:opacity-50"
+                            >
+                              Sync
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             <div className="mt-4 p-4 bg-amber-50 rounded-lg text-sm">
-              <strong>Note:</strong> If Zoom API shows scope error, you need to add{' '}
+              <strong>⚠️ Zoom API Scope:</strong> To list recordings, add{' '}
               <code className="bg-amber-100 px-1 rounded">cloud_recording:read:list_recording_files</code>{' '}
-              scope to your Zoom Server-to-Server app in{' '}
+              scope in{' '}
               <a href="https://marketplace.zoom.us" target="_blank" className="text-blue-600 underline">
                 Zoom Marketplace
-              </a>.
+              </a> → Your App → Scopes.
             </div>
           </div>
         )}

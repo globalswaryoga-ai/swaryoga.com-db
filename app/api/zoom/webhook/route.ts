@@ -2,6 +2,11 @@
  * Zoom Webhook Endpoint
  * Receives recording.completed events and syncs to AWS S3
  * Only saves: speaker_view and gallery_view recordings
+ * 
+ * Security features:
+ * - HMAC signature verification
+ * - Replay attack protection (5 minute window)
+ * - Duplicate event detection
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,18 +17,43 @@ import * as crypto from 'crypto';
 // Zoom webhook event types we handle
 const HANDLED_EVENTS = ['recording.completed'];
 
+// Replay attack protection: store processed event IDs with timestamp
+// Clean up entries older than 10 minutes
+const processedEvents = new Map<string, number>();
+const REPLAY_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+function cleanupOldEvents() {
+  const now = Date.now();
+  for (const [eventId, timestamp] of processedEvents) {
+    if (now - timestamp > 10 * 60 * 1000) { // 10 minutes
+      processedEvents.delete(eventId);
+    }
+  }
+}
+
 /**
  * Verify Zoom webhook signature (optional but recommended)
+ * Also checks for replay attacks using timestamp
  */
 function verifyZoomWebhook(
   payload: string,
   signature: string,
   timestamp: string
-): boolean {
+): { valid: boolean; error?: string } {
   const secretToken = process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
+  
+  // Check timestamp to prevent replay attacks
+  if (timestamp) {
+    const eventTime = parseInt(timestamp) * 1000; // Convert to milliseconds
+    const now = Date.now();
+    if (Math.abs(now - eventTime) > REPLAY_WINDOW_MS) {
+      return { valid: false, error: 'Request timestamp too old (possible replay attack)' };
+    }
+  }
+  
   if (!secretToken) {
     console.log('[Zoom Webhook] No secret token configured, skipping verification');
-    return true; // Skip verification if no secret configured
+    return { valid: true }; // Skip verification if no secret configured
   }
 
   const message = `v0:${timestamp}:${payload}`;
@@ -33,7 +63,11 @@ function verifyZoomWebhook(
     .digest('hex');
 
   const expectedSignature = `v0=${hashForVerify}`;
-  return signature === expectedSignature;
+  if (signature !== expectedSignature) {
+    return { valid: false, error: 'Invalid signature' };
+  }
+  
+  return { valid: true };
 }
 
 /**
@@ -87,10 +121,20 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('x-zm-signature') || '';
     const timestamp = request.headers.get('x-zm-request-timestamp') || '';
 
-    if (!verifyZoomWebhook(body, signature, timestamp)) {
-      console.error('[Zoom Webhook] Invalid signature');
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    const verification = verifyZoomWebhook(body, signature, timestamp);
+    if (!verification.valid) {
+      console.error('[Zoom Webhook] Verification failed:', verification.error);
+      return NextResponse.json({ error: verification.error }, { status: 401 });
     }
+
+    // Replay attack protection: check if we've seen this event
+    const eventId = payload.payload?.object?.uuid || `${payload.event}-${timestamp}`;
+    if (processedEvents.has(eventId)) {
+      console.log('[Zoom Webhook] Duplicate event detected, ignoring');
+      return NextResponse.json({ message: 'Duplicate event ignored' });
+    }
+    processedEvents.set(eventId, Date.now());
+    cleanupOldEvents();
 
     // Check if we handle this event type
     if (!HANDLED_EVENTS.includes(payload.event)) {
