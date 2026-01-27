@@ -119,6 +119,13 @@ function QRWhatsAppInboxPageContent() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Spell check suggestions popup state
+  const [spellSuggestions, setSpellSuggestions] = useState<{ 
+    word: string; 
+    suggestions: string[]; 
+    position: { x: number; y: number } 
+  } | null>(null);
+  
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ type, message });
@@ -1266,6 +1273,65 @@ function QRWhatsAppInboxPageContent() {
     
     loadLeadDetails();
   }, [activeLeadId, token]);
+
+  // Handle right-click on misspelled words for spell suggestions
+  const handleSpellCheck = useCallback(async (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    const target = e.target as HTMLTextAreaElement;
+    const text = target.value;
+    
+    // Get the word at cursor position
+    const cursorPos = target.selectionStart || 0;
+    const words = text.split(/\s+/);
+    let charCount = 0;
+    let selectedWord = '';
+    
+    for (const word of words) {
+      if (cursorPos >= charCount && cursorPos <= charCount + word.length) {
+        selectedWord = word.replace(/[.,!?;:'"()]/g, '');
+        break;
+      }
+      charCount += word.length + 1;
+    }
+    
+    if (selectedWord && selectedWord.length > 2) {
+      try {
+        const res = await fetch('/api/admin/crm/spell-suggest', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ word: selectedWord }),
+        });
+        const data = await res.json();
+        if (data.suggestions && data.suggestions.length > 0) {
+          setSpellSuggestions({
+            word: selectedWord,
+            suggestions: data.suggestions,
+            position: { x: e.clientX, y: e.clientY },
+          });
+        }
+      } catch (err) {
+        console.error('Spell check error:', err);
+      }
+    }
+  }, [token]);
+
+  // Apply spelling correction
+  const applySuggestion = useCallback((suggestion: string) => {
+    if (!spellSuggestions) return;
+    setNewMessage(prev => prev.replace(new RegExp(`\\b${spellSuggestions.word}\\b`, 'gi'), suggestion));
+    setSpellSuggestions(null);
+  }, [spellSuggestions]);
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handleClick = () => setSpellSuggestions(null);
+    if (spellSuggestions) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [spellSuggestions]);
 
   // Send message
   const handleSendMessage = async () => {
@@ -3369,6 +3435,7 @@ function QRWhatsAppInboxPageContent() {
                     e.target.style.height = 'auto';
                     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
                   }}
+                  onContextMenu={(e) => handleSpellCheck(e)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -3377,7 +3444,7 @@ function QRWhatsAppInboxPageContent() {
                       }
                     }
                   }}
-                  placeholder={pendingMedia.length > 0 ? "Add a caption..." : "Type a message... (Enter to send)"}
+                  placeholder={pendingMedia.length > 0 ? "Add a caption..." : "Type a message... (right-click misspelled words for suggestions)"}
                   className="flex-1 w-full px-4 py-2.5 bg-[#FAFAF8] border border-[#E8DFD5] rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-[#E8A645]/30 focus:border-[#E8A645] resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
                   rows={1}
                 />
@@ -4284,6 +4351,36 @@ function QRWhatsAppInboxPageContent() {
             <AlertCircle size={20} className="flex-shrink-0" />
           )}
           <span className="font-medium text-sm">{toast.message}</span>
+        </div>
+      )}
+
+      {/* Spell suggestions popup */}
+      {spellSuggestions && (
+        <div 
+          className="fixed z-[100] bg-white border border-gray-200 rounded-lg shadow-xl p-2 min-w-[150px]"
+          style={{ left: spellSuggestions.position.x, top: spellSuggestions.position.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-xs text-gray-500 px-2 py-1 border-b mb-1">
+            Replace &quot;{spellSuggestions.word}&quot; with:
+          </div>
+          {spellSuggestions.suggestions.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => applySuggestion(s)}
+              className="block w-full text-left px-3 py-1.5 text-sm hover:bg-[#D4A574] hover:text-white rounded transition-colors"
+            >
+              {s}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setSpellSuggestions(null)}
+            className="block w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 border-t mt-1"
+          >
+            Dismiss
+          </button>
         </div>
       )}
     </div>

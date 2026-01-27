@@ -157,6 +157,13 @@ export default function MetaInboxPage() {
   const [isFixing, setIsFixing] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
 
+  // Spell check suggestions popup state
+  const [spellSuggestions, setSpellSuggestions] = useState<{ 
+    word: string; 
+    suggestions: string[]; 
+    position: { x: number; y: number } 
+  } | null>(null);
+
   // 24h window countdown
   const [windowAnchorMs, setWindowAnchorMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
@@ -418,6 +425,61 @@ export default function MetaInboxPage() {
       }
     }
   };
+
+  // Handle right-click on misspelled words for spell suggestions
+  const handleSpellCheck = useCallback(async (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    const target = e.target as HTMLTextAreaElement;
+    const text = target.value;
+    
+    // Get the word at cursor position
+    const cursorPos = target.selectionStart || 0;
+    const words = text.split(/\s+/);
+    let charCount = 0;
+    let selectedWord = '';
+    
+    for (const word of words) {
+      if (cursorPos >= charCount && cursorPos <= charCount + word.length) {
+        selectedWord = word.replace(/[.,!?;:'"()]/g, '');
+        break;
+      }
+      charCount += word.length + 1;
+    }
+    
+    if (selectedWord && selectedWord.length > 2) {
+      try {
+        const res = await crmFetch('/api/admin/crm/spell-suggest', {
+          method: 'POST',
+          body: JSON.stringify({ word: selectedWord }),
+        });
+        const data = await res.json();
+        if (data.suggestions && data.suggestions.length > 0) {
+          setSpellSuggestions({
+            word: selectedWord,
+            suggestions: data.suggestions,
+            position: { x: e.clientX, y: e.clientY },
+          });
+        }
+      } catch (err) {
+        console.error('Spell check error:', err);
+      }
+    }
+  }, [crmFetch]);
+
+  // Apply spelling correction
+  const applySuggestion = useCallback((suggestion: string) => {
+    if (!spellSuggestions) return;
+    setComposerText(prev => prev.replace(new RegExp(`\\b${spellSuggestions.word}\\b`, 'gi'), suggestion));
+    setSpellSuggestions(null);
+  }, [spellSuggestions]);
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handleClick = () => setSpellSuggestions(null);
+    if (spellSuggestions) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [spellSuggestions]);
 
   const appendToComposer = (text: string) => {
     setComposerText((prev) => (prev ? `${prev}${text}` : text));
@@ -814,6 +876,36 @@ export default function MetaInboxPage() {
   return (
     <div className="bg-white text-slate-900 h-screen flex flex-col font-sans overflow-hidden">
       
+      {/* Spell suggestions popup */}
+      {spellSuggestions && (
+        <div 
+          className="fixed z-[100] bg-white border border-gray-200 rounded-lg shadow-xl p-2 min-w-[150px]"
+          style={{ left: spellSuggestions.position.x, top: spellSuggestions.position.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-xs text-gray-500 px-2 py-1 border-b mb-1">
+            Replace &quot;{spellSuggestions.word}&quot; with:
+          </div>
+          {spellSuggestions.suggestions.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => applySuggestion(s)}
+              className="block w-full text-left px-3 py-1.5 text-sm hover:bg-green-600 hover:text-white rounded transition-colors"
+            >
+              {s}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setSpellSuggestions(null)}
+            className="block w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 border-t mt-1"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="border-b border-slate-200/80 px-4 py-3 flex items-center justify-between bg-white shadow-[0_1px_3px_0_rgba(0,0,0,0.02),0_1px_2px_0_rgba(0,0,0,0.06)] shrink-0 z-20">
         <div className="flex items-center gap-6">
@@ -1928,11 +2020,12 @@ export default function MetaInboxPage() {
 
                       <textarea 
                           className="w-full px-5 py-3 bg-transparent border-none focus:ring-0 resize-none max-h-40 min-h-[52px] placeholder:text-slate-400 font-medium text-slate-700 text-[15px]" 
-                          placeholder="Type your message..."
+                          placeholder="Type your message... (right-click misspelled words for suggestions)"
                           spellCheck="true"
                           rows={1}
                           value={composerText}
                           onChange={(e) => setComposerText(e.target.value)}
+                          onContextMenu={(e) => handleSpellCheck(e)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                               e.preventDefault();
