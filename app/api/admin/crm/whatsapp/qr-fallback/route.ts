@@ -16,6 +16,7 @@ import path from 'path';
 const execAsync = promisify(exec);
 
 const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://52.91.198.23:3333';
+const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || process.env.WHATSAPP_WEB_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 const CACHE_DIR = path.join(process.cwd(), '.qr-cache');
 const QR_CACHE_FILE = path.join(CACHE_DIR, 'latest-qr.html');
 
@@ -106,6 +107,11 @@ async function fetchQRWithRetries(retries = 3): Promise<string | null> {
       
       const response = await fetch(`${BRIDGE_URL}/qr`, {
         method: 'GET',
+        headers: {
+          'x-bridge-secret': BRIDGE_SECRET,
+          'Accept': 'text/html,application/json',
+          'User-Agent': 'SwarYoga-QR-Fallback'
+        },
         signal: controller.signal
       });
       
