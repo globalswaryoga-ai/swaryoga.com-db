@@ -711,7 +711,8 @@ function QRWhatsAppInboxPageContent() {
       // Also update in the chats list
       setChats((prevChats) =>
         prevChats.map((chat) => {
-          const chatPhone = String(chat.name || chat.id || '').replace(/\D/g, '');
+          const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+          const chatPhone = String(chat.name || chatIdStr || '').replace(/\D/g, '');
           const activePhoneNorm = String(activePhone).replace(/\D/g, '');
           if (chatPhone === activePhoneNorm) {
             return {
@@ -741,7 +742,8 @@ function QRWhatsAppInboxPageContent() {
       }
       
       const matchingChat = chats.find((chat) => {
-        const chatPhone = String(chat.name || chat.id || '').replace(/\D/g, '');
+        const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+        const chatPhone = String(chat.name || chatIdStr || '').replace(/\D/g, '');
         return chatPhone === normalizedPhone || chatPhone.endsWith(normalizedPhone);
       });
 
@@ -1753,7 +1755,8 @@ function QRWhatsAppInboxPageContent() {
       }
 
       const matchingChat = chats.find((chat) => {
-        const chatPhone = String(chat.name || chat.id || '').replace(/\D/g, '');
+        const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+        const chatPhone = String(chat.name || chatIdStr || '').replace(/\D/g, '');
         return chatPhone === normalizedPhone || chatPhone.endsWith(normalizedPhone);
       });
 
