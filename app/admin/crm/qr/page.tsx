@@ -309,22 +309,35 @@ function QRWhatsAppInboxPageContent() {
 
   const loadMediaForMessage = useCallback(
     async (msg: any, opts?: { force?: boolean }) => {
-      const msgId = String(msg?.id || '');
-      if (!msgId) return;
-      if (messageMediaCache[msgId]?.dataUrl) return;
-      if (messageMediaLoading[msgId]) return;
+      // For CRM messages: prefer waMessageId (WhatsApp ID) for bridge calls
+      // For bridge messages: use id directly (already is WhatsApp ID)
+      const bridgeId = msg?.waMessageId || msg?.id;
+      const cacheKey = String(msg?.id || msg?.waMessageId || msg?._id || '');
+      
+      if (!bridgeId || !cacheKey) return;
+      if (messageMediaCache[cacheKey]?.dataUrl) return;
+      if (messageMediaLoading[cacheKey]) return;
+      
+      // If message has a direct mediaUrl (from S3/cloud), use that instead of bridge
+      if (msg?.mediaUrl && !msg?._bridgeMessage) {
+        setMessageMediaCache((prev) => ({
+          ...prev,
+          [cacheKey]: { dataUrl: msg.mediaUrl, mimetype: msg.mimeType || 'image/jpeg' },
+        }));
+        return;
+      }
 
       const now = Date.now();
-      const fail = mediaFailuresRef.current[msgId];
+      const fail = mediaFailuresRef.current[cacheKey];
       const cooldownMs = 5 * 60_000; // 5 minutes
       if (!opts?.force && fail?.lastFailAt && now - fail.lastFailAt < cooldownMs) {
         return;
       }
 
-      setMessageMediaLoading((prev) => ({ ...prev, [msgId]: true }));
+      setMessageMediaLoading((prev) => ({ ...prev, [cacheKey]: true }));
       try {
         // Media can be large/slow: align with proxy timeout (30s)
-        const res = await bridgeFetch(`/messages/media/${encodeURIComponent(msgId)}`, { method: 'GET' }, 35_000);
+        const res = await bridgeFetch(`/messages/media/${encodeURIComponent(bridgeId)}`, { method: 'GET' }, 35_000);
         if (!res.ok) {
           const err = await parseBridgeError(res);
           throw new Error(err);
@@ -340,7 +353,7 @@ function QRWhatsAppInboxPageContent() {
           // with a null URL so we don't try again soon.
           setMessageMediaCache((prev) => ({
             ...prev,
-            [msgId]: { dataUrl: '', mimetype, isMissing: true },
+            [cacheKey]: { dataUrl: '', mimetype, isMissing: true },
           }));
           return;
         }
@@ -349,7 +362,7 @@ function QRWhatsAppInboxPageContent() {
 
         setMessageMediaCache((prev) => ({
           ...prev,
-          [msgId]: {
+          [cacheKey]: {
             dataUrl,
             mimetype,
             filename: typeof data?.filename === 'string' ? data.filename : undefined,
@@ -357,14 +370,14 @@ function QRWhatsAppInboxPageContent() {
         }));
 
         // Clear any failure backoff once it succeeds
-        delete mediaFailuresRef.current[msgId];
+        delete mediaFailuresRef.current[cacheKey];
       } catch (e) {
-        const prevFail = mediaFailuresRef.current[msgId];
-        mediaFailuresRef.current[msgId] = {
+        const prevFail = mediaFailuresRef.current[cacheKey];
+        mediaFailuresRef.current[cacheKey] = {
           lastFailAt: Date.now(),
           failCount: (prevFail?.failCount || 0) + 1,
         };
-        console.warn('[media] failed to load message media:', msgId, e);
+        console.warn('[media] failed to load message media:', bridgeId, e);
 
         // Rate-limit toasts to avoid "console vibrating" during polling
         const toastCooldownMs = 15_000;
@@ -376,7 +389,7 @@ function QRWhatsAppInboxPageContent() {
       } finally {
         setMessageMediaLoading((prev) => {
           const next = { ...prev };
-          delete next[msgId];
+          delete next[cacheKey];
           return next;
         });
       }
@@ -1063,7 +1076,11 @@ function QRWhatsAppInboxPageContent() {
           const mimeType = msg.media?.mimeType || msg.mimeType || '';
           
           return {
-            id: msg._id || msg.waMessageId,
+            // Use waMessageId for media fetching (bridge needs WhatsApp ID, not MongoDB ID)
+            // Keep _id as fallback for display but waMessageId is required for bridge media calls
+            id: msg.waMessageId || msg._id,
+            _id: msg._id, // Store MongoDB ID separately for CRM operations
+            waMessageId: msg.waMessageId, // Store WhatsApp ID for bridge media calls
             body: msg.messageContent || '',
             timestamp: msg.sentAt ? new Date(msg.sentAt).getTime() : 0,
             from: isOutbound ? 'Me' : msg.phoneNumber,
@@ -1584,7 +1601,10 @@ function QRWhatsAppInboxPageContent() {
         try {
           const markReadRes = await fetch('/api/admin/crm/messages', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token && { 'Authorization': `Bearer ${token}` })
+            },
             body: JSON.stringify({ 
               action: 'markThreadAsRead', 
               ...(activeLeadId && { leadId: activeLeadId }),
