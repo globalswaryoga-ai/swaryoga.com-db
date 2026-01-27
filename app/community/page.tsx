@@ -55,6 +55,7 @@ function CommunityPageContent() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedCommunity, setSelectedCommunity] = useState('global');
   const [user, setUser] = useState<any>(null);
+  const [userMemberships, setUserMemberships] = useState<string[]>([]); // Communities user is a member of
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joiningCommunity, setJoiningCommunity] = useState<any>(null);
   const [joinFormData, setJoinFormData] = useState({ name: '', email: '', mobile: '' });
@@ -68,6 +69,10 @@ function CommunityPageContent() {
   const [chatLoading, setChatLoading] = useState(false);
   const [showChatOffModal, setShowChatOffModal] = useState(false);
   const [communities, setCommunities] = useState(COMMUNITIES);
+  
+  // Workshop Check Modal - shows when clicking on non-global communities
+  const [showWorkshopCheckModal, setShowWorkshopCheckModal] = useState(false);
+  const [pendingCommunity, setPendingCommunity] = useState<any>(null);
   const [postsError, setPostsError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [authChecked, setAuthChecked] = useState(false);
@@ -138,6 +143,13 @@ function CommunityPageContent() {
     checkUserAuth();
     fetchCommunityStats();
   }, []);
+
+  // Fetch user memberships when auth is checked
+  useEffect(() => {
+    if (authChecked) {
+      fetchUserMemberships();
+    }
+  }, [authChecked, user]);
 
   useEffect(() => {
     if (joinParam) {
@@ -219,6 +231,55 @@ function CommunityPageContent() {
       }
     }
     setAuthChecked(true);
+  };
+
+  // Fetch user's community memberships
+  const fetchUserMemberships = async () => {
+    const communityUserStr = localStorage.getItem('community_user');
+    if (communityUserStr) {
+      try {
+        const communityUser = JSON.parse(communityUserStr);
+        // Check membership for each community
+        const response = await fetch(`/api/community/membership/check?mobile=${encodeURIComponent(communityUser.mobile)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.memberships) {
+            setUserMemberships(data.memberships);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching memberships:', error);
+      }
+    }
+  };
+
+  // Handle community click - show workshop check for non-global/non-member communities
+  const handleCommunityClick = (community: any) => {
+    // If it's global community, just switch
+    if (community.id === 'global') {
+      setSelectedCommunity(community.id);
+      return;
+    }
+    
+    // If user is a member of this community, just switch
+    if (userMemberships.includes(community.id)) {
+      setSelectedCommunity(community.id);
+      return;
+    }
+    
+    // Otherwise, show the workshop check modal
+    setPendingCommunity(community);
+    setShowWorkshopCheckModal(true);
+  };
+
+  // Proceed to request access after workshop confirmation
+  const proceedToRequestAccess = () => {
+    setShowWorkshopCheckModal(false);
+    if (pendingCommunity) {
+      setSelectedCommunity(pendingCommunity.id);
+      setRequestingCommunity(pendingCommunity);
+      setShowRequestModal(true);
+    }
   };
 
   // Helper to get proxied URL for S3 images
@@ -736,23 +797,29 @@ function CommunityPageContent() {
                       {groupCommunities.map(design => {
                         const community = communities.find(c => c.id === design.id);
                         if (!community) return null;
+                        const isMember = userMemberships.includes(community.id) || community.id === 'global';
                         return (
                           <button
                             key={community.id}
                             onClick={() => {
-                              setSelectedCommunity(community.id);
+                              handleCommunityClick(community);
                               setMobileSidebarOpen(false);
                             }}
                             className={`w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200 active:scale-[0.98] ${
                               selectedCommunity === community.id
                                 ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md`
-                                : `${community.design.color.light} text-gray-700 hover:shadow-sm`
+                                : isMember 
+                                  ? `${community.design.color.light} text-gray-700 hover:shadow-sm`
+                                  : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                             }`}
                           >
                             <div className="flex items-center gap-2">
                               <community.design.icon size={16} className={selectedCommunity === community.id ? 'text-white' : community.design.color.main} />
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold truncate">{community.name}</p>
+                                <div className="flex items-center gap-1">
+                                  <p className="text-xs font-semibold truncate">{community.name}</p>
+                                  {!isMember && <span className="text-[8px] bg-orange-100 text-orange-600 px-1 rounded">🔒</span>}
+                                </div>
                                 <p className="text-[10px] opacity-75">{community.members} members</p>
                               </div>
                             </div>
@@ -845,69 +912,42 @@ function CommunityPageContent() {
                         {groupCommunities.map(design => {
                           const community = communities.find(c => c.id === design.id);
                           if (!community) return null;
+                          const isMember = userMemberships.includes(community.id) || community.id === 'global';
                           return (
                             <div key={community.id} className="space-y-2">
                               <button
-                                onClick={() => setSelectedCommunity(community.id)}
+                                onClick={() => handleCommunityClick(community)}
                                 className={`w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200 transform hover:scale-[1.01] active:scale-[0.98] ${
                                   selectedCommunity === community.id
                                     ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md`
-                                    : `${community.design.color.light} text-gray-700 hover:shadow-sm`
+                                    : isMember
+                                      ? `${community.design.color.light} text-gray-700 hover:shadow-sm`
+                                      : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-dashed border-gray-300'
                                 }`}
                               >
                                 <div className="flex items-center gap-2">
                                   <community.design.icon size={16} className={selectedCommunity === community.id ? 'text-white' : community.design.color.main} />
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold truncate">{community.name}</p>
+                                    <div className="flex items-center gap-1">
+                                      <p className="text-xs font-semibold truncate">{community.name}</p>
+                                      {!isMember && <span className="text-[8px] bg-orange-100 text-orange-600 px-1 rounded">🔒</span>}
+                                    </div>
                                     <p className="text-[10px] opacity-75">{community.members} members</p>
                                   </div>
                                 </div>
                               </button>
-                              {!user && selectedCommunity === community.id && (
+                              {/* Show action buttons when community is selected and user is not a member */}
+                              {selectedCommunity === community.id && !isMember && (
                                 <div className="space-y-2 pl-2">
-                                  {community.isPublic ? (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          setJoiningCommunity(community);
-                                          setShowJoinModal(true);
-                                        }}
-                                        className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
-                                      >
-                                        ✓ Join Now
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setJoiningCommunity(community);
-                                          setShowJoinModal(true);
-                                        }}
-                                        className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
-                                      >
-                                        🔄 Rejoin
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          setRequestingCommunity(community);
-                                          setShowRequestModal(true);
-                                        }}
-                                        className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
-                                      >
-                                        📋 Request Access
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setRequestingCommunity(community);
-                                          setShowRequestModal(true);
-                                        }}
-                                        className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
-                                      >
-                                        🔄 Rejoin Request
-                                      </button>
-                                    </>
-                                  )}
+                                  <button
+                                    onClick={() => {
+                                      setRequestingCommunity(community);
+                                      setShowRequestModal(true);
+                                    }}
+                                    className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
+                                  >
+                                    📋 Request to Join
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -958,52 +998,46 @@ function CommunityPageContent() {
                   <div className="mt-3 sm:mt-4 flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm font-semibold">
                     <span>👥 {currentCommunity?.members} members</span>
                     {currentCommunity?.isPublic && <span className="bg-white/30 px-3 sm:px-4 py-1 rounded-full">🌐 Public</span>}
+                    {/* Show membership status */}
+                    {currentCommunity && userMemberships.includes(currentCommunity.id) && (
+                      <span className="bg-green-500/40 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1">
+                        ✓ Member
+                      </span>
+                    )}
+                    {currentCommunity && !userMemberships.includes(currentCommunity.id) && currentCommunity.id !== 'global' && (
+                      <span className="bg-orange-500/40 px-3 sm:px-4 py-1 rounded-full flex items-center gap-1">
+                        🔒 Locked
+                      </span>
+                    )}
                   </div>
                 </div>
-                {!user && (
+                {/* Show join/request buttons based on membership */}
+                {currentCommunity && !userMemberships.includes(currentCommunity.id) && currentCommunity.id !== 'global' && (
                   <div className="flex gap-2 sm:gap-3 flex-row sm:flex-col">
-                    {currentCommunity?.isPublic ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            setJoiningCommunity(currentCommunity);
-                            setShowJoinModal(true);
-                          }}
-                          className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
-                        >
-                          + Join
-                        </button>
-                        <button
-                          onClick={() => {
-                            setJoiningCommunity(currentCommunity);
-                            setShowJoinModal(true);
-                          }}
-                          className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
-                        >
-                          🔄 Rejoin
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => {
-                            setRequestingCommunity(currentCommunity);
-                            setShowRequestModal(true);
-                          }}
-                          className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
-                        >
-                          📋 Request
-                        </button>
-                        <button
-                          onClick={() => {
-                            setRequestingCommunity(currentCommunity);
-                            setShowRequestModal(true);
-                          }}
-                          className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
-                        >
-                          🔄 Rejoin
-                        </button>
-                      </>
+                    <button
+                      onClick={() => {
+                        setRequestingCommunity(currentCommunity);
+                        setShowRequestModal(true);
+                      }}
+                      className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
+                    >
+                      📋 Request to Join
+                    </button>
+                  </div>
+                )}
+                {/* Show action buttons for members */}
+                {currentCommunity && (userMemberships.includes(currentCommunity.id) || currentCommunity.id === 'global') && (
+                  <div className="flex gap-2 sm:gap-3 flex-row sm:flex-col">
+                    {currentCommunity.id === 'global' && !user && (
+                      <button
+                        onClick={() => {
+                          setJoiningCommunity(currentCommunity);
+                          setShowJoinModal(true);
+                        }}
+                        className="flex-1 sm:flex-none px-4 sm:px-8 py-3 sm:py-4 bg-white text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-lg text-sm sm:text-lg"
+                      >
+                        + Join Community
+                      </button>
                     )}
                   </div>
                 )}
@@ -1485,6 +1519,81 @@ function CommunityPageContent() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workshop Check Modal - Shows when clicking on non-global communities */}
+      {showWorkshopCheckModal && pendingCommunity && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white border-2 border-orange-400 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
+            {/* Modal Header */}
+            <div className={`bg-gradient-to-r ${pendingCommunity.design.color.gradient} p-6 text-white text-left`}>
+              <div className="flex items-center gap-4">
+                <div className="bg-white/20 p-4 rounded-2xl shadow-inner">
+                  <pendingCommunity.design.icon size={32} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">{pendingCommunity.name}</h2>
+                  <p className="text-sm opacity-90">Exclusive Community Access</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">🎯</span>
+                  <div>
+                    <h3 className="font-bold text-orange-800 mb-1">Workshop Completion Required</h3>
+                    <p className="text-sm text-orange-700">
+                      This community is for members who have completed the <strong>{pendingCommunity.name}</strong> workshop.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2">
+                  <span>❓</span> Have you completed this workshop?
+                </h4>
+                <p className="text-sm text-blue-700">
+                  If yes, you can request to join this community. Our team will verify your workshop completion and approve your membership.
+                </p>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2">
+                  <span>✨</span> Benefits of joining
+                </h4>
+                <ul className="text-sm text-green-700 space-y-1">
+                  <li>• Access to exclusive workshop recordings</li>
+                  <li>• Connect with fellow participants</li>
+                  <li>• Get updates and follow-up content</li>
+                  <li>• Direct support from instructors</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-4 bg-gray-50 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowWorkshopCheckModal(false);
+                  setPendingCommunity(null);
+                }}
+                className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-100 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={proceedToRequestAccess}
+                className="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg"
+              >
+                ✓ Yes, Request Access
+              </button>
             </div>
           </div>
         </div>
