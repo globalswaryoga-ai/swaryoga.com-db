@@ -123,11 +123,15 @@ export async function POST(req: NextRequest) {
       
       const lead = await Lead.findOne({ phoneNumber: phone });
 
+      // For media without caption, use a descriptive placeholder
+      const mediaLabel = type === 'image' ? '📷 Image' : type === 'video' ? '🎬 Video' : type === 'audio' ? '🎵 Audio' : type === 'document' ? '📄 Document' : '📎 Media';
+      const contentToStore = message || caption || (url ? mediaLabel : 'Message');
+
       const savedMessage = await WhatsAppMessage.create({
         phoneNumber: phone || 'unknown',
         leadId: lead?._id || leadId,
         direction: 'outbound',
-        messageContent: message || `Sent ${type || 'media'}`,
+        messageContent: contentToStore,
         messageType: type === 'buttons' ? 'interactive' : (type === 'text' ? 'text' : 'media'),
         media: url ? { kind: type, url: url } : undefined,
         status: 'pending', // Mark as pending initially

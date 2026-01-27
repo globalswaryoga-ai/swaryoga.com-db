@@ -105,8 +105,14 @@ export async function POST(req: NextRequest) {
 
     const { from, to, body: messageBody, timestamp, type, hasMedia, messageId, contactName } = body;
 
-    if (!from || !messageBody) {
-      return NextResponse.json({ success: true, skipped: true, reason: 'no_from_or_body' });
+    // Skip if no sender - but allow empty body for media messages
+    if (!from) {
+      return NextResponse.json({ success: true, skipped: true, reason: 'no_from' });
+    }
+    
+    // Skip if no body AND no media (nothing to save)
+    if (!messageBody && !hasMedia) {
+      return NextResponse.json({ success: true, skipped: true, reason: 'no_body_or_media' });
     }
 
     // Skip status broadcasts
@@ -172,12 +178,16 @@ export async function POST(req: NextRequest) {
     // Determine the message type
     const mappedType = mapMessageType(type || 'text');
     
+    // For media without caption, use a descriptive placeholder
+    const mediaLabel = type === 'image' ? '📷 Image' : type === 'video' ? '🎬 Video' : type === 'audio' ? '🎵 Audio' : type === 'document' ? '📄 Document' : type === 'sticker' ? '🎨 Sticker' : '📎 Media';
+    const contentToStore = messageBody || (hasMedia ? mediaLabel : '');
+    
     // Save the incoming message
     const savedMessage = await WhatsAppMessage.create({
       phoneNumber,
       leadId: lead._id,
       direction: 'inbound',
-      messageContent: messageBody,
+      messageContent: contentToStore,
       messageType: mappedType,
       hasMedia: hasMedia || false,
       // Store media info if available
