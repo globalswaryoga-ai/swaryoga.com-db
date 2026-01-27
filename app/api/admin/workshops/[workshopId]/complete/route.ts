@@ -14,7 +14,8 @@ export async function POST(
   { params }: { params: Promise<{ workshopId: string }> }
 ) {
   try {
-    const decoded = await verifyToken(request);
+    const authHeader = request.headers.get('authorization') || undefined;
+    const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }

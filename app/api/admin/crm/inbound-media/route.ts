@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import connectDB from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
 

@@ -15,7 +15,8 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    const decoded = await verifyToken(request);
+    const authHeader = request.headers.get('authorization') || undefined;
+    const decoded = verifyToken(authHeader);
     if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     // Add member counts
     const enrichedCommunities = await Promise.all(
-      communities.map(async (community) => {
+      communities.map(async (community: any) => {
         const memberCount = await CommunityMembership.countDocuments({
           communityId: community._id.toString(),
           status: 'active',
@@ -83,7 +84,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const decoded = await verifyToken(request);
+    const authHeader = request.headers.get('authorization') || undefined;
+    const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }

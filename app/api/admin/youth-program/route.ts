@@ -15,7 +15,8 @@ const YOUTH_MEETING_ID = '83376917306';
 
 export async function GET(request: NextRequest) {
   try {
-    const decoded = await verifyToken(request);
+    const authHeader = request.headers.get('authorization') || undefined;
+    const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
@@ -69,7 +70,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const decoded = await verifyToken(request);
+    const authHeader = request.headers.get('authorization') || undefined;
+    const decoded = verifyToken(authHeader);
     if (!decoded?.isAdmin) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }

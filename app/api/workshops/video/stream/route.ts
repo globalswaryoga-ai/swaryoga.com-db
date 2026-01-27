@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import connectDB from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { getWorkshopVideo, getVideoAccessLog, getUserDevice, getBatch } from '@/lib/schemas/workshopSchemas';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';

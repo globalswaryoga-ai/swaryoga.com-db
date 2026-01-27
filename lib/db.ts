@@ -1438,3 +1438,5 @@ mediaPostSchema.index({ category: 1, publishedAt: -1 });
 mediaPostSchema.index({ featured: 1, publishedAt: -1 });
 
 export const MediaPost = mongoose.models.MediaPost || mongoose.model('MediaPost', mediaPostSchema);
+// Default export for backward compatibility
+export default connectDB;

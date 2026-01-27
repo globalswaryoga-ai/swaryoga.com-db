@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import connectDB from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { getWorkshopVideo, getVideoAccessLog } from '@/lib/schemas/workshopSchemas';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import mongoose from 'mongoose';

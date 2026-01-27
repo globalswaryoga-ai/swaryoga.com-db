@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import connectDB from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { getUserDevice } from '@/lib/schemas/workshopSchemas';
 import mongoose from 'mongoose';
 

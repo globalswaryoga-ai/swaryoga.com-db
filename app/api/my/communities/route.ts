@@ -12,7 +12,8 @@ import { getUserCommunities, getUserRecordings } from '@/lib/community-manager';
 
 export async function GET(request: NextRequest) {
   try {
-    const decoded = await verifyToken(request);
+    const authHeader = request.headers.get('authorization') || undefined;
+    const decoded = verifyToken(authHeader);
     if (!decoded) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -22,8 +23,13 @@ export async function GET(request: NextRequest) {
     const batchId = searchParams.get('batchId') || undefined;
     const workshopId = searchParams.get('workshopId') || undefined;
 
+    const userId = decoded.userId || decoded.username || '';
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID not found in token' }, { status: 400 });
+    }
+
     // Get user's communities
-    const communities = await getUserCommunities(decoded.userId);
+    const communities = await getUserCommunities(userId);
 
     const response: {
       success: boolean;
@@ -65,10 +71,11 @@ export async function GET(request: NextRequest) {
 
     // Include recordings if requested
     if (includeRecordings) {
-      const recordings = await getUserRecordings(decoded.userId, {
-        batchId,
-        workshopId,
-      });
+      const recordingOptions: { batchId?: string; workshopId?: string } = {};
+      if (batchId) recordingOptions.batchId = batchId;
+      if (workshopId) recordingOptions.workshopId = workshopId;
+      
+      const recordings = await getUserRecordings(userId, recordingOptions);
 
       response.recordings = {
         common: recordings.common.map(r => ({
