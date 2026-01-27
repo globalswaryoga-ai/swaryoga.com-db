@@ -17,6 +17,10 @@ interface Transformation {
   communityId: string;
   featured: boolean;
   createdAt: string;
+  // For posts converted to transformations
+  isPost?: boolean;
+  content?: string;
+  images?: string[];
 }
 
 const communities = [
@@ -62,11 +66,39 @@ export default function TransformationsPage() {
       if (selectedCommunity !== 'global') {
         params.set('communityId', selectedCommunity);
       }
-      const res = await fetch(`/api/community/transformations?${params}`);
-      const data = await res.json();
-      if (data.success) {
-        setTransformations(data.transformations || []);
-        setStats(data.stats);
+      
+      // Fetch both transformations collection AND posts with category='transformations'
+      const [transRes, postsRes] = await Promise.all([
+        fetch(`/api/community/transformations?${params}`),
+        fetch(`/api/community/posts?category=transformations${selectedCommunity !== 'global' ? `&communityId=${selectedCommunity}` : ''}`)
+      ]);
+      
+      const transData = await transRes.json();
+      const postsData = await postsRes.json();
+      
+      // Convert posts to transformation format
+      const postsAsTransformations: Transformation[] = (postsData.posts || []).map((post: any) => ({
+        _id: post._id,
+        userName: post.userName || post.userId || 'Community Member',
+        title: post.content?.substring(0, 50) || 'Transformation Story',
+        story: post.content,
+        content: post.content,
+        beforePhoto: post.images?.[0],
+        afterPhoto: post.images?.[1],
+        communityId: post.communityId || 'global',
+        featured: false,
+        createdAt: post.createdAt,
+        isPost: true,
+        images: post.images
+      }));
+      
+      // Merge and sort
+      const allTransformations = [...(transData.transformations || []), ...postsAsTransformations]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      if (transData.success) {
+        setTransformations(allTransformations);
+        setStats(transData.stats);
       }
     } catch (error) {
       console.error('Failed to fetch transformations:', error);

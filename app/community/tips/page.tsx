@@ -12,6 +12,10 @@ interface Tip {
   featured: boolean;
   answeredAt?: string;
   createdAt: string;
+  // For posts converted to tips
+  isPost?: boolean;
+  content?: string;
+  images?: string[];
 }
 
 const categories = [
@@ -52,10 +56,35 @@ export default function TipsPage() {
       if (selectedCategory !== 'all') params.set('category', selectedCategory);
       if (searchTerm) params.set('search', searchTerm);
       
-      const res = await fetch(`/api/community/tips?${params}`);
-      const data = await res.json();
-      if (data.success) {
-        setTips(data.tips || []);
+      // Fetch both tips collection AND posts with category='tips'
+      const [tipsRes, postsRes] = await Promise.all([
+        fetch(`/api/community/tips?${params}`),
+        fetch(`/api/community/posts?category=tips`)
+      ]);
+      
+      const tipsData = await tipsRes.json();
+      const postsData = await postsRes.json();
+      
+      // Convert posts to tip format
+      const postsAsTips: Tip[] = (postsData.posts || []).map((post: any) => ({
+        _id: post._id,
+        userName: post.userName || post.userId || 'Swar Yoga',
+        issue: post.content?.substring(0, 100) + '...',
+        tip: post.content,
+        content: post.content,
+        category: 'general',
+        featured: false,
+        createdAt: post.createdAt,
+        isPost: true,
+        images: post.images
+      }));
+      
+      // Merge and sort
+      const allTips = [...(tipsData.tips || []), ...postsAsTips]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      if (tipsData.success) {
+        setTips(allTips);
       }
     } catch (error) {
       console.error('Failed to fetch tips:', error);

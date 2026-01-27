@@ -12,6 +12,10 @@ interface Experience {
   communityId: string;
   featured: boolean;
   createdAt: string;
+  // For posts converted to experiences
+  isPost?: boolean;
+  images?: string[];
+  userId?: string;
 }
 
 interface Stats {
@@ -58,11 +62,38 @@ export default function ExperiencesPage() {
       if (selectedCommunity !== 'global') {
         params.set('communityId', selectedCommunity);
       }
-      const res = await fetch(`/api/community/experiences?${params}`);
-      const data = await res.json();
-      if (data.success) {
-        setExperiences(data.experiences || []);
-        setStats(data.stats);
+      
+      // Fetch both experiences collection AND posts with category='experiences'
+      const [expRes, postsRes] = await Promise.all([
+        fetch(`/api/community/experiences?${params}`),
+        fetch(`/api/community/posts?category=experiences${selectedCommunity !== 'global' ? `&communityId=${selectedCommunity}` : ''}`)
+      ]);
+      
+      const expData = await expRes.json();
+      const postsData = await postsRes.json();
+      
+      // Convert posts to experience format
+      const postsAsExperiences: Experience[] = (postsData.posts || []).map((post: any) => ({
+        _id: post._id,
+        userName: post.userName || post.userId || 'Community Member',
+        content: post.content,
+        rating: 5, // Default rating for posts
+        photoUrl: post.images?.[0],
+        images: post.images,
+        communityId: post.communityId || 'global',
+        featured: false,
+        createdAt: post.createdAt,
+        isPost: true,
+        userId: post.userId
+      }));
+      
+      // Merge and sort by date
+      const allExperiences = [...(expData.experiences || []), ...postsAsExperiences]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      if (expData.success) {
+        setExperiences(allExperiences);
+        setStats(expData.stats);
       }
     } catch (error) {
       console.error('Failed to fetch experiences:', error);

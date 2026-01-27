@@ -12,6 +12,10 @@ interface Question {
   featured: boolean;
   answeredAt?: string;
   createdAt: string;
+  // For posts converted to questions
+  isPost?: boolean;
+  content?: string;
+  images?: string[];
 }
 
 const categories = [
@@ -52,10 +56,34 @@ export default function QuestionsPage() {
       if (selectedCategory !== 'all') params.set('category', selectedCategory);
       if (searchTerm) params.set('search', searchTerm);
       
-      const res = await fetch(`/api/community/questions?${params}`);
-      const data = await res.json();
-      if (data.success) {
-        setQuestions(data.questions || []);
+      // Fetch both questions collection AND posts with category='questions'
+      const [questionsRes, postsRes] = await Promise.all([
+        fetch(`/api/community/questions?${params}`),
+        fetch(`/api/community/posts?category=questions`)
+      ]);
+      
+      const questionsData = await questionsRes.json();
+      const postsData = await postsRes.json();
+      
+      // Convert posts to question format
+      const postsAsQuestions: Question[] = (postsData.posts || []).map((post: any) => ({
+        _id: post._id,
+        userName: post.userName || post.userId || 'Community Member',
+        question: post.content,
+        content: post.content,
+        category: 'general',
+        featured: false,
+        createdAt: post.createdAt,
+        isPost: true,
+        images: post.images
+      }));
+      
+      // Merge and sort
+      const allQuestions = [...(questionsData.questions || []), ...postsAsQuestions]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      if (questionsData.success) {
+        setQuestions(allQuestions);
       }
     } catch (error) {
       console.error('Failed to fetch questions:', error);
