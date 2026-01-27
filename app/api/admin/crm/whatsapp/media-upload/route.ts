@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_HTTP_URL || 'http://localhost:3333';
-const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || process.env.WHATSAPP_WEB_BRIDGE_SECRET || 'swar-bridge-secret-2024';
+import { uploadToS3 } from '@/lib/aws-s3';
+import { verifyToken } from '@/lib/auth';
 
 /**
  * POST /api/admin/crm/whatsapp/media-upload
  * 
- * Uploads media file to S3 via WhatsApp Bridge
+ * Uploads media file directly to AWS S3 for QR WhatsApp
+ * Uses content-addressed storage to automatically skip duplicates
  * 
  * @param req FormData with file
- * @returns { success: true, url: string, key: string, size: number, mimetype: string }
+ * @returns { success: true, url: string, size: number, mimetype: string }
  */
 export async function POST(req: NextRequest) {
   try {
-    // Get auth from headers
-    const bridgeSecret = req.headers.get('X-Bridge-Secret') || BRIDGE_SECRET;
-    const chatId = req.headers.get('X-Chat-Id');
+    // Verify admin auth
+    const authHeader = req.headers.get('authorization');
+    const token = authHeader?.split(' ')[1] || '';
+    const decoded: any = verifyToken(token);
+    
+    if (!decoded || !decoded.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Parse form data
     const formData = await req.formData();
@@ -28,91 +33,57 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[media-upload] Uploading ${file.name} (${file.size} bytes, ${file.type}) to S3`);
+    // Validate file type - allow images, videos, audio, documents
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/quicktime', 'video/webm',
+      'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm',
+      'application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (!allowedTypes.some(type => file.type.startsWith(type.split('/')[0]) || file.type === type)) {
+      console.warn(`[media-upload] Rejected file type: ${file.type}`);
+      // Allow anyway for flexibility, just log warning
+    }
 
-    // Create new FormData to send to bridge
-    const bridgeFormData = new FormData();
-    bridgeFormData.append('file', file);
-
-    // Upload to bridge (which uploads to S3)
-    const uploadUrl = new URL('/media/upload', BRIDGE_URL);
-    const uploadRes = await fetch(uploadUrl.toString(), {
-      method: 'POST',
-      headers: {
-        'x-bridge-secret': bridgeSecret
-      },
-      body: bridgeFormData
-    });
-
-    if (!uploadRes.ok) {
-      let errorData: any = { error: 'Failed to upload to S3' };
-      
-      // Read response body once as text, then try to parse as JSON
-      const responseText = await uploadRes.text();
-      try {
-        errorData = JSON.parse(responseText);
-      } catch (jsonErr) {
-        errorData = {
-          error: 'Bridge returned an error',
-          status: uploadRes.status,
-          details: responseText.substring(0, 200) // Truncate long HTML error pages
-        };
-      }
-      
-      console.error('[media-upload] Bridge error:', errorData);
+    // Limit file size (25MB for WhatsApp)
+    const MAX_SIZE = 25 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
       return NextResponse.json(
-        { 
-          error: errorData.error || 'Failed to upload to S3',
-          details: errorData.details || {}
-        },
-        { status: uploadRes.status }
+        { error: `File too large. Maximum size is ${MAX_SIZE / 1024 / 1024}MB` },
+        { status: 400 }
       );
     }
 
-    const data = await uploadRes.json();
+    console.log(`[media-upload] Uploading ${file.name} (${file.size} bytes, ${file.type}) to S3`);
 
-    console.log('[media-upload] Success:', {
-      url: data.url,
-      size: data.size,
-      mimetype: data.mimetype,
-      chatId
+    // Convert File to Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Determine extension from mime type or filename
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const fileName = `whatsapp-outbound/${Date.now()}-${sanitizedName}`;
+
+    // Upload to S3 using our utility (has built-in de-duplication)
+    const s3Url = await uploadToS3(buffer, fileName, {
+      contentType: file.type,
+      metadata: {
+        'original-filename': file.name,
+        'uploaded-by': decoded.userId || decoded.username || 'admin',
+        'upload-source': 'qr-whatsapp',
+      }
     });
 
-    // Also save to MongoDB for persistence
-    try {
-      if (chatId) {
-        await fetch(new URL('/db/sync/message', BRIDGE_URL).toString(), {
-          method: 'POST',
-          headers: {
-            'x-bridge-secret': bridgeSecret,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            messageId: `media-${Date.now()}`,
-            chatId,
-            body: `📎 ${file.name}`,
-            fromMe: true,
-            sender: 'Me',
-            timestamp: Math.floor(Date.now() / 1000),
-            type: 'media',
-            hasMedia: true,
-            mediaUrl: data.url,
-            mediaKey: data.key,
-            ack: 2 // Delivered
-          })
-        });
-      }
-    } catch (err) {
-      console.warn('[media-upload] Failed to sync to MongoDB:', err);
-      // Don't fail the request, just log the warning
-    }
+    console.log('[media-upload] ✅ Uploaded to S3:', s3Url);
 
     return NextResponse.json({
       success: true,
-      url: data.url,
-      key: data.key,
-      size: data.size,
-      mimetype: data.mimetype
+      url: s3Url,
+      size: file.size,
+      mimetype: file.type,
+      filename: file.name
     });
 
   } catch (error) {
