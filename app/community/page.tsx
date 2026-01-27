@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home, AlertCircle, ExternalLink, Menu, X } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home, AlertCircle, ExternalLink, Menu, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { COMMUNITY_DESIGNS, CommunityDesign } from '@/lib/communityColorSystem';
+import { COMMUNITY_DESIGNS, CommunityDesign, COMMUNITY_GROUPS, getGroupedCommunities } from '@/lib/communityColorSystem';
 
 interface Post {
   _id: string;
@@ -31,6 +31,7 @@ interface Community {
   members: number;
   isPublic: boolean;
   design: CommunityDesign;
+  category?: string;
 }
 
 const COMMUNITIES: Community[] = COMMUNITY_DESIGNS.map(design => ({
@@ -39,7 +40,8 @@ const COMMUNITIES: Community[] = COMMUNITY_DESIGNS.map(design => ({
   description: design.description,
   members: design.members || 0,
   isPublic: design.isPublic || false,
-  design
+  design,
+  category: design.category
 }));
 
 function CommunityPageContent() {
@@ -87,6 +89,24 @@ function CommunityPageContent() {
 
   // Mobile sidebar state
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Expanded groups state for dropdown
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    'common': true, // Common is expanded by default
+    'health': false,
+    'married-life': false,
+    'youth': false,
+    'children': false,
+    'yogasana': false,
+  });
+
+  // Toggle group expansion
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  // Get grouped communities
+  const groupedCommunities = getGroupedCommunities();
 
   // Close sidebar when route changes
   useEffect(() => {
@@ -689,29 +709,59 @@ function CommunityPageContent() {
               </div>
             )}
 
-            {/* Communities List - Mobile */}
-            <div className="space-y-2">
-              {communities.map(community => (
-                <button
-                  key={community.id}
-                  onClick={() => {
-                    setSelectedCommunity(community.id);
-                    setMobileSidebarOpen(false);
-                  }}
-                  className={`w-full text-left px-4 py-3.5 rounded-xl transition-all duration-200 active:scale-[0.98] ${
-                    selectedCommunity === community.id
-                      ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md`
-                      : `${community.design.color.light} text-gray-700 border hover:shadow-sm`
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <community.design.icon size={20} className={selectedCommunity === community.id ? 'text-white' : community.design.color.main} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{community.name}</p>
-                      <p className="text-xs opacity-75">{community.members} members</p>
+            {/* Communities List - Mobile - Grouped */}
+            <div className="space-y-3">
+              {groupedCommunities.map(({ group, communities: groupCommunities }) => (
+                <div key={group.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                  {/* Group Header */}
+                  <button
+                    onClick={() => toggleGroup(group.id)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <group.icon size={18} className="text-gray-600" />
+                      <span className="font-semibold text-gray-800 text-sm">{group.name}</span>
+                      <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{groupCommunities.length}</span>
                     </div>
-                  </div>
-                </button>
+                    {expandedGroups[group.id] ? (
+                      <ChevronDown size={18} className="text-gray-500" />
+                    ) : (
+                      <ChevronRight size={18} className="text-gray-500" />
+                    )}
+                  </button>
+                  
+                  {/* Group Communities */}
+                  {expandedGroups[group.id] && (
+                    <div className="p-2 space-y-1 bg-white">
+                      {groupCommunities.map(design => {
+                        const community = communities.find(c => c.id === design.id);
+                        if (!community) return null;
+                        return (
+                          <button
+                            key={community.id}
+                            onClick={() => {
+                              setSelectedCommunity(community.id);
+                              setMobileSidebarOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200 active:scale-[0.98] ${
+                              selectedCommunity === community.id
+                                ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md`
+                                : `${community.design.color.light} text-gray-700 hover:shadow-sm`
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <community.design.icon size={16} className={selectedCommunity === community.id ? 'text-white' : community.design.color.main} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold truncate">{community.name}</p>
+                                <p className="text-[10px] opacity-75">{community.members} members</p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
 
@@ -763,76 +813,106 @@ function CommunityPageContent() {
               </div>
             )}
 
-            {/* Communities Section */}
+            {/* Communities Section - Desktop Grouped */}
             <div className="bg-white border border-green-200 rounded-2xl p-6 mb-8 shadow-sm hover:shadow-md transition-all duration-300">
               <h3 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-3">
                 <Users size={20} className="text-green-600" />
                 Communities
               </h3>
               <div className="space-y-3">
-                {communities.map(community => (
-                  <div key={community.id} className="space-y-2">
+                {groupedCommunities.map(({ group, communities: groupCommunities }) => (
+                  <div key={group.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                    {/* Group Header */}
                     <button
-                      onClick={() => setSelectedCommunity(community.id)}
-                      className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-sm ${
-                        selectedCommunity === community.id
-                          ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md hover:shadow-lg`
-                          : `${community.design.color.light} text-gray-700 border hover:border-opacity-100 hover:bg-opacity-100 transition-colors`
-                      }`}
+                      onClick={() => toggleGroup(group.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
-                        <community.design.icon size={20} className={selectedCommunity === community.id ? 'text-white' : community.design.color.main} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate">{community.name}</p>
-                          <p className="text-xs opacity-75 font-medium">{community.members} members</p>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <group.icon size={18} className="text-gray-600" />
+                        <span className="font-semibold text-gray-800 text-sm">{group.name}</span>
+                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{groupCommunities.length}</span>
                       </div>
+                      {expandedGroups[group.id] ? (
+                        <ChevronDown size={18} className="text-gray-500" />
+                      ) : (
+                        <ChevronRight size={18} className="text-gray-500" />
+                      )}
                     </button>
-                    {!user && selectedCommunity === community.id && (
-                      <div className="space-y-2">
-                        {community.isPublic ? (
-                          <>
-                            <button
-                              onClick={() => {
-                                setJoiningCommunity(community);
-                                setShowJoinModal(true);
-                              }}
-                              className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
-                            >
-                              ✓ Join Now
-                            </button>
-                            <button
-                              onClick={() => {
-                                setJoiningCommunity(community);
-                                setShowJoinModal(true);
-                              }}
-                              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
-                            >
-                              🔄 Rejoin
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => {
-                                setRequestingCommunity(community);
-                                setShowRequestModal(true);
-                              }}
-                              className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
-                            >
-                              📋 Request Access
-                            </button>
-                            <button
-                              onClick={() => {
-                                setRequestingCommunity(community);
-                                setShowRequestModal(true);
-                              }}
-                              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
-                            >
-                              🔄 Rejoin Request
-                            </button>
-                          </>
-                        )}
+                    
+                    {/* Group Communities */}
+                    {expandedGroups[group.id] && (
+                      <div className="p-2 space-y-1 bg-white">
+                        {groupCommunities.map(design => {
+                          const community = communities.find(c => c.id === design.id);
+                          if (!community) return null;
+                          return (
+                            <div key={community.id} className="space-y-2">
+                              <button
+                                onClick={() => setSelectedCommunity(community.id)}
+                                className={`w-full text-left px-3 py-2.5 rounded-lg transition-all duration-200 transform hover:scale-[1.01] active:scale-[0.98] ${
+                                  selectedCommunity === community.id
+                                    ? `bg-gradient-to-r ${community.design.color.dark} text-white font-semibold shadow-md`
+                                    : `${community.design.color.light} text-gray-700 hover:shadow-sm`
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <community.design.icon size={16} className={selectedCommunity === community.id ? 'text-white' : community.design.color.main} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold truncate">{community.name}</p>
+                                    <p className="text-[10px] opacity-75">{community.members} members</p>
+                                  </div>
+                                </div>
+                              </button>
+                              {!user && selectedCommunity === community.id && (
+                                <div className="space-y-2 pl-2">
+                                  {community.isPublic ? (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setJoiningCommunity(community);
+                                          setShowJoinModal(true);
+                                        }}
+                                        className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
+                                      >
+                                        ✓ Join Now
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setJoiningCommunity(community);
+                                          setShowJoinModal(true);
+                                        }}
+                                        className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
+                                      >
+                                        🔄 Rejoin
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setRequestingCommunity(community);
+                                          setShowRequestModal(true);
+                                        }}
+                                        className="w-full px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
+                                      >
+                                        📋 Request Access
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setRequestingCommunity(community);
+                                          setShowRequestModal(true);
+                                        }}
+                                        className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all duration-200 active:scale-[0.98] shadow-md"
+                                      >
+                                        🔄 Rejoin Request
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
