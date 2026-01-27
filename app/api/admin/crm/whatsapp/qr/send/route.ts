@@ -61,21 +61,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ACCESS CONTROL: If leadId provided, check if admin is assigned
-    if (leadId && !superAdmin) {
+    // Extract phone number from `to` for access control check
+    const phoneForCheck = typeof to === 'string' ? to.split('@')[0].replace(/\D/g, '') : '';
+
+    // ACCESS CONTROL: Non-super admins can only message leads assigned to them
+    if (!superAdmin) {
       await connectDB();
       const Lead = getLead();
-      const lead = await Lead.findById(leadId);
+      
+      // Find lead by leadId or phone number
+      let lead = null;
+      if (leadId) {
+        lead = await Lead.findById(leadId);
+      } else if (phoneForCheck && phoneForCheck.length >= 10) {
+        lead = await Lead.findOne({ phoneNumber: phoneForCheck });
+      }
       
       if (lead) {
         const assignedTo = String(lead.assignedToUserId || '').trim();
+        // If lead is assigned to someone else, block the message
         if (assignedTo && assignedTo !== viewerUserId) {
+          console.log(`[QR SEND] Access denied: ${viewerUserId} tried to message lead assigned to ${assignedTo}`);
           return NextResponse.json({
             success: false,
-            error: `Forbidden: You can only message leads assigned to you`
+            error: `This lead is assigned to another user. You can only message leads assigned to you.`
           }, { status: 403 });
         }
+        // If lead is unassigned, allow (first-come-first-served or auto-assign could happen)
       }
+      // If no lead found, allow (new contact)
     }
 
     // We append the admin name to the outgoing message so it's clear who sent it

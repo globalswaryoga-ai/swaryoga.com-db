@@ -239,24 +239,32 @@ export async function GET(request: NextRequest) {
     pipeline.push({ $unwind: { path: '$lead', preserveNullAndEmptyArrays: true } });
 
     // Access control (3-tier):
-    // - Super admin: can see all conversations
+    // - Super admin: can see all conversations (both Meta and QR)
     // - Manager (MR Admin): can see conversations for leads assigned to them OR their team
     // - Regular admin: can ONLY see conversations for leads assigned to them
-    // NOTE: QR provider shows ALL conversations (no access control) since it's the personal WhatsApp
-    if (visibleUserIds !== null && providerParam !== 'qr') {
-      // Not super admin - apply user filter (but not for QR inbox)
+    // This now applies to BOTH Meta and QR inboxes
+    if (visibleUserIds !== null) {
+      // Not super admin - apply user filter
       if (visibleUserIds.length === 1) {
-        // Regular admin: only their own leads
+        // Regular admin: only their own leads (assigned to them or unassigned)
         pipeline.push({
           $match: {
-            'lead.assignedToUserId': visibleUserIds[0],
+            $or: [
+              { 'lead.assignedToUserId': visibleUserIds[0] },
+              { 'lead.assignedToUserId': { $in: [null, '', undefined] } }, // Unassigned leads visible to all
+              { 'lead.assignedToUserId': { $exists: false } },
+            ]
           },
         });
       } else {
-        // Manager: can see their team's leads
+        // Manager: can see their team's leads + unassigned
         pipeline.push({
           $match: {
-            'lead.assignedToUserId': { $in: visibleUserIds },
+            $or: [
+              { 'lead.assignedToUserId': { $in: visibleUserIds } },
+              { 'lead.assignedToUserId': { $in: [null, '', undefined] } },
+              { 'lead.assignedToUserId': { $exists: false } },
+            ]
           },
         });
       }

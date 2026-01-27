@@ -92,6 +92,7 @@ export default function LeadsPage() {
   const [leadsForBroadcast, setLeadsForBroadcast] = useState<Lead[]>([]);
 
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [viewerUserId, setViewerUserId] = useState<string>('');
   const [userFilter, setUserFilter] = useState<string>('');
   const [userOptions, setUserOptions] = useState<AdminUserOption[]>([]);
 
@@ -127,6 +128,7 @@ export default function LeadsPage() {
     try {
       const u = JSON.parse(userStr);
       const perms: string[] = Array.isArray(u?.permissions) ? u.permissions : [];
+      setViewerUserId(u?.userId || '');
       setIsSuperAdmin((u?.userId === 'admin' || u?.userId === 'admincrm') || perms.includes('all'));
     } catch {
       setIsSuperAdmin(false);
@@ -498,7 +500,14 @@ export default function LeadsPage() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (_: any, lead: Lead) => (
+      render: (_: any, lead: Lead) => {
+        // Check if current user can message this lead
+        const canMessage = isSuperAdmin || 
+          !lead.assignedToUserId || 
+          lead.assignedToUserId === viewerUserId ||
+          lead.assignedToUserId === '';
+        
+        return (
         <div className="flex gap-2 items-center relative">
           <button
             onClick={() => router.push(`/admin/crm/leads/${lead._id}`)}
@@ -508,14 +517,25 @@ export default function LeadsPage() {
             View
           </button>
 
-          <button
-            onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}&name=${encodeURIComponent(lead.name || '')}`)}  
-            className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-            title="Open QR WhatsApp"
-          >
-            <span aria-hidden>🟢</span>
-            WhatsApp
-          </button>
+          {canMessage ? (
+            <button
+              onClick={() => router.push(`/admin/crm/qr?leadId=${encodeURIComponent(lead._id)}&phone=${encodeURIComponent(lead.phoneNumber || '')}&name=${encodeURIComponent(lead.name || '')}`)}  
+              className="px-3 py-1.5 bg-[#E8A645] hover:bg-[#d4941e] text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+              title="Open QR WhatsApp"
+            >
+              <span aria-hidden>🟢</span>
+              WhatsApp
+            </button>
+          ) : (
+            <button
+              disabled
+              className="px-3 py-1.5 bg-gray-200 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-1"
+              title="This lead is assigned to another user"
+            >
+              <span aria-hidden>🔒</span>
+              WhatsApp
+            </button>
+          )}
 
           <button
             onClick={() => router.push(`/admin/crm/leads-followup?leadId=${encodeURIComponent(lead._id)}`)}
@@ -549,7 +569,8 @@ export default function LeadsPage() {
             Delete
           </button>
         </div>
-      ),
+      );
+      },
     },
   ];
 
