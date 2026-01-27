@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: true, reason: 'status_broadcast' });
     }
 
+    // Skip @lid format (WhatsApp Link IDs) - these are internal IDs, not phone numbers
+    // The bridge should ideally resolve these to actual phone numbers
+    if (from.includes('@lid')) {
+      console.log('[QR WEBHOOK] Skipping @lid format (not a phone number):', from);
+      return NextResponse.json({ success: true, skipped: true, reason: 'lid_format_not_phone' });
+    }
+
     await connectDB();
     const WhatsAppMessage = getWhatsAppMessage();
     const Lead = getLead();
@@ -40,7 +47,9 @@ export async function POST(req: NextRequest) {
     // Extract phone number from WhatsApp ID (e.g., "919309986820@c.us" -> "919309986820")
     const phoneNumber = from.split('@')[0].replace(/\D/g, '');
     
-    if (!phoneNumber || phoneNumber.length < 10) {
+    // Validate: must be 10-15 digits (real phone numbers)
+    if (!phoneNumber || phoneNumber.length < 10 || phoneNumber.length > 15) {
+      console.log('[QR WEBHOOK] Invalid phone length:', phoneNumber, 'from:', from);
       return NextResponse.json({ success: true, skipped: true, reason: 'invalid_phone' });
     }
 
