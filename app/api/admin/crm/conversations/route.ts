@@ -242,8 +242,9 @@ export async function GET(request: NextRequest) {
     // - Super admin: can see all conversations
     // - Manager (MR Admin): can see conversations for leads assigned to them OR their team
     // - Regular admin: can ONLY see conversations for leads assigned to them
-    if (visibleUserIds !== null) {
-      // Not super admin - apply user filter
+    // NOTE: QR provider shows ALL conversations (no access control) since it's the personal WhatsApp
+    if (visibleUserIds !== null && providerParam !== 'qr') {
+      // Not super admin - apply user filter (but not for QR inbox)
       if (visibleUserIds.length === 1) {
         // Regular admin: only their own leads
         pipeline.push({
