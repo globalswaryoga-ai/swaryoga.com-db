@@ -2348,10 +2348,10 @@ function QRWhatsAppInboxPageContent() {
   };
 
   const statusPill = {
-    connected: 'bg-[#E8A645] text-white',
-    qr: 'bg-[#E8A645] text-white',
-    disconnected: 'bg-[#E8DFD5] text-[#0f3a4d]',
-    loading: 'bg-[#0f3a4d] text-white'
+    connected: 'bg-teal-500 text-white',
+    qr: 'bg-orange-500 text-white',
+    disconnected: 'bg-stone-200 text-stone-700',
+    loading: 'bg-teal-600 text-white'
   }[status];
 
   const statusText = {
@@ -2389,11 +2389,11 @@ function QRWhatsAppInboxPageContent() {
   };
 
   return (
-    <div className="flex h-screen bg-[#FAFAF8]">
+    <div className="flex h-screen bg-[#FAF8F5]">
       {/* Left Sidebar - Chats (Hidden on mobile, shown on larger screens) */}
-      <div className="hidden md:flex md:w-80 bg-[#FAFAF8] border-r border-[#E8DFD5] flex-col">
+      <div className="hidden md:flex md:w-80 bg-[#FAF8F5] border-r border-stone-200 flex-col">
         {/* Header */}
-        <div className="bg-[#FAFAF8] border-b border-[#E8DFD5] p-3 space-y-3">
+        <div className="bg-[#FAF8F5] border-b border-stone-200 p-3 space-y-3">
           {/* Top Row: Profile & Status on Left, Buttons on Right */}
           <div className="flex items-center justify-between gap-3">
             {/* Left: Profile & Status */}
@@ -2433,7 +2433,7 @@ function QRWhatsAppInboxPageContent() {
               {/* New Button - Add Contact */}
               <button
                 onClick={() => setShowNewContactModal(true)}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0f3a4d] text-white hover:bg-[#0f3a4d] transition-colors flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-500 text-white hover:bg-teal-600 transition-colors flex items-center gap-1"
                 title="Add new contact"
               >
                 <Plus size={16} />
@@ -2445,7 +2445,7 @@ function QRWhatsAppInboxPageContent() {
                 <button
                   onClick={handleConnect}
                   disabled={connecting || bridgeUnavailable}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0f3a4d] text-white hover:bg-[#1a4d66] disabled:opacity-60 transition-colors flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-500 text-white hover:bg-teal-600 disabled:opacity-60 transition-colors flex items-center gap-1"
                   title={bridgeUnavailable ? 'WhatsApp Bridge is unavailable' : 'Login with QR'}
                 >
                   {connecting ? <RefreshCw className="animate-spin" size={16} /> : '↑'} {bridgeUnavailable ? 'Bridge Down' : 'Login'}
@@ -2479,7 +2479,7 @@ function QRWhatsAppInboxPageContent() {
               </div>
               <button
                 onClick={handleClearOfflineCache}
-                className="mt-2 w-full py-1 bg-[#E8A645] text-white text-xs font-bold rounded hover:bg-amber-700"
+                className="mt-2 w-full py-1 bg-orange-500 text-white text-xs font-bold rounded hover:bg-orange-600"
               >
                 Clear Offline Cache
               </button>
@@ -2533,13 +2533,13 @@ function QRWhatsAppInboxPageContent() {
         </div>
 
         {/* Tabs: Chats | Groups | Status */}
-        <div className="flex border-b border-slate-200 bg-[#FAFAF8]">
+        <div className="flex border-b border-stone-200 bg-[#FAF8F5]">
           <button
             onClick={() => setSidebarTab('chats')}
             className={`flex-1 py-2 text-xs font-bold transition-colors ${
               sidebarTab === 'chats' 
-                ? 'text-green-700 border-b-2 border-green-600 bg-green-50' 
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'text-teal-700 border-b-2 border-teal-500 bg-teal-50' 
+                : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
             }`}
           >
             💬 Chats
@@ -2548,8 +2548,8 @@ function QRWhatsAppInboxPageContent() {
             onClick={() => setSidebarTab('groups')}
             className={`flex-1 py-2 text-xs font-bold transition-colors ${
               sidebarTab === 'groups' 
-                ? 'text-purple-700 border-b-2 border-purple-600 bg-purple-50' 
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'text-orange-700 border-b-2 border-orange-500 bg-orange-50' 
+                : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
             }`}
           >
             👥 Groups
@@ -2558,8 +2558,8 @@ function QRWhatsAppInboxPageContent() {
             onClick={() => setSidebarTab('status')}
             className={`flex-1 py-2 text-xs font-bold transition-colors ${
               sidebarTab === 'status' 
-                ? 'text-blue-700 border-b-2 border-blue-600 bg-blue-50' 
-                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'text-teal-700 border-b-2 border-teal-500 bg-teal-50' 
+                : 'text-stone-500 hover:text-stone-700 hover:bg-stone-50'
             }`}
           >
             🔵 Status
@@ -2567,20 +2567,20 @@ function QRWhatsAppInboxPageContent() {
         </div>
 
         {/* Search */}
-        <div className="p-3 border-b border-slate-100 bg-[#FAFAF8] space-y-3">
+        <div className="p-3 border-b border-stone-100 bg-[#FAF8F5] space-y-3">
           <div className="flex gap-2">
             <input
               type="text"
               placeholder={sidebarTab === 'groups' ? 'Search groups...' : 'Search or start a new chat'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-4 py-2 bg-[#F5EBE0]/60 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#E8A645]"
+              className="flex-1 px-4 py-2 bg-white/80 border border-stone-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400"
             />
             {sidebarTab === 'groups' ? (
               <button
                 onClick={() => setShowCreateGroupModal(true)}
                 title="Create new group"
-                className="px-4 py-2 bg-purple-200 hover:bg-purple-300 text-purple-900 border border-purple-400 rounded-lg font-bold transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-300 rounded-lg font-bold transition-colors flex items-center gap-2"
               >
                 <Plus size={16} />
                 <span className="text-xs hidden sm:inline">Group</span>
@@ -2589,7 +2589,7 @@ function QRWhatsAppInboxPageContent() {
               <button
                 onClick={() => setShowNewLeadModal(true)}
                 title="Add new lead"
-                className="px-4 py-2 bg-purple-200 hover:bg-purple-300 text-purple-900 border border-purple-400 rounded-lg font-bold transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-teal-100 hover:bg-teal-200 text-teal-700 border border-teal-300 rounded-lg font-bold transition-colors flex items-center gap-2"
               >
                 <Plus size={16} />
                 <span className="text-xs hidden sm:inline">Lead</span>
@@ -2669,19 +2669,19 @@ function QRWhatsAppInboxPageContent() {
                     if (chat.displayName || chat.name) setActiveName(chat.displayName || chat.name);
                     markChatAsRead(chat);
                   }}
-                  className={`p-4 border-b border-slate-100 cursor-pointer transition-all ${
+                  className={`p-4 border-b border-stone-100 cursor-pointer transition-all ${
                     selectedChat &&
                     (typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized) ===
                       (typeof chat.id === 'string' ? chat.id : chat.id._serialized)
-                      ? 'bg-green-50 border-l-4 border-l-green-500'
-                      : 'hover:bg-[#F5EBE0]'
+                      ? 'bg-teal-50 border-l-4 border-l-teal-500'
+                      : 'hover:bg-stone-100'
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     {/* Avatar with Unread Indicator Badge */}
                     <div className="relative flex-shrink-0 mt-0.5">
                       {chat.isGroup ? (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-xs">
                           👥
                         </div>
                       ) : chat.profilePicture ? (
@@ -2691,27 +2691,27 @@ function QRWhatsAppInboxPageContent() {
                           className="w-8 h-8 rounded-full object-cover"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-xs">
                           {getInitials(chat.name || 'U')}
                         </div>
                       )}
                       
                       {/* Unread Indicator Badge */}
                       {chat.unreadCount && chat.unreadCount > 0 ? (
-                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
                           <span className="text-white text-[10px] font-bold">
                             {chat.unreadCount > 9 ? '9+' : chat.unreadCount}
                           </span>
                         </div>
                       ) : (
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-purple-200 rounded-full border-2 border-white"></div>
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-teal-200 rounded-full border-2 border-white"></div>
                       )}
                     </div>
                     
                     <div className="flex-1 min-w-0">
                       {/* Name + Date on same line */}
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-[#0f3a4d] truncate text-sm">
+                        <p className="font-semibold text-stone-800 truncate text-sm">
                           {chat.displayName || chat.name || 'Unknown'}
                         </p>
                         {/* Today's Date */}
@@ -2919,29 +2919,29 @@ function QRWhatsAppInboxPageContent() {
       </div>
 
       {/* Right Side - Chat Messages */}
-      <div className="flex-1 flex flex-col bg-[#efeae2]">
+      <div className="flex-1 flex flex-col bg-[#FAF8F5]">
         {/* Top Header - Before Chat Area */}
-        <div className="bg-gradient-to-r from-green-600 to-green-700 px-3 py-2 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-3 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-white font-bold text-xs">Swar Yoga</span>
           </div>
           <div className="flex items-center gap-2">
-            {/* Home Button - Blue */}
+            {/* Home Button - Orange */}
             <button
               onClick={() => {
                 window.location.href = '/admin/crm';
               }}
-              className="px-2 py-1 rounded text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 transition-colors flex items-center gap-1"
+              className="px-2 py-1 rounded text-xs font-bold bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60 transition-colors flex items-center gap-1"
               title="Go to CRM Dashboard"
             >
               <span>🏠</span> Home
             </button>
 
-            {/* QR Button - Black */}
+            {/* QR Button - White/Teal */}
             <button
               onClick={handleNewNumber}
               disabled={loggingInNewNumber || disconnecting || connecting}
-              className="px-2 py-1 rounded text-xs font-bold bg-[#0f3a4d] text-white hover:bg-[#0f3a4d] disabled:opacity-60 transition-colors flex items-center gap-1"
+              className="px-2 py-1 rounded text-xs font-bold bg-white text-teal-700 hover:bg-teal-50 disabled:opacity-60 transition-colors flex items-center gap-1"
               title="Scan new QR code"
             >
               <span>{loggingInNewNumber ? '⟳' : '📱'}</span> QR
@@ -2952,7 +2952,7 @@ function QRWhatsAppInboxPageContent() {
               <button
                 onClick={handleDisconnect}
                 disabled={disconnecting}
-                className="px-2 py-1 rounded text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors flex items-center gap-1"
+                className="px-2 py-1 rounded text-xs font-bold bg-red-500 text-white hover:bg-red-600 disabled:opacity-60 transition-colors flex items-center gap-1"
                 title="Logout"
               >
                 <span>{disconnecting ? '⟳' : '→'}</span> Logout
@@ -2964,10 +2964,10 @@ function QRWhatsAppInboxPageContent() {
         {selectedChat ? (
           <>
             {/* Chat Header */}
-            <div className="border-b border-[#E8DFD5] p-3 bg-[#FAFAF8] flex items-center justify-between">
+            <div className="border-b border-stone-200 p-3 bg-white flex items-center justify-between">
               <div className="flex items-center gap-4 flex-1">
                 {selectedChat.isGroup ? (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-sm">
                     👥
                   </div>
                 ) : selectedChat.profilePicture ? (
@@ -2977,7 +2977,7 @@ function QRWhatsAppInboxPageContent() {
                     className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-sm">
                     {getInitials(selectedChat.name || 'U')}
                   </div>
                 )}
@@ -2989,13 +2989,13 @@ function QRWhatsAppInboxPageContent() {
                   }
                 }}>
                   {/* Name (top line) */}
-                  <h2 className="text-sm font-bold text-[#0f3a4d] truncate hover:text-blue-600 transition-colors">
+                  <h2 className="text-sm font-bold text-stone-800 truncate hover:text-teal-600 transition-colors">
                     {activeName || selectedChat.name}
                   </h2>
                   
                   {/* Phone Number (subtitle) */}
                   {activePhone && (
-                    <p className="text-[11px] text-[#0f3a4d]/70 truncate">
+                    <p className="text-[11px] text-stone-500 truncate">
                       📱 {activePhone}
                     </p>
                   )}
@@ -3177,18 +3177,18 @@ function QRWhatsAppInboxPageContent() {
                           <div
                             className={`inline-block max-w-[75%] rounded-xl px-4 py-2.5 text-[15px] leading-relaxed shadow-sm transition-all duration-200 ${
                               msg.fromMe
-                                ? 'bg-[#d9fdd3] text-gray-900 rounded-tr-sm border border-[#c5e1a5] ml-auto'
-                                : 'bg-[#075E54] text-white rounded-tl-sm mr-auto'
+                                ? 'bg-teal-50 text-stone-800 rounded-tr-sm border border-teal-200 ml-auto'
+                                : 'bg-teal-600 text-white rounded-tl-sm mr-auto'
                             }`}
                             style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif", whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                           >
                             {/* Media Content - Using unified InlineMediaPreview */}
                             {wantsMediaLoad ? (
                               <div className="space-y-2">
-                                <div className={`text-sm ${msg.fromMe ? 'text-gray-600' : 'text-white/80'}`}>📎 Media message</div>
+                                <div className={`text-sm ${msg.fromMe ? 'text-stone-600' : 'text-white/80'}`}>📎 Media message</div>
                                 <button
                                   onClick={() => loadMediaForMessage(msg, { force: true })}
-                                  className={`px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-60 ${msg.fromMe ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                                  className={`px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-60 ${msg.fromMe ? 'bg-teal-100 text-teal-700 hover:bg-teal-200 border border-teal-300' : 'bg-white/20 text-white hover:bg-white/30'}`}
                                   disabled={Boolean(messageMediaLoading[msgId])}
                                 >
                                   {messageMediaLoading[msgId] ? 'Loading…' : 'Load media'}
@@ -3233,7 +3233,7 @@ function QRWhatsAppInboxPageContent() {
                             )}
 
                             {/* Time and status row */}
-                            <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-gray-500' : 'justify-start text-white/70'}`}>
+                            <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-stone-500' : 'justify-start text-white/70'}`}>
                               {messageTime && <span className="tracking-wide">{messageTime}</span>}
                               {msg.fromMe && ackDisplay && (
                                 <span className={`font-medium ${ackColor}`}>{ackDisplay}</span>
@@ -3466,14 +3466,14 @@ function QRWhatsAppInboxPageContent() {
                     }
                   }}
                   placeholder={pendingMedia.length > 0 ? "Add a caption..." : "Type a message... (right-click misspelled words for suggestions)"}
-                  className="flex-1 w-full px-4 py-2.5 bg-[#FAFAF8] border border-[#E8DFD5] rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-[#E8A645]/30 focus:border-[#E8A645] resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
+                  className="flex-1 w-full px-4 py-2.5 bg-white border border-stone-200 rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400 resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
                   rows={1}
                 />
 
                 <button
                   onClick={handleScheduledSend}
                   disabled={sending || (!newMessage.trim() && pendingMedia.length === 0) || status !== 'connected' || uploadingMedia}
-                  className="flex-shrink-0 w-11 h-11 rounded-full bg-[#0f3a4d] hover:bg-[#1a4d66] disabled:bg-slate-300 disabled:cursor-not-allowed text-white shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95"
+                  className="flex-shrink-0 w-11 h-11 rounded-full bg-teal-500 hover:bg-teal-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95"
                 >
                   {sending || uploadingMedia ? (
                     <RefreshCw className="w-5 h-5 animate-spin" />
