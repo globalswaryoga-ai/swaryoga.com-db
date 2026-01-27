@@ -382,12 +382,40 @@ const communitySchema = new mongoose.Schema({
   whatsappGroupId: { type: String, default: '' }, // Associate with WhatsApp QR group
   // Store user ids as strings (JWT userId is typically a stringified ObjectId)
   members: { type: [String], default: [] },
+  
+  // === NEW: Community Type System ===
+  // global: Public community for everyone
+  // old_sadhak: For users who completed workshops (alumni)
+  // workshop_active: Per-workshop community, merges into old_sadhak after completion
+  type: { 
+    type: String, 
+    enum: ['global', 'old_sadhak', 'workshop_active'], 
+    default: 'workshop_active',
+    index: true 
+  },
+  
+  // For workshop_active: link to the workshop
+  workshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workshop', index: true },
+  
+  // When workshop completes, community merges into this parent (old_sadhak)
+  parentCommunityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community' },
+  
+  // After merge, original community is archived (not deleted for history)
+  isArchived: { type: Boolean, default: false, index: true },
+  archivedAt: { type: Date },
+  mergedIntoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community' }, // Tracks where it merged
+  
+  // For old_sadhak: track which workshops have been merged into this community
+  mergedWorkshopIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Workshop' }],
+  
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
 
 communitySchema.index({ id: 1 }, { unique: true, sparse: true });
-communitySchema.index({ name: 1 }, { unique: true });
+communitySchema.index({ name: 1 }, { unique: true, sparse: true });
+communitySchema.index({ type: 1, isArchived: 1 });
+communitySchema.index({ workshopId: 1 });
 
 export const Community = mongoose.models.Community || mongoose.model('Community', communitySchema);
 
@@ -435,10 +463,33 @@ const communityVideoSchema = new mongoose.Schema({
   uploadedBy: { type: String, required: true },
   isShareable: { type: Boolean, default: false }, // Always false for community videos
   views: { type: Number, default: 0 },
+  
+  // === NEW: Recording categorization ===
+  // For batch-wise recordings linked to specific workshop batch
+  workshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workshop', index: true },
+  batchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Batch', index: true },
+  
+  // Common recordings visible to everyone in community (no batch restriction)
+  isCommon: { type: Boolean, default: false, index: true },
+  
+  // Recording source (manual upload or Zoom auto-sync)
+  source: { type: String, enum: ['manual', 'zoom'], default: 'manual' },
+  zoomMeetingId: { type: String }, // If from Zoom
+  zoomRecordingId: { type: String }, // Zoom recording file ID
+  
+  // Recording type for Zoom
+  recordingType: { type: String, enum: ['gallery_view', 'speaker_view', 'shared_screen', 'other'], default: 'other' },
+  
+  // For search and filtering
+  tags: [{ type: String }],
+  
   createdAt: { type: Date, default: Date.now },
 });
 
 communityVideoSchema.index({ communityId: 1, createdAt: -1 });
+communityVideoSchema.index({ workshopId: 1, batchId: 1 });
+communityVideoSchema.index({ communityId: 1, isCommon: 1 });
+communityVideoSchema.index({ zoomMeetingId: 1 });
 
 export const CommunityVideo =
   mongoose.models.CommunityVideo || mongoose.model('CommunityVideo', communityVideoSchema);

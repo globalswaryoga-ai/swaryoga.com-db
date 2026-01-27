@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import connectDB, { Community } from '@/lib/db';
+import connectDB from '@/lib/db';
 import { getWorkshop, getBatch, getWorkshopVideo } from '@/lib/schemas/workshopSchemas';
 import { createZoomMeeting } from '@/lib/zoom-meetings';
+import { createWorkshopCommunity, initializeSystemCommunities } from '@/lib/community-manager';
 
 /**
  * GET /api/admin/workshops
@@ -83,41 +84,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workshop with this name already exists' }, { status: 400 });
     }
 
-    // 1. Create Community for this workshop
-    let community = null;
-    try {
-      const communityName = `${name} Community`;
-      community = await Community.create({
-        id: `workshop-${slug}`,
-        name: communityName,
-        description: `Community for ${name} workshop participants`,
-        members: [],
-      });
-      console.log(`[Workshop] Created community: ${communityName}`);
-    } catch (communityError: any) {
-      console.error('[Workshop] Failed to create community:', communityError.message);
-      // Continue without community - not critical
-    }
-
-    // 2. Create Zoom meeting if startDate provided
-    let zoomMeeting = null;
-    if (startDate) {
-      try {
-        zoomMeeting = await createZoomMeeting({
-          topic: name,
-          startTime: new Date(startDate),
-          duration: meetingDuration || 90, // Default 90 minutes
-          agenda: description || `Workshop: ${name}`,
-          autoRecording: 'cloud', // Auto cloud recording for S3 sync
-        });
-        console.log(`[Workshop] Created Zoom meeting: ${zoomMeeting.id}`);
-      } catch (zoomError: any) {
-        console.error('[Workshop] Failed to create Zoom meeting:', zoomError.message);
-        // Continue without Zoom - not critical
-      }
-    }
-
-    // 3. Create workshop with Zoom and community info
+    // First create workshop to get _id
     const workshop = await Workshop.create({
       name,
       slug,
@@ -128,27 +95,73 @@ export async function POST(req: NextRequest) {
       price: price || 0,
       isFree: isFree || false,
       isActive: true,
-      // Zoom info
-      zoomMeetingId: zoomMeeting?.id,
-      zoomJoinUrl: zoomMeeting?.join_url,
-      zoomStartUrl: zoomMeeting?.start_url,
-      zoomPassword: zoomMeeting?.password,
-      // Community info
-      communityId: community?._id,
-      communityName: community?.name,
     });
+
+    // 1. Initialize system communities (Global + Old Sadhak) if not exist
+    try {
+      await initializeSystemCommunities();
+    } catch (sysComError: unknown) {
+      console.error('[Workshop] Failed to init system communities:', sysComError);
+    }
+
+    // 2. Create workshop-active community (will merge into Old Sadhak on completion)
+    let community = null;
+    try {
+      community = await createWorkshopCommunity(
+        workshop._id.toString(),
+        name,
+        description || `Community for ${name} workshop participants`
+      );
+      console.log(`[Workshop] Created workshop community: ${community.name} (type: workshop_active)`);
+      
+      // Update workshop with community info
+      workshop.communityId = community._id;
+      workshop.communityName = community.name;
+      await workshop.save();
+    } catch (communityError: unknown) {
+      console.error('[Workshop] Failed to create community:', communityError);
+      // Continue without community - not critical
+    }
+
+    // 3. Create Zoom meeting if startDate provided
+    if (startDate) {
+      try {
+        const zoomMeeting = await createZoomMeeting({
+          topic: name,
+          startTime: new Date(startDate),
+          duration: meetingDuration || 90, // Default 90 minutes
+          agenda: description || `Workshop: ${name}`,
+          autoRecording: 'cloud', // Auto cloud recording for S3 sync
+        });
+        console.log(`[Workshop] Created Zoom meeting: ${zoomMeeting.id}`);
+        
+        // Update workshop with Zoom info
+        workshop.zoomMeetingId = zoomMeeting.id;
+        workshop.zoomJoinUrl = zoomMeeting.join_url;
+        workshop.zoomStartUrl = zoomMeeting.start_url;
+        workshop.zoomPassword = zoomMeeting.password;
+        await workshop.save();
+      } catch (zoomError: unknown) {
+        console.error('[Workshop] Failed to create Zoom meeting:', zoomError);
+        // Continue without Zoom - not critical
+      }
+    }
+
+    // Reload workshop with all updates
+    const finalWorkshop = await Workshop.findById(workshop._id).lean();
 
     return NextResponse.json({ 
       success: true, 
-      workshop,
-      zoomMeeting: zoomMeeting ? {
-        id: zoomMeeting.id,
-        joinUrl: zoomMeeting.join_url,
-        password: zoomMeeting.password,
+      workshop: finalWorkshop,
+      zoomMeeting: finalWorkshop?.zoomMeetingId ? {
+        id: finalWorkshop.zoomMeetingId,
+        joinUrl: finalWorkshop.zoomJoinUrl,
+        password: finalWorkshop.zoomPassword,
       } : null,
       community: community ? {
         id: community._id,
         name: community.name,
+        type: community.type,
       } : null,
     });
   } catch (error: any) {

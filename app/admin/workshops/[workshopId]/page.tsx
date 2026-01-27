@@ -559,6 +559,51 @@ export default function WorkshopDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Complete Workshop Action */}
+            <div className="flex items-start gap-3 min-w-[200px] border-l pl-4">
+              <span className="text-2xl">✅</span>
+              <div>
+                <p className="text-sm text-gray-500">Workshop Status</p>
+                <button
+                  onClick={async () => {
+                    if (!confirm(
+                      'Complete this workshop?\n\n' +
+                      'This will:\n' +
+                      '• Merge workshop community into Old Sadhak community\n' +
+                      '• Transfer all members and recordings\n' +
+                      '• Archive the workshop community\n\n' +
+                      'This action cannot be undone.'
+                    )) return;
+
+                    try {
+                      const token = localStorage.getItem('adminToken');
+                      const res = await fetch(`/api/admin/workshops/${workshopId}/complete`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        alert(
+                          `Workshop completed!\n` +
+                          `Members transferred: ${data.membersTransferred}\n` +
+                          `Videos transferred: ${data.videosTransferred}`
+                        );
+                        fetchWorkshop();
+                      } else {
+                        alert('Error: ' + (data.error || 'Failed to complete workshop'));
+                      }
+                    } catch (err) {
+                      alert('Failed to complete workshop');
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-medium"
+                >
+                  🎓 Complete Workshop
+                </button>
+                <p className="text-xs text-gray-400 mt-1">Merge into Old Sadhak community</p>
+              </div>
+            </div>
           </div>
         </div>
 

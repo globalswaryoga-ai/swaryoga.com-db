@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
-import connectDB from '@/lib/db';
+import connectDB, { User } from '@/lib/db';
 import { getBatch, getWorkshop } from '@/lib/schemas/workshopSchemas';
+import { addUserToWorkshopCommunity } from '@/lib/community-manager';
 import mongoose from 'mongoose';
 
 /**
@@ -91,6 +92,33 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+
+    // Also add users to the workshop community
+    const Workshop = getWorkshop();
+    const workshop = await Workshop.findById(batch.workshopId);
+    
+    if (workshop) {
+      for (const userId of newUserIds) {
+        try {
+          // Get user details
+          const user = await User.findById(userId);
+          if (user) {
+            await addUserToWorkshopCommunity(
+              workshop._id.toString(),
+              userId,
+              {
+                name: user.name || user.email || 'Unknown',
+                email: user.email,
+                mobile: user.phone,
+              }
+            );
+          }
+        } catch (communityError) {
+          console.error(`[Enrollment] Failed to add user ${userId} to community:`, communityError);
+          // Continue with enrollment even if community add fails
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,
