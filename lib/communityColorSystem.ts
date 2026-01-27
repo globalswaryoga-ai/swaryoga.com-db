@@ -229,7 +229,7 @@ export const COMMUNITY_DESIGNS: CommunityDesign[] = [
     },
     philosophy: 'Empowering youth through yoga practice.',
     members: 0,
-    isPublic: false,
+    isPublic: true,
     category: 'youth'
   },
 
