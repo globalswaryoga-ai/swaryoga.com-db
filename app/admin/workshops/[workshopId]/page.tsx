@@ -78,6 +78,7 @@ export default function WorkshopDetailPage() {
   // Modal states
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showZoomModal, setShowZoomModal] = useState(false);
   const [batchForm, setBatchForm] = useState({
     batchNumber: 1,
     name: '',
@@ -91,6 +92,11 @@ export default function WorkshopDetailPage() {
     dayNumber: 1,
     accessType: 'enrolled',
     recordedDate: new Date().toISOString().split('T')[0],
+  });
+  const [zoomForm, setZoomForm] = useState({
+    topic: '',
+    startTime: '',
+    duration: 90,
   });
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'batches' | 'videos' | 'free' | 'recordings'>('batches');
@@ -460,36 +466,101 @@ export default function WorkshopDetailPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Zoom & Community Info */}
-        {(workshop.zoomJoinUrl || workshop.communityName) && (
-          <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4">
-            {workshop.zoomJoinUrl && (
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">📹</span>
-                <div>
-                  <p className="text-sm text-gray-500">Zoom Meeting</p>
-                  <a
-                    href={workshop.zoomJoinUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline text-sm"
-                  >
-                    Join Meeting {workshop.zoomPassword && `(Password: ${workshop.zoomPassword})`}
-                  </a>
-                </div>
-              </div>
-            )}
-            {workshop.communityName && (
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">👥</span>
-                <div>
-                  <p className="text-sm text-gray-500">Community</p>
-                  <p className="text-sm font-medium">{workshop.communityName}</p>
-                </div>
-              </div>
+        {/* Zoom & Community Settings */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">Workshop Settings</h3>
+            {!workshop.zoomJoinUrl && (
+              <button
+                onClick={() => {
+                  setZoomForm({ topic: workshop.name, startTime: '', duration: 90 });
+                  setShowZoomModal(true);
+                }}
+                className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
+              >
+                + Add Zoom Meeting
+              </button>
             )}
           </div>
-        )}
+          
+          <div className="flex flex-wrap gap-6">
+            {/* Zoom Meeting */}
+            <div className="flex items-start gap-3 min-w-[250px]">
+              <span className="text-2xl">📹</span>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Zoom Meeting</p>
+                {workshop.zoomJoinUrl ? (
+                  <>
+                    <a
+                      href={workshop.zoomJoinUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm"
+                    >
+                      Join Meeting
+                    </a>
+                    {workshop.zoomPassword && (
+                      <p className="text-xs text-gray-500">Password: {workshop.zoomPassword}</p>
+                    )}
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => {
+                          setZoomForm({ 
+                            topic: workshop.name, 
+                            startTime: '', 
+                            duration: 90 
+                          });
+                          setShowZoomModal(true);
+                        }}
+                        className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Delete this Zoom meeting?')) return;
+                          try {
+                            const res = await fetch(`/api/admin/workshops/${workshopId}/zoom`, {
+                              method: 'DELETE',
+                              credentials: 'include',
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              fetchWorkshop();
+                              alert('Zoom meeting deleted');
+                            } else {
+                              alert('Error: ' + data.error);
+                            }
+                          } catch (err) {
+                            alert('Failed to delete');
+                          }
+                        }}
+                        className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-400">No meeting linked</p>
+                )}
+              </div>
+            </div>
+
+            {/* Community */}
+            <div className="flex items-start gap-3 min-w-[200px]">
+              <span className="text-2xl">👥</span>
+              <div>
+                <p className="text-sm text-gray-500">Community</p>
+                {workshop.communityName ? (
+                  <p className="text-sm font-medium">{workshop.communityName}</p>
+                ) : (
+                  <p className="text-sm text-gray-400">No community</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
@@ -1033,6 +1104,106 @@ export default function WorkshopDetailPage() {
                   className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
                 >
                   {uploadingVideo ? `Uploading ${uploadProgress}%...` : submitting ? 'Adding...' : selectedFile ? 'Upload & Add' : 'Add Video'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Zoom Meeting Modal */}
+      {showZoomModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              {workshop?.zoomJoinUrl ? 'Edit Zoom Meeting' : 'Create Zoom Meeting'}
+            </h2>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSubmitting(true);
+                try {
+                  const res = await fetch(`/api/admin/workshops/${workshopId}/zoom`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(zoomForm),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    setShowZoomModal(false);
+                    fetchWorkshop();
+                    alert(data.message);
+                  } else {
+                    alert('Error: ' + data.error);
+                  }
+                } catch (err) {
+                  alert('Failed to save');
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Meeting Topic
+                  </label>
+                  <input
+                    type="text"
+                    value={zoomForm.topic}
+                    onChange={(e) => setZoomForm({ ...zoomForm, topic: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Workshop name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date & Time {!workshop?.zoomJoinUrl && '*'}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={zoomForm.startTime}
+                    onChange={(e) => setZoomForm({ ...zoomForm, startTime: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required={!workshop?.zoomJoinUrl}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Duration (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={zoomForm.duration}
+                    onChange={(e) => setZoomForm({ ...zoomForm, duration: parseInt(e.target.value) || 90 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min="15"
+                    max="480"
+                  />
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  ✅ Cloud recording will be auto-enabled. Recordings sync to S3 after meeting ends.
+                </p>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowZoomModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {submitting ? 'Saving...' : workshop?.zoomJoinUrl ? 'Update Meeting' : 'Create Meeting'}
                 </button>
               </div>
             </form>
