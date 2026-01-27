@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Heart, MessageCircle, Share2, Search, Plus, LogOut, Users, Globe, Loader, Home, AlertCircle, ExternalLink } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { COMMUNITY_DESIGNS, CommunityDesign } from '@/lib/communityColorSystem';
@@ -43,6 +44,7 @@ const COMMUNITIES: Community[] = COMMUNITY_DESIGNS.map(design => ({
 
 function CommunityPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const joinParam = searchParams.get('join');
 
   const [posts, setPosts] = useState<Post[]>([]);
@@ -84,11 +86,12 @@ function CommunityPageContent() {
   const [commentLoading, setCommentLoading] = useState(false);
 
   const categories = [
-    { id: 'all', label: '✨ All Posts' },
-    { id: 'experiences', label: '🙏 Experiences' },
+    { id: 'all', label: '📋 All Posts' },
+    { id: 'experiences', label: '✨ Experiences' },
     { id: 'tips', label: '💡 Tips & Tricks' },
     { id: 'transformations', label: '🦋 Transformations' },
     { id: 'questions', label: '❓ Questions' },
+    { id: 'recordings', label: '🎬 Recordings' },
   ];
 
   useEffect(() => {
@@ -818,7 +821,14 @@ function CommunityPageContent() {
                 {categories.map(category => (
                   <button
                     key={category.id}
-                    onClick={() => { setSelectedCategory(category.id); setViewMode('posts'); }}
+                    onClick={() => {
+                      if (category.id === 'recordings') {
+                        router.push('/community/recordings');
+                      } else {
+                        setSelectedCategory(category.id);
+                        setViewMode('posts');
+                      }
+                    }}
                     className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-200 transform hover:scale-105 shadow-sm ${
                       selectedCategory === category.id && viewMode === 'posts'
                         ? 'bg-gradient-to-r from-green-700 to-green-800 text-white shadow-md hover:shadow-lg'
