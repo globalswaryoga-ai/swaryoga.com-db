@@ -187,6 +187,14 @@ export default function AdminCommunityPage() {
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [changingStatusId, setChangingStatusId] = useState<string | null>(null);
+  
+  // Comments Management State
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [selectedPostForComments, setSelectedPostForComments] = useState<any>(null);
+  const [deletingCommentIndex, setDeletingCommentIndex] = useState<number | null>(null);
+  
+  // User Blocking State
+  const [blockingMemberId, setBlockingMemberId] = useState<string | null>(null);
 
   // Filtered posts based on search and category
   const filteredPosts = communityPosts.filter(post => {
@@ -601,6 +609,123 @@ export default function AdminCommunityPage() {
     } finally {
       setDeletingPostId(null);
     }
+  };
+
+  const deleteComment = async (postId: string, commentIndex: number) => {
+    if (!confirm('Are you sure you want to delete this comment?')) return;
+
+    try {
+      setDeletingCommentIndex(commentIndex);
+      const res = await fetch('/api/admin/crm/community/posts/comment/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ postId, commentIndex }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to delete comment');
+
+      alert('✅ Comment deleted successfully');
+      
+      // Update the local state
+      if (selectedPostForComments) {
+        const updatedComments = [...(selectedPostForComments.comments || [])];
+        updatedComments.splice(commentIndex, 1);
+        setSelectedPostForComments({ ...selectedPostForComments, comments: updatedComments });
+      }
+      
+      // Update posts list
+      setCommunityPosts(prev => prev.map(p => {
+        if (p._id === postId) {
+          const updatedComments = [...(p.comments || [])];
+          updatedComments.splice(commentIndex, 1);
+          return { ...p, comments: updatedComments };
+        }
+        return p;
+      }));
+    } catch (error: any) {
+      alert('❌ Failed to delete comment: ' + error.message);
+    } finally {
+      setDeletingCommentIndex(null);
+    }
+  };
+
+  const blockMember = async (memberId: string, userId: string, memberName: string) => {
+    const reason = prompt(`Enter reason for blocking ${memberName}:`, 'Inappropriate behavior or content');
+    if (!reason) return;
+
+    try {
+      setBlockingMemberId(memberId);
+      const res = await fetch('/api/admin/crm/community/members/block', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          memberId, 
+          userId,
+          communityId: selectedCommunity,
+          reason 
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to block member');
+
+      alert('✅ Member blocked successfully');
+      
+      // Update the local state
+      setMembers(prev => prev.map(m => 
+        m._id === memberId ? { ...m, status: 'banned' as const } : m
+      ));
+    } catch (error: any) {
+      alert('❌ Failed to block member: ' + error.message);
+    } finally {
+      setBlockingMemberId(null);
+    }
+  };
+
+  const unblockMember = async (memberId: string, userId: string, memberName: string) => {
+    if (!confirm(`Unblock ${memberName}?`)) return;
+
+    try {
+      setBlockingMemberId(memberId);
+      const res = await fetch('/api/admin/crm/community/members/block', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          memberId, 
+          userId,
+          communityId: selectedCommunity
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to unblock member');
+
+      alert('✅ Member unblocked successfully');
+      
+      // Update the local state
+      setMembers(prev => prev.map(m => 
+        m._id === memberId ? { ...m, status: 'active' as const } : m
+      ));
+    } catch (error: any) {
+      alert('❌ Failed to unblock member: ' + error.message);
+    } finally {
+      setBlockingMemberId(null);
+    }
+  };
+
+  const openCommentsModal = (post: any) => {
+    setSelectedPostForComments(post);
+    setShowCommentsModal(true);
   };
 
   const openEditPostModal = (post: any) => {
@@ -1161,7 +1286,7 @@ export default function AdminCommunityPage() {
                              <td className="px-4 py-3 font-semibold text-sm text-slate-600">{member.mobile}</td>
                              <td className="px-4 py-3">
                                 <div className="flex flex-col gap-0.5">
-                                   <span className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest inline-block w-fit ${member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}>{member.status}</span>
+                                   <span className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest inline-block w-fit ${member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : member.status === 'banned' ? 'bg-red-50 text-red-700' : 'bg-slate-50 text-slate-500'}`}>{member.status}</span>
                                    {!member.approved && (
                                       <>
                                          <span className="px-2 py-0.5 text-[8px] font-bold text-amber-600 bg-amber-50 rounded border border-amber-100 uppercase w-fit">Pending Approval</span>
@@ -1197,9 +1322,28 @@ export default function AdminCommunityPage() {
                                          {approving === member._id ? <Loader size={16} className="animate-spin" /> : <CheckCircle size={16}/>}
                                       </button>
                                    )}
-                                   <button onClick={() => openChatPermissions(member)} className="p-2 hover:bg-slate-900 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100"><Shield size={16}/></button>
-                                   <button onClick={() => { setSelectedMember(member); setShowMessageModal(true); }} className="p-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100"><Send size={16}/></button>
-                                   <button className="p-2 hover:bg-red-500 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100"><Trash2 size={16}/></button>
+                                   <button onClick={() => openChatPermissions(member)} className="p-2 hover:bg-slate-900 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100" title="Chat Permissions"><Shield size={16}/></button>
+                                   <button onClick={() => { setSelectedMember(member); setShowMessageModal(true); }} className="p-2 hover:bg-indigo-600 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100" title="Send Message"><Send size={16}/></button>
+                                   {member.status === 'banned' ? (
+                                      <button 
+                                         onClick={() => unblockMember(member._id, member.userId || '', member.name)} 
+                                         disabled={blockingMemberId === member._id}
+                                         className="p-2 hover:bg-emerald-500 hover:text-white rounded-lg transition-all text-emerald-600 border border-emerald-100 bg-emerald-50 disabled:opacity-50"
+                                         title="Unblock Member"
+                                      >
+                                         {blockingMemberId === member._id ? <Loader size={16} className="animate-spin" /> : <CheckCircle size={16}/>}
+                                      </button>
+                                   ) : (
+                                      <button 
+                                         onClick={() => blockMember(member._id, member.userId || '', member.name)} 
+                                         disabled={blockingMemberId === member._id}
+                                         className="p-2 hover:bg-red-500 hover:text-white rounded-lg transition-all text-red-400 border border-red-100 disabled:opacity-50"
+                                         title="Block Member"
+                                      >
+                                         {blockingMemberId === member._id ? <Loader size={16} className="animate-spin" /> : <AlertCircle size={16}/>}
+                                      </button>
+                                   )}
+                                   <button className="p-2 hover:bg-red-500 hover:text-white rounded-lg transition-all text-slate-400 border border-slate-100" title="Delete Member"><Trash2 size={16}/></button>
                                 </div>
                              </td>
                           </tr>
@@ -1306,11 +1450,11 @@ export default function AdminCommunityPage() {
                         <td className="px-4 py-3">
                           <div className="flex gap-4">
                             <div className="text-center">
-                              <p className="text-xs font-bold text-slate-800">👍 {post.likes}</p>
+                              <p className="text-xs font-bold text-slate-800">👍 {Array.isArray(post.likes) ? post.likes.length : (post.likes || 0)}</p>
                               <p className="text-[8px] text-slate-400">Likes</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-xs font-bold text-slate-800">💬 {post.comments}</p>
+                              <p className="text-xs font-bold text-slate-800">💬 {Array.isArray(post.comments) ? post.comments.length : (post.comments || 0)}</p>
                               <p className="text-[8px] text-slate-400">Comments</p>
                             </div>
                           </div>
@@ -1320,6 +1464,13 @@ export default function AdminCommunityPage() {
                         </td>
                         <td className="pr-10 px-4 py-3 text-right opacity-0 group-hover:opacity-100 transition-all">
                           <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => openCommentsModal(post)}
+                              className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-500 border border-emerald-100"
+                              title={`Manage Comments (${Array.isArray(post.comments) ? post.comments.length : 0})`}
+                            >
+                              <MessageCircle size={16} />
+                            </button>
                             <button
                               onClick={() => openEditPostModal(post)}
                               className="p-2 hover:bg-blue-600 hover:text-white rounded-lg transition-all text-blue-500 border border-blue-100"
@@ -1823,6 +1974,90 @@ export default function AdminCommunityPage() {
                  </div>
               </div>
            </div>
+        </div>
+      )}
+
+      {/* Comments Management Modal */}
+      {showCommentsModal && selectedPostForComments && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <MessageCircle className="text-emerald-600" size={24} />
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Manage Comments</h2>
+                  <p className="text-xs text-slate-500">{Array.isArray(selectedPostForComments.comments) ? selectedPostForComments.comments.length : 0} comments on this post</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowCommentsModal(false); setSelectedPostForComments(null); }} 
+                className="p-2 hover:bg-slate-100 rounded-xl transition-all"
+              >
+                <Plus className="rotate-45" size={20} />
+              </button>
+            </div>
+            
+            {/* Post Preview */}
+            <div className="p-4 bg-slate-50 border-b border-slate-100 shrink-0">
+              <p className="text-sm text-slate-600 font-medium line-clamp-2">
+                {selectedPostForComments.content?.substring(0, 200)}...
+              </p>
+            </div>
+            
+            {/* Comments List */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-3">
+              {Array.isArray(selectedPostForComments.comments) && selectedPostForComments.comments.length > 0 ? (
+                selectedPostForComments.comments.map((comment: any, index: number) => (
+                  <div key={index} className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all group">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                          {(comment.userId || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-bold text-slate-800 truncate">{comment.userId || 'Anonymous'}</p>
+                            <span className="text-[10px] text-slate-400">
+                              {comment.createdAt ? new Date(comment.createdAt).toLocaleDateString('en-IN', { 
+                                day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                              }) : 'Unknown date'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-600">{comment.text}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteComment(selectedPostForComments._id, index)}
+                        disabled={deletingCommentIndex === index}
+                        className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all text-slate-400 shrink-0"
+                        title="Delete Comment"
+                      >
+                        {deletingCommentIndex === index ? (
+                          <Loader size={16} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <MessageCircle size={48} className="text-slate-200 mb-4" />
+                  <h3 className="text-lg font-bold text-slate-400 mb-1">No Comments</h3>
+                  <p className="text-sm text-slate-400">This post has no comments yet.</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
+              <p className="text-xs text-slate-400 text-center">
+                Click the trash icon to delete inappropriate comments
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
