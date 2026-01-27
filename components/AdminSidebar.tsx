@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe, Video } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -138,6 +138,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
           label: 'Communities',
           href: '/admin/communities',
           color: 'text-teal-600',
+        },
+        {
+          icon: Video,
+          label: 'Recordings & Videos',
+          href: '/admin/communities/recordings-videos',
+          color: 'text-purple-600',
         },
         {
           icon: Users,

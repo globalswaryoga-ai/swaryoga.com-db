@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Edit2, Trash2, Users, Globe, Loader2, Search, X, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Users, Globe, Loader2, Search, X, Check, Video } from 'lucide-react';
 
 interface Community {
   _id: string;
@@ -196,13 +196,22 @@ export default function AdminCommunitiesPage() {
                 <p className="text-sm text-gray-500">Manage yoga communities</p>
               </div>
             </div>
-            <button
-              onClick={openCreateModal}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl font-medium transition-all active:scale-95 shadow-md"
-            >
-              <Plus className="h-5 w-5" />
-              <span className="hidden sm:inline">New Community</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/admin/communities/recordings-videos"
+                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-medium transition-all active:scale-95 shadow-md"
+              >
+                <Video className="h-5 w-5" />
+                <span className="hidden sm:inline">Recordings & Videos</span>
+              </Link>
+              <button
+                onClick={openCreateModal}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl font-medium transition-all active:scale-95 shadow-md"
+              >
+                <Plus className="h-5 w-5" />
+                <span className="hidden sm:inline">New Community</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
