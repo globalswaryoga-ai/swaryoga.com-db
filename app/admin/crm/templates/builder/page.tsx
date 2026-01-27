@@ -1,11 +1,34 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
 import { AlertBox } from '@/components/admin/crm';
+
+// Meta WhatsApp Template Character Limits
+const LIMITS = {
+  HEADER_TEXT: 60,
+  BODY_TEXT: 1024,
+  FOOTER_TEXT: 60,
+  BUTTON_TEXT: 25,
+  TEMPLATE_NAME: 512,
+};
+
+// Character counter component with visual feedback
+function CharacterCounter({ current, max, label }: { current: number; max: number; label?: string }) {
+  const percentage = (current / max) * 100;
+  const isWarning = percentage >= 80 && percentage < 100;
+  const isError = percentage >= 100;
+  
+  return (
+    <div className={`text-xs ${isError ? 'text-red-600 font-semibold' : isWarning ? 'text-amber-600' : 'text-gray-500'}`}>
+      {label && <span>{label}: </span>}
+      {current}/{max} {isError && '⚠️ Limit exceeded'}
+    </div>
+  );
+}
 
 /**
  * Convert S3 URLs to proxied URLs for authenticated access
@@ -117,6 +140,7 @@ export default function CreateTemplatePage() {
   const [saving, setSaving] = useState(false);
   const [aiCorrecting, setAiCorrecting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showGuidelines, setShowGuidelines] = useState(false);
 
   const [templateName, setTemplateName] = useState('');
   const [language, setLanguage] = useState('en');
@@ -132,7 +156,23 @@ export default function CreateTemplatePage() {
   const [headerVideo, setHeaderVideo] = useState<VideoFile | null>(null);
   const [headerDocument, setHeaderDocument] = useState<DocumentFile | null>(null);
 
+  // Spell check state for suggestions popup
+  const [spellSuggestions, setSpellSuggestions] = useState<{ word: string; suggestions: string[]; field: 'body' | 'header' | 'footer'; position: { x: number; y: number } } | null>(null);
+
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const headerRef = useRef<HTMLInputElement | null>(null);
+  const footerRef = useRef<HTMLInputElement | null>(null);
+
+  // Validation checks
+  const isOverLimit = useMemo(() => ({
+    templateName: templateName.length > LIMITS.TEMPLATE_NAME,
+    headerText: headerText.length > LIMITS.HEADER_TEXT,
+    bodyText: bodyText.length > LIMITS.BODY_TEXT,
+    footerText: footerText.length > LIMITS.FOOTER_TEXT,
+    buttons: buttons.some(b => b.title.length > LIMITS.BUTTON_TEXT),
+  }), [templateName, headerText, bodyText, footerText, buttons]);
+
+  const hasValidationErrors = Object.values(isOverLimit).some(Boolean);
 
   const previewText = useMemo(
     () =>
@@ -149,6 +189,78 @@ export default function CreateTemplatePage() {
     () => buttons.filter((b) => b.title.trim()).slice(0, 3),
     [buttons]
   );
+
+  // Handle right-click on misspelled words for suggestions
+  const handleSpellCheck = useCallback(async (
+    e: React.MouseEvent<HTMLTextAreaElement | HTMLInputElement>,
+    field: 'body' | 'header' | 'footer'
+  ) => {
+    const target = e.target as HTMLTextAreaElement | HTMLInputElement;
+    const text = target.value;
+    
+    // Get the word at cursor position
+    const cursorPos = target.selectionStart || 0;
+    const words = text.split(/\s+/);
+    let charCount = 0;
+    let selectedWord = '';
+    let wordStart = 0;
+    
+    for (const word of words) {
+      if (cursorPos >= charCount && cursorPos <= charCount + word.length) {
+        selectedWord = word.replace(/[.,!?;:'"()]/g, '');
+        wordStart = charCount;
+        break;
+      }
+      charCount += word.length + 1;
+    }
+    
+    if (selectedWord && selectedWord.length > 2) {
+      // Use AI to get spelling suggestions
+      try {
+        const res = await crmFetch('/api/admin/crm/spell-suggest', {
+          method: 'POST',
+          body: JSON.stringify({ word: selectedWord, language }),
+        });
+        const data = await res.json();
+        if (data.suggestions && data.suggestions.length > 0) {
+          setSpellSuggestions({
+            word: selectedWord,
+            suggestions: data.suggestions,
+            field,
+            position: { x: e.clientX, y: e.clientY },
+          });
+        }
+      } catch (err) {
+        console.error('Spell check error:', err);
+      }
+    }
+  }, [crmFetch, language]);
+
+  // Apply spelling correction
+  const applySuggestion = useCallback((suggestion: string) => {
+    if (!spellSuggestions) return;
+    
+    const { word, field } = spellSuggestions;
+    
+    if (field === 'body') {
+      setBodyText(prev => prev.replace(new RegExp(`\\b${word}\\b`, 'gi'), suggestion));
+    } else if (field === 'header') {
+      setHeaderText(prev => prev.replace(new RegExp(`\\b${word}\\b`, 'gi'), suggestion));
+    } else if (field === 'footer') {
+      setFooterText(prev => prev.replace(new RegExp(`\\b${word}\\b`, 'gi'), suggestion));
+    }
+    
+    setSpellSuggestions(null);
+  }, [spellSuggestions]);
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handleClick = () => setSpellSuggestions(null);
+    if (spellSuggestions) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [spellSuggestions]);
 
   const uploadFile = useCallback(
     async (file: File, fileType: 'image' | 'video' | 'document') => {
@@ -364,23 +476,131 @@ export default function CreateTemplatePage() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Spell suggestions popup */}
+      {spellSuggestions && (
+        <div 
+          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-2 min-w-[150px]"
+          style={{ left: spellSuggestions.position.x, top: spellSuggestions.position.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-xs text-gray-500 px-2 py-1 border-b mb-1">
+            Replace &quot;{spellSuggestions.word}&quot; with:
+          </div>
+          {spellSuggestions.suggestions.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => applySuggestion(s)}
+              className="block w-full text-left px-3 py-1.5 text-sm hover:bg-[#1E7F43] hover:text-white rounded transition-colors"
+            >
+              {s}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setSpellSuggestions(null)}
+            className="block w-full text-left px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 border-t mt-1"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="px-8 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Create Template</h1>
             <p className="text-gray-600 mt-1">Design rich message templates with media support (up to 25MB)</p>
           </div>
-          <Link
-            href="/admin"
-            className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors"
-          >
-            🏠 Home
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowGuidelines(!showGuidelines)}
+              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                showGuidelines 
+                  ? 'bg-[#1E7F43] text-white' 
+                  : 'bg-amber-100 hover:bg-amber-200 text-amber-800'
+              }`}
+            >
+              📋 {showGuidelines ? 'Hide' : 'View'} Meta Guidelines
+            </button>
+            <Link
+              href="/admin"
+              className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors"
+            >
+              🏠 Home
+            </Link>
+          </div>
         </div>
       </div>
 
       <div className="p-6 md:p-8 max-w-6xl mx-auto">
+        {/* Meta Guidelines Panel */}
+        {showGuidelines && (
+          <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl">
+            <div className="flex items-start justify-between">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">📋 Meta WhatsApp Template Guidelines</h3>
+              <button 
+                type="button" 
+                onClick={() => setShowGuidelines(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >✕</button>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-3">
+                <div className="p-3 bg-white rounded-xl border border-blue-100">
+                  <div className="font-semibold text-blue-800 mb-1">✅ Content Requirements</div>
+                  <ul className="text-gray-600 space-y-1 text-xs">
+                    <li>• Use proper grammar and spelling</li>
+                    <li>• Include clear opt-out instructions for marketing</li>
+                    <li>• Variables format: {"{{1}}"}, {"{{2}}"}, etc.</li>
+                    <li>• Be concise and clear in messaging</li>
+                  </ul>
+                </div>
+                
+                <div className="p-3 bg-white rounded-xl border border-green-100">
+                  <div className="font-semibold text-green-800 mb-1">📏 Character Limits</div>
+                  <ul className="text-gray-600 space-y-1 text-xs">
+                    <li>• Header text: <strong>{LIMITS.HEADER_TEXT}</strong> characters max</li>
+                    <li>• Body text: <strong>{LIMITS.BODY_TEXT}</strong> characters max</li>
+                    <li>• Footer text: <strong>{LIMITS.FOOTER_TEXT}</strong> characters max</li>
+                    <li>• Button text: <strong>{LIMITS.BUTTON_TEXT}</strong> characters max</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="p-3 bg-white rounded-xl border border-red-100">
+                  <div className="font-semibold text-red-800 mb-1">❌ Avoid These</div>
+                  <ul className="text-gray-600 space-y-1 text-xs">
+                    <li>• URL shorteners (bit.ly, tinyurl)</li>
+                    <li>• Misleading or deceptive content</li>
+                    <li>• Threats or abusive language</li>
+                    <li>• Impersonating other businesses</li>
+                    <li>• Financial/medical advice without disclaimer</li>
+                  </ul>
+                </div>
+                
+                <div className="p-3 bg-white rounded-xl border border-amber-100">
+                  <div className="font-semibold text-amber-800 mb-1">⏱️ Approval Timeline</div>
+                  <ul className="text-gray-600 space-y-1 text-xs">
+                    <li>• <strong>UTILITY/AUTH:</strong> Instant to few hours</li>
+                    <li>• <strong>MARKETING:</strong> 24-48 hours review</li>
+                    <li>• Rejection? Edit and resubmit</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {error && <AlertBox type="error" message={error} onClose={() => setError(null)} />}
+        {hasValidationErrors && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="text-sm text-red-700 font-semibold">⚠️ Character limit exceeded - please reduce text length</div>
+          </div>
+        )}
         {uploading && (
           <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="text-sm text-blue-700">📤 Uploading file to S3...</div>
@@ -397,14 +617,21 @@ export default function CreateTemplatePage() {
 
               <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Template Name *</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-900">Template Name *</label>
+                    <CharacterCounter current={templateName.length} max={LIMITS.TEMPLATE_NAME} />
+                  </div>
                   <input
                     type="text"
                     required
                     placeholder="e.g., Welcome Message"
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent ${
+                      isOverLimit.templateName ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                    }`}
+                    maxLength={LIMITS.TEMPLATE_NAME}
+                    spellCheck
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -461,14 +688,24 @@ export default function CreateTemplatePage() {
                 {/* Header Content Inputs */}
                 {headerFormat === 'TEXT' && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">Header Text</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-semibold text-gray-900">Header Text</label>
+                      <CharacterCounter current={headerText.length} max={LIMITS.HEADER_TEXT} />
+                    </div>
                     <input
+                      ref={headerRef}
                       type="text"
                       placeholder="Enter header text"
                       value={headerText}
                       onChange={(e) => setHeaderText(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent"
+                      onContextMenu={(e) => handleSpellCheck(e, 'header')}
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent ${
+                        isOverLimit.headerText ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                      }`}
+                      maxLength={LIMITS.HEADER_TEXT + 10}
+                      spellCheck
                     />
+                    <div className="mt-1 text-xs text-gray-400">💡 Right-click on underlined words for spelling suggestions</div>
                   </div>
                 )}
 
@@ -596,21 +833,25 @@ export default function CreateTemplatePage() {
                 {/* Body Text */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-semibold text-gray-900">Message Body</label>
+                    <label className="block text-sm font-semibold text-gray-900">Message Body *</label>
                     <div className="flex items-center gap-2">
+                      <CharacterCounter current={bodyText.length} max={LIMITS.BODY_TEXT} />
+                      <div className="w-px h-5 bg-gray-200 mx-1" />
                       <button
                         type="button"
                         className="px-3 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold"
                         onClick={applyAutocorrectBody}
                         disabled={!bodyText.trim() || aiCorrecting || uploading}
+                        title="AI Auto-correct spelling & grammar"
                       >
-                        {aiCorrecting ? '⏳' : '✅'}
+                        {aiCorrecting ? '⏳' : '✅ Fix'}
                       </button>
 
                       <button
                         type="button"
                         className="w-9 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 font-extrabold"
                         onClick={() => applyFormat('*', '*')}
+                        title="Bold"
                       >
                         B
                       </button>
@@ -618,6 +859,7 @@ export default function CreateTemplatePage() {
                         type="button"
                         className="w-9 h-9 rounded-lg border border-gray-200 hover:bg-gray-50 italic font-semibold"
                         onClick={() => applyFormat('_', '_')}
+                        title="Italic"
                       >
                         I
                       </button>
@@ -642,23 +884,35 @@ export default function CreateTemplatePage() {
                     rows={8}
                     value={bodyText}
                     onChange={(e) => setBodyText(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent text-sm"
+                    onContextMenu={(e) => handleSpellCheck(e, 'body')}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent text-sm ${
+                      isOverLimit.bodyText ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                    }`}
                     spellCheck
                   />
-                  <div className="mt-2 text-xs text-gray-500">
-                    Bold: <code>*text*</code> | Italic: <code>_text_</code> | Variables: <code>{'{{firstName}}'}</code>
+                  <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                    <span>Bold: <code>*text*</code> | Italic: <code>_text_</code> | Variables: <code>{'{{1}}'}</code></span>
+                    <span className="text-gray-400">💡 Right-click misspelled words for suggestions</span>
                   </div>
                 </div>
 
                 {/* Footer */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">Footer Text</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-900">Footer Text</label>
+                    <CharacterCounter current={footerText.length} max={LIMITS.FOOTER_TEXT} />
+                  </div>
                   <input
+                    ref={footerRef}
                     type="text"
                     placeholder="Optional footer text"
                     value={footerText}
                     onChange={(e) => setFooterText(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent"
+                    onContextMenu={(e) => handleSpellCheck(e, 'footer')}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent ${
+                      isOverLimit.footerText ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                    }`}
+                    maxLength={LIMITS.FOOTER_TEXT + 10}
                     spellCheck
                   />
                 </div>
@@ -717,20 +971,29 @@ export default function CreateTemplatePage() {
                               <option value="PHONE_NUMBER">Phone</option>
                               <option value="CATALOG">Catalog</option>
                             </select>
-                            <input
-                              type="text"
-                              placeholder="Button text"
-                              value={b.title}
-                              onChange={(e) =>
-                                setButtons((prev) =>
-                                  prev.map((x, i) =>
-                                    i === idx ? { ...x, title: e.target.value } : x
+                            <div className="flex-1 relative">
+                              <input
+                                type="text"
+                                placeholder="Button text"
+                                value={b.title}
+                                onChange={(e) =>
+                                  setButtons((prev) =>
+                                    prev.map((x, i) =>
+                                      i === idx ? { ...x, title: e.target.value } : x
+                                    )
                                   )
-                                )
-                              }
-                              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-[#1E7F43]"
-                              maxLength={25}
-                            />
+                                }
+                                className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-1 focus:ring-[#1E7F43] ${
+                                  b.title.length > LIMITS.BUTTON_TEXT ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                }`}
+                                maxLength={LIMITS.BUTTON_TEXT + 5}
+                              />
+                              <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] ${
+                                b.title.length > LIMITS.BUTTON_TEXT ? 'text-red-500 font-semibold' : 'text-gray-400'
+                              }`}>
+                                {b.title.length}/{LIMITS.BUTTON_TEXT}
+                              </span>
+                            </div>
                           </div>
 
                           {b.type === 'URL' && (
@@ -785,10 +1048,10 @@ export default function CreateTemplatePage() {
                   </Link>
                   <button
                     type="submit"
-                    disabled={saving || uploading}
-                    className="flex-1 px-6 py-3 bg-[#1E7F43] hover:bg-[#166235] disabled:bg-gray-400 text-white rounded-xl font-semibold transition-colors"
+                    disabled={saving || uploading || hasValidationErrors}
+                    className="flex-1 px-6 py-3 bg-[#1E7F43] hover:bg-[#166235] disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-colors"
                   >
-                    {saving ? 'Creating…' : uploading ? 'Uploading…' : '+ Create Template'}
+                    {saving ? 'Creating…' : uploading ? 'Uploading…' : hasValidationErrors ? '⚠️ Fix Errors First' : '+ Create Template'}
                   </button>
                 </div>
               </div>
