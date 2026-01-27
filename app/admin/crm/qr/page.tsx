@@ -801,9 +801,12 @@ function QRWhatsAppInboxPageContent() {
             },
           });
 
+          console.log('[loadChats] API response status:', res.status);
+          
           if (res.ok) {
             const payload = await res.json();
             const conversations = payload?.data?.conversations || [];
+            console.log('[loadChats] Got', conversations.length, 'conversations from CRM');
             
             // Convert CRM conversations to chat format for the UI
             const crmChats = conversations.map((conv: any) => ({
@@ -825,6 +828,8 @@ function QRWhatsAppInboxPageContent() {
               _fromCRM: true,
             }));
 
+            console.log('[loadChats] Converted to', crmChats.length, 'chats');
+            
             if (crmChats.length > 0) {
               setChats(crmChats);
               // Also cache for offline use

@@ -242,41 +242,13 @@ app.post('/send', async (req, res) => {
     
     console.log('[SEND] Sending to:', target, 'Content length:', typeof content === 'string' ? content.length : 'media');
     
-    // Direct send using puppeteer page evaluation to bypass chat sync issues
-    // This bypasses the problematic sendSeen function
-    try {
-      const result = await client.pupPage.evaluate(async (targetId, msg) => {
-        const chat = await window.WWebJS.getChat(targetId);
-        if (!chat) throw new Error('Chat not found');
-        const msgResult = await chat.sendMessage(msg);
-        return { id: msgResult.id._serialized || msgResult.id };
-      }, target, content);
-      
-      console.log('[SEND OK via evaluate] Message ID:', result.id);
-      return res.json({ success: true, id: result.id, messageId: result.id });
-    } catch (evalError) {
-      console.log('[SEND] Evaluate method failed, trying standard sendMessage:', evalError.message);
-    }
-    
-    // Fallback to standard sendMessage
+    // Use standard sendMessage - the most reliable method
     const result = await client.sendMessage(target, content, options);
     
     console.log('[SEND OK] Message ID:', result.id._serialized);
     res.json({ success: true, id: result.id._serialized, messageId: result.id._serialized });
   } catch (e) { 
     console.error('[SEND ERROR]', e.message);
-    
-    // If it's the markedUnread error, the message might still have been sent
-    if (e.message && e.message.includes('markedUnread')) {
-      console.log('[SEND] markedUnread error - message may have been sent anyway');
-      return res.json({ 
-        success: true, 
-        id: 'unknown-' + Date.now(), 
-        messageId: 'unknown-' + Date.now(),
-        warning: 'Message possibly sent but confirmation failed due to WhatsApp sync issue'
-      });
-    }
-    
     res.status(500).json({ error: e.message }); 
   }
 });
