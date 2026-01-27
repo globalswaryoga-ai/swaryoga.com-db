@@ -822,8 +822,17 @@ function CommunityPageContent() {
                   <button
                     key={category.id}
                     onClick={() => {
+                      // Route to dedicated pages for each category
                       if (category.id === 'recordings') {
                         router.push('/community/recordings');
+                      } else if (category.id === 'experiences') {
+                        router.push('/community/experiences');
+                      } else if (category.id === 'questions') {
+                        router.push('/community/questions');
+                      } else if (category.id === 'tips') {
+                        router.push('/community/tips');
+                      } else if (category.id === 'transformations') {
+                        router.push('/community/transformations');
                       } else {
                         setSelectedCategory(category.id);
                         setViewMode('posts');

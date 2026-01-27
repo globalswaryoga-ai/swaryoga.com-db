@@ -252,6 +252,7 @@ export default function CRMDashboard() {
               { href: '/admin/crm/qr', label: 'QR WhatsApp', icon: '💚' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
               { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
+              { href: '/admin/crm/community-moderation', label: 'Moderation', icon: '📬' },
               { href: '/admin/crm/devices', label: 'Devices', icon: '📱' },
               { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
               { href: '/admin/crm/chatbot', label: 'Chatbot (AI)', icon: '🤖' },
