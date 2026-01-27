@@ -1648,6 +1648,46 @@ FollowUpInstanceSchema.index({ nextExecutionAt: 1, status: 1 });
 
 
 // ============================================================================
+// ZOOM RECORDING SYNC SCHEMA
+// ============================================================================
+// Tracks Zoom recordings synced to AWS S3
+
+const ZoomRecordingSyncSchema = new mongoose.Schema(
+  {
+    zoomMeetingId: { type: Number, required: true },
+    zoomMeetingUuid: { type: String, required: true, unique: true },
+    topic: { type: String, required: true },
+    hostId: { type: String },
+    startTime: { type: Date },
+    duration: { type: Number }, // in minutes
+    totalSize: { type: Number }, // in bytes
+    syncedFiles: [{
+      recordingType: { type: String }, // speaker_view, gallery_view, etc.
+      displayName: { type: String },
+      s3Key: { type: String },
+      s3Url: { type: String },
+      fileSize: { type: Number },
+    }],
+    skippedFiles: [{ type: String }],
+    errors: [{ type: String }],
+    syncStatus: { 
+      type: String, 
+      enum: ['pending', 'completed', 'partial', 'failed'],
+      default: 'pending'
+    },
+    syncedAt: { type: Date, default: Date.now },
+    // Link to workshop if applicable
+    workshopId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workshop' },
+  },
+  { timestamps: true }
+);
+
+ZoomRecordingSyncSchema.index({ zoomMeetingUuid: 1 }, { unique: true });
+ZoomRecordingSyncSchema.index({ syncedAt: -1 });
+ZoomRecordingSyncSchema.index({ topic: 1 });
+
+
+// ============================================================================
 // MODEL INITIALIZATION (LAZY - DEFERRED TO FIRST USE)
 // ============================================================================
 // CRITICAL: We DO NOT call getCrmDb() at module load time!
@@ -1739,6 +1779,7 @@ export function getEmailTemplate() { return getModel('EmailTemplate', EmailTempl
 export function getEmailCampaign() { return getModel('EmailCampaign', EmailCampaignSchema); }
 export function getFollowUpSequence() { return getModel('FollowUpSequence', FollowUpSequenceSchema); }
 export function getFollowUpInstance() { return getModel('FollowUpInstance', FollowUpInstanceSchema); }
+export function getZoomRecordingSync() { return getModel('ZoomRecordingSync', ZoomRecordingSyncSchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
@@ -1777,3 +1818,4 @@ export const EmailTemplate = createModelProxy('EmailTemplate', EmailTemplateSche
 export const EmailCampaign = createModelProxy('EmailCampaign', EmailCampaignSchema);
 export const FollowUpSequence = createModelProxy('FollowUpSequence', FollowUpSequenceSchema);
 export const FollowUpInstance = createModelProxy('FollowUpInstance', FollowUpInstanceSchema);
+export const ZoomRecordingSync = createModelProxy('ZoomRecordingSync', ZoomRecordingSyncSchema);
