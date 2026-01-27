@@ -360,16 +360,28 @@ client.on('message_create', async (msg) => {
   // Forward to CRM webhook if configured
   if (process.env.NEXT_BASE_URL) {
     try {
-      await fetch(`${process.env.NEXT_BASE_URL}/api/whatsapp/qr/webhook`, {
+      // FIXED: Correct webhook URL path
+      const webhookUrl = `${process.env.NEXT_BASE_URL}/api/admin/crm/whatsapp/qr/webhook`;
+      console.log('[WEBHOOK] Forwarding message to:', webhookUrl);
+      await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-qr-chat-secret': process.env.WHATSAPP_WEB_BRIDGE_SECRET
+          'x-bridge-secret': process.env.WHATSAPP_WEB_BRIDGE_SECRET
         },
-        body: JSON.stringify(msg)
+        body: JSON.stringify({
+          from: msg.from,
+          to: msg.to,
+          body: msg.body,
+          timestamp: msg.timestamp,
+          type: msg.type,
+          hasMedia: msg.hasMedia,
+          messageId: msg.id?._serialized || msg.id?.id || `bridge-${Date.now()}`
+        })
       });
+      console.log('[WEBHOOK] Message forwarded successfully');
     } catch (err) {
-      console.error('Failed to forward message to CRM', err.message);
+      console.error('[WEBHOOK] Failed to forward message to CRM:', err.message);
     }
   }
 });

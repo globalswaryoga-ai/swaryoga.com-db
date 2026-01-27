@@ -16,9 +16,10 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const secret = (process.env.QR_CHAT_WEBHOOK_SECRET || '').trim();
+    // Accept multiple secret header names for backwards compatibility
+    const secret = (process.env.QR_CHAT_WEBHOOK_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || process.env.WHATSAPP_WEB_BRIDGE_SECRET || '').trim();
     if (secret) {
-      const received = req.headers.get('x-qr-chat-secret') || req.headers.get('x-webhook-secret') || '';
+      const received = req.headers.get('x-qr-chat-secret') || req.headers.get('x-webhook-secret') || req.headers.get('x-bridge-secret') || '';
       if (received !== secret) {
         return apiError('UNAUTHORIZED', 'Unauthorized webhook');
       }
