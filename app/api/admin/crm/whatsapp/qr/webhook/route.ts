@@ -10,6 +10,24 @@ import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 
 const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 
+// Map WhatsApp message types to our schema types
+function mapMessageType(waType: string): 'text' | 'template' | 'media' {
+  switch (waType) {
+    case 'chat':
+    case 'text':
+      return 'text';
+    case 'image':
+    case 'video':
+    case 'audio':
+    case 'document':
+    case 'sticker':
+    case 'ptt': // voice note
+      return 'media';
+    default:
+      return 'text';
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Verify bridge secret
@@ -22,7 +40,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     console.log('[QR WEBHOOK] Received:', JSON.stringify(body).substring(0, 200));
 
-    const { from, to, body: messageBody, timestamp, type, hasMedia, messageId } = body;
+    const { from, to, body: messageBody, timestamp, type, hasMedia, messageId, contactName } = body;
 
     if (!from || !messageBody) {
       return NextResponse.json({ success: true, skipped: true, reason: 'no_from_or_body' });
@@ -33,11 +51,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: true, reason: 'status_broadcast' });
     }
 
-    // Skip @lid format (WhatsApp Link IDs) - these are internal IDs, not phone numbers
-    // The bridge should ideally resolve these to actual phone numbers
+    // NOTE: Bridge now resolves @lid to actual phone numbers before sending
+    // So 'from' field should already be in format like 919309986820@c.us
+    // If it still contains @lid, the bridge couldn't resolve it - log and skip
     if (from.includes('@lid')) {
-      console.log('[QR WEBHOOK] Skipping @lid format (not a phone number):', from);
-      return NextResponse.json({ success: true, skipped: true, reason: 'lid_format_not_phone' });
+      console.log('[QR WEBHOOK] Unresolved @lid format, bridge should resolve this:', from);
+      return NextResponse.json({ success: true, skipped: true, reason: 'unresolved_lid' });
     }
 
     await connectDB();
@@ -81,13 +100,18 @@ export async function POST(req: NextRequest) {
       leadId: lead._id,
       direction: 'inbound',
       messageContent: messageBody,
-      messageType: type || 'text',
+      messageType: mapMessageType(type || 'text'),
       hasMedia: hasMedia || false,
       waMessageId: messageId,
       status: 'received',
       provider: 'whatsapp_web_bridge',
       sentAt: timestamp ? new Date(timestamp * 1000) : new Date(),
     });
+
+    // Update lead name if we have contactName from bridge
+    if (contactName && lead.name?.startsWith('WhatsApp ')) {
+      await Lead.updateOne({ _id: lead._id }, { name: contactName });
+    }
 
     console.log('[QR WEBHOOK] Saved inbound message:', savedMessage._id, 'From:', phoneNumber);
 
