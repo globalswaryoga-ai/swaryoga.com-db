@@ -188,6 +188,10 @@ function TemplatesContent() {
   const editBodyRef = useRef<HTMLTextAreaElement | null>(null);
   const emojiRow = ['😊', '🙏', '✅', '📌', '🔥', '🎉', '📞', '📍'];
 
+  // Meta integration state
+  const [metaSyncing, setMetaSyncing] = useState(false);
+  const [metaSubmitting, setMetaSubmitting] = useState<string | null>(null);
+
   const previewButtons = useMemo(
     () => editButtons.filter((b) => b.title.trim()).slice(0, 3),
     [editButtons]
@@ -337,6 +341,62 @@ function TemplatesContent() {
       setError(err instanceof Error ? err.message : 'Bulk delete failed');
     }
   }, [clearTemplateSelection, crmFetch, fetchTemplates, selectedTemplateIds]);
+
+  // Submit template to Meta for approval
+  const submitToMeta = useCallback(async (templateId: string) => {
+    setMetaSubmitting(templateId);
+    setError(null);
+    try {
+      const result = await crmFetch('/api/admin/crm/templates/meta/submit', {
+        method: 'POST',
+        body: { templateId },
+      });
+      setSuccess(result.message || 'Template submitted to Meta for approval');
+      setTimeout(() => setSuccess(null), 5000);
+      await fetchTemplates();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit to Meta');
+    } finally {
+      setMetaSubmitting(null);
+    }
+  }, [crmFetch, fetchTemplates]);
+
+  // Sync single template status from Meta
+  const syncTemplateStatus = useCallback(async (templateId: string) => {
+    setMetaSubmitting(templateId);
+    setError(null);
+    try {
+      const result = await crmFetch('/api/admin/crm/templates/meta/sync', {
+        method: 'POST',
+        body: { templateId },
+      });
+      setSuccess(`Status synced: ${result.metaStatus}${result.rejectedReason ? ` - ${result.rejectedReason}` : ''}`);
+      setTimeout(() => setSuccess(null), 5000);
+      await fetchTemplates();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sync status');
+    } finally {
+      setMetaSubmitting(null);
+    }
+  }, [crmFetch, fetchTemplates]);
+
+  // Sync all templates from Meta
+  const syncAllFromMeta = useCallback(async (importNew = false) => {
+    setMetaSyncing(true);
+    setError(null);
+    try {
+      const result = await crmFetch(`/api/admin/crm/templates/meta/sync?import=${importNew}`, {
+        method: 'GET',
+      });
+      setSuccess(`Synced ${result.totalFromMeta} templates from Meta (${result.updated} updated, ${result.imported} imported)`);
+      setTimeout(() => setSuccess(null), 5000);
+      await fetchTemplates();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sync from Meta');
+    } finally {
+      setMetaSyncing(false);
+    }
+  }, [crmFetch, fetchTemplates]);
 
   const saveEdit = async () => {
     if (!editingId || !editForm.templateName) {
@@ -607,6 +667,27 @@ function TemplatesContent() {
             <div className="text-2xl font-bold text-gray-900">{filteredTemplates.length}</div>
             <div className="text-xs text-gray-500">Templates Found</div>
           </div>
+        </div>
+
+        {/* Meta Sync Buttons */}
+        <div className="p-4 border-t border-gray-200 space-y-2">
+          <button
+            onClick={() => syncAllFromMeta(false)}
+            disabled={metaSyncing}
+            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold text-sm transition-all"
+          >
+            {metaSyncing ? '⏳ Syncing...' : '🔄 Sync from Meta'}
+          </button>
+          <button
+            onClick={() => syncAllFromMeta(true)}
+            disabled={metaSyncing}
+            className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-semibold text-sm transition-all"
+          >
+            {metaSyncing ? '⏳ Syncing...' : '📥 Import from Meta'}
+          </button>
+          <p className="text-xs text-gray-500 text-center">
+            Sync updates status. Import also creates new templates.
+          </p>
         </div>
 
         {/* Refresh Button */}
@@ -1219,8 +1300,31 @@ function TemplatesContent() {
                       </div>
                     )}
 
+                    {/* Meta Actions */}
+                    <div className="flex gap-2 pt-3">
+                      {!(t as any).metaTemplateId ? (
+                        <button
+                          onClick={() => submitToMeta(t._id)}
+                          disabled={metaSubmitting === t._id}
+                          className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold text-xs transition-colors"
+                          title="Submit to Meta for WhatsApp approval"
+                        >
+                          {metaSubmitting === t._id ? '⏳' : '🚀'} Submit to Meta
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => syncTemplateStatus(t._id)}
+                          disabled={metaSubmitting === t._id}
+                          className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-semibold text-xs transition-colors"
+                          title="Refresh status from Meta"
+                        >
+                          {metaSubmitting === t._id ? '⏳' : '🔄'} Sync Status
+                        </button>
+                      )}
+                    </div>
+
                     {/* Actions */}
-                    <div className="flex gap-2 pt-4 border-t border-gray-200">
+                    <div className="flex gap-2 pt-2 border-t border-gray-200">
                       <button
                         onClick={() => openEdit(t)}
                         className="flex-1 px-3 py-2 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold text-sm transition-colors"
