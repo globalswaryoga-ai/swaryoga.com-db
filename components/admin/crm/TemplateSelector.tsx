@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { X, Search, FileText, Image, Video, File, Check, ChevronDown, RefreshCw } from 'lucide-react';
+import { X, Search, FileText, Image, Video, File, Check, ChevronDown, RefreshCw, Send } from 'lucide-react';
 
 // Template type matching the API response
 export type WhatsAppTemplate = {
@@ -203,10 +203,12 @@ function TemplateCard({
   template,
   isSelected,
   onClick,
+  onUse,
 }: {
   template: WhatsAppTemplate;
   isSelected: boolean;
   onClick: () => void;
+  onUse: () => void;
 }) {
   const getCategoryIcon = (category?: string) => {
     switch (category) {
@@ -282,13 +284,20 @@ function TemplateCard({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 justify-between">
             <span className="font-bold text-gray-900 truncate">{template.templateName}</span>
-            {isSelected && (
-              <span className="text-[10px] px-2 py-0.5 bg-[#00A884] text-white rounded-full font-semibold">
-                ✓ Selected
-              </span>
-            )}
+            {/* Quick Use Button */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUse();
+              }}
+              className="px-3 py-1 bg-[#00A884] hover:bg-[#008f6f] text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+            >
+              <Send size={12} />
+              Use
+            </button>
           </div>
 
           {/* Tags */}
@@ -403,13 +412,19 @@ export default function TemplateSelector({
   }, [templates]);
 
   const handleSelect = (template: WhatsAppTemplate) => {
-    // Just set preview - user needs to click "Use Template" button to actually select
+    // Set preview for display
     setPreviewTemplate(template);
   };
 
   const handleUseTemplate = (template: WhatsAppTemplate) => {
+    console.log('[TemplateSelector] Using template:', template.templateName);
     onSelect(template);
     if (onClose) onClose();
+  };
+
+  // Double-click on card to immediately use template
+  const handleDoubleClick = (template: WhatsAppTemplate) => {
+    handleUseTemplate(template);
   };
 
   const content = (
@@ -524,6 +539,7 @@ export default function TemplateSelector({
                 template={template}
                 isSelected={selectedTemplateId === template._id || previewTemplate?._id === template._id}
                 onClick={() => handleSelect(template)}
+                onUse={() => handleUseTemplate(template)}
               />
             ))
           )}
