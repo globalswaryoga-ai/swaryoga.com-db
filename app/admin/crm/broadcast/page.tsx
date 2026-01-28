@@ -433,8 +433,8 @@ export default function BroadcastPage() {
         body: payload,
       });
 
-      // API returns { success: true, data: <run object> }
-      const run = created?.data;
+      // useCRM.fetch unwraps result.data, so `created` IS the run object directly
+      const run = created;
       if (!run?._id) throw new Error('Failed to create broadcast run');
 
       setActiveRunId(String(run._id));
