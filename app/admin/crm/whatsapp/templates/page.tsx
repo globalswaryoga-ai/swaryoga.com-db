@@ -86,7 +86,7 @@ type StatusType = 'all' | 'draft' | 'pending_approval' | 'approved' | 'rejected'
  * Component to load template images via media proxy
  * Uses the proxy API to handle S3 private bucket access
  */
-function TemplateImageThumbnail({ imageFile, token }: { imageFile: any; token: string | null }) {
+function TemplateImageThumbnail({ imageFile, token, fullWidth }: { imageFile: any; token: string | null; fullWidth?: boolean }) {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -104,6 +104,33 @@ function TemplateImageThumbnail({ imageFile, token }: { imageFile: any; token: s
     setLoading(false);
   }, [imageFile?.url, token]);
 
+  // Full width mode for WhatsApp-style card preview
+  if (fullWidth) {
+    if (loading) {
+      return (
+        <div className="w-full h-40 bg-gray-200 animate-pulse flex items-center justify-center">
+          <span className="text-gray-400">⏳</span>
+        </div>
+      );
+    }
+    if (error || !imageUrl) {
+      return (
+        <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
+          <span className="text-gray-400 text-3xl">🖼️</span>
+        </div>
+      );
+    }
+    return (
+      <img
+        src={imageUrl}
+        alt="Template image"
+        className="w-full h-full object-cover"
+        onError={() => setError(true)}
+      />
+    );
+  }
+
+  // Default thumbnail mode
   if (loading) {
     return (
       <div className="space-y-1">
@@ -1195,157 +1222,171 @@ function TemplatesContent() {
           ) : (
             // Template Grid
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredTemplates.map((t) => (
+              {filteredTemplates.map((t) => {
+                // Parse template content to extract header, body, footer, and buttons
+                const lines = (t.templateContent || '').split('\n').filter(l => l.trim());
+                const headerContent = t.headerContent || (lines[0]?.startsWith('*') ? lines[0].replace(/^\*|\*$/g, '') : '');
+                const footerContent = t.footerText || '';
+                
+                // Extract buttons from content (lines starting with •, -, or [QUICK_REPLY])
+                const buttonLines = lines.filter(l => 
+                  l.trim().startsWith('•') || 
+                  l.includes('[QUICK_REPLY]') ||
+                  l.includes('• [')
+                );
+                const buttons = buttonLines.map(b => 
+                  b.replace(/^[•\-]\s*/, '')
+                   .replace(/\[QUICK_REPLY\]\s*/g, '')
+                   .trim()
+                ).filter(b => b.length > 0 && b.length < 50);
+                
+                // Body is everything except header and buttons
+                const bodyLines = lines.filter(l => 
+                  !l.trim().startsWith('•') && 
+                  !l.includes('[QUICK_REPLY]') &&
+                  l !== lines[0]
+                );
+                const bodyContent = bodyLines.join('\n').trim() || t.templateContent;
+
+                return (
                 <div
                   key={t._id}
-                  className="bg-white rounded-xl border border-gray-200 shadow-md hover:shadow-lg transition-all overflow-hidden"
+                  className="bg-[#e8dfd6] rounded-2xl shadow-lg hover:shadow-xl transition-all overflow-hidden"
                 >
-                  <div className="p-6 space-y-4">
-                    {/* Select */}
-                    <div className="flex items-center justify-between">
-                      <label className="inline-flex items-center gap-2 text-xs font-semibold text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={selectedTemplateIds.has(t._id)}
-                          onChange={() => toggleTemplateSelection(t._id)}
-                          className="h-4 w-4 accent-emerald-600 cursor-pointer"
-                        />
-                        Select
-                      </label>
+                  {/* Top bar with select + name */}
+                  <div className="bg-white/80 backdrop-blur px-4 py-3 flex items-center justify-between border-b border-gray-200">
+                    <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedTemplateIds.has(t._id)}
+                        onChange={() => toggleTemplateSelection(t._id)}
+                        className="h-4 w-4 accent-emerald-600 cursor-pointer rounded"
+                      />
+                      Select
+                    </label>
+                    <h3 className="font-bold text-gray-900 truncate max-w-[60%]" title={t.templateName}>
+                      {t.templateName}
+                    </h3>
+                  </div>
 
-                      <div className="text-xs text-gray-500">
-                        {allSelectedOnPage ? 'All selected' : ''}
+                  {/* Badges row */}
+                  <div className="px-4 py-2 flex gap-2 flex-wrap bg-white/50">
+                    {t.language && (
+                      <span className="px-2.5 py-0.5 bg-[#E6F4EC] text-[#1E7F43] text-xs font-semibold rounded-full">
+                        {t.language === 'en' ? '🇬🇧' : '🇮🇳'} {t.language.toUpperCase()}
+                      </span>
+                    )}
+                    {t.category && (
+                      <span className="px-2.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                        📢 {t.category}
+                      </span>
+                    )}
+                    <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${
+                      t.status === 'approved' ? 'bg-green-100 text-green-700' :
+                      t.status === 'pending_approval' ? 'bg-yellow-100 text-yellow-700' :
+                      t.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {t.status === 'approved' ? '✅' : t.status === 'pending_approval' ? '⏳' : t.status === 'rejected' ? '❌' : '📝'} {t.status || 'draft'}
+                    </span>
+                  </div>
+
+                  {/* WhatsApp Message Preview */}
+                  <div className="p-4">
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden max-w-[95%]">
+                      {/* Image at top if exists */}
+                      {t.imageFile && (
+                        <div className="w-full aspect-[16/10] bg-gray-100 overflow-hidden">
+                          <TemplateImageThumbnail imageFile={t.imageFile} token={token} fullWidth />
+                        </div>
+                      )}
+                      
+                      {/* Message content */}
+                      <div className="p-3 space-y-2">
+                        {/* Header (bold) */}
+                        {headerContent && (
+                          <h4 className="font-bold text-gray-900 text-sm leading-tight">
+                            {headerContent}
+                          </h4>
+                        )}
+                        
+                        {/* Body text */}
+                        <div className="text-gray-800 text-sm whitespace-pre-wrap leading-relaxed line-clamp-6">
+                          {bodyContent.slice(0, 300)}{bodyContent.length > 300 ? '...' : ''}
+                        </div>
+                        
+                        {/* Footer (gray, small) */}
+                        {footerContent && (
+                          <p className="text-gray-500 text-xs pt-1 border-t border-gray-100 mt-2">
+                            {footerContent}
+                          </p>
+                        )}
                       </div>
                     </div>
-
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-bold text-lg text-gray-900 flex-1 line-clamp-2">
-                        {t.templateName}
-                      </h3>
-                    </div>
-
-                    {/* Badges */}
-                    <div className="flex gap-2 flex-wrap">
-                      {t.language && (
-                        <span className="px-3 py-1 bg-[#E6F4EC] text-[#1E7F43] text-xs font-semibold rounded-full">
-                          {t.language === 'en' ? '🇬🇧' : t.language === 'hi' ? '🇮🇳' : '🇮🇳'} {t.language.toUpperCase()}
-                        </span>
-                      )}
-                      {t.category && (
-                        <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
-                          {t.category === 'MARKETING' ? '📢' : t.category === 'TRANSACTIONAL' ? '💳' : '🔐'} {t.category}
-                        </span>
-                      )}
-                      {t.status && (
-                        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                          t.status === 'approved'
-                            ? 'bg-green-100 text-green-700'
-                            : t.status === 'pending_approval'
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : t.status === 'rejected'
-                            ? 'bg-red-100 text-red-700'
-                            : t.status === 'disabled'
-                            ? 'bg-gray-100 text-gray-700'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {t.status === 'approved' ? '✅' : t.status === 'pending_approval' ? '⏳' : t.status === 'rejected' ? '❌' : t.status === 'disabled' ? '🚫' : '📝'} {t.status || 'Draft'}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Content Preview */}
-                    <p className="text-gray-600 text-sm line-clamp-4 min-h-16 bg-gray-50 p-3 rounded">
-                      {t.templateContent}
-                    </p>
-
-                    {/* Metadata */}
-                    {t.createdAt && (
-                      <p className="text-xs text-gray-500">
-                        Created: {new Date(t.createdAt).toLocaleDateString()}
-                      </p>
-                    )}
-
-                    {/* Media Display Section */}
-                    {(t.imageFile || (t.documents && t.documents.length > 0) || t.videoUrl) && (
-                      <div className="space-y-3 py-3 border-t border-b border-gray-200">
-                        {/* Image Thumbnail */}
-                        {t.imageFile && (
-                          <TemplateImageThumbnail imageFile={t.imageFile} token={token} />
-                        )}
-
-                        {/* Document Count */}
-                        {t.documents && t.documents.length > 0 && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-semibold text-gray-700">📎 Documents ({t.documents.length})</p>
-                            <div className="flex gap-2 flex-wrap">
-                              {t.documents.map((doc, idx) => (
-                                <div key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded truncate max-w-[150px]" title={doc.fileName}>
-                                  {doc.fileName}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Video Indicator */}
-                        {t.videoUrl && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-semibold text-gray-700">🎬 Video attached</p>
-                            <a
-                              href={t.videoUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline truncate block"
-                            >
-                              View video →
-                            </a>
-                          </div>
-                        )}
+                    
+                    {/* Buttons below the message bubble */}
+                    {buttons.length > 0 && (
+                      <div className="mt-2 space-y-1.5 max-w-[95%]">
+                        {buttons.slice(0, 3).map((btn, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className="w-full bg-white text-[#00a884] font-semibold text-sm py-2.5 rounded-xl shadow-sm hover:bg-gray-50 transition-colors"
+                          >
+                            {btn}
+                          </button>
+                        ))}
                       </div>
                     )}
+                  </div>
 
-                    {/* Meta Actions */}
-                    <div className="flex gap-2 pt-3">
+                  {/* Metadata + Created date */}
+                  <div className="px-4 py-2 bg-white/50 text-xs text-gray-500">
+                    Created: {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A'}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="bg-white border-t border-gray-200">
+                    {/* Meta Submit/Sync */}
+                    <div className="px-4 py-3 border-b border-gray-100">
                       {!(t as any).metaTemplateId ? (
                         <button
                           onClick={() => submitToMeta(t._id)}
                           disabled={metaSubmitting === t._id}
-                          className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-semibold text-xs transition-colors"
-                          title="Submit to Meta for WhatsApp approval"
+                          className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-sm"
                         >
-                          {metaSubmitting === t._id ? '⏳' : '🚀'} Submit to Meta
+                          {metaSubmitting === t._id ? '⏳ Submitting...' : '🚀 Submit to Meta'}
                         </button>
                       ) : (
                         <button
                           onClick={() => syncTemplateStatus(t._id)}
                           disabled={metaSubmitting === t._id}
-                          className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white rounded-lg font-semibold text-xs transition-colors"
-                          title="Refresh status from Meta"
+                          className="w-full px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-purple-400 disabled:to-purple-500 text-white rounded-xl font-semibold text-sm transition-all shadow-sm"
                         >
-                          {metaSubmitting === t._id ? '⏳' : '🔄'} Sync Status
+                          {metaSubmitting === t._id ? '⏳ Syncing...' : '🔄 Sync Status'}
                         </button>
                       )}
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-2 border-t border-gray-200">
+                    
+                    {/* Edit/Delete */}
+                    <div className="flex gap-2 p-4">
                       <button
                         onClick={() => openEdit(t)}
-                        className="flex-1 px-3 py-2 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-lg font-semibold text-sm transition-colors"
+                        className="flex-1 px-4 py-2.5 bg-[#1E7F43] hover:bg-[#166235] text-white rounded-xl font-semibold text-sm transition-colors"
                       >
                         ✏️ Edit
                       </button>
                       <button
                         onClick={() => deleteTemplate(t._id)}
-                        className="flex-1 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-semibold text-sm transition-colors"
+                        className="flex-1 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-semibold text-sm transition-colors border border-red-200"
                       >
                         🗑️ Delete
                       </button>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -26,43 +26,76 @@ export async function GET(request: NextRequest) {
     const bridgeSecret = process.env.WHATSAPP_WEB_BRIDGE_SECRET;
 
     try {
-      const groupsResponse = await axios.get(`${bridgeUrl}/groups`, {
-        headers: {
-          'x-bridge-secret': bridgeSecret,
-        },
-        timeout: 5000,
-      });
-
-      const groups = groupsResponse.data?.groups || [];
+      // Try /groups endpoint first, fall back to /chats if not available
+      let groups: any[] = [];
+      
+      try {
+        const groupsResponse = await axios.get(`${bridgeUrl}/groups`, {
+          headers: { 'x-bridge-secret': bridgeSecret },
+          timeout: 5000,
+        });
+        groups = groupsResponse.data?.groups || [];
+      } catch (groupsErr: any) {
+        // If /groups endpoint doesn't exist, try /chats and filter for groups
+        if (groupsErr?.response?.status === 404 || groupsErr?.message?.includes('Cannot GET')) {
+          console.log('Bridge /groups not available, falling back to /chats');
+          const chatsResponse = await axios.get(`${bridgeUrl}/chats`, {
+            headers: { 'x-bridge-secret': bridgeSecret },
+            timeout: 5000,
+          });
+          // Filter to only include groups (isGroup: true or id ends with @g.us)
+          groups = (chatsResponse.data?.chats || []).filter(
+            (c: any) => c.isGroup === true || c.id?.endsWith('@g.us')
+          );
+        } else {
+          throw groupsErr;
+        }
+      }
       
       return NextResponse.json({
         success: true,
         groups: groups.map((g: any) => ({
           id: g.id,
-          name: g.name,
+          name: g.name || 'Unknown Group',
           description: g.description || '',
           participants: g.participants || [],
-          participantCount: g.participants?.length || 0,
+          participantCount: g.memberCount || g.participants?.length || 0,
           isAdmin: g.isAdmin || false,
           inviteCode: g.inviteCode || '',
-          icon: g.icon || '',
-          createdAt: g.createdAt,
-          lastMessage: g.lastMessage,
-          lastMessageTime: g.lastMessageTime,
+          icon: g.profilePicUrl || g.icon || '',
+          createdAt: g.timestamp ? new Date(g.timestamp * 1000).toISOString() : new Date().toISOString(),
+          // Safely extract lastMessage body as string, not object
+          lastMessage: typeof g.lastMessage === 'string' 
+            ? g.lastMessage 
+            : g.lastMessage?.body || '',
+          lastMessageTime: g.timestamp ? new Date(g.timestamp * 1000).toISOString() : '',
         })),
         total: groups.length,
       });
-    } catch (bridgeError) {
-      console.error('Bridge error:', bridgeError);
+    } catch (bridgeError: any) {
+      console.error('Bridge error:', bridgeError?.message || bridgeError);
+      
+      // Determine specific error message
+      let errorMessage = 'Unable to fetch groups from WhatsApp bridge';
+      if (bridgeError?.code === 'ECONNREFUSED') {
+        errorMessage = 'WhatsApp bridge is not running. Please start the bridge service.';
+      } else if (bridgeError?.code === 'ETIMEDOUT' || bridgeError?.code === 'ECONNABORTED') {
+        errorMessage = 'WhatsApp bridge connection timed out. Check if the bridge is accessible.';
+      } else if (bridgeError?.response?.status === 400) {
+        errorMessage = 'WhatsApp client is not connected. Please scan QR code first.';
+      } else if (bridgeError?.response?.status === 401) {
+        errorMessage = 'Bridge authentication failed. Check WHATSAPP_WEB_BRIDGE_SECRET.';
+      }
+      
       return NextResponse.json(
-        { error: 'Unable to fetch groups from WhatsApp bridge' },
+        { success: false, error: errorMessage, groups: [] },
         { status: 503 }
       );
     }
   } catch (error) {
     console.error('Groups fetch error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch groups' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to fetch groups', groups: [] },
       { status: 500 }
     );
   }
