@@ -246,11 +246,12 @@ export async function processDueBroadcastRuns(options?: {
             let fullMessage = templateContent;
             
             // Add button text as clickable format (QR can't send native buttons)
+            // Use numbered format so recipients can reply with a number
             const buttonTexts = buttons
               .filter((b: any) => b.title)
-              .map((b: any) => `📌 ${b.title}`)
+              .map((b: any, i: number) => `${['1️⃣', '2️⃣', '3️⃣'][i] || `${i+1}.`} ${b.title}`)
               .join('\n');
-            if (buttonTexts) fullMessage += `\n\n${buttonTexts}`;
+            if (buttonTexts) fullMessage += `\n\n📲 Reply with number:\n${buttonTexts}`;
             
             // Check for header media (image)
             const headerMedia = (template as any).headerMedia;

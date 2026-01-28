@@ -161,15 +161,15 @@ export default function SendTemplatePage() {
           .replace(/\n{3,}/g, '\n\n')
           .trim();
 
-        // Add button text as readable format
+        // Add button text as numbered options (QR can't send native buttons)
         const buttons = selectedTemplate.buttons || [];
         const buttonTexts = buttons
           .filter((b) => b.title)
-          .map((b) => `📌 ${b.title}`)
+          .map((b, i) => `${['1️⃣', '2️⃣', '3️⃣'][i] || `${i+1}.`} ${b.title}`)
           .join('\n');
 
         let fullMessage = templateContent;
-        if (buttonTexts) fullMessage += `\n\n${buttonTexts}`;
+        if (buttonTexts) fullMessage += `\n\n📲 Reply with number:\n${buttonTexts}`;
 
         // Check for header image
         const headerMedia = selectedTemplate.headerMedia;
@@ -381,11 +381,11 @@ export default function SendTemplatePage() {
               </div>
               
               <div className={`mt-3 p-2 rounded-lg text-xs ${
-                provider === 'meta' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+                provider === 'meta' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
               }`}>
                 {provider === 'meta' 
-                  ? '✅ Native clickable buttons will appear in WhatsApp'
-                  : '📝 Buttons will be sent as text (📌 Button Title)'}
+                  ? '✅ Native clickable blue buttons will appear in WhatsApp'
+                  : '⚠️ QR WhatsApp cannot send native buttons. Buttons will appear as numbered text options that recipients can reply to.'}
               </div>
             </div>
 
@@ -487,12 +487,13 @@ export default function SendTemplatePage() {
                         {selectedTemplate.templateContent}
                       </p>
                       
-                      {/* QR shows buttons as text */}
+                      {/* QR shows buttons as numbered options */}
                       {provider === 'qr' && selectedTemplate.buttons?.length ? (
                         <div className="mt-3 pt-3 border-t border-white/20">
+                          <p className="text-white/70 text-xs mb-2">📲 Reply with number:</p>
                           {selectedTemplate.buttons.map((btn, i) => (
                             <p key={i} className="text-white/90 text-sm py-1">
-                              📌 {btn.title}
+                              {['1️⃣', '2️⃣', '3️⃣'][i] || `${i+1}.`} {btn.title}
                             </p>
                           ))}
                         </div>
