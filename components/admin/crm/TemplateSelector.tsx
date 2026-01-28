@@ -239,16 +239,30 @@ function TemplateCard({
   const hasMedia = template.imageFile || template.videoUrl || (template.documents && template.documents.length > 0);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+    <div
+      className={`w-full text-left p-3 rounded-xl border-2 transition-all cursor-pointer ${
         isSelected
           ? 'border-[#00A884] bg-[#E6F4EC] ring-2 ring-[#00A884]/20'
           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
       }`}
+      onClick={onClick}
     >
       <div className="flex items-start gap-3">
+        {/* Checkbox for selection */}
+        <div 
+          className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+            isSelected 
+              ? 'bg-[#00A884] border-[#00A884] text-white' 
+              : 'border-gray-300 hover:border-[#00A884] bg-white'
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+        >
+          {isSelected && <Check size={14} strokeWidth={3} />}
+        </div>
+
         {/* Media indicator */}
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
           isSelected ? 'bg-[#00A884] text-white' : 'bg-gray-100 text-gray-500'
@@ -271,7 +285,9 @@ function TemplateCard({
           <div className="flex items-center gap-2">
             <span className="font-bold text-gray-900 truncate">{template.templateName}</span>
             {isSelected && (
-              <Check size={16} className="text-[#00A884] flex-shrink-0" />
+              <span className="text-[10px] px-2 py-0.5 bg-[#00A884] text-white rounded-full font-semibold">
+                ✓ Selected
+              </span>
             )}
           </div>
 
@@ -301,7 +317,7 @@ function TemplateCard({
           </p>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -387,8 +403,13 @@ export default function TemplateSelector({
   }, [templates]);
 
   const handleSelect = (template: WhatsAppTemplate) => {
+    // Just set preview - user needs to click "Use Template" button to actually select
     setPreviewTemplate(template);
+  };
+
+  const handleUseTemplate = (template: WhatsAppTemplate) => {
     onSelect(template);
+    if (onClose) onClose();
   };
 
   const content = (
@@ -516,9 +537,33 @@ export default function TemplateSelector({
               <p className="text-xs text-gray-500">Preview</p>
             </div>
             <TemplatePreview template={previewTemplate} token={token} />
+            
+            {/* Use Template Button */}
+            <button
+              type="button"
+              onClick={() => handleUseTemplate(previewTemplate)}
+              className="w-full mt-4 px-4 py-3 bg-[#00A884] hover:bg-[#008f6f] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Check size={18} />
+              Use This Template
+            </button>
           </div>
         )}
       </div>
+      
+      {/* Footer with Use Template button (when template selected but no preview panel) */}
+      {!showPreview && previewTemplate && (
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+          <button
+            type="button"
+            onClick={() => handleUseTemplate(previewTemplate)}
+            className="w-full px-4 py-3 bg-[#00A884] hover:bg-[#008f6f] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg"
+          >
+            <Check size={18} />
+            Use Template: {previewTemplate.templateName}
+          </button>
+        </div>
+      )}
     </div>
   );
 
