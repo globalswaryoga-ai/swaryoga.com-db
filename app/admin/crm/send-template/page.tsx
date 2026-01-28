@@ -457,72 +457,119 @@ export default function SendTemplatePage() {
           {/* Right: Preview */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-xl border p-5 sticky top-24">
-              <h3 className="font-bold text-gray-800 mb-4">👁️ Preview</h3>
+              <h3 className="font-bold text-gray-800 mb-4">👁️ Message Card Preview</h3>
 
               {selectedTemplate ? (
-                <div className="bg-[#e5ddd5] rounded-xl p-4">
-                  <p className="text-xs text-gray-600 mb-3 text-center">
-                    WhatsApp Preview ({provider === 'meta' ? 'Meta' : 'QR'})
+                <div className="bg-[#0b141a] rounded-xl p-4">
+                  <p className="text-xs text-gray-400 mb-3 text-center">
+                    WhatsApp {provider === 'meta' ? 'Meta (Native)' : 'QR (Text)'}
                   </p>
 
-                  <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-xs mx-auto">
+                  {/* WhatsApp Card Style */}
+                  <div className="bg-[#025c4c] rounded-2xl overflow-hidden max-w-xs mx-auto shadow-2xl">
+                    {/* Header Image */}
                     {selectedTemplate.headerMedia?.url && (
-                      <img
-                        src={selectedTemplate.headerMedia.url}
-                        alt=""
-                        className="w-full h-32 object-cover"
-                      />
+                      <div className="relative">
+                        <img
+                          src={selectedTemplate.headerMedia.url}
+                          alt=""
+                          className="w-full h-40 object-cover"
+                        />
+                        <div className="absolute bottom-2 right-2 bg-black/50 px-2 py-0.5 rounded text-xs text-white">
+                          📷 Image
+                        </div>
+                      </div>
                     )}
-                    <div className="p-3">
-                      <p className="text-gray-800 text-sm whitespace-pre-wrap">
+                    
+                    {/* Body Content */}
+                    <div className="bg-[#005c4b] p-4">
+                      <p className="text-white text-sm whitespace-pre-wrap leading-relaxed">
                         {selectedTemplate.templateContent}
                       </p>
-
+                      
                       {/* QR shows buttons as text */}
                       {provider === 'qr' && selectedTemplate.buttons?.length ? (
-                        <div className="mt-3 pt-2 border-t border-gray-100">
+                        <div className="mt-3 pt-3 border-t border-white/20">
                           {selectedTemplate.buttons.map((btn, i) => (
-                            <p key={i} className="text-sm text-gray-700 py-0.5">
+                            <p key={i} className="text-white/90 text-sm py-1">
                               📌 {btn.title}
                             </p>
                           ))}
                         </div>
                       ) : null}
+                      
+                      {/* Timestamp */}
+                      <div className="flex justify-end mt-2">
+                        <span className="text-xs text-white/60">
+                          {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} ✓✓
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Meta shows native buttons */}
+                    {/* Meta shows native blue buttons */}
                     {provider === 'meta' && selectedTemplate.buttons?.map((btn, i) => (
-                      <div key={i} className="border-t border-gray-100">
-                        <div className="w-full py-2.5 text-[#00a5f4] text-sm font-medium text-center">
-                          🔗 {btn.title}
-                        </div>
+                      <div key={i} className="border-t border-[#0a3a3a]">
+                        <button className="w-full py-3 text-[#53bdeb] text-sm font-medium text-center hover:bg-[#0a3a3a] transition-colors flex items-center justify-center gap-2">
+                          <span>↩️</span>
+                          {btn.title}
+                        </button>
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-3 text-center">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                      provider === 'meta' ? 'bg-green-100 text-green-700' : 'bg-emerald-100 text-emerald-700'
+                  {/* Provider Badge */}
+                  <div className="mt-4 text-center">
+                    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
+                      provider === 'meta' 
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
+                        : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                     }`}>
-                      {provider === 'meta' ? '🟢 Meta API' : '💚 QR Bridge'}
+                      {provider === 'meta' ? '🟢 Meta Cloud API' : '💚 QR Bridge'}
                     </span>
+                  </div>
+                  
+                  {/* Features */}
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                    <div className={`p-2 rounded-lg ${selectedTemplate.headerMedia?.url ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
+                      <span className="text-lg">{selectedTemplate.headerMedia?.url ? '✅' : '➖'}</span>
+                      <p className="text-xs text-gray-300">Image</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-green-500/20">
+                      <span className="text-lg">✅</span>
+                      <p className="text-xs text-gray-300">Body</p>
+                    </div>
+                    <div className={`p-2 rounded-lg ${selectedTemplate.buttons?.length ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
+                      <span className="text-lg">{selectedTemplate.buttons?.length ? '✅' : '➖'}</span>
+                      <p className="text-xs text-gray-300">Button</p>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12 text-gray-400">
+                <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl">
                   <span className="text-5xl">📋</span>
                   <p className="mt-3 text-sm">Select a template to preview</p>
                 </div>
               )}
 
               {/* Info */}
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <h4 className="font-semibold text-blue-800 mb-1 text-sm">💡 Tips</h4>
-                <ul className="text-xs text-blue-700 space-y-0.5">
-                  <li>• <strong>Meta</strong>: Native clickable buttons</li>
-                  <li>• <strong>QR</strong>: Buttons as text (📌)</li>
-                  <li>• Meta requires approved templates</li>
-                </ul>
+              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                <h4 className="font-semibold text-blue-800 mb-2 text-sm">💡 Provider Differences</h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-start gap-2">
+                    <span className="text-green-500">🟢</span>
+                    <div>
+                      <strong className="text-gray-700">Meta:</strong>
+                      <span className="text-gray-600"> Native blue clickable buttons</span>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-emerald-500">💚</span>
+                    <div>
+                      <strong className="text-gray-700">QR:</strong>
+                      <span className="text-gray-600"> Buttons as 📌 text format</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -3,7 +3,7 @@ import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
 import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
 import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
-import { normalizePhone } from '@/lib/whatsapp';
+import { normalizePhone, getPublicMediaUrl } from '@/lib/whatsapp';
 
 export type BroadcastRunsProcessResult = {
   scannedRuns: number;
@@ -241,22 +241,29 @@ export async function processDueBroadcastRuns(options?: {
             
             // Check for header media (image)
             const headerMedia = (template as any).headerMedia;
-            const mediaUrl = headerMedia?.url || headerMedia?.link || null;
+            let mediaUrl = headerMedia?.url || headerMedia?.link || null;
             const hasImage = mediaUrl && headerMedia?.kind === 'image';
             
+            // Convert S3 URLs to signed URLs
+            if (hasImage && mediaUrl) {
+              mediaUrl = await getPublicMediaUrl(mediaUrl);
+            }
+            
             console.log('[Broadcast QR] Sending to:', to, 'via', bridgeUrl);
-            console.log('[Broadcast QR] Has image:', hasImage, 'URL:', mediaUrl?.substring(0, 50));
+            console.log('[Broadcast QR] Has image:', hasImage, 'URL:', mediaUrl?.substring(0, 80));
             
             // Build payload matching single send endpoint format
             const bridgePayload: any = {
               to: to, // Use plain number, not @c.us format
-              message: hasImage ? '' : fullMessage,
               type: hasImage ? 'media' : 'text',
             };
             
             if (hasImage) {
-              bridgePayload.media = mediaUrl;
+              bridgePayload.url = mediaUrl;
               bridgePayload.caption = fullMessage;
+              bridgePayload.message = fullMessage;
+            } else {
+              bridgePayload.message = fullMessage;
             }
             
             console.log('[Broadcast QR] Payload:', JSON.stringify(bridgePayload, null, 2).substring(0, 500));

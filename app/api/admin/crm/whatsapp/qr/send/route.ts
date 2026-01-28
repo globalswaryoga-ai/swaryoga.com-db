@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
 import { getViewerUserId } from '@/lib/crm-handlers';
+import { getPublicMediaUrl } from '@/lib/whatsapp';
 
 // Use the same defaults/precedence as the QR bridge proxy. These are server-side routes,
 // so prefer server-only env vars and only fall back to NEXT_PUBLIC_* if needed.
@@ -166,13 +167,20 @@ export async function POST(req: NextRequest) {
     let bridgeData: any = {};
     let bridgeOk = false;
     try {
+      // Convert S3 URLs to signed URLs for media
+      let signedUrl = url;
+      if (url && (type === 'media' || type === 'image' || type === 'video')) {
+        signedUrl = await getPublicMediaUrl(url);
+        console.log('[QR SEND] Converted URL to signed:', signedUrl?.substring(0, 80));
+      }
+      
       const bridgeRes = await fetch(`${BRIDGE_URL}/send`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'x-bridge-secret': BRIDGE_SECRET
         },
-        body: JSON.stringify({ to, message: finalMessage, type, url, buttons, caption: finalCaption }),
+        body: JSON.stringify({ to, message: finalMessage, type, url: signedUrl, buttons, caption: finalCaption }),
         signal: AbortSignal.timeout(10000) // 10s timeout for bridge call
       });
 

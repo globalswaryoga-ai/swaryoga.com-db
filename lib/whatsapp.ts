@@ -10,7 +10,7 @@ import { generatePresignedUrl } from './aws-s3';
  * Convert S3 URL to a publicly accessible signed URL (for Meta API)
  * Meta's servers need to fetch the media, so the URL must be accessible
  */
-async function getPublicMediaUrl(url: string): Promise<string> {
+export async function getPublicMediaUrl(url: string): Promise<string> {
   if (!url) return url;
   
   // Check if it's an S3 URL from our bucket
@@ -561,11 +561,26 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
   const templateName = String(input.templateName || '').trim();
   if (!templateName) throw new Error('templateName is required');
 
+  // Convert S3 URLs to signed URLs for header media
+  let processedInput = { ...input };
+  if (input.headerMedia?.url) {
+    const signedUrl = await getPublicMediaUrl(input.headerMedia.url);
+    processedInput = {
+      ...input,
+      headerMedia: {
+        ...input.headerMedia,
+        url: signedUrl,
+      },
+    };
+    console.log('[sendWhatsAppTemplate] Header media URL:', input.headerMedia.url.substring(0, 50));
+    console.log('[sendWhatsAppTemplate] Signed URL:', signedUrl.substring(0, 80));
+  }
+
   const language = String(input.language || 'en').trim() || 'en';
   const appSecretProof = generateAppSecretProof(accessToken, appSecret);
   const url = buildGraphMessagesUrl(phoneNumberId, appSecretProof);
 
-  const components = buildTemplateComponents(input);
+  const components = buildTemplateComponents(processedInput);
 
   const payload: any = {
     messaging_product: 'whatsapp',
