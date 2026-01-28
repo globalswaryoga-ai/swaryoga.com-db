@@ -343,47 +343,36 @@ export function convertToMetaFormat(localTemplate: {
 
   /**
    * Clean template text for Meta:
-   * - Keep first 2 bold (*text*) - Meta allows max 2 bold per message
-   * - Remove extra bold markers beyond 2
+   * - Keep bold (*text*) formatting - Meta allows it
    * - Remove button markers (• [QUICK_REPLY])
    * - Remove extra whitespace
    */
   function cleanTextForMeta(text: string): string {
-    // Keep first 2 bold occurrences, remove the rest
-    let boldCount = 0;
-    let result = text.replace(/\*([^*]+)\*/g, (match, content) => {
-      boldCount++;
-      if (boldCount <= 2) {
-        return match;  // Keep the bold formatting
-      }
-      return content;  // Remove bold markers, keep text
-    });
-    
-    // Keep italic and strikethrough (usually allowed)
-    // Remove button markers
-    result = result
+    // Keep bold formatting (*text*) - Meta allows it on headings
+    // Just remove button markers and clean up whitespace
+    return text
       .replace(/•\s*\[QUICK_REPLY\][^\n]*/g, '')  // Remove button lines
       .replace(/•\s*\[[^\]]+\][^\n]*/g, '')       // Remove other button markers
       .replace(/\n{3,}/g, '\n\n')                 // Max 2 newlines
       .trim();
-    
-    return result;
   }
 
   // Header component
+  // NOTE: For IMAGE/VIDEO/DOCUMENT headers, Meta requires uploading media first to get a handle.
+  // For now, we skip media headers and only support TEXT headers.
+  // Templates with images will be submitted without header - image can be added later in Meta dashboard.
   if (localTemplate.headerFormat && localTemplate.headerFormat !== 'NONE') {
-    const headerComponent: MetaTemplateComponent = {
-      type: 'HEADER',
-      format: localTemplate.headerFormat as 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT',
-    };
-
     if (localTemplate.headerFormat === 'TEXT' && localTemplate.headerContent) {
       // Clean header text and skip if it's a URL
       const headerText = localTemplate.headerContent;
       if (!headerText.startsWith('http')) {
-        headerComponent.text = cleanTextForMeta(headerText);
+        const headerComponent: MetaTemplateComponent = {
+          type: 'HEADER',
+          format: 'TEXT',
+          text: cleanTextForMeta(headerText),
+        };
         // Extract variables from header text
-        const headerVars = headerComponent.text.match(/\{\{(\d+)\}\}/g);
+        const headerVars = headerComponent.text?.match(/\{\{(\d+)\}\}/g);
         if (headerVars) {
           headerComponent.example = {
             header_text: headerVars.map(() => 'Sample'),
@@ -391,17 +380,12 @@ export function convertToMetaFormat(localTemplate: {
         }
         components.push(headerComponent);
       }
-    } else if (localTemplate.headerFormat === 'IMAGE' && localTemplate.imageFile?.url) {
-      // For image headers, Meta requires a media handle from uploaded media
-      // For now, we'll note that the user needs to provide example
-      headerComponent.example = {
-        header_handle: ['MEDIA_HANDLE_PLACEHOLDER'],
-      };
-      components.push(headerComponent);
     }
+    // Skip IMAGE/VIDEO/DOCUMENT headers for now - they require media upload to Meta first
+    // User can add media header in Meta Business Manager after template is approved
   }
 
-  // Body component (required) - clean the text
+  // Body component (required) - keep bold formatting
   const cleanedBody = cleanTextForMeta(localTemplate.templateContent);
   const bodyComponent: MetaTemplateComponent = {
     type: 'BODY',
