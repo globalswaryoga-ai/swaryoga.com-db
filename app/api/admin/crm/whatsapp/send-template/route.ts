@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
 import { Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
-import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate, sendWhatsAppText } from '@/lib/whatsapp';
+import { buildCloudTemplateSendInput, normalizePhone, sendWhatsAppTemplate } from '@/lib/whatsapp';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -21,13 +21,10 @@ function isHttpUrl(value: unknown): boolean {
 
 /**
  * POST /api/admin/crm/whatsapp/send-template
- * NOTE: In "WhatsApp Web first" mode (bridge), true template (image+buttons) cannot be sent.
- * We still:
- *  - store a message record with messageType=template
- *  - render nicely inside CRM
- *  - send the plain text body via the existing send helper
+ * Sends WhatsApp template via Meta Cloud API (image + text + buttons).
  *
- * Body: { leadId, phoneNumber, templateId }
+ * Body: { leadId?, phoneNumber, templateId }
+ * If leadId is not provided, will find or create lead from phoneNumber
  */
 export async function POST(request: NextRequest) {
   try {
@@ -41,15 +38,36 @@ export async function POST(request: NextRequest) {
     if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
 
     const { leadId, phoneNumber, templateId } = body;
-    if (!leadId || !phoneNumber || !templateId) {
-      return NextResponse.json({ error: 'Missing: leadId, phoneNumber, templateId' }, { status: 400 });
+    if (!phoneNumber || !templateId) {
+      return NextResponse.json({ error: 'Missing: phoneNumber, templateId' }, { status: 400 });
     }
 
     await connectDB();
 
     const superAdmin = decoded?.userId === 'admincrm' || decoded?.userId === 'admin';
-    const lead = await Lead.findById(String(leadId));
-    if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    const normalizedPhone = normalizePhone(String(phoneNumber));
+    
+    // Find or create lead
+    let lead: any;
+    if (leadId) {
+      lead = await Lead.findById(String(leadId));
+      if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    } else {
+      // Find by phone number or create new lead
+      lead = await Lead.findOne({ phoneNumber: normalizedPhone });
+      if (!lead) {
+        // Create a new lead for this phone number
+        lead = await Lead.create({
+          phoneNumber: normalizedPhone,
+          name: `WhatsApp ${normalizedPhone}`,
+          source: 'whatsapp-template',
+          status: 'lead',
+          assignedToUserId: decoded?.userId,
+          createdBy: decoded?.userId,
+        });
+        console.log('[send-template] Created new lead for phone:', normalizedPhone, 'leadId:', lead._id);
+      }
+    }
 
     if (!superAdmin) {
       const assignedTo = String((lead as any).assignedToUserId || '').trim();
@@ -61,13 +79,9 @@ export async function POST(request: NextRequest) {
     const t: any = await WhatsAppTemplate.findById(String(templateId)).lean();
     if (!t) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
 
-    // Per request: allow send without approval (community number path).
-    // We still store status for future; we don’t block by approved/pending.
-
-    const to = normalizePhone(String(phoneNumber));
+    const to = normalizedPhone;
 
     // Validation: if template needs header media, it MUST be sent via Cloud API.
-    // In community/bridge mode we can only send plain text, which would drop the media.
     const headerFormat = String(t?.headerFormat || '').trim().toUpperCase();
     const needsHeaderMedia = headerFormat === 'IMAGE' || headerFormat === 'VIDEO';
     const headerMediaUrl = String(t?.headerMedia?.url || t?.headerContent || '').trim();
@@ -109,20 +123,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Unified template sending:
-    // - Sends via Meta Cloud API (so recipient sees header media + buttons).
-    // - If template is text-only, it uses Meta Cloud API to send the template.
+    // Send via Meta Cloud API
     try {
       let apiResult: any;
 
-      // IMPORTANT: Do not silently degrade media templates to text.
-      // If a template requires media (IMAGE/VIDEO header), sender must provide media URL.
       if (needsHeaderMedia) {
         const cloudInput = buildCloudTemplateSendInput(t, to);
         apiResult = await sendWhatsAppTemplate({
           ...cloudInput,
           headerMedia: {
-            // Ensure kind matches headerFormat if template saved partially.
             kind: headerFormat === 'VIDEO' ? 'video' : 'image',
             url: headerMediaUrl,
           },
@@ -130,25 +139,6 @@ export async function POST(request: NextRequest) {
       } else {
         const cloudInput = buildCloudTemplateSendInput(t, to);
         apiResult = await sendWhatsAppTemplate(cloudInput);
-
-        await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
-          status: 'sent',
-          provider: 'meta',
-          waMessageId: apiResult.waMessageId,
-        });
-
-        return NextResponse.json(
-          {
-            success: true,
-            data: {
-              messageId: messageRecord._id,
-              status: 'sent',
-              waMessageId: apiResult.waMessageId,
-              via: 'meta_template',
-            },
-          },
-          { status: 200 }
-        );
       }
 
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
