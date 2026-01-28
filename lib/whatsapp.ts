@@ -637,10 +637,9 @@ export function buildCloudTemplateSendInput(template: any, to: string): WhatsApp
     variables: template?.variables,
   });
 
-  // Map language codes - Meta requires full locale codes
-  let language = String(template?.language || 'en').trim() || 'en';
-  if (language === 'en') language = 'en_US';
-  if (language === 'hi') language = 'hi';
+  // Use the language code as-is from the template
+  // Meta templates can be registered with 'en' or 'en_US' - use what was registered
+  const language = String(template?.language || 'en').trim() || 'en';
 
   return {
     to,
