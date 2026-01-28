@@ -139,6 +139,9 @@ function QRWhatsAppInboxPageContent() {
   // Media pending to be sent
   const [pendingMedia, setPendingMedia] = useState<File[]>([]);
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
+  
+  // Template media URL (for images from templates)
+  const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
 
   // Inbound media cache (bridge returns base64 via /messages/media/:msgId)
   const [messageMediaCache, setMessageMediaCache] = useState<
@@ -1391,7 +1394,7 @@ function QRWhatsAppInboxPageContent() {
 
   // Send message
   const handleSendMessage = async () => {
-    if ((!newMessage.trim() && pendingMedia.length === 0) || !selectedChat || sending || isSendingRef.current) return;
+    if ((!newMessage.trim() && pendingMedia.length === 0 && !templateMediaUrl) || !selectedChat || sending || isSendingRef.current) return;
 
     // CHECK PERMISSIONS: Non-super-admins can only message assigned leads
     if (!isSuperAdmin && activeLeadId && !assignedLeadIds.has(activeLeadId)) {
@@ -1574,6 +1577,52 @@ function QRWhatsAppInboxPageContent() {
         setUploadingMedia(false);
         setNewMessage(''); // Caption was sent
         showToast(`✅ ${pendingMedia.length} file(s) sent successfully`, 'success');
+      } else if (templateMediaUrl) {
+        // 2. Send Template Media (URL already exists, no upload needed)
+        console.log('[sendMessage] Sending template media:', templateMediaUrl);
+        
+        // Add optimistic UI
+        const optimisticMessage = {
+          id: `opt-${Date.now()}`,
+          fromMe: true,
+          timestamp: new Date(),
+          type: 'image',
+          body: newMessage,
+          status: 'pending',
+          mediaUrl: templateMediaUrl
+        };
+        setMessages(prev => [...prev, optimisticMessage]);
+        
+        const res = await fetch('/api/admin/crm/whatsapp/send', {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phoneNumber: chatId.replace(/@.*$/, ''), // Remove @c.us suffix
+            messageContent: newMessage,
+            media: { url: templateMediaUrl, kind: 'image' },
+            provider: 'qr', // Use QR Bridge
+            leadId: activeLeadId || undefined
+          })
+        });
+
+        if (res.ok) {
+          setMessages(prev => 
+            prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent' } : m)
+          );
+          setNewMessage('');
+          setTemplateMediaUrl(null);
+          showToast('✅ Template message sent with image', 'success');
+        } else {
+          setMessages(prev => 
+            prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
+          );
+          const err = await parseBridgeError(res);
+          setBridgeError(err);
+          showToast(`❌ Failed to send: ${err}`, 'error');
+        }
       } else {
         // 2. Clear Text only if no media
         console.log('[sendMessage] Sending to chat:', chatId, 'message:', newMessage);
@@ -3710,7 +3759,25 @@ function QRWhatsAppInboxPageContent() {
                   <TemplateSelector
                     token={token}
                     onSelect={(template: WhatsAppTemplate) => {
-                      setNewMessage(template.templateContent || '');
+                      // Clean template content - remove [QUICK_REPLY] markers
+                      const cleanContent = (template.templateContent || '')
+                        .replace(/•\s*\[QUICK_REPLY\][^\n]*/gi, '')
+                        .replace(/\[QUICK_REPLY\][^\n]*/gi, '')
+                        .replace(/\n{3,}/g, '\n\n')
+                        .trim();
+                      setNewMessage(cleanContent);
+                      
+                      // Set template media if available
+                      const mediaUrl = template.headerMedia?.url || template.imageFile?.url || null;
+                      if (mediaUrl) {
+                        setTemplateMediaUrl(mediaUrl);
+                        // Clear any pending file uploads since we're using template image
+                        setPendingMedia([]);
+                        setMediaPreviews([]);
+                      } else {
+                        setTemplateMediaUrl(null);
+                      }
+                      
                       setShowTemplates(false);
                     }}
                     onClose={() => setShowTemplates(false)}
@@ -3783,8 +3850,30 @@ function QRWhatsAppInboxPageContent() {
               />
 
               {/* Media Preview Bar */}
-              {mediaPreviews.length > 0 && (
+              {(mediaPreviews.length > 0 || templateMediaUrl) && (
                 <div className="px-4 py-2 flex gap-2 overflow-x-auto bg-[#F5EBE0] border-t border-[#E8DFD5]">
+                  {/* Template Media Preview */}
+                  {templateMediaUrl && (
+                    <div className="relative flex-shrink-0">
+                      <div className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-emerald-500 shadow-sm">
+                        <img 
+                          src={templateMediaUrl} 
+                          alt="Template" 
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          onClick={() => setTemplateMediaUrl(null)}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors shadow"
+                        >
+                          ✕
+                        </button>
+                        <div className="absolute bottom-0 left-0 right-0 bg-emerald-500 text-white text-[8px] text-center py-0.5 font-medium">
+                          Template
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Pending Media Previews */}
                   {mediaPreviews.map((preview, idx) => {
                     const file = pendingMedia[idx];
                     const isImage = file?.type.startsWith('image/');
@@ -3838,12 +3927,12 @@ function QRWhatsAppInboxPageContent() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      if ((newMessage.trim() || pendingMedia.length > 0) && !sending && status === 'connected') {
+                      if ((newMessage.trim() || pendingMedia.length > 0 || templateMediaUrl) && !sending && status === 'connected') {
                         handleScheduledSend();
                       }
                     }
                   }}
-                  placeholder={pendingMedia.length > 0 ? "Add a caption..." : "Type a message... (misspelled words will show red underline)"}
+                  placeholder={(pendingMedia.length > 0 || templateMediaUrl) ? "Add a caption..." : "Type a message... (misspelled words will show red underline)"}
                   className="flex-1 w-full px-4 py-2.5 bg-white border border-stone-200 rounded-2xl text-[15px] focus:outline-none focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400 resize-none min-h-[44px] max-h-[200px] leading-relaxed transition-all shadow-sm"
                   style={{ 
                     WebkitTextDecorationStyle: 'wavy',
@@ -3854,7 +3943,7 @@ function QRWhatsAppInboxPageContent() {
 
                 <button
                   onClick={handleScheduledSend}
-                  disabled={sending || (!newMessage.trim() && pendingMedia.length === 0) || status !== 'connected' || uploadingMedia}
+                  disabled={sending || (!newMessage.trim() && pendingMedia.length === 0 && !templateMediaUrl) || status !== 'connected' || uploadingMedia}
                   className="flex-shrink-0 w-11 h-11 rounded-full bg-teal-500 hover:bg-teal-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white shadow-sm transition-all flex items-center justify-center hover:scale-105 active:scale-95"
                 >
                   {sending || uploadingMedia ? (
