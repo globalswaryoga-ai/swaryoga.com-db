@@ -83,6 +83,16 @@ type Template = {
 type StatusType = 'all' | 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'disabled';
 
 /**
+ * Format WhatsApp-style text: *bold*, _italic_, ~strikethrough~
+ */
+function formatWhatsAppText(text: string): string {
+  return text
+    .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')  // *bold*
+    .replace(/_([^_]+)_/g, '<em>$1</em>')            // _italic_
+    .replace(/~([^~]+)~/g, '<del>$1</del>');        // ~strikethrough~
+}
+
+/**
  * Component to load template images - uses direct S3 URL (bucket is public-read for these files)
  */
 function TemplateImageThumbnail({ imageFile, token, fullWidth }: { imageFile: any; token: string | null; fullWidth?: boolean }) {
@@ -1295,10 +1305,15 @@ function TemplatesContent() {
                           </h4>
                         )}
                         
-                        {/* Body text */}
-                        <div className="text-black text-sm whitespace-pre-wrap leading-relaxed line-clamp-6">
-                          {bodyContent.slice(0, 300)}{bodyContent.length > 300 ? '...' : ''}
-                        </div>
+                        {/* Body text with WhatsApp formatting */}
+                        <div 
+                          className="text-black text-sm whitespace-pre-wrap leading-relaxed line-clamp-6"
+                          dangerouslySetInnerHTML={{ 
+                            __html: formatWhatsAppText(
+                              bodyContent.slice(0, 300) + (bodyContent.length > 300 ? '...' : '')
+                            )
+                          }}
+                        />
                         
                         {/* Footer (gray, small) */}
                         {footerContent && (
