@@ -515,17 +515,17 @@ function buildTemplateComponents(input: WhatsAppSendTemplateInput): any[] {
     });
   }
 
+  // Note: For QUICK_REPLY buttons, Meta doesn't require parameters when sending
+  // The button text is already defined in the template registration
+  // Only URL buttons with dynamic variables need parameters
   if (Array.isArray(input.buttons) && input.buttons.length > 0) {
     input.buttons.forEach((b, index) => {
       if (!b) return;
 
+      // Quick reply buttons don't need parameters - they're pre-defined in Meta template
+      // We only need to include them if there's a dynamic payload
       if (b.kind === 'quick_reply') {
-        components.push({
-          type: 'button',
-          sub_type: 'quick_reply',
-          index: String(index),
-          parameters: [{ type: 'payload', payload: String(b.title || '').slice(0, 128) }],
-        });
+        // Skip - Meta templates with quick_reply buttons work without runtime parameters
         return;
       }
 
@@ -637,10 +637,15 @@ export function buildCloudTemplateSendInput(template: any, to: string): WhatsApp
     variables: template?.variables,
   });
 
+  // Map language codes - Meta requires full locale codes
+  let language = String(template?.language || 'en').trim() || 'en';
+  if (language === 'en') language = 'en_US';
+  if (language === 'hi') language = 'hi';
+
   return {
     to,
-    templateName: String(template?.templateName || '').trim(),
-    language: String(template?.language || 'en').trim() || 'en',
+    templateName: String(template?.templateName || template?.metaTemplateName || '').trim(),
+    language,
     bodyParams,
     headerMedia,
     buttons,

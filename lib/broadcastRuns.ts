@@ -233,9 +233,14 @@ export async function processDueBroadcastRuns(options?: {
 
             try {
               const cloudInput = buildCloudTemplateSendInput(template, to);
+              console.log('[Broadcast Meta] Template:', (template as any).templateName);
+              console.log('[Broadcast Meta] Cloud input:', JSON.stringify(cloudInput, null, 2));
               apiResult = await sendWhatsAppTemplate(cloudInput);
-            } catch {
-              apiResult = await sendWhatsAppText(to, String((template as any).templateContent || '').trim());
+              console.log('[Broadcast Meta] Send result:', apiResult);
+            } catch (templateErr: any) {
+              console.error('[Broadcast Meta] Template send failed:', templateErr?.message, templateErr?.data);
+              // Don't fall back to text - throw the error
+              throw templateErr;
             }
           }
 
