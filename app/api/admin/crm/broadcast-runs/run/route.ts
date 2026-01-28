@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
 import { processDueBroadcastRuns } from '@/lib/broadcastRuns';
+import { verifyToken } from '@/lib/auth';
 
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
@@ -15,15 +16,22 @@ function verifyCronSecret(request: NextRequest): boolean {
   return Boolean(provided && provided === expected);
 }
 
+function verifyAdmin(request: NextRequest): boolean {
+  const token = request.headers.get('authorization')?.slice('Bearer '.length);
+  const decoded = verifyToken(token);
+  return Boolean(decoded?.isAdmin);
+}
+
 /**
  * POST /api/admin/crm/broadcast-runs/run
  *
  * Call this from Vercel Cron / server cron / PM2 cron to process due broadcast runs.
- * Security: requires CRON_SECRET header.
+ * Security: requires CRON_SECRET header OR admin JWT token.
  */
 export async function POST(request: NextRequest) {
   try {
-    if (!verifyCronSecret(request)) {
+    // Allow either CRON_SECRET or admin JWT authentication
+    if (!verifyCronSecret(request) && !verifyAdmin(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
