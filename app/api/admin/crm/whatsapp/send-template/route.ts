@@ -76,8 +76,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const t: any = await WhatsAppTemplate.findById(String(templateId)).lean();
-    if (!t) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    // Find template by ID or by name
+    let t: any = null;
+    const templateIdStr = String(templateId || '').trim();
+    
+    // Try finding by ObjectId first
+    if (templateIdStr.match(/^[0-9a-fA-F]{24}$/)) {
+      t = await WhatsAppTemplate.findById(templateIdStr).lean();
+    }
+    
+    // If not found by ID, try by name
+    if (!t) {
+      t = await WhatsAppTemplate.findOne({ templateName: templateIdStr }).lean();
+    }
+    
+    if (!t) {
+      console.error('[send-template] Template not found:', templateIdStr);
+      return NextResponse.json({ error: `Template not found: ${templateIdStr}` }, { status: 404 });
+    }
+    
+    console.log('[send-template] Found template:', t.templateName, 'ID:', t._id);
 
     const to = normalizedPhone;
 

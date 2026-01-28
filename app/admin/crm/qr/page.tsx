@@ -1601,6 +1601,10 @@ function QRWhatsAppInboxPageContent() {
         let sendSuccess = false;
         let sentVia = '';
         
+        // Get template ID - handle both _id and id formats
+        const templateId = String(selectedTemplate._id || selectedTemplate.id || '');
+        console.log('[sendMessage] Template ID:', templateId, 'Phone:', phoneNumber);
+        
         // Try Meta Cloud API first (sends actual template with button)
         try {
           console.log('[sendMessage] Trying Meta Cloud API...');
@@ -1612,12 +1616,13 @@ function QRWhatsAppInboxPageContent() {
             },
             body: JSON.stringify({
               phoneNumber,
-              templateId: selectedTemplate._id,
+              templateId,
               leadId: activeLeadId || undefined
             })
           });
 
           const metaData = await metaRes.json().catch(() => ({}));
+          console.log('[sendMessage] Meta response:', metaRes.status, metaData);
           
           if (metaRes.ok && metaData.success) {
             setMessages(prev => 
