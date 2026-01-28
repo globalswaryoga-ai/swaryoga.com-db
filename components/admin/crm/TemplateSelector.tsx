@@ -319,9 +319,13 @@ function TemplateCard({
             )}
           </div>
 
-          {/* Preview text */}
+          {/* Preview text - cleaned of [QUICK_REPLY] markers */}
           <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">
-            {template.templateContent?.substring(0, 100)}
+            {(template.templateContent || '')
+              .replace(/•\s*\[QUICK_REPLY\][^\n]*/gi, '')
+              .replace(/\[QUICK_REPLY\][^\n]*/gi, '')
+              .trim()
+              .substring(0, 100)}
             {(template.templateContent?.length || 0) > 100 ? '...' : ''}
           </p>
         </div>
