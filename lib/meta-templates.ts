@@ -343,19 +343,31 @@ export function convertToMetaFormat(localTemplate: {
 
   /**
    * Clean template text for Meta:
-   * - Remove WhatsApp formatting (*bold*, _italic_)
+   * - Keep first 2 bold (*text*) - Meta allows max 2 bold per message
+   * - Remove extra bold markers beyond 2
    * - Remove button markers (• [QUICK_REPLY])
    * - Remove extra whitespace
    */
   function cleanTextForMeta(text: string): string {
-    return text
-      .replace(/\*([^*]+)\*/g, '$1')      // Remove *bold* markers
-      .replace(/_([^_]+)_/g, '$1')        // Remove _italic_ markers
-      .replace(/~([^~]+)~/g, '$1')        // Remove ~strikethrough~ markers
+    // Keep first 2 bold occurrences, remove the rest
+    let boldCount = 0;
+    let result = text.replace(/\*([^*]+)\*/g, (match, content) => {
+      boldCount++;
+      if (boldCount <= 2) {
+        return match;  // Keep the bold formatting
+      }
+      return content;  // Remove bold markers, keep text
+    });
+    
+    // Keep italic and strikethrough (usually allowed)
+    // Remove button markers
+    result = result
       .replace(/•\s*\[QUICK_REPLY\][^\n]*/g, '')  // Remove button lines
       .replace(/•\s*\[[^\]]+\][^\n]*/g, '')       // Remove other button markers
-      .replace(/\n{3,}/g, '\n\n')         // Max 2 newlines
+      .replace(/\n{3,}/g, '\n\n')                 // Max 2 newlines
       .trim();
+    
+    return result;
   }
 
   // Header component
