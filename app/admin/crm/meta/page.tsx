@@ -2270,7 +2270,7 @@ export default function MetaInboxPage() {
                           <TemplateSelector
                             token={token}
                             onSelect={(template: WhatsAppTemplate) => {
-                              setDraft(template.templateContent || '');
+                              setComposerText(template.templateContent || '');
                               closeActionModal();
                             }}
                             onClose={closeActionModal}
