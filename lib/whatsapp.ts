@@ -578,6 +578,8 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
     },
   };
 
+  console.log('[sendWhatsAppTemplate] Sending payload:', JSON.stringify(payload, null, 2));
+
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -590,6 +592,8 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
   });
 
   const data = await res.json().catch(() => ({}));
+  console.log('[sendWhatsAppTemplate] Response:', res.status, JSON.stringify(data));
+  
   if (!res.ok) {
     const message =
       data?.error?.message || data?.error?.error_user_msg || data?.error || 'WhatsApp API error';

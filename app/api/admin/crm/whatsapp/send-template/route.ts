@@ -144,9 +144,17 @@ export async function POST(request: NextRequest) {
     // Send via Meta Cloud API
     try {
       let apiResult: any;
+      const cloudInput = buildCloudTemplateSendInput(t, to);
+      
+      console.log('[send-template] Cloud input:', JSON.stringify({
+        templateName: cloudInput.templateName,
+        language: cloudInput.language,
+        hasHeaderMedia: !!cloudInput.headerMedia,
+        headerMediaUrl: cloudInput.headerMedia?.url,
+        buttons: cloudInput.buttons,
+      }));
 
       if (needsHeaderMedia) {
-        const cloudInput = buildCloudTemplateSendInput(t, to);
         apiResult = await sendWhatsAppTemplate({
           ...cloudInput,
           headerMedia: {
@@ -155,7 +163,6 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
-        const cloudInput = buildCloudTemplateSendInput(t, to);
         apiResult = await sendWhatsAppTemplate(cloudInput);
       }
 
