@@ -784,6 +784,108 @@ export async function handleInboundWhatsAppAutomations(input: {
     }
   }
 
+  // ===== CHATBOT CONFIG KEYWORDS (from /admin/crm/chatbot settings) =====
+  try {
+    const mongoose = await import('mongoose');
+    const ChatbotConfig = mongoose.default.models.ChatbotConfig || mongoose.default.model('ChatbotConfig', new mongoose.default.Schema({
+      key: String,
+      enabled: Boolean,
+      welcomeMessage: String,
+      fallbackMessage: String,
+      keywords: [{
+        keyword: String,
+        response: String,
+        action: { type: String, enum: ['reply', 'forward_to_agent', 'send_template'] },
+        templateName: String,
+      }],
+      autoReplyDelay: Number,
+      workingHours: mongoose.default.Schema.Types.Mixed,
+      aiEnabled: Boolean,
+      aiModel: String,
+      aiSystemPrompt: String,
+      maxAiTokens: Number,
+    }, { collection: 'crm_settings' }));
+
+    const chatbotConfig = await ChatbotConfig.findOne({ key: 'chatbot_config' }).lean();
+    
+    if (chatbotConfig && (chatbotConfig as any).enabled) {
+      const configKeywords = (chatbotConfig as any).keywords || [];
+      const lowerBody = body.toLowerCase().trim();
+      
+      console.log(`[Chatbot Config] Checking ${configKeywords.length} keywords against: "${lowerBody}"`);
+      
+      // Check each keyword
+      for (const kw of configKeywords) {
+        const kwLower = String(kw.keyword || '').toLowerCase().trim();
+        if (!kwLower) continue;
+        
+        // Match exact or contains
+        const isMatch = lowerBody === kwLower || lowerBody.includes(kwLower);
+        
+        if (isMatch) {
+          console.log(`[Chatbot Config] Keyword matched: "${kwLower}" -> action: ${kw.action}`);
+          
+          // Add delay if configured
+          const delay = Number((chatbotConfig as any).autoReplyDelay || 0);
+          if (delay > 0) {
+            await new Promise(r => setTimeout(r, delay * 1000));
+          }
+          
+          if (kw.action === 'send_template' && kw.templateName) {
+            // Send WhatsApp template
+            const { getWhatsAppTemplate } = await import('@/lib/schemas/enterpriseSchemas');
+            const WhatsAppTemplateModel = getWhatsAppTemplate();
+            const template = await WhatsAppTemplateModel.findOne({ templateName: kw.templateName }).lean();
+            
+            if (template) {
+              console.log(`[Chatbot Config] Sending template: ${kw.templateName}`);
+              await sendOutboundTemplate(lead, fromPhone, String((template as any)._id), {}, {
+                automation: { chatbotConfig: true, keyword: kwLower }
+              });
+            } else {
+              console.warn(`[Chatbot Config] Template not found: ${kw.templateName}`);
+              // Fallback to response text if available
+              if (kw.response) {
+                await sendOutboundText(lead, fromPhone, kw.response, {
+                  automation: { chatbotConfig: true, keyword: kwLower }
+                });
+              }
+            }
+          } else if (kw.action === 'forward_to_agent') {
+            // Send response and mark for agent follow-up
+            if (kw.response) {
+              await sendOutboundText(lead, fromPhone, kw.response, {
+                automation: { chatbotConfig: true, keyword: kwLower, forwardToAgent: true }
+              });
+            }
+            // Update lead to indicate needs attention
+            await Lead.updateOne({ _id: lead._id }, { 
+              $set: { 
+                needsAttention: true, 
+                lastBotForward: now,
+                updatedAt: now 
+              } 
+            });
+          } else {
+            // Default: reply with text
+            if (kw.response) {
+              await sendOutboundText(lead, fromPhone, kw.response, {
+                automation: { chatbotConfig: true, keyword: kwLower }
+              });
+            }
+          }
+          
+          return; // Stop processing after first keyword match
+        }
+      }
+      
+      console.log(`[Chatbot Config] No keyword matched`);
+    }
+  } catch (chatbotConfigErr) {
+    console.error('[Automation] Chatbot config error:', chatbotConfigErr);
+  }
+  // ===== END CHATBOT CONFIG KEYWORDS =====
+
   const rules = await WhatsAppAutomationRule.find({ enabled: true })
     .sort({ createdAt: 1 })
     .lean();
