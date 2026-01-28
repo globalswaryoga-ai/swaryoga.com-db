@@ -1235,11 +1235,12 @@ function TemplatesContent() {
                    .trim()
                 ).filter(b => b.length > 0 && b.length < 50);
                 
-                // Body is everything except header (first bold line) and buttons
+                // Body is everything except header (first bold line), buttons, and footer
                 const bodyLines = lines.filter((l, idx) => 
                   !l.trim().startsWith('•') && 
                   !l.includes('[QUICK_REPLY]') &&
-                  !(idx === 0 && firstLineIsBold)  // Skip first line if it's the header
+                  !(idx === 0 && firstLineIsBold) &&  // Skip first line if it's the header
+                  !(footerContent && l.trim() === footerContent.trim())  // Skip footer line
                 );
                 const bodyContent = bodyLines.join('\n').trim() || t.templateContent;
 
