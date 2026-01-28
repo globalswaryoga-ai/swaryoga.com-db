@@ -485,6 +485,12 @@ function TemplatesContent() {
           body.headerContent = String(body.imageFile.url);
           body.headerMedia = { kind: 'image', url: String(body.imageFile.url) };
         }
+      } else {
+        // IMPORTANT: Preserve existing imageFile if no new image uploaded
+        const existingTemplate = templates.find((t) => t._id === editingId);
+        if (existingTemplate?.imageFile?.url) {
+          body.imageFile = existingTemplate.imageFile;
+        }
       }
 
       if (editDocuments.length > 0) {
