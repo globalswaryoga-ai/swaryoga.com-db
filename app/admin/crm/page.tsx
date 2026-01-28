@@ -172,6 +172,7 @@ export default function CRMDashboard() {
                   <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-green-500/30 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <Link href="/admin/crm/community" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm rounded-t-lg">🏠 Dashboard</Link>
                     <Link href="/admin/community" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📝 Posts</Link>
+                    <Link href="/admin/crm/send-template" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📨 Send Template</Link>
                     <Link href="/admin/crm/broadcast" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📢 Broadcast</Link>
                     <Link href="/admin/crm/whatsapp-groups" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm rounded-b-lg">👥 Groups</Link>
                   </div>
@@ -250,6 +251,7 @@ export default function CRMDashboard() {
               { href: '/admin/crm/leads', label: 'Leads', icon: '👥' },
               { href: '/admin/crm/meta', label: 'Meta WhatsApp', icon: '🟢' },
               { href: '/admin/crm/qr', label: 'QR WhatsApp', icon: '💚' },
+              { href: '/admin/crm/send-template', label: 'Send Template', icon: '📨' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
               { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
               { href: '/admin/crm/community-moderation', label: 'Moderation', icon: '📬' },
