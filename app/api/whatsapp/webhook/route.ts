@@ -344,24 +344,43 @@ async function handleWebhookPayload(payload: any) {
               const broadcastMsg = await BroadcastRunMessage.findOne({ waMessageId }).lean();
               if (broadcastMsg && (broadcastMsg as any).runId) {
                 // Recalculate stats for the run
+                // NOTE: Status is cumulative - a "read" message was also "delivered" and "sent"
                 const runId = (broadcastMsg as any).runId;
                 const statCounts = await BroadcastRunMessage.aggregate([
                   { $match: { runId } },
                   { $group: { _id: '$status', count: { $sum: 1 } } },
                 ]);
+                
+                // Initialize stats - count based on highest status achieved
                 const stats: any = { total: 0, pending: 0, sent: 0, delivered: 0, read: 0, failed: 0, skipped: 0, blocked: 0 };
+                let readCount = 0, deliveredCount = 0, sentCount = 0, pendingCount = 0, failedCount = 0, skippedCount = 0, blockedCount = 0;
+                
                 for (const c of statCounts) {
                   const s = String(c._id || '').toLowerCase();
                   const cnt = Number(c.count || 0);
                   stats.total += cnt;
-                  if (s === 'pending' || s === 'sending') stats.pending += cnt;
-                  if (s === 'sent') stats.sent += cnt;
-                  if (s === 'delivered') stats.delivered += cnt;
-                  if (s === 'read') stats.read += cnt;
-                  if (s === 'failed') stats.failed += cnt;
-                  if (s === 'skipped') stats.skipped += cnt;
-                  if (s === 'blocked') stats.blocked += cnt;
+                  
+                  // Count by actual status
+                  if (s === 'read') readCount += cnt;
+                  else if (s === 'delivered') deliveredCount += cnt;
+                  else if (s === 'sent') sentCount += cnt;
+                  else if (s === 'pending' || s === 'sending') pendingCount += cnt;
+                  else if (s === 'failed') failedCount += cnt;
+                  else if (s === 'skipped') skippedCount += cnt;
+                  else if (s === 'blocked') blockedCount += cnt;
                 }
+                
+                // Status is cumulative: read implies delivered implies sent
+                // - read messages were also delivered and sent
+                // - delivered messages were also sent
+                stats.read = readCount;
+                stats.delivered = deliveredCount + readCount; // delivered = explicitly delivered + read
+                stats.sent = sentCount + deliveredCount + readCount; // sent = explicitly sent + delivered + read
+                stats.pending = pendingCount;
+                stats.failed = failedCount;
+                stats.skipped = skippedCount;
+                stats.blocked = blockedCount;
+                
                 await BroadcastRun.updateOne(
                   { _id: runId },
                   { $set: { stats, updatedAt: now } }

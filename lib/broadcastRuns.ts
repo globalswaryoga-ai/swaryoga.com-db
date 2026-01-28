@@ -22,13 +22,23 @@ async function markRunStats(runId: any) {
   ]);
 
   const map = new Map<string, number>();
-  counts.forEach((c: any) => map.set(String(c._id), Number(c.count || 0)));
+  counts.forEach((c: any) => map.set(String(c._id).toLowerCase(), Number(c.count || 0)));
 
-  const pending = (map.get('pending') || 0) + (map.get('sending') || 0);
-  const sent = map.get('sent') || 0;
+  // Count by actual status
+  const pendingRaw = (map.get('pending') || 0) + (map.get('sending') || 0);
+  const sentRaw = map.get('sent') || 0;
+  const deliveredRaw = map.get('delivered') || 0;
+  const readRaw = map.get('read') || 0;
   const failed = map.get('failed') || 0;
   const skipped = map.get('skipped') || 0;
-  const total = pending + sent + failed + skipped;
+  const blocked = map.get('blocked') || 0;
+  
+  // Status is cumulative: read implies delivered implies sent
+  const read = readRaw;
+  const delivered = deliveredRaw + readRaw;
+  const sent = sentRaw + deliveredRaw + readRaw;
+  const pending = pendingRaw;
+  const total = pending + sent + failed + skipped + blocked;
 
   await BroadcastRun.updateOne(
     { _id: runId },
@@ -37,14 +47,17 @@ async function markRunStats(runId: any) {
         'stats.total': total,
         'stats.pending': pending,
         'stats.sent': sent,
+        'stats.delivered': delivered,
+        'stats.read': read,
         'stats.failed': failed,
         'stats.skipped': skipped,
+        'stats.blocked': blocked,
         updatedAt: new Date(),
       },
     }
   );
 
-  return { total, pending, sent, failed, skipped };
+  return { total, pending, sent, delivered, read, failed, skipped, blocked };
 }
 
 export async function processDueBroadcastRuns(options?: {
