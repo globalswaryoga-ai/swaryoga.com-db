@@ -4,6 +4,18 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+interface WhatsAppTemplate {
+  _id: string;
+  templateName: string;
+  templateContent: string;
+  language: string;
+  category?: string;
+  headerMedia?: { kind: string; url: string };
+  buttons?: Array<{ type: string; title: string }>;
+  metaStatus?: string;
+  createdAt?: string;
+}
+
 interface ChatbotConfig {
   enabled: boolean;
   welcomeMessage: string;
@@ -60,13 +72,35 @@ export default function ChatbotPage() {
   const [config, setConfig] = useState<ChatbotConfig>(defaultConfig);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'general' | 'keywords' | 'ai' | 'hours'>('general');
-  const [newKeyword, setNewKeyword] = useState({ keyword: '', response: '', action: 'reply' as const });
+  const [activeTab, setActiveTab] = useState<'general' | 'keywords' | 'templates' | 'ai' | 'hours'>('general');
+  const [newKeyword, setNewKeyword] = useState({ keyword: '', response: '', action: 'reply' as const, templateName: '' });
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   // Get token
   const getToken = () => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('adminToken') || localStorage.getItem('admin_token');
+  };
+
+  // Load templates
+  const fetchTemplates = async () => {
+    const token = getToken();
+    if (!token) return;
+
+    setLoadingTemplates(true);
+    try {
+      const res = await fetch('/api/admin/crm/templates?limit=200', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      const list = data?.data?.templates || data?.templates || [];
+      setTemplates(list);
+    } catch (err) {
+      console.error('Failed to load templates:', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
   };
 
   // Load config
@@ -97,6 +131,7 @@ export default function ChatbotPage() {
     };
 
     fetchConfig();
+    fetchTemplates();
   }, [router]);
 
   // Save config
@@ -134,8 +169,16 @@ export default function ChatbotPage() {
 
   // Add keyword
   const addKeyword = () => {
-    if (!newKeyword.keyword.trim() || !newKeyword.response.trim()) {
-      setError('Keyword and response are required');
+    if (!newKeyword.keyword.trim()) {
+      setError('Keyword is required');
+      return;
+    }
+    if (newKeyword.action === 'send_template' && !newKeyword.templateName) {
+      setError('Please select a template');
+      return;
+    }
+    if (newKeyword.action !== 'send_template' && !newKeyword.response.trim()) {
+      setError('Response is required');
       return;
     }
 
@@ -143,7 +186,7 @@ export default function ChatbotPage() {
       ...config,
       keywords: [...config.keywords, { ...newKeyword }],
     });
-    setNewKeyword({ keyword: '', response: '', action: 'reply' });
+    setNewKeyword({ keyword: '', response: '', action: 'reply', templateName: '' });
     setError('');
   };
 
@@ -228,6 +271,7 @@ export default function ChatbotPage() {
           {[
             { id: 'general', label: '⚙️ General', icon: '⚙️' },
             { id: 'keywords', label: '🔑 Keywords', icon: '🔑' },
+            { id: 'templates', label: '📋 Templates', icon: '📋' },
             { id: 'ai', label: '🧠 AI Settings', icon: '🧠' },
             { id: 'hours', label: '🕐 Working Hours', icon: '🕐' },
           ].map((tab) => (
@@ -295,44 +339,71 @@ export default function ChatbotPage() {
               <div>
                 <h3 className="text-lg font-semibold text-white mb-4">Keyword Responses</h3>
                 <p className="text-purple-200 text-sm mb-4">
-                  Define automatic responses for specific keywords or phrases
+                  Define automatic responses for specific keywords or phrases. You can send text replies, forward to agent, or send a WhatsApp template.
                 </p>
 
                 {/* Add New Keyword */}
                 <div className="bg-slate-700/50 rounded-lg p-4 mb-4">
                   <h4 className="text-white font-medium mb-3">Add New Keyword</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <input
                       type="text"
                       value={newKeyword.keyword}
                       onChange={(e) => setNewKeyword({ ...newKeyword, keyword: e.target.value })}
-                      placeholder="Keyword (e.g., 'price', '1')"
+                      placeholder="Keyword (e.g., 'price', '1', 'register')"
                       className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white placeholder-slate-400"
                     />
+                    <select
+                      value={newKeyword.action}
+                      onChange={(e) => setNewKeyword({ ...newKeyword, action: e.target.value as any })}
+                      className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white"
+                    >
+                      <option value="reply">💬 Auto Reply (Text)</option>
+                      <option value="send_template">📋 Send Template</option>
+                      <option value="forward_to_agent">👤 Forward to Agent</option>
+                    </select>
+                  </div>
+                  
+                  {/* Show response input for reply/forward */}
+                  {newKeyword.action !== 'send_template' && (
                     <input
                       type="text"
                       value={newKeyword.response}
                       onChange={(e) => setNewKeyword({ ...newKeyword, response: e.target.value })}
                       placeholder="Response message..."
-                      className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white placeholder-slate-400"
+                      className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white placeholder-slate-400 mb-4"
                     />
-                    <div className="flex gap-2">
+                  )}
+                  
+                  {/* Show template picker for send_template */}
+                  {newKeyword.action === 'send_template' && (
+                    <div className="mb-4">
                       <select
-                        value={newKeyword.action}
-                        onChange={(e) => setNewKeyword({ ...newKeyword, action: e.target.value as any })}
-                        className="flex-1 bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white"
+                        value={newKeyword.templateName}
+                        onChange={(e) => setNewKeyword({ ...newKeyword, templateName: e.target.value, response: `Template: ${e.target.value}` })}
+                        className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white"
                       >
-                        <option value="reply">Auto Reply</option>
-                        <option value="forward_to_agent">Forward to Agent</option>
+                        <option value="">Select a template...</option>
+                        {templates.map((t) => (
+                          <option key={t._id} value={t.templateName}>
+                            {t.templateName} ({t.language}) {t.metaStatus === 'APPROVED' ? '✅' : t.metaStatus === 'PENDING' ? '⏳' : ''}
+                          </option>
+                        ))}
                       </select>
-                      <button
-                        onClick={addKeyword}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
-                      >
-                        Add
-                      </button>
+                      {templates.length === 0 && (
+                        <p className="text-amber-300 text-sm mt-2">
+                          No templates found. <Link href="/admin/crm/whatsapp/templates" className="underline">Create templates first</Link>
+                        </p>
+                      )}
                     </div>
-                  </div>
+                  )}
+                  
+                  <button
+                    onClick={addKeyword}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
+                  >
+                    ➕ Add Keyword
+                  </button>
                 </div>
 
                 {/* Keywords List */}
@@ -340,15 +411,22 @@ export default function ChatbotPage() {
                   {config.keywords.map((kw, index) => (
                     <div key={index} className="flex items-start gap-4 bg-slate-700/30 rounded-lg p-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="px-2 py-0.5 bg-purple-600 text-white text-xs rounded font-mono">
                             {kw.keyword}
                           </span>
                           <span className={`px-2 py-0.5 text-xs rounded ${
-                            kw.action === 'forward_to_agent' ? 'bg-amber-600' : 'bg-green-600'
+                            kw.action === 'forward_to_agent' ? 'bg-amber-600' : 
+                            kw.action === 'send_template' ? 'bg-blue-600' : 'bg-green-600'
                           } text-white`}>
-                            {kw.action === 'forward_to_agent' ? 'Forward' : 'Reply'}
+                            {kw.action === 'forward_to_agent' ? '👤 Forward' : 
+                             kw.action === 'send_template' ? '📋 Template' : '💬 Reply'}
                           </span>
+                          {kw.templateName && (
+                            <span className="px-2 py-0.5 bg-indigo-600 text-white text-xs rounded">
+                              {kw.templateName}
+                            </span>
+                          )}
                         </div>
                         <p className="text-purple-200 text-sm truncate">{kw.response}</p>
                       </div>
@@ -360,8 +438,122 @@ export default function ChatbotPage() {
                       </button>
                     </div>
                   ))}
+                  {config.keywords.length === 0 && (
+                    <p className="text-center text-purple-300 py-4">No keywords configured yet</p>
+                  )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Templates Tab */}
+          {activeTab === 'templates' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">WhatsApp Templates</h3>
+                  <p className="text-purple-200 text-sm">All created message templates</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={fetchTemplates}
+                    disabled={loadingTemplates}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm"
+                  >
+                    {loadingTemplates ? '⏳ Loading...' : '🔄 Refresh'}
+                  </button>
+                  <Link
+                    href="/admin/crm/whatsapp/templates"
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm"
+                  >
+                    ➕ Create New
+                  </Link>
+                </div>
+              </div>
+
+              {loadingTemplates ? (
+                <div className="text-center py-8 text-purple-300">Loading templates...</div>
+              ) : templates.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-purple-300 mb-4">No templates created yet</p>
+                  <Link
+                    href="/admin/crm/whatsapp/templates/new"
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg inline-block"
+                  >
+                    Create Your First Template
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {templates.map((t) => (
+                    <div key={t._id} className="bg-slate-700/50 rounded-xl p-4 border border-slate-600">
+                      {/* Template Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="text-white font-semibold">{t.templateName}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-purple-300 bg-purple-900/50 px-2 py-0.5 rounded">
+                              {t.language}
+                            </span>
+                            {t.category && (
+                              <span className="text-xs text-blue-300 bg-blue-900/50 px-2 py-0.5 rounded">
+                                {t.category}
+                              </span>
+                            )}
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              t.metaStatus === 'APPROVED' ? 'bg-green-900/50 text-green-300' :
+                              t.metaStatus === 'PENDING' ? 'bg-yellow-900/50 text-yellow-300' :
+                              t.metaStatus === 'REJECTED' ? 'bg-red-900/50 text-red-300' :
+                              'bg-slate-600 text-slate-300'
+                            }`}>
+                              {t.metaStatus === 'APPROVED' ? '✅ Approved' :
+                               t.metaStatus === 'PENDING' ? '⏳ Pending' :
+                               t.metaStatus === 'REJECTED' ? '❌ Rejected' :
+                               '📝 Draft'}
+                            </span>
+                          </div>
+                        </div>
+                        {t.headerMedia?.url && (
+                          <img
+                            src={t.headerMedia.url}
+                            alt=""
+                            className="w-12 h-12 rounded object-cover"
+                          />
+                        )}
+                      </div>
+
+                      {/* Template Preview */}
+                      <div className="bg-slate-800/50 rounded-lg p-3 mb-3">
+                        <p className="text-purple-100 text-sm whitespace-pre-wrap line-clamp-4">
+                          {t.templateContent}
+                        </p>
+                      </div>
+
+                      {/* Buttons */}
+                      {t.buttons && t.buttons.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {t.buttons.map((btn, i) => (
+                            <span key={i} className="px-2 py-1 bg-blue-600/30 text-blue-200 rounded text-xs">
+                              {btn.type === 'QUICK_REPLY' ? '↩️' : '🔗'} {btn.title}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-between text-xs text-purple-300">
+                        <span>Created: {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'N/A'}</span>
+                        <Link
+                          href={`/admin/crm/whatsapp/templates`}
+                          className="text-purple-400 hover:text-purple-300"
+                        >
+                          Edit →
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -522,10 +714,14 @@ export default function ChatbotPage() {
         </div>
 
         {/* Quick Stats */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-slate-800/50 backdrop-blur rounded-xl p-6 border border-purple-500/20">
             <h3 className="text-purple-200 text-sm mb-1">Keywords Configured</h3>
             <p className="text-3xl font-bold text-white">{config.keywords.length}</p>
+          </div>
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl p-6 border border-purple-500/20">
+            <h3 className="text-purple-200 text-sm mb-1">Templates Available</h3>
+            <p className="text-3xl font-bold text-white">{templates.length}</p>
           </div>
           <div className="bg-slate-800/50 backdrop-blur rounded-xl p-6 border border-purple-500/20">
             <h3 className="text-purple-200 text-sm mb-1">AI Status</h3>
