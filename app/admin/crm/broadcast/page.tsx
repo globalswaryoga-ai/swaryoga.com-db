@@ -446,13 +446,18 @@ export default function BroadcastPage() {
         skipped: Number(run?.stats?.skipped || 0),
       });
 
-      // Best-effort: for "send now" we try triggering immediate processing.
-      // If CRON_SECRET is required server-side, this will fail silently and cron will handle it.
+      // For "send now" mode, trigger immediate processing
       if (sendMode === 'now') {
         try {
-          await crm.fetch('/api/admin/crm/broadcast-runs/run', { method: 'POST' });
-        } catch {
-          // ignore
+          console.log('[Broadcast] Triggering immediate run processing...');
+          const runResult = await crm.fetch('/api/admin/crm/broadcast-runs/run', { 
+            method: 'POST',
+            body: { runLimit: 1, perRunMessageLimit: 100 }
+          });
+          console.log('[Broadcast] Run result:', runResult);
+        } catch (runErr) {
+          console.error('[Broadcast] Run trigger failed:', runErr);
+          // Don't fail the whole operation - cron will handle it
         }
       }
 

@@ -30,8 +30,14 @@ function verifyAdmin(request: NextRequest): boolean {
  */
 export async function POST(request: NextRequest) {
   try {
+    const hasCronSecret = verifyCronSecret(request);
+    const hasAdminAuth = verifyAdmin(request);
+    
+    console.log('[Broadcast Run] Auth check - cronSecret:', hasCronSecret, 'adminAuth:', hasAdminAuth);
+    
     // Allow either CRON_SECRET or admin JWT authentication
-    if (!verifyCronSecret(request) && !verifyAdmin(request)) {
+    if (!hasCronSecret && !hasAdminAuth) {
+      console.log('[Broadcast Run] Unauthorized - no valid auth');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -39,9 +45,15 @@ export async function POST(request: NextRequest) {
     const runLimit = typeof body?.runLimit === 'number' ? body.runLimit : undefined;
     const perRunMessageLimit = typeof body?.perRunMessageLimit === 'number' ? body.perRunMessageLimit : undefined;
 
+    console.log('[Broadcast Run] Processing with limits:', { runLimit, perRunMessageLimit });
+    
     const data = await processDueBroadcastRuns({ runLimit, perRunMessageLimit });
+    
+    console.log('[Broadcast Run] Result:', JSON.stringify(data));
+    
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error) {
+    console.error('[Broadcast Run] Error:', error);
     return handleCrmError(error, 'POST broadcast-runs/run');
   }
 }
