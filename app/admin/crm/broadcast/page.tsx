@@ -153,6 +153,10 @@ export default function BroadcastPage() {
     { total: 0, pending: 0, sent: 0, failed: 0, skipped: 0 }
   );
 
+  // Recent broadcasts for management
+  const [recentRuns, setRecentRuns] = useState<any[]>([]);
+  const [loadingRuns, setLoadingRuns] = useState(false);
+
   const draftCount = useMemo(
     () => (selectedLeadIds.size && selectedTemplate ? selectedLeadIds.size : 0),
     [selectedLeadIds.size, selectedTemplate]
@@ -342,6 +346,54 @@ export default function BroadcastPage() {
     }
   }, [adminUserId, crm, deepLinkLeadId, label, status, workshopName]);
 
+  // Fetch recent broadcast runs
+  const fetchRecentRuns = useCallback(async () => {
+    try {
+      setLoadingRuns(true);
+      const res = await crm.fetch('/api/admin/crm/broadcast-runs?limit=10', { method: 'GET', silent: true });
+      const runs = res?.runs || res?.data?.runs || [];
+      setRecentRuns(runs);
+      
+      // Update runStats from the most recent active run
+      if (activeRunId) {
+        const activeRun = runs.find((r: any) => r._id === activeRunId);
+        if (activeRun?.stats) {
+          setRunStats({
+            total: activeRun.stats.total || 0,
+            pending: activeRun.stats.pending || 0,
+            sent: activeRun.stats.sent || 0,
+            failed: activeRun.stats.failed || 0,
+            skipped: activeRun.stats.skipped || 0,
+          });
+        }
+      }
+    } catch {
+      // non-fatal
+    } finally {
+      setLoadingRuns(false);
+    }
+  }, [crm, activeRunId]);
+
+  // Poll for run status when there's an active run
+  useEffect(() => {
+    if (!activeRunId || !token) return;
+    
+    // Initial fetch
+    fetchRecentRuns();
+    
+    // Poll every 3 seconds while run is active
+    const interval = setInterval(() => {
+      const activeRun = recentRuns.find((r: any) => r._id === activeRunId);
+      if (activeRun?.status === 'completed' || activeRun?.status === 'failed') {
+        clearInterval(interval);
+        return;
+      }
+      fetchRecentRuns();
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [activeRunId, token, fetchRecentRuns, recentRuns]);
+
   useEffect(() => {
     if (!token) return;
     console.log('[Broadcast] Token available, fetching initial data...');
@@ -350,6 +402,7 @@ export default function BroadcastPage() {
     void fetchBroadcastLists();
     void fetchMetadata();
     void fetchLeads();
+    void fetchRecentRuns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -554,8 +607,8 @@ export default function BroadcastPage() {
       {/* Top stats cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 12 }}>
         {[
-          { label: 'Sent', value: runStats.sent, bg: '#ECFDF5', color: '#065F46' },
-          { label: 'Pending', value: runStats.pending, bg: '#FFFBEB', color: '#92400E' },
+          { label: 'Sent', value: recentRuns.reduce((sum, r) => sum + (r.stats?.sent || 0), 0), bg: '#ECFDF5', color: '#065F46' },
+          { label: 'Pending', value: recentRuns.reduce((sum, r) => sum + (r.stats?.pending || 0), 0), bg: '#FFFBEB', color: '#92400E' },
           { label: 'Draft', value: draftCount, bg: '#EEF2FF', color: '#3730A3' },
         ].map((c) => (
           <div
@@ -572,6 +625,148 @@ export default function BroadcastPage() {
           </div>
         ))}
       </div>
+
+      {/* Recent Broadcasts Table */}
+      {recentRuns.length > 0 && (
+        <div style={{ marginTop: 16, border: '1px solid rgba(17, 24, 39, 0.08)', borderRadius: 14, background: '#fff', overflow: 'hidden' }}>
+          <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>📊 Recent Broadcasts</div>
+            <button
+              onClick={() => fetchRecentRuns()}
+              style={{ fontSize: 12, padding: '4px 10px', background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 6, cursor: 'pointer' }}
+            >
+              ↻ Refresh
+            </button>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#6B7280' }}>Name</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Status</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Provider</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Total</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#10B981' }}>✓ Sent</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#EF4444' }}>✗ Failed</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Progress</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentRuns.map((run: any) => {
+                  const stats = run.stats || {};
+                  const total = stats.total || 0;
+                  const sent = stats.sent || 0;
+                  const failed = stats.failed || 0;
+                  const pending = stats.pending || 0;
+                  const progressPercent = total > 0 ? Math.round(((sent + failed + (stats.skipped || 0)) / total) * 100) : 0;
+                  const isActive = run._id === activeRunId;
+                  
+                  return (
+                    <tr 
+                      key={run._id} 
+                      style={{ 
+                        borderBottom: '1px solid #F3F4F6',
+                        background: isActive ? '#EFF6FF' : 'transparent',
+                      }}
+                    >
+                      <td style={{ padding: '10px 12px' }}>
+                        <div style={{ fontWeight: 600, color: '#111827' }}>{run.name || 'Unnamed'}</div>
+                        <div style={{ fontSize: 11, color: '#9CA3AF' }}>
+                          {run.templateSnapshot?.templateName || 'Unknown template'} • {new Date(run.createdAt).toLocaleString()}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: run.status === 'completed' ? '#ECFDF5' : run.status === 'running' ? '#DBEAFE' : run.status === 'failed' ? '#FEE2E2' : '#F3F4F6',
+                          color: run.status === 'completed' ? '#065F46' : run.status === 'running' ? '#1E40AF' : run.status === 'failed' ? '#991B1B' : '#374151',
+                        }}>
+                          {run.status === 'completed' ? '✅' : run.status === 'running' ? '🔄' : run.status === 'failed' ? '❌' : '📝'} {run.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: run.provider === 'meta' ? '#ECFDF5' : '#DBEAFE',
+                          color: run.provider === 'meta' ? '#065F46' : '#1E40AF',
+                        }}>
+                          {run.provider === 'meta' ? '🟢 Meta' : '📲 QR'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{total}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#10B981' }}>{sent}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#EF4444' }}>{failed}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ flex: 1, height: 6, background: '#E5E7EB', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ width: `${progressPercent}%`, height: '100%', background: run.status === 'failed' ? '#EF4444' : '#10B981', transition: 'width 0.3s' }} />
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>{progressPercent}%</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                          <Link
+                            href={`/admin/crm/broadcast/reports?runId=${run._id}`}
+                            style={{
+                              padding: '4px 10px',
+                              background: '#3B82F6',
+                              color: '#fff',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              textDecoration: 'none',
+                            }}
+                          >
+                            👁️ View
+                          </Link>
+                          {(run.status === 'draft' || (pending > 0 && run.status !== 'completed')) && (
+                            <button
+                              onClick={async () => {
+                                setActiveRunId(run._id);
+                                try {
+                                  await crm.fetch('/api/admin/crm/broadcast-runs/run', { 
+                                    method: 'POST', 
+                                    body: { runLimit: 1, perRunMessageLimit: 200 } 
+                                  });
+                                  fetchRecentRuns();
+                                } catch (e) {
+                                  console.error('Failed to trigger run:', e);
+                                }
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                background: '#10B981',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              ▶ Send
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Main layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 12, marginTop: 12, minHeight: '70vh' }}>
