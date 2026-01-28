@@ -113,6 +113,7 @@ export async function submitTemplateToMeta(template: MetaTemplateSubmission): Pr
 
   try {
     console.log(`[META-TEMPLATES] Submitting template "${template.name}" to Meta...`);
+    console.log('[META-TEMPLATES] Full payload:', JSON.stringify(template, null, 2));
     
     const response = await fetch(url, {
       method: 'POST',
@@ -126,10 +127,13 @@ export async function submitTemplateToMeta(template: MetaTemplateSubmission): Pr
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('[META-TEMPLATES] Submit failed:', data);
+      console.error('[META-TEMPLATES] Submit failed:', JSON.stringify(data, null, 2));
+      // Extract detailed error message from Meta
+      const errorDetails = data.error?.error_data?.details || '';
+      const errorMsg = data.error?.message || `HTTP ${response.status}`;
       return {
         success: false,
-        error: data.error?.message || `HTTP ${response.status}: ${response.statusText}`,
+        error: errorDetails ? `${errorMsg} - ${errorDetails}` : errorMsg,
       };
     }
 
@@ -444,10 +448,19 @@ export function convertToMetaFormat(localTemplate: {
     .replace(/^_|_$/g, '')         // No leading/trailing underscores
     .slice(0, 512);
 
+  // Map language code - Meta requires specific format like en_US, hi, etc.
+  const langMap: Record<string, string> = {
+    'en': 'en_US',
+    'hi': 'hi',
+    'en_US': 'en_US',
+    'en_GB': 'en_GB',
+  };
+  const metaLanguage = langMap[localTemplate.language] || localTemplate.language || 'en_US';
+
   return {
     name: cleanName || 'template_' + Date.now(),
     category: metaCategory,
-    language: localTemplate.language || 'en',
+    language: metaLanguage,
     components,
   };
 }
