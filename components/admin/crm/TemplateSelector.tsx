@@ -87,14 +87,20 @@ function parseTemplateContent(template: WhatsAppTemplate) {
   // Also use buttons from template.buttons if present and no buttons parsed
   const finalButtons = buttons.length > 0 ? buttons : (template.buttons || []);
   
-  // Body is everything except header (first bold line), buttons, and footer
-  const bodyLines = lines.filter((l, idx) => 
-    !l.trim().startsWith('•') && 
-    !l.includes('[QUICK_REPLY]') &&
-    !(idx === 0 && firstLineIsBold) &&  // Skip first line if it's the header
-    !(footerText && l.trim() === footerText.trim())  // Skip footer line
-  );
-  const body = bodyLines.join('\n').trim() || template.templateContent;
+  // Body is everything except header (first bold line), buttons, footer, and URLs
+  const bodyLines = lines.filter((l, idx) => {
+    const trimmed = l.trim();
+    // Skip button lines
+    if (trimmed.startsWith('•') || l.includes('[QUICK_REPLY]')) return false;
+    // Skip first line if it's the header
+    if (idx === 0 && firstLineIsBold) return false;
+    // Skip footer line
+    if (footerText && trimmed === footerText.trim()) return false;
+    // Skip URLs (http://, https://, blob:)
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('blob:')) return false;
+    return true;
+  });
+  const body = bodyLines.join('\n').trim();
 
   return {
     headerText,
