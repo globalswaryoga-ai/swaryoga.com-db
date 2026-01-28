@@ -433,7 +433,8 @@ export default function BroadcastPage() {
         body: payload,
       });
 
-      const run = created?.data?.run;
+      // API returns { success: true, data: <run object> }
+      const run = created?.data;
       if (!run?._id) throw new Error('Failed to create broadcast run');
 
       setActiveRunId(String(run._id));
