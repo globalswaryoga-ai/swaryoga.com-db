@@ -341,6 +341,23 @@ export function convertToMetaFormat(localTemplate: {
 }): MetaTemplateSubmission {
   const components: MetaTemplateComponent[] = [];
 
+  /**
+   * Clean template text for Meta:
+   * - Remove WhatsApp formatting (*bold*, _italic_)
+   * - Remove button markers (• [QUICK_REPLY])
+   * - Remove extra whitespace
+   */
+  function cleanTextForMeta(text: string): string {
+    return text
+      .replace(/\*([^*]+)\*/g, '$1')      // Remove *bold* markers
+      .replace(/_([^_]+)_/g, '$1')        // Remove _italic_ markers
+      .replace(/~([^~]+)~/g, '$1')        // Remove ~strikethrough~ markers
+      .replace(/•\s*\[QUICK_REPLY\][^\n]*/g, '')  // Remove button lines
+      .replace(/•\s*\[[^\]]+\][^\n]*/g, '')       // Remove other button markers
+      .replace(/\n{3,}/g, '\n\n')         // Max 2 newlines
+      .trim();
+  }
+
   // Header component
   if (localTemplate.headerFormat && localTemplate.headerFormat !== 'NONE') {
     const headerComponent: MetaTemplateComponent = {
@@ -349,13 +366,18 @@ export function convertToMetaFormat(localTemplate: {
     };
 
     if (localTemplate.headerFormat === 'TEXT' && localTemplate.headerContent) {
-      headerComponent.text = localTemplate.headerContent;
-      // Extract variables from header text
-      const headerVars = localTemplate.headerContent.match(/\{\{(\d+)\}\}/g);
-      if (headerVars) {
-        headerComponent.example = {
-          header_text: headerVars.map(() => 'Sample'),
-        };
+      // Clean header text and skip if it's a URL
+      const headerText = localTemplate.headerContent;
+      if (!headerText.startsWith('http')) {
+        headerComponent.text = cleanTextForMeta(headerText);
+        // Extract variables from header text
+        const headerVars = headerComponent.text.match(/\{\{(\d+)\}\}/g);
+        if (headerVars) {
+          headerComponent.example = {
+            header_text: headerVars.map(() => 'Sample'),
+          };
+        }
+        components.push(headerComponent);
       }
     } else if (localTemplate.headerFormat === 'IMAGE' && localTemplate.imageFile?.url) {
       // For image headers, Meta requires a media handle from uploaded media
@@ -363,19 +385,19 @@ export function convertToMetaFormat(localTemplate: {
       headerComponent.example = {
         header_handle: ['MEDIA_HANDLE_PLACEHOLDER'],
       };
+      components.push(headerComponent);
     }
-
-    components.push(headerComponent);
   }
 
-  // Body component (required)
+  // Body component (required) - clean the text
+  const cleanedBody = cleanTextForMeta(localTemplate.templateContent);
   const bodyComponent: MetaTemplateComponent = {
     type: 'BODY',
-    text: localTemplate.templateContent,
+    text: cleanedBody,
   };
 
   // Extract variables from body text
-  const bodyVars = localTemplate.templateContent.match(/\{\{(\d+)\}\}/g);
+  const bodyVars = cleanedBody.match(/\{\{(\d+)\}\}/g);
   if (bodyVars) {
     bodyComponent.example = {
       body_text: [bodyVars.map(() => 'Sample')],
@@ -384,23 +406,29 @@ export function convertToMetaFormat(localTemplate: {
 
   components.push(bodyComponent);
 
-  // Footer component
+  // Footer component - also clean it
   if (localTemplate.footerText) {
     components.push({
       type: 'FOOTER',
-      text: localTemplate.footerText,
+      text: cleanTextForMeta(localTemplate.footerText),
     });
   }
 
   // Buttons component
   if (localTemplate.buttons && localTemplate.buttons.length > 0) {
-    components.push({
-      type: 'BUTTONS',
-      buttons: localTemplate.buttons.map(btn => ({
-        type: 'QUICK_REPLY' as const,
-        text: btn.title,
-      })),
-    });
+    const validButtons = localTemplate.buttons
+      .filter(btn => btn.title && btn.title.trim().length > 0)
+      .slice(0, 3);  // Meta allows max 3 buttons
+    
+    if (validButtons.length > 0) {
+      components.push({
+        type: 'BUTTONS',
+        buttons: validButtons.map(btn => ({
+          type: 'QUICK_REPLY' as const,
+          text: btn.title.trim().slice(0, 20),  // Meta max 20 chars for button text
+        })),
+      });
+    }
   }
 
   // Map category - Meta only accepts MARKETING, UTILITY, or AUTHENTICATION
@@ -412,8 +440,16 @@ export function convertToMetaFormat(localTemplate: {
     metaCategory = 'AUTHENTICATION';
   }
 
+  // Clean template name: lowercase, only a-z, 0-9, underscore, max 512 chars
+  const cleanName = localTemplate.templateName
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')           // No double underscores
+    .replace(/^_|_$/g, '')         // No leading/trailing underscores
+    .slice(0, 512);
+
   return {
-    name: localTemplate.templateName.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+    name: cleanName || 'template_' + Date.now(),
     category: metaCategory,
     language: localTemplate.language || 'en',
     components,
