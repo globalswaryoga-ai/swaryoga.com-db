@@ -1,1288 +1,969 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useCRM } from '@/hooks/useCRM';
 import { useAuth } from '@/hooks/useAuth';
-import { AlertBox, LoadingSpinner, AddToBroadcastModal, TemplateSelector, type WhatsAppTemplate } from '@/components/admin/crm';
-import { buildLabelOptions } from '@/lib/crm/labels';
 
-type LeadRow = {
+// ============================================================================
+// TYPES
+// ============================================================================
+interface Lead {
   _id: string;
   name?: string;
-  phoneNumber?: string;
+  phoneNumber: string;
   status?: string;
-  workshopName?: string;
   labels?: string[];
-  assignedToUserId?: string;
-};
+  workshopName?: string;
+}
 
-type AdminUserRow = { _id: string; userId?: string; email?: string; name?: string };
-
-type WhatsAppTemplateRow = {
+interface Template {
   _id: string;
   templateName: string;
-  category?: string;
-  language?: string;
   templateContent: string;
+  headerFormat?: string;
+  headerMedia?: { kind: string; url: string };
+  buttons?: { kind: string; title: string; url?: string }[];
+  language?: string;
   status?: string;
-  buttons?: Array<{ title?: string }>;
-  headerMedia?: { kind?: 'image' | 'video'; url?: string };
-};
-
-type TemplatePreviewPayload = {
-  headerMedia?: { kind?: 'image' | 'video'; url?: string };
-  buttons?: Array<{ title?: string }>;
-  body?: string;
-  footer?: string;
-};
-
-function safeParseTemplatePreview(content: string): TemplatePreviewPayload | null {
-  try {
-    const trimmed = String(content || '').trim();
-    if (!trimmed) return null;
-    if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return null;
-    const parsed = JSON.parse(trimmed);
-    if (!parsed || typeof parsed !== 'object') return null;
-    // Accept either {body, footer, headerMedia, buttons} or nested {preview: {...}}
-    const candidate = (parsed as any).preview && typeof (parsed as any).preview === 'object' ? (parsed as any).preview : parsed;
-    return {
-      headerMedia: candidate?.headerMedia,
-      buttons: Array.isArray(candidate?.buttons) ? candidate.buttons : undefined,
-      body: typeof candidate?.body === 'string' ? candidate.body : undefined,
-      footer: typeof candidate?.footer === 'string' ? candidate.footer : undefined,
-    };
-  } catch {
-    return null;
-  }
 }
 
-function uniq(values: string[]) {
-  return Array.from(new Set(values.map((x) => String(x).trim()).filter(Boolean)));
+interface BroadcastRun {
+  _id: string;
+  name: string;
+  status: string;
+  provider: string;
+  stats: {
+    total: number;
+    pending: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+  };
+  templateSnapshot?: {
+    templateName?: string;
+  };
+  createdAt: string;
+  completedAt?: string;
 }
 
-// Broadcast segmentation buckets (user-facing).
-// These should be stable options so the filter behaves predictably.
-// NOTE: CRM Lead.status uses singular values like "lead".
-// We still support legacy/plural inputs for backward compatibility.
-const DEFAULT_STATUS_OPTIONS = ['lead', 'prospect', 'customer', 'inactive'];
+type SendMode = 'now' | 'schedule' | 'delay';
+type Provider = 'meta' | 'qr';
+type Step = 1 | 2 | 3;
 
+// ============================================================================
+// UTILITY COMPONENTS
+// ============================================================================
+function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'sm' | 'md' }) {
+  const configs: Record<string, { bg: string; text: string; icon: string }> = {
+    draft: { bg: 'bg-gray-100', text: 'text-gray-700', icon: '📝' },
+    scheduled: { bg: 'bg-blue-100', text: 'text-blue-700', icon: '📅' },
+    running: { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: '🔄' },
+    completed: { bg: 'bg-green-100', text: 'text-green-700', icon: '✅' },
+    failed: { bg: 'bg-red-100', text: 'text-red-700', icon: '❌' },
+    pending: { bg: 'bg-gray-100', text: 'text-gray-600', icon: '⏳' },
+    sent: { bg: 'bg-green-100', text: 'text-green-700', icon: '✓' },
+    skipped: { bg: 'bg-orange-100', text: 'text-orange-700', icon: '⏭️' },
+  };
+  const config = configs[status] || { bg: 'bg-gray-100', text: 'text-gray-600', icon: '•' };
+  const sizeClasses = size === 'md' ? 'px-3 py-1.5 text-sm' : 'px-2 py-0.5 text-xs';
+  
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full font-medium ${config.bg} ${config.text} ${sizeClasses}`}>
+      <span>{config.icon}</span>
+      <span className="capitalize">{status}</span>
+    </span>
+  );
+}
+
+function ProgressBar({ value, max, color = 'blue' }: { value: number; max: number; color?: string }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  const colorMap: Record<string, string> = {
+    blue: 'bg-blue-500',
+    green: 'bg-green-500',
+    red: 'bg-red-500',
+    yellow: 'bg-yellow-500',
+  };
+  return (
+    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+      <div
+        className={`h-full transition-all duration-500 ${colorMap[color] || 'bg-blue-500'}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 export default function BroadcastPage() {
-  const router = useRouter();
-  const sp = useSearchParams();
   const token = useAuth();
-  const crm = useCRM({ token });
 
-  const listId = sp.get('listId') || '';
-  const deepLinkLeadId = sp.get('leadId') || '';
-
-  // Filter controls
-  const [status, setStatus] = useState('');
-  const [workshopName, setWorkshopName] = useState('');
-  const [adminUserId, setAdminUserId] = useState('');
-  const [label, setLabel] = useState('');
-
-  // Support deep-links from other pages (e.g., Leads page) so Broadcast can open
-  // with filters pre-selected.
-  useEffect(() => {
-    const qsStatus = sp.get('status') || '';
-    const qsWorkshop = sp.get('workshop') || '';
-    const qsUserId = sp.get('userId') || '';
-    const qsLabel = sp.get('label') || '';
-
-    // Only set if currently empty to avoid overriding user interactions.
-    setStatus((prev) => (prev ? prev : qsStatus));
-    setWorkshopName((prev) => (prev ? prev : qsWorkshop));
-    setAdminUserId((prev) => (prev ? prev : qsUserId));
-    setLabel((prev) => (prev ? prev : qsLabel));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sp]);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  // Step management
+  const [step, setStep] = useState<Step>(1);
+  
   // Data
-  const [leads, setLeads] = useState<LeadRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([]);
-  const [templates, setTemplates] = useState<WhatsAppTemplateRow[]>([]);
-  const [broadcastLists, setBroadcastLists] = useState<any[]>([]);
-
-  // Options for filters (don't depend on current leads result set).
-  const [labelOptions, setLabelOptions] = useState<string[]>([]);
-  const [workshopOptions, setWorkshopOptions] = useState<string[]>([]);
-
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [recentRuns, setRecentRuns] = useState<BroadcastRun[]>([]);
+  
   // Selection
-  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   
-  // Broadcast list modal
-  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
-
-  // Track last fetch to prevent rapid retries on errors
-  const lastFetchTimeRef = useRef<number>(0);
-  const MIN_FETCH_INTERVAL_MS = 2000; // Minimum 2 second interval between fetch attempts
-
-  // Template selection + preview
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
-  const selectedTemplate = useMemo(
-    () => templates.find((t) => t._id === selectedTemplateId) || null,
-    [templates, selectedTemplateId]
-  );
-
-  const selectedTemplatePreview = useMemo(() => {
-    if (!selectedTemplate) return null;
-    const parsed = safeParseTemplatePreview(selectedTemplate.templateContent);
-    return parsed;
-  }, [selectedTemplate]);
-
-  // Mode
-  const [sendMode, setSendMode] = useState<'now' | 'schedule' | 'delay'>('now');
-  const [provider, setProvider] = useState<'meta' | 'qr'>('meta'); // WhatsApp provider selection
-  const [scheduleAt, setScheduleAt] = useState('');
-  const [delayMins, setDelayMins] = useState('5');
+  // Options
+  const [sendMode, setSendMode] = useState<SendMode>('now');
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [delayMinutes, setDelayMinutes] = useState(5);
+  const [delayBetweenSeconds, setDelayBetweenSeconds] = useState(2);
+  const [provider, setProvider] = useState<Provider>('meta');
+  const [broadcastName, setBroadcastName] = useState('');
   
-  // Delay breakdown (days, hours, minutes, seconds)
-  const [delayDays, setDelayDays] = useState('0');
-  const [delayHours, setDelayHours] = useState('0');
-  const [delaySeconds, setDelaySeconds] = useState('0');
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [templateSearch, setTemplateSearch] = useState('');
+  
+  // UI State
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; message: string; runId?: string } | null>(null);
+  const [showRecentRuns, setShowRecentRuns] = useState(false);
 
-  // Broadcast run tracking
-  const [activeRunId, setActiveRunId] = useState<string>('');
-  const [runStats, setRunStats] = useState<{ total: number; pending: number; sent: number; failed: number; skipped: number }>(
-    { total: 0, pending: 0, sent: 0, failed: 0, skipped: 0 }
-  );
-
-  // Recent broadcasts for management
-  const [recentRuns, setRecentRuns] = useState<any[]>([]);
-  const [loadingRuns, setLoadingRuns] = useState(false);
-
-  const draftCount = useMemo(
-    () => (selectedLeadIds.size && selectedTemplate ? selectedLeadIds.size : 0),
-    [selectedLeadIds.size, selectedTemplate]
-  );
-
-  const statusOptions = useMemo(() => {
-    // IMPORTANT: Keep this fixed to the default buckets.
-    // We don't want per-lead random statuses to appear here.
-    return [...DEFAULT_STATUS_OPTIONS];
-  }, []);
-
-  const fetchMetadata = useCallback(async () => {
-    try {
-      const res: any = await crm.fetch('/api/admin/crm/leads/metadata', { method: 'GET' });
-      const data = res?.data || res;
-      const workshops = Array.isArray(data?.workshops) ? data.workshops : [];
-      const labels = Array.isArray(data?.labels) ? data.labels : [];
-      const canonicalLabels = Array.isArray(data?.canonicalLabels) ? data.canonicalLabels : [];
-
-      setWorkshopOptions(uniq(workshops.map((x: any) => String(x))).sort((a, b) => a.localeCompare(b)));
-      // Use canonical labels everywhere. Legacy labels are intentionally not offered in dropdown.
-      // However, we still pass DB labels as `existing` so if includeLegacy is toggled in the future,
-      // we have data handy.
-      const canonical = canonicalLabels.length ? canonicalLabels.map((x: any) => String(x)) : undefined;
-      setLabelOptions(buildLabelOptions({ existing: labels, includeLegacy: false }).map((x) => String(x)));
-    } catch {
-      // If metadata endpoint isn't available, gracefully fall back to deriving from current leads.
-      const fallbackWorkshops = uniq(leads.map((l) => String(l.workshopName || '')).filter(Boolean)).sort((a, b) =>
-        a.localeCompare(b)
-      );
-      const fallbackLabels = buildLabelOptions({
-        existing: leads
-          .flatMap((l) => (Array.isArray(l.labels) ? l.labels : []))
-          .map((x) => String(x)),
-        includeLegacy: false,
-      }).sort((a, b) => a.localeCompare(b));
-      setWorkshopOptions(fallbackWorkshops);
-      setLabelOptions(fallbackLabels);
-    }
-  }, [crm, leads]);
-
-  const fetchAdminUsers = useCallback(async () => {
-    try {
-      const res: any = await crm.fetch('/api/admin/auth/users', { method: 'GET' });
-      console.log('[Broadcast] Admin users raw response:', res);
-      
-      // useCRM.fetch returns result.data directly if successful
-      // So res should already be the array of users
-      let users: AdminUserRow[] = [];
-      
-      if (Array.isArray(res)) {
-        // Direct array from useCRM
-        users = res;
-      } else if (Array.isArray(res?.data)) {
-        // Nested in data property
-        users = res.data;
-      } else if (Array.isArray(res?.users)) {
-        // Legacy format with users property
-        users = res.users;
-      }
-      
-      console.log('[Broadcast] Parsed admin users:', users.length, users.map((u: any) => u.name || u.userId || u.email));
-      setAdminUsers(users);
-    } catch (err) {
-      console.error('[Broadcast] Failed to fetch admin users:', err);
-      setAdminUsers([]);
-    }
-  }, [crm]);
-
-  const fetchBroadcastLists = useCallback(async () => {
-    try {
-      const res: any = await crm.fetch('/api/admin/crm/broadcast-lists', { method: 'GET' });
-      const lists = Array.isArray(res?.data?.lists) ? res.data.lists : [];
-      setBroadcastLists(lists);
-    } catch {
-      // not fatal
-      setBroadcastLists([]);
-    }
-  }, [crm]);
-
-  const fetchTemplates = useCallback(async () => {
-    try {
-      const res: any = await crm.fetch('/api/admin/crm/templates', { method: 'GET' });
-      const rows = Array.isArray(res?.data?.templates)
-        ? res.data.templates
-        : Array.isArray(res?.templates)
-          ? res.templates
-          : [];
-      setTemplates(rows);
-    } catch {
-      setTemplates([]);
-    }
-  }, [crm]);
-
-  const fetchLeads = useCallback(async () => {
-    // Throttle: prevent rapid retries when there are errors
-    const now = Date.now();
-    if (now - lastFetchTimeRef.current < MIN_FETCH_INTERVAL_MS) {
-      return;
-    }
-    lastFetchTimeRef.current = now;
-
+  // ============================================================================
+  // DATA FETCHING
+  // ============================================================================
+  const fetchData = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
-    setError(null);
     try {
-      const params = new URLSearchParams();
-      // Fetch *all* leads for accurate client-side status/label segmentation.
-      // NOTE: The leads API is paginated by default, so we must request a high limit
-      // otherwise filters will "miss" leads that exist beyond the first page.
-    params.set('limit', '5000');
-    params.set('skip', '0');
-    // Allows super-admin to request a larger dataset from the API.
-    params.set('selectAll', 'true');
-      // Status is a client-side segmentation bucket (leads/prospect/customer/inactive).
-      // The server stores granular statuses, so we fetch broadly and filter locally.
-      if (workshopName) params.set('workshop', workshopName);
-      if (adminUserId) params.set('userId', adminUserId);
-      // NOTE: label filtering isn't supported server-side yet; we filter client-side below.
-
-      const url = `/api/admin/crm/leads${params.toString() ? `?${params.toString()}` : ''}`;
-      const res: any = await crm.fetch(url, { method: 'GET' });
-
-      // useCRM.fetch returns result.data directly, so leads/total are at top level
-      const rows: LeadRow[] = Array.isArray(res?.leads) ? res.leads : [];
-      const serverTotal: number = Number(res?.total ?? rows.length ?? 0);
-
-      const normalizeStatus = (s: any) => String(s || '').trim().toLowerCase();
-      const statusBucket = (s: any): 'lead' | 'prospect' | 'customer' | 'inactive' | '' => {
-        const v = normalizeStatus(s);
-        if (!v) return '';
-        if (v === 'inactive') return 'inactive';
-
-        // Customer bucket
-        if (['customer', 'registered', 'paid', 'converted'].includes(v)) return 'customer';
-
-        // Prospect bucket
-        if (['prospect', 'interested', 'follow_up', 'followup', 'follow-up'].includes(v)) return 'prospect';
-
-  // Lead bucket
-  if (['leads', 'lead', 'new'].includes(v)) return 'lead';
-
-        // Unknown statuses default to Lead (keeps backward compatibility)
-        return 'lead';
-      };
-
-      // Client-side filters (until we extend the API)
-      let filtered = rows;
-
-      if (status) {
-        const wanted = statusBucket(status);
-        // Compare bucket-to-bucket so that user-facing "lead" matches
-        // underlying values like "new" or legacy "leads".
-        filtered = filtered.filter((l) => statusBucket(l.status) === wanted);
-      }
-
-      if (label) {
-        const wanted = String(label).trim().toLowerCase();
-        filtered = filtered.filter((l) =>
-          (Array.isArray(l.labels) ? l.labels : []).some((x) => String(x).trim().toLowerCase() === wanted)
-        );
-      }
-
-      setLeads(filtered);
-    // Total is used for the filter header/count display.
-    // If we aren't applying any client-side narrowing, show the server total.
-    // Otherwise show the narrowed count.
-      const hasClientSideFilter = Boolean(status) || Boolean(label);
-      setTotal(hasClientSideFilter ? filtered.length : serverTotal);
-
-      // Keep selection only for visible leads
-      setSelectedLeadIds((prev) => {
-        const visible = new Set(filtered.map((l) => l._id));
-        const next = new Set(Array.from(prev).filter((id) => visible.has(id)));
-        // Deep-link convenience: if a leadId query param is provided, auto-select it
-        // (only if it's visible in the current filtered results).
-        if (deepLinkLeadId && visible.has(deepLinkLeadId)) {
-          next.add(deepLinkLeadId);
-        }
-        return next;
-      });
-    } catch (e) {
-      setLeads([]);
-      setTotal(0);
-      setError(e instanceof Error ? e.message : 'Failed to load leads');
+      const [leadsRes, templatesRes, runsRes] = await Promise.all([
+        fetch('/api/admin/crm/leads?limit=1000', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/templates', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/crm/broadcast-runs?limit=10', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      
+      const [leadsData, templatesData, runsData] = await Promise.all([
+        leadsRes.json(),
+        templatesRes.json(),
+        runsRes.json(),
+      ]);
+      
+      setLeads(leadsData.data?.leads || leadsData.leads || []);
+      setTemplates(templatesData.data?.templates || templatesData.templates || []);
+      setRecentRuns(runsData.data?.runs || runsData.runs || []);
+    } catch (err) {
+      console.error('[Broadcast] Failed to fetch data:', err);
     } finally {
       setLoading(false);
     }
-  }, [adminUserId, crm, deepLinkLeadId, label, status, workshopName]);
-
-  // Fetch recent broadcast runs
-  const fetchRecentRuns = useCallback(async () => {
-    try {
-      setLoadingRuns(true);
-      const res = await crm.fetch('/api/admin/crm/broadcast-runs?limit=10', { method: 'GET', silent: true });
-      const runs = res?.runs || res?.data?.runs || [];
-      setRecentRuns(runs);
-      
-      // Update runStats from the most recent active run
-      if (activeRunId) {
-        const activeRun = runs.find((r: any) => r._id === activeRunId);
-        if (activeRun?.stats) {
-          setRunStats({
-            total: activeRun.stats.total || 0,
-            pending: activeRun.stats.pending || 0,
-            sent: activeRun.stats.sent || 0,
-            failed: activeRun.stats.failed || 0,
-            skipped: activeRun.stats.skipped || 0,
-          });
-        }
-      }
-    } catch {
-      // non-fatal
-    } finally {
-      setLoadingRuns(false);
-    }
-  }, [crm, activeRunId]);
-
-  // Poll for run status when there's an active run
-  useEffect(() => {
-    if (!activeRunId || !token) return;
-    
-    // Initial fetch
-    fetchRecentRuns();
-    
-    // Poll every 3 seconds while run is active
-    const interval = setInterval(() => {
-      const activeRun = recentRuns.find((r: any) => r._id === activeRunId);
-      if (activeRun?.status === 'completed' || activeRun?.status === 'failed') {
-        clearInterval(interval);
-        return;
-      }
-      fetchRecentRuns();
-    }, 3000);
-    
-    return () => clearInterval(interval);
-  }, [activeRunId, token, fetchRecentRuns, recentRuns]);
-
-  useEffect(() => {
-    if (!token) return;
-    console.log('[Broadcast] Token available, fetching initial data...');
-    void fetchAdminUsers();
-    void fetchTemplates();
-    void fetchBroadcastLists();
-    void fetchMetadata();
-    void fetchLeads();
-    void fetchRecentRuns();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Ensure admin users are fetched even if other effects don't trigger
   useEffect(() => {
-    if (token && adminUsers.length === 0) {
-      console.log('[Broadcast] Re-fetching admin users as list is empty');
-      void fetchAdminUsers();
-    }
-  }, [token, adminUsers.length, fetchAdminUsers]);
+    fetchData();
+  }, [fetchData]);
 
-  useEffect(() => {
-    if (!token) return;
-    void fetchLeads();
-  }, [token, status, workshopName, adminUserId, label, fetchLeads]);
-
-  const toggleLead = (id: string) => {
-    setSelectedLeadIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  // ============================================================================
+  // FILTERED DATA
+  // ============================================================================
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      const matchesSearch = !searchQuery || 
+        lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        lead.phoneNumber.includes(searchQuery);
+      const matchesStatus = filterStatus === 'all' || lead.status === filterStatus;
+      return matchesSearch && matchesStatus;
     });
-  };
+  }, [leads, searchQuery, filterStatus]);
 
-  const toggleAllVisible = () => {
-    setSelectedLeadIds((prev) => {
-      const visible = leads.map((l) => l._id);
-      const allSelected = visible.every((id) => prev.has(id));
-      if (allSelected) {
-        const next = new Set(prev);
-        visible.forEach((id) => next.delete(id));
-        return next;
+  const filteredTemplates = useMemo(() => {
+    if (!templateSearch) return templates;
+    return templates.filter(t => 
+      t.templateName.toLowerCase().includes(templateSearch.toLowerCase()) ||
+      t.templateContent.toLowerCase().includes(templateSearch.toLowerCase())
+    );
+  }, [templates, templateSearch]);
+
+  const uniqueStatuses = useMemo(() => {
+    const statuses = new Set(leads.map(l => l.status || 'lead'));
+    return Array.from(statuses);
+  }, [leads]);
+
+  // ============================================================================
+  // SELECTION HANDLERS
+  // ============================================================================
+  const toggleLead = useCallback((id: string) => {
+    setSelectedLeads(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
       }
-      const next = new Set(prev);
-      visible.forEach((id) => next.add(id));
       return next;
     });
-  };
+  }, []);
 
-  const submitBroadcast = async () => {
-    if (!selectedTemplate) {
-      setError('Please select a template');
-      return;
-    }
-    if (!selectedLeadIds.size) {
-      setError('Please select at least 1 lead');
-      return;
-    }
+  const selectAllFiltered = useCallback(() => {
+    setSelectedLeads(prev => {
+      if (prev.size === filteredLeads.length) {
+        return new Set();
+      }
+      return new Set(filteredLeads.map(l => l._id));
+    });
+  }, [filteredLeads]);
 
-    setError(null);
-    setLoading(true);
+  const clearSelection = useCallback(() => {
+    setSelectedLeads(new Set());
+  }, []);
+
+  // ============================================================================
+  // VALIDATION
+  // ============================================================================
+  const canProceedToStep2 = selectedLeads.size > 0;
+  const canProceedToStep3 = selectedTemplate !== null;
+  const canSend = useMemo(() => {
+    if (!selectedTemplate || selectedLeads.size === 0) return false;
+    if (sendMode === 'schedule' && (!scheduleDate || !scheduleTime)) return false;
+    return true;
+  }, [selectedTemplate, selectedLeads, sendMode, scheduleDate, scheduleTime]);
+
+  // ============================================================================
+  // SEND BROADCAST
+  // ============================================================================
+  const handleSend = async () => {
+    if (!canSend || !selectedTemplate) return;
+    
+    setSending(true);
+    setResult(null);
+
     try {
-      const leadIds = Array.from(selectedLeadIds);
-
-      const payload: any = {
-        mode: sendMode,
-        provider: provider, // 'meta' or 'qr'
-        templateId: selectedTemplate._id,
-        target: { leadIds },
-      };
+      // Prepare payload
+      let mode = sendMode;
+      let scheduleAt: string | undefined;
+      let delayMins: number | undefined;
 
       if (sendMode === 'schedule') {
-        if (!scheduleAt) throw new Error('Please pick schedule time');
-        payload.scheduledAt = new Date(scheduleAt).toISOString();
-      }
-      if (sendMode === 'delay') {
-        const days = Number(delayDays || 0);
-        const hours = Number(delayHours || 0);
-        const mins = Number(delayMins || 0);
-        const secs = Number(delaySeconds || 0);
-        
-        const totalSeconds = (days * 86400) + (hours * 3600) + (mins * 60) + secs;
-        if (!totalSeconds || totalSeconds < 1) throw new Error('Delay must be at least 1 second');
-        payload.delaySeconds = totalSeconds;
-      }
-
-      const created: any = await crm.fetch('/api/admin/crm/broadcast-runs', {
-        method: 'POST',
-        // useCRM will JSON.stringify() the body for us.
-        body: payload,
-      });
-
-      // useCRM.fetch unwraps result.data, so `created` IS the run object directly
-      const run = created;
-      if (!run?._id) throw new Error('Failed to create broadcast run');
-
-      setActiveRunId(String(run._id));
-      setRunStats({
-        total: Number(run?.stats?.total || 0),
-        pending: Number(run?.stats?.pending || 0),
-        sent: Number(run?.stats?.sent || 0),
-        failed: Number(run?.stats?.failed || 0),
-        skipped: Number(run?.stats?.skipped || 0),
-      });
-
-      // For "send now" mode, trigger immediate processing
-      if (sendMode === 'now') {
-        try {
-          console.log('[Broadcast] Triggering immediate run processing...');
-          const runResult = await crm.fetch('/api/admin/crm/broadcast-runs/run', { 
-            method: 'POST',
-            body: { runLimit: 1, perRunMessageLimit: 100 }
-          });
-          console.log('[Broadcast] Run result:', runResult);
-        } catch (runErr) {
-          console.error('[Broadcast] Run trigger failed:', runErr);
-          // Don't fail the whole operation - cron will handle it
+        if (!scheduleDate || !scheduleTime) {
+          throw new Error('Please select date and time for scheduling');
         }
+        scheduleAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+      } else if (sendMode === 'delay') {
+        delayMins = delayMinutes;
       }
 
-      setSelectedLeadIds(new Set());
-      setSelectedTemplateId('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to send broadcast');
+      const payload = {
+        name: broadcastName.trim() || `Broadcast - ${new Date().toLocaleString('en-IN')}`,
+        templateId: selectedTemplate._id,
+        mode,
+        provider,
+        scheduleAt,
+        delayMins,
+        target: {
+          type: 'leadIds',
+          leadIds: Array.from(selectedLeads),
+        },
+      };
+
+      console.log('[Broadcast] Creating run with payload:', payload);
+
+      // Create broadcast run
+      const createRes = await fetch('/api/admin/crm/broadcast-runs', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const createData = await createRes.json();
+      
+      if (!createRes.ok || !createData.success) {
+        throw new Error(createData.error || 'Failed to create broadcast run');
+      }
+
+      const runId = createData.data?._id;
+      console.log('[Broadcast] Created run:', runId);
+
+      // If sending now, trigger the run processor
+      if (mode === 'now' && runId) {
+        console.log('[Broadcast] Triggering immediate run...');
+        
+        const runRes = await fetch('/api/admin/crm/broadcast-runs/run', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ runLimit: 1 }),
+        });
+
+        const runData = await runRes.json();
+        console.log('[Broadcast] Run result:', runData);
+
+        if (runData.success) {
+          const stats = runData.data;
+          setResult({
+            success: true,
+            message: `✅ Broadcast started! Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Skipped: ${stats.skipped || 0}`,
+            runId,
+          });
+        } else {
+          setResult({
+            success: true,
+            message: `✅ Broadcast created and queued for processing.`,
+            runId,
+          });
+        }
+      } else {
+        setResult({
+          success: true,
+          message: `✅ Broadcast ${mode === 'schedule' ? 'scheduled' : 'created'}! ${selectedLeads.size} recipients.`,
+          runId,
+        });
+      }
+
+      // Reset form
+      setSelectedLeads(new Set());
+      setSelectedTemplate(null);
+      setBroadcastName('');
+      setStep(1);
+      
+      // Refresh runs list
+      fetchData();
+
+    } catch (err: any) {
+      console.error('[Broadcast] Error:', err);
+      setResult({
+        success: false,
+        message: `❌ ${err.message || 'Failed to send broadcast'}`,
+      });
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
-  const progress = useMemo(() => {
-    if (!runStats.total) return 0;
-    const done = runStats.sent + runStats.failed + runStats.skipped;
-    return Math.max(0, Math.min(1, done / runStats.total));
-  }, [runStats.failed, runStats.sent, runStats.skipped, runStats.total]);
+  // ============================================================================
+  // RENDER HELPERS
+  // ============================================================================
+  const renderStepIndicator = () => (
+    <div className="flex items-center justify-center gap-2 mb-8">
+      {[
+        { num: 1, label: 'Recipients', icon: '👥' },
+        { num: 2, label: 'Template', icon: '📋' },
+        { num: 3, label: 'Send', icon: '🚀' },
+      ].map((s, i) => (
+        <div key={s.num} className="flex items-center">
+          <button
+            onClick={() => {
+              if (s.num === 1 || (s.num === 2 && canProceedToStep2) || (s.num === 3 && canProceedToStep2 && canProceedToStep3)) {
+                setStep(s.num as Step);
+              }
+            }}
+            disabled={s.num === 2 && !canProceedToStep2 || s.num === 3 && (!canProceedToStep2 || !canProceedToStep3)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 font-medium ${
+              step === s.num
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 scale-105'
+                : step > s.num
+                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                : 'bg-white text-gray-400 border border-gray-200 hover:border-gray-300'
+            } ${(s.num === 2 && !canProceedToStep2) || (s.num === 3 && (!canProceedToStep2 || !canProceedToStep3)) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span className="text-lg">{s.icon}</span>
+            <span className="hidden sm:inline">{s.label}</span>
+            {step > s.num && <span className="text-green-600 font-bold">✓</span>}
+          </button>
+          {i < 2 && (
+            <div className={`w-8 sm:w-12 h-0.5 mx-1 transition-colors ${step > s.num ? 'bg-green-400' : 'bg-gray-200'}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+  if (token === null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="animate-spin text-4xl">⏳</div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 16, maxWidth: 1400, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>📢 WhatsApp Broadcast</div>
-          <div style={{ color: '#6B7280', fontSize: 13 }}>
-            Filter leads → select template → preview → send now / schedule / delay
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Link href="/admin/crm" style={{ fontSize: 13, background: '#F3F4F6', padding: '6px 12px', borderRadius: 8, fontWeight: 700, textDecoration: 'none', color: '#374151' }}>
-            🏠 Dashboard
-          </Link>
-          <Link href="/admin/crm/broadcast/reports" style={{ fontSize: 13, background: '#3B82F6', color: '#fff', padding: '6px 12px', borderRadius: 8, fontWeight: 700, textDecoration: 'none' }}>
-            📊 Reports
-          </Link>
-          <Link href="/admin/crm/automation" style={{ fontSize: 13 }}>
-            Automation
-          </Link>
-          <Link href="/admin/crm/whatsapp" style={{ fontSize: 13 }}>
-            Back to WhatsApp
-          </Link>
-        </div>
-      </div>
-
-      {error ? (
-        <div style={{ marginTop: 12 }}>
-          <AlertBox type="error" message={error} />
-        </div>
-      ) : null}
-
-      {/* Broadcast Lists Selection */}
-      {broadcastLists.length > 0 && (
-        <div style={{ marginTop: 12, padding: 12, border: '1px solid rgba(17, 24, 39, 0.08)', borderRadius: 14, background: '#F9FAFB' }}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>📋 Your Broadcast Lists</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-            {broadcastLists.map((list) => {
-              const listIdValue = String(list._id);
-              return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Header */}
+      <header className="bg-white/90 backdrop-blur-lg border-b shadow-sm sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/admin/crm" className="text-gray-500 hover:text-gray-700 transition-all hover:-translate-x-1 flex items-center gap-1">
+                <span>←</span> <span className="hidden sm:inline">CRM</span>
+              </Link>
+              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                📢 Broadcast Center
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link href="/admin/crm/send-template" className="px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-all text-sm font-medium hidden sm:flex items-center gap-1">
+                📨 Single
+              </Link>
+              <Link href="/admin/crm/reports/meta" className="px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-all text-sm font-medium flex items-center gap-1">
+                🟢 <span className="hidden sm:inline">Reports</span>
+              </Link>
               <button
-                key={listIdValue}
-                onClick={() => {
-                  // Use window.location to avoid React router throttling
-                  window.location.href = `/admin/crm/broadcast?listId=${listIdValue}`;
-                }}
-                style={{
-                  padding: 12,
-                  border: '1px solid #D1D5DB',
-                  borderRadius: 8,
-                  background: '#fff',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6';
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#9CA3AF';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = '#fff';
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB';
-                }}
+                onClick={() => setShowRecentRuns(!showRecentRuns)}
+                className={`px-3 py-2 rounded-lg transition-all text-sm font-medium flex items-center gap-1 ${
+                  showRecentRuns ? 'bg-purple-100 text-purple-700' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                }`}
               >
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{list.name}</div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
-                  {list.description || 'No description'}
-                </div>
+                📊 <span className="hidden sm:inline">History</span>
               </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Top stats cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 12 }}>
-        {[
-          { label: 'Sent', value: recentRuns.reduce((sum, r) => sum + (r.stats?.sent || 0), 0), bg: '#ECFDF5', color: '#065F46' },
-          { label: 'Pending', value: recentRuns.reduce((sum, r) => sum + (r.stats?.pending || 0), 0), bg: '#FFFBEB', color: '#92400E' },
-          { label: 'Draft', value: draftCount, bg: '#EEF2FF', color: '#3730A3' },
-        ].map((c) => (
-          <div
-            key={c.label}
-            style={{
-              border: '1px solid rgba(17, 24, 39, 0.08)',
-              borderRadius: 14,
-              padding: 12,
-              background: c.bg,
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 700, color: c.color }}>{c.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#111827' }}>{c.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent Broadcasts Table */}
-      {recentRuns.length > 0 && (
-        <div style={{ marginTop: 16, border: '1px solid rgba(17, 24, 39, 0.08)', borderRadius: 14, background: '#fff', overflow: 'hidden' }}>
-          <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 800, fontSize: 14 }}>📊 Recent Broadcasts</div>
-            <button
-              onClick={() => fetchRecentRuns()}
-              style={{ fontSize: 12, padding: '4px 10px', background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 6, cursor: 'pointer' }}
-            >
-              ↻ Refresh
-            </button>
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#6B7280' }}>Name</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Status</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Provider</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Total</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#10B981' }}>✓ Sent</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#EF4444' }}>✗ Failed</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Progress</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, color: '#6B7280' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentRuns.map((run: any) => {
-                  const stats = run.stats || {};
-                  const total = stats.total || 0;
-                  const sent = stats.sent || 0;
-                  const failed = stats.failed || 0;
-                  const pending = stats.pending || 0;
-                  const progressPercent = total > 0 ? Math.round(((sent + failed + (stats.skipped || 0)) / total) * 100) : 0;
-                  const isActive = run._id === activeRunId;
-                  
-                  return (
-                    <tr 
-                      key={run._id} 
-                      style={{ 
-                        borderBottom: '1px solid #F3F4F6',
-                        background: isActive ? '#EFF6FF' : 'transparent',
-                      }}
-                    >
-                      <td style={{ padding: '10px 12px' }}>
-                        <div style={{ fontWeight: 600, color: '#111827' }}>{run.name || 'Unnamed'}</div>
-                        <div style={{ fontSize: 11, color: '#9CA3AF' }}>
-                          {run.templateSnapshot?.templateName || 'Unknown template'} • {new Date(run.createdAt).toLocaleString()}
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '3px 8px',
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: run.status === 'completed' ? '#ECFDF5' : run.status === 'running' ? '#DBEAFE' : run.status === 'failed' ? '#FEE2E2' : '#F3F4F6',
-                          color: run.status === 'completed' ? '#065F46' : run.status === 'running' ? '#1E40AF' : run.status === 'failed' ? '#991B1B' : '#374151',
-                        }}>
-                          {run.status === 'completed' ? '✅' : run.status === 'running' ? '🔄' : run.status === 'failed' ? '❌' : '📝'} {run.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '3px 8px',
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: run.provider === 'meta' ? '#ECFDF5' : '#DBEAFE',
-                          color: run.provider === 'meta' ? '#065F46' : '#1E40AF',
-                        }}>
-                          {run.provider === 'meta' ? '🟢 Meta' : '📲 QR'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600 }}>{total}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#10B981' }}>{sent}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#EF4444' }}>{failed}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ flex: 1, height: 6, background: '#E5E7EB', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ width: `${progressPercent}%`, height: '100%', background: run.status === 'failed' ? '#EF4444' : '#10B981', transition: 'width 0.3s' }} />
-                          </div>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: '#6B7280' }}>{progressPercent}%</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                          <Link
-                            href={`/admin/crm/broadcast/reports?runId=${run._id}`}
-                            style={{
-                              padding: '4px 10px',
-                              background: '#3B82F6',
-                              color: '#fff',
-                              borderRadius: 6,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              textDecoration: 'none',
-                            }}
-                          >
-                            👁️ View
-                          </Link>
-                          {(run.status === 'draft' || (pending > 0 && run.status !== 'completed')) && (
-                            <button
-                              onClick={async () => {
-                                setActiveRunId(run._id);
-                                try {
-                                  await crm.fetch('/api/admin/crm/broadcast-runs/run', { 
-                                    method: 'POST', 
-                                    body: { runLimit: 1, perRunMessageLimit: 200 } 
-                                  });
-                                  fetchRecentRuns();
-                                } catch (e) {
-                                  console.error('Failed to trigger run:', e);
-                                }
-                              }}
-                              style={{
-                                padding: '4px 10px',
-                                background: '#10B981',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: 6,
-                                fontSize: 11,
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              ▶ Send
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Main layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 12, marginTop: 12, minHeight: '70vh' }}>
-        {/* Left: filters + leads */}
-        <div style={{ 
-          border: '1px solid rgba(17, 24, 39, 0.08)', 
-          borderRadius: 14, 
-          background: '#fff',
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: '70vh'
-        }}>
-          <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)', flexShrink: 0 }}>
-            <div style={{ fontWeight: 800 }}>Filters</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginTop: 10 }}>
-              <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Status</div>
-                <select value={status} onChange={(e) => setStatus(e.target.value)} style={{ width: '100%' }}>
-                  <option value="">All</option>
-                  {statusOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Workshop</div>
-                <select value={workshopName} onChange={(e) => setWorkshopName(e.target.value)} style={{ width: '100%' }}>
-                  <option value="">All</option>
-                  {workshopOptions.map((w) => (
-                    <option key={w} value={w}>
-                      {w}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Admin user ({adminUsers.length})</div>
-                <select value={adminUserId} onChange={(e) => setAdminUserId(e.target.value)} style={{ width: '100%' }}>
-                  <option value="">All</option>
-                  {adminUsers.map((u) => (
-                    <option key={u._id} value={u.userId || u._id || ''}>
-                      {u.name || u.email || u.userId || `User ${u._id?.slice(-4)}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Label</div>
-                <select value={label} onChange={(e) => setLabel(e.target.value)} style={{ width: '100%' }}>
-                  <option value="">All</option>
-                  {labelOptions.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
+          </div>
+        </div>
+      </header>
 
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' as any }}>
-              <div style={{ fontSize: 12, color: '#6B7280' }}>
-                {loading ? 'Loading…' : `${leads.length} leads`} {total ? `(total: ${total})` : ''}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={toggleAllVisible} disabled={!leads.length || loading}>
-                  {leads.length && leads.every((l) => selectedLeadIds.has(l._id)) ? 'Unselect all' : 'Select all'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBroadcastModalOpen(true);
-                  }}
-                  disabled={!leads.length || loading}
-                  title="Add all filtered leads to a broadcast list"
-                  style={{
-                    padding: '6px 12px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    border: '1px solid rgba(17, 24, 39, 0.08)',
-                    borderRadius: 6,
-                    background: '#DBEAFE',
-                    color: '#1e40af',
-                    cursor: 'pointer',
-                  }}
+      <main className="max-w-7xl mx-auto p-4 sm:p-6">
+        {/* Result Alert */}
+        {result && (
+          <div className={`mb-6 p-4 rounded-xl border-2 flex items-center justify-between ${
+            result.success 
+              ? 'bg-green-50 border-green-300 text-green-800' 
+              : 'bg-red-50 border-red-300 text-red-800'
+          }`}>
+            <span className="font-medium">{result.message}</span>
+            <div className="flex items-center gap-2">
+              {result.runId && (
+                <Link
+                  href={`/admin/crm/reports/meta?runId=${result.runId}`}
+                  className="text-sm underline hover:no-underline"
                 >
-                  📢 Add All to Broadcast
-                </button>
-              </div>
+                  View Details →
+                </Link>
+              )}
+              <button onClick={() => setResult(null)} className="text-lg hover:opacity-70">×</button>
             </div>
           </div>
+        )}
 
-          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Selected count header */}
-            {leads.length > 0 && (
-              <div style={{ 
-                padding: '8px 10px', 
-                marginBottom: 10,
-                background: '#F0F9FF',
-                border: '1px solid #E0F2FE',
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#0369A1',
-                textAlign: 'center'
-              }}>
-                ✅ {selectedLeadIds.size} of {leads.length} leads selected
+        {/* Recent Runs Panel */}
+        {showRecentRuns && (
+          <div className="mb-6 bg-white rounded-2xl shadow-lg border p-4 animate-fadeIn">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+              📊 Recent Broadcasts
+              <button onClick={fetchData} className="text-blue-600 hover:text-blue-700 text-sm font-normal">
+                ↻ Refresh
+              </button>
+            </h3>
+            {recentRuns.length === 0 ? (
+              <p className="text-gray-500 text-sm">No broadcasts yet</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {recentRuns.map(run => (
+                  <div key={run._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">{run.provider === 'meta' ? '🟢' : '💚'}</span>
+                      <div>
+                        <div className="font-medium text-gray-800 text-sm">{run.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {run.templateSnapshot?.templateName || 'Template'} • {new Date(run.createdAt).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right text-xs">
+                        <div className="text-green-600">✓ {run.stats.sent}</div>
+                        <div className="text-red-600">✗ {run.stats.failed}</div>
+                      </div>
+                      <StatusBadge status={run.status} />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
+          </div>
+        )}
 
-            {/* Leads list container */}
-            <div style={{ overflowY: 'auto', flex: 1, paddingRight: 8 }}>
-              {loading ? (
-                <LoadingSpinner />
-              ) : leads.length === 0 ? (
-                <div style={{ color: '#6B7280', fontSize: 13 }}>No leads match your filters.</div>
-              ) : (
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {leads.map((l) => {
-                    const checked = selectedLeadIds.has(l._id);
-                    return (
-                      <label
-                        key={l._id}
-                        style={{
-                          display: 'flex',
-                          gap: 10,
-                          alignItems: 'center',
-                          padding: 10,
-                          borderRadius: 12,
-                          border: '1px solid rgba(17, 24, 39, 0.08)',
-                          background: checked ? '#EEF2FF' : '#fff',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                        }}
-                      >
-                        <input type="checkbox" checked={checked} onChange={() => toggleLead(l._id)} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 800, color: '#111827' }}>
-                            {l.name || 'Unnamed'}{' '}
-                            <span style={{ fontWeight: 600, color: '#6B7280' }}>{l.phoneNumber || ''}</span>
-                          </div>
-                          <div style={{ fontSize: 12, color: '#6B7280' }}>
-                            {l.status ? `Status: ${l.status}` : ''}
-                            {l.status && l.workshopName ? ' • ' : ''}
-                            {l.workshopName ? `Workshop: ${l.workshopName}` : ''}
-                          </div>
-                          {Array.isArray(l.labels) && l.labels.length ? (
-                            <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' as any }}>
-                              {l.labels.slice(0, 6).map((lb) => (
-                                <span
-                                  key={lb}
-                                  style={{
-                                    fontSize: 11,
-                                    padding: '2px 8px',
-                                    borderRadius: 999,
-                                    background: '#F3F4F6',
-                                    color: '#374151',
-                                  }}
-                                >
-                                  {lb}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      </label>
-                    );
-                  })}
+        {/* Step Indicator */}
+        {renderStepIndicator()}
+
+        {/* Step 1: Recipients */}
+        {step === 1 && (
+          <div className="bg-white rounded-2xl shadow-xl border p-6 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                👥 Select Recipients
+                <span className="text-sm font-normal text-gray-500">({filteredLeads.length} available)</span>
+              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="🔍 Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40 sm:w-48 text-sm"
+                />
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="all">All Status</option>
+                  {uniqueStatuses.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Selection Bar */}
+            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-4">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={selectedLeads.size === filteredLeads.length && filteredLeads.length > 0}
+                  onChange={selectAllFiltered}
+                  className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                />
+                <span className="font-medium text-blue-800 group-hover:text-blue-600 transition-colors">
+                  Select All ({filteredLeads.length})
+                </span>
+              </label>
+              <div className="flex items-center gap-4">
+                {selectedLeads.size > 0 && (
+                  <button
+                    onClick={clearSelection}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Clear
+                  </button>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-3xl font-bold text-blue-600">{selectedLeads.size}</span>
+                  <span className="text-blue-700 text-sm">selected</span>
                 </div>
+              </div>
+            </div>
+
+            {/* Leads List */}
+            <div className="max-h-[400px] overflow-y-auto space-y-2 pr-1">
+              {loading ? (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="animate-spin text-4xl mb-2">⏳</div>
+                  Loading leads...
+                </div>
+              ) : filteredLeads.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <span className="text-4xl">👤</span>
+                  <p className="mt-2">No leads found</p>
+                </div>
+              ) : (
+                filteredLeads.map((lead) => (
+                  <label
+                    key={lead._id}
+                    className={`flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all duration-200 group ${
+                      selectedLeads.has(lead._id)
+                        ? 'bg-blue-50 border-2 border-blue-400 shadow-sm'
+                        : 'bg-gray-50/50 border-2 border-transparent hover:bg-white hover:shadow-sm hover:border-gray-200'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads.has(lead._id)}
+                      onChange={() => toggleLead(lead._id)}
+                      className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-800 truncate group-hover:text-blue-700 transition-colors">
+                        {lead.name || 'Unknown'}
+                      </div>
+                      <div className="text-sm text-gray-500">{lead.phoneNumber}</div>
+                    </div>
+                    <StatusBadge status={lead.status || 'lead'} />
+                  </label>
+                ))
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Right: template + preview + actions */}
-        <div style={{ 
-          border: '1px solid rgba(17, 24, 39, 0.08)', 
-          borderRadius: 14, 
-          background: '#fff',
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: '70vh',
-          overflowY: 'auto'
-        }}>
-          <div style={{ padding: 12, borderBottom: '1px solid rgba(17, 24, 39, 0.06)', flexShrink: 0 }}>
-            <div style={{ fontWeight: 800 }}>Message</div>
-            <div style={{ fontSize: 12, color: '#6B7280' }}>
-              Select provider, template, preview, then choose send mode
-            </div>
-          </div>
-
-          <div style={{ padding: 12, display: 'grid', gap: 10, overflowY: 'auto', flex: 1 }}>
-            {/* Provider Selection */}
-            <div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8, fontWeight: 600 }}>📱 Send via</div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setProvider('meta')}
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    border: provider === 'meta' ? '2px solid #25D366' : '1px solid #D1D5DB',
-                    borderRadius: 10,
-                    background: provider === 'meta' ? '#ECFDF5' : '#fff',
-                    color: provider === 'meta' ? '#065F46' : '#374151',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>🟢</div>
-                  <div>Meta Cloud API</div>
-                  <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>Official WhatsApp Business</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setProvider('qr')}
-                  style={{
-                    flex: 1,
-                    padding: '12px 16px',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    border: provider === 'qr' ? '2px solid #3B82F6' : '1px solid #D1D5DB',
-                    borderRadius: 10,
-                    background: provider === 'qr' ? '#EFF6FF' : '#fff',
-                    color: provider === 'qr' ? '#1E40AF' : '#374151',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>📲</div>
-                  <div>QR Bridge</div>
-                  <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>WhatsApp Web Session</div>
-                </button>
-              </div>
-            </div>
-
-            {/* Template Selector */}
-            <div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8, fontWeight: 600 }}>📋 Select Template</div>
-              <TemplateSelector
-                token={token}
-                selectedTemplateId={selectedTemplateId}
-                onSelect={(template: WhatsAppTemplate) => {
-                  setSelectedTemplateId(template._id);
-                }}
-                showSearch={true}
-                showFilters={true}
-                showPreview={true}
-                mode="inline"
-                maxHeight="400px"
-              />
-              <div style={{ marginTop: 8 }}>
-                <Link href="/admin/crm/whatsapp/templates" style={{ fontSize: 12, color: '#1E7F43', fontWeight: 600 }}>
-                  ✏️ Manage templates
-                </Link>
-              </div>
-            </div>
-
-            {/* Action row */}
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap' as any,
-              }}
-            >
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' as any, marginBottom: 12 }}>
-                <button 
-                  type="button" 
-                  onClick={() => setSendMode('now')} 
-                  disabled={loading}
-                  style={{
-                    padding: '10px 16px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    border: sendMode === 'now' ? '2px solid #10B981' : '1px solid #D1D5DB',
-                    borderRadius: 8,
-                    background: sendMode === 'now' ? '#ECFDF5' : '#fff',
-                    color: sendMode === 'now' ? '#065F46' : '#374151',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (sendMode !== 'now') {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#9CA3AF';
-                      (e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (sendMode !== 'now') {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB';
-                      (e.currentTarget as HTMLButtonElement).style.background = '#fff';
-                    }
-                  }}
-                >
-                  📤 Send now
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setSendMode('schedule')} 
-                  disabled={loading}
-                  style={{
-                    padding: '10px 16px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    border: sendMode === 'schedule' ? '2px solid #3B82F6' : '1px solid #D1D5DB',
-                    borderRadius: 8,
-                    background: sendMode === 'schedule' ? '#EFF6FF' : '#fff',
-                    color: sendMode === 'schedule' ? '#1E40AF' : '#374151',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (sendMode !== 'schedule') {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#9CA3AF';
-                      (e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (sendMode !== 'schedule') {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB';
-                      (e.currentTarget as HTMLButtonElement).style.background = '#fff';
-                    }
-                  }}
-                >
-                  📅 Schedule
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setSendMode('delay')} 
-                  disabled={loading}
-                  style={{
-                    padding: '10px 16px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    border: sendMode === 'delay' ? '2px solid #F59E0B' : '1px solid #D1D5DB',
-                    borderRadius: 8,
-                    background: sendMode === 'delay' ? '#FFFBEB' : '#fff',
-                    color: sendMode === 'delay' ? '#92400E' : '#374151',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (sendMode !== 'delay') {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#9CA3AF';
-                      (e.currentTarget as HTMLButtonElement).style.background = '#F3F4F6';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (sendMode !== 'delay') {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB';
-                      (e.currentTarget as HTMLButtonElement).style.background = '#fff';
-                    }
-                  }}
-                >
-                  ⏰ Delay
-                </button>
-              </div>
-
-              <button type="button" onClick={submitBroadcast} disabled={loading}
-                style={{
-                  padding: '12px 24px',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  border: 'none',
-                  borderRadius: 8,
-                  background: '#10B981',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  width: '100%',
-                }}
+            {/* Next Button */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setStep(2)}
+                disabled={!canProceedToStep2}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+                  canProceedToStep2
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/30 hover:scale-105'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
               >
-                {sendMode === 'now' && '🚀 Send Broadcast Now'}
-                {sendMode === 'schedule' && '📅 Schedule Broadcast'}
-                {sendMode === 'delay' && '⏰ Send with Delay'}
+                Next: Choose Template
+                <span>→</span>
               </button>
             </div>
-
-            {sendMode === 'schedule' ? (
-              <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Schedule at</div>
-                <input
-                  id="schedule-datetime"
-                  name="scheduledAt"
-                  type="datetime-local"
-                  value={scheduleAt}
-                  onChange={(e) => setScheduleAt(e.target.value)}
-                  style={{ width: '100%' }}
-                />
-                <div style={{ marginTop: 6, fontSize: 12, color: '#9CA3AF' }}>
-                  Scheduling for templates will be enabled in the next iteration.
-                </div>
-              </div>
-            ) : null}
-            {sendMode === 'delay' ? (
-              <div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8, fontWeight: 600 }}>Delay Duration</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  <div>
-                    <label htmlFor="delay-days" style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Days</label>
-                    <input
-                      id="delay-days"
-                      name="delayDays"
-                      type="number"
-                      min={0}
-                      value={delayDays}
-                      onChange={(e) => setDelayDays(e.target.value)}
-                      style={{ width: '100%', padding: '6px 8px' }}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="delay-hours" style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Hours</label>
-                    <input
-                      id="delay-hours"
-                      name="delayHours"
-                      type="number"
-                      min={0}
-                      max={23}
-                      value={delayHours}
-                      onChange={(e) => setDelayHours(e.target.value)}
-                      style={{ width: '100%', padding: '6px 8px' }}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="delay-minutes" style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Minutes</label>
-                    <input
-                      id="delay-minutes"
-                      name="delayMinutes"
-                      type="number"
-                      min={0}
-                      max={59}
-                      value={delayMins}
-                      onChange={(e) => setDelayMins(e.target.value)}
-                      style={{ width: '100%', padding: '6px 8px' }}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="delay-seconds" style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Seconds</label>
-                    <input
-                      id="delay-seconds"
-                      name="delaySeconds"
-                      type="number"
-                      min={0}
-                      max={59}
-                      value={delaySeconds}
-                      onChange={(e) => setDelaySeconds(e.target.value)}
-                      style={{ width: '100%', padding: '6px 8px' }}
-                    />
-                  </div>
-                </div>
-                <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280' }}>
-                  ⏰ Messages will be sent after the specified delay from send time.
-                </div>
-              </div>
-            ) : null}
           </div>
+        )}
 
-          {/* Footer: sent message details + progress + view */}
-          <div style={{ padding: 12, borderTop: '1px solid rgba(17, 24, 39, 0.06)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <div style={{ fontSize: 12, color: '#6B7280' }}>
-                Sent details (coming next)
-              </div>
-              {activeRunId ? (
-                <Link href={`/admin/crm/broadcast-runs/${encodeURIComponent(activeRunId)}`} style={{ fontSize: 13 }}>
-                  View
+        {/* Step 2: Template */}
+        {step === 2 && (
+          <div className="bg-white rounded-2xl shadow-xl border p-6 animate-fadeIn">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                📋 Choose Template
+                <span className="text-sm font-normal text-gray-500">({templates.length} available)</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="🔍 Search templates..."
+                  value={templateSearch}
+                  onChange={(e) => setTemplateSearch(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-48 text-sm"
+                />
+                <Link href="/admin/crm/templates" className="text-blue-600 hover:text-blue-700 text-sm font-medium whitespace-nowrap">
+                  + New
                 </Link>
+              </div>
+            </div>
+
+            {/* Templates Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto pr-1">
+              {templates.length === 0 ? (
+                <div className="col-span-full text-center py-12 text-gray-500">
+                  <span className="text-4xl">📝</span>
+                  <p className="mt-2">No templates found. Create one first.</p>
+                </div>
               ) : (
-                <button type="button" onClick={() => alert('Create a broadcast first.')}>View</button>
+                filteredTemplates.map((t) => (
+                  <div
+                    key={t._id}
+                    onClick={() => setSelectedTemplate(t)}
+                    className={`group p-4 rounded-xl cursor-pointer transition-all duration-300 border-2 ${
+                      selectedTemplate?._id === t._id
+                        ? 'bg-blue-50 border-blue-400 shadow-lg scale-[1.02]'
+                        : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-lg'
+                    }`}
+                  >
+                    {t.headerMedia?.url && (
+                      <img
+                        src={t.headerMedia.url}
+                        alt=""
+                        className="w-full h-28 object-cover rounded-lg mb-3"
+                      />
+                    )}
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="font-bold text-gray-800 group-hover:text-blue-700 transition-colors">
+                        {t.templateName}
+                      </span>
+                      {t.headerFormat === 'IMAGE' && (
+                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">🖼️</span>
+                      )}
+                      {t.buttons?.length ? (
+                        <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">🔘 {t.buttons.length}</span>
+                      ) : null}
+                    </div>
+                    <p className="text-sm text-gray-600 line-clamp-2">{t.templateContent}</p>
+                    {t.buttons && t.buttons.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {t.buttons.slice(0, 2).map((btn, i) => (
+                          <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                            {btn.title}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
             </div>
 
-            <div style={{ marginTop: 8 }}>
-              <div style={{ height: 10, background: '#E5E7EB', borderRadius: 999, overflow: 'hidden' }}>
-                <div style={{ width: `${Math.round(progress * 100)}%`, height: '100%', background: '#2563EB' }} />
+            {/* Navigation */}
+            <div className="mt-6 flex justify-between">
+              <button
+                onClick={() => setStep(1)}
+                className="px-5 py-2.5 border-2 rounded-xl font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-2"
+              >
+                <span>←</span> Back
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                disabled={!canProceedToStep3}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${
+                  canProceedToStep3
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg hover:shadow-blue-500/30 hover:scale-105'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Next: Schedule & Send
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Schedule & Send */}
+        {step === 3 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fadeIn">
+            {/* Left: Options */}
+            <div className="space-y-6">
+              {/* Broadcast Name */}
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  ✏️ Broadcast Name
+                </h3>
+                <input
+                  type="text"
+                  value={broadcastName}
+                  onChange={(e) => setBroadcastName(e.target.value)}
+                  placeholder={`Broadcast - ${new Date().toLocaleDateString('en-IN')}`}
+                  className="w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
-              <div style={{ marginTop: 6, fontSize: 12, color: '#6B7280' }}>
-                {Math.round(progress * 100)}% complete
+
+              {/* Provider Selection */}
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  📡 Provider
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setProvider('meta')}
+                    className={`p-4 rounded-xl border-2 transition-all duration-300 hover:shadow-md group ${
+                      provider === 'meta' ? 'border-green-500 bg-green-50 shadow-md' : 'border-gray-200 hover:border-green-300'
+                    }`}
+                  >
+                    <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🟢</div>
+                    <div className="font-bold text-gray-800">Meta WhatsApp</div>
+                    <div className="text-xs text-green-600 mt-1">✅ Native Buttons</div>
+                  </button>
+                  <button
+                    onClick={() => setProvider('qr')}
+                    className={`p-4 rounded-xl border-2 transition-all duration-300 hover:shadow-md group ${
+                      provider === 'qr' ? 'border-emerald-500 bg-emerald-50 shadow-md' : 'border-gray-200 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">💚</div>
+                    <div className="font-bold text-gray-800">QR Bridge</div>
+                    <div className="text-xs text-orange-600 mt-1">📝 Text Buttons</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Send Mode */}
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  ⏰ When to Send
+                </h3>
+                <div className="space-y-3">
+                  {/* Now */}
+                  <button
+                    onClick={() => setSendMode('now')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
+                      sendMode === 'now' ? 'border-blue-500 bg-blue-50 shadow-md' : 'border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">⚡</span>
+                      <div>
+                        <div className="font-bold text-gray-800">Send Now</div>
+                        <div className="text-sm text-gray-500">Start sending immediately</div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Schedule */}
+                  <button
+                    onClick={() => setSendMode('schedule')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
+                      sendMode === 'schedule' ? 'border-purple-500 bg-purple-50 shadow-md' : 'border-gray-200 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">📅</span>
+                      <div>
+                        <div className="font-bold text-gray-800">Schedule</div>
+                        <div className="text-sm text-gray-500">Send at specific date & time</div>
+                      </div>
+                    </div>
+                  </button>
+                  {sendMode === 'schedule' && (
+                    <div className="ml-10 grid grid-cols-2 gap-3 mt-2">
+                      <input
+                        type="date"
+                        value={scheduleDate}
+                        onChange={(e) => setScheduleDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="px-4 py-2.5 border-2 rounded-xl focus:border-purple-500"
+                      />
+                      <input
+                        type="time"
+                        value={scheduleTime}
+                        onChange={(e) => setScheduleTime(e.target.value)}
+                        className="px-4 py-2.5 border-2 rounded-xl focus:border-purple-500"
+                      />
+                    </div>
+                  )}
+
+                  {/* Delay */}
+                  <button
+                    onClick={() => setSendMode('delay')}
+                    className={`w-full p-4 rounded-xl border-2 text-left transition-all duration-300 hover:shadow-md group ${
+                      sendMode === 'delay' ? 'border-orange-500 bg-orange-50 shadow-md' : 'border-gray-200 hover:border-orange-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl group-hover:scale-125 transition-transform">⏱️</span>
+                      <div>
+                        <div className="font-bold text-gray-800">Delay</div>
+                        <div className="text-sm text-gray-500">Wait before sending</div>
+                      </div>
+                    </div>
+                  </button>
+                  {sendMode === 'delay' && (
+                    <div className="ml-10 flex items-center gap-3 mt-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="1440"
+                        value={delayMinutes}
+                        onChange={(e) => setDelayMinutes(Number(e.target.value))}
+                        className="w-20 px-3 py-2.5 border-2 rounded-xl focus:border-orange-500"
+                      />
+                      <span className="text-gray-600 font-medium">minutes from now</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Preview & Summary */}
+            <div className="space-y-6">
+              {/* Summary */}
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  📊 Summary
+                </h3>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-blue-600">{selectedLeads.size}</div>
+                    <div className="text-sm text-blue-700">Recipients</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-purple-600">
+                      {sendMode === 'now' ? '⚡' : sendMode === 'schedule' ? '📅' : '⏱️'}
+                    </div>
+                    <div className="text-sm text-purple-700 capitalize">{sendMode}</div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Template:</span>
+                    <span className="font-medium text-gray-800">{selectedTemplate?.templateName}</span>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-gray-600">Provider:</span>
+                    <span className="font-medium text-gray-800">{provider === 'meta' ? '🟢 Meta' : '💚 QR'}</span>
+                  </div>
+                  {sendMode === 'schedule' && scheduleDate && scheduleTime && (
+                    <div className="flex justify-between mt-1">
+                      <span className="text-gray-600">Scheduled:</span>
+                      <span className="font-medium text-gray-800">
+                        {new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  )}
+                  {sendMode === 'delay' && (
+                    <div className="flex justify-between mt-1">
+                      <span className="text-gray-600">Delay:</span>
+                      <span className="font-medium text-gray-800">{delayMinutes} minutes</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Preview */}
+              {selectedTemplate && (
+                <div className="bg-white rounded-2xl shadow-xl border p-6">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    👁️ Message Preview
+                  </h3>
+                  <div className="bg-[#e5ddd5] rounded-xl p-4">
+                    <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-xs mx-auto">
+                      {selectedTemplate.headerMedia?.url && (
+                        <img
+                          src={selectedTemplate.headerMedia.url}
+                          alt=""
+                          className="w-full h-32 object-cover"
+                        />
+                      )}
+                      <div className="p-3">
+                        <p className="text-gray-800 text-sm whitespace-pre-wrap">
+                          {selectedTemplate.templateContent}
+                        </p>
+                        {provider === 'qr' && selectedTemplate.buttons?.map((btn, i) => (
+                          <p key={i} className="text-sm text-gray-700 mt-2">📌 {btn.title}</p>
+                        ))}
+                      </div>
+                      {provider === 'meta' && selectedTemplate.buttons?.map((btn, i) => (
+                        <div key={i} className="border-t border-gray-100">
+                          <div className="w-full py-2.5 text-[#00a5f4] text-sm font-medium text-center">
+                            🔗 {btn.title}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(2)}
+                  className="flex-1 px-5 py-3 border-2 rounded-xl font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
+                >
+                  <span>←</span> Back
+                </button>
+                <button
+                  onClick={handleSend}
+                  disabled={!canSend || sending}
+                  className={`flex-1 px-5 py-4 rounded-xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                    canSend && !sending
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl hover:shadow-green-500/30 hover:scale-[1.02]'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  {sending ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      🚀 {sendMode === 'now' ? 'Send Now' : sendMode === 'schedule' ? 'Schedule' : 'Queue'}
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        )}
+      </main>
 
-      {listId ? (
-        <div style={{ marginTop: 12, color: '#6B7280', fontSize: 12 }}>
-          Loaded from listId: <code>{listId}</code>
-        </div>
-      ) : null}
-
-      {/* Add to Broadcast List Modal */}
-      <AddToBroadcastModal
-        isOpen={broadcastModalOpen}
-        onClose={() => setBroadcastModalOpen(false)}
-        leads={leads.filter((l) => l.phoneNumber) as any[]}
-        token={token || undefined}
-        onSuccess={(result) => {
-          setError(null);
-          // Show success message
-          setTimeout(() => {
-            alert(`✓ Successfully added ${result.added} leads to broadcast list "${result.listName}"`);
-            if (result.skipped > 0) {
-              alert(`ℹ️ ${result.skipped} leads were already in the list`);
-            }
-          }, 100);
-        }}
-      />
+      {/* Styles */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
