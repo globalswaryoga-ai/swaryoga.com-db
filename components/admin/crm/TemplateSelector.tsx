@@ -114,29 +114,13 @@ function parseTemplateContent(template: WhatsAppTemplate) {
   };
 }
 
-// Template preview component (WhatsApp style - matches creation preview exactly)
+// Template preview component (WhatsApp style - matches templates page exactly)
 function TemplatePreview({ template, token }: { template: WhatsAppTemplate; token: string | null }) {
-  const [imageUrl, setImageUrl] = useState<string>('');
-  const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
-  // Build the proxied URL for S3 images
-  useEffect(() => {
-    if (!template.imageFile?.url) {
-      setImageLoading(false);
-      return;
-    }
-
-    // Use the media proxy API which handles S3 signed URLs properly
-    if (token) {
-      const proxyUrl = `/api/admin/crm/media/proxy?url=${encodeURIComponent(template.imageFile.url)}&token=${encodeURIComponent(token)}`;
-      setImageUrl(proxyUrl);
-    } else {
-      // Fallback to original URL if no token
-      setImageUrl(template.imageFile.url);
-    }
-    setImageLoading(false);
-  }, [template.imageFile?.url, token]);
+  // Use direct S3 URL (bucket is public-read for template images)
+  const imageUrl = template.imageFile?.url || '';
+  const isValidImageUrl = imageUrl && !imageUrl.startsWith('blob:') && imageUrl.startsWith('http');
 
   // Parse template content
   const parsed = useMemo(() => parseTemplateContent(template), [template]);
@@ -149,11 +133,7 @@ function TemplatePreview({ template, token }: { template: WhatsAppTemplate; toke
           {/* Header Image */}
           {template.imageFile && (
             <div className="w-full bg-gray-100 rounded-t-xl overflow-hidden">
-              {imageLoading ? (
-                <div className="w-full h-40 flex items-center justify-center bg-gray-100">
-                  <div className="animate-pulse text-gray-400">Loading...</div>
-                </div>
-              ) : imageError ? (
+              {!isValidImageUrl || imageError ? (
                 <div className="w-full h-40 flex items-center justify-center bg-gray-100">
                   <div className="text-gray-400 text-center">
                     <div className="text-3xl mb-1">🖼️</div>
@@ -165,7 +145,6 @@ function TemplatePreview({ template, token }: { template: WhatsAppTemplate; toke
                   src={imageUrl}
                   alt="Template header"
                   className="w-full max-h-48 object-cover"
-                  onLoad={() => setImageError(false)}
                   onError={() => setImageError(true)}
                 />
               )}
