@@ -1,6 +1,7 @@
 import { connectDB } from '@/lib/db';
 import { ConsentManager } from '@/lib/consentManager';
 import { RateLimitManager } from '@/lib/rateLimitManager';
+import { BulkMessageManager, BULK_CONFIG } from '@/lib/bulkMessageManager';
 import { BroadcastRun, BroadcastRunMessage, Lead, WhatsAppMessage, WhatsAppTemplate } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone } from '@/lib/whatsapp';
 
@@ -159,6 +160,20 @@ export async function processDueBroadcastRuns(options?: {
           continue;
         }
 
+        // Check daily bulk quota
+        const quotaCheck = await BulkMessageManager.canSendToday(1);
+        if (!quotaCheck.allowed) {
+          await BroadcastRunMessage.updateOne(
+            { _id: (item as any)._id },
+            { $set: { status: 'failed', failureReason: quotaCheck.reason || 'Daily quota exhausted', updatedAt: now } }
+          );
+          stat.failed++;
+          result.failed++;
+          // Stop processing this run if quota is exhausted
+          console.log('[Broadcast] Daily quota exhausted, stopping run');
+          break;
+        }
+
         // Mark as sending
         await BroadcastRunMessage.updateOne({ _id: (item as any)._id, status: 'pending' }, { $set: { status: 'sending', updatedAt: now } });
 
@@ -314,9 +329,20 @@ export async function processDueBroadcastRuns(options?: {
           );
 
           await RateLimitManager.incrementCount(createdBy, to);
+          
+          // Increment daily bulk quota
+          await BulkMessageManager.incrementDailyUsage(1);
 
           stat.sent++;
           result.sent++;
+          
+          // Add delay between messages to respect rate limits
+          const runProvider = String((run as any).provider || 'meta');
+          const delayMs = runProvider === 'meta' 
+            ? BULK_CONFIG.MESSAGE_DELAY_MS 
+            : BULK_CONFIG.MESSAGE_DELAY_MS * 2; // QR is slower
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          
         } catch (err) {
           const m = err instanceof Error ? err.message : 'WhatsApp send failed';
 
