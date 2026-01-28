@@ -817,10 +817,20 @@ function TemplatesContent() {
                         <input
                           type="text"
                           value={editForm.templateName}
-                          onChange={(e) => setEditForm({ ...editForm, templateName: e.target.value })}
+                          onChange={(e) => {
+                            // Auto-format: lowercase, replace spaces with underscore, only a-z, 0-9, _
+                            const formatted = e.target.value
+                              .toLowerCase()
+                              .replace(/\s+/g, '_')
+                              .replace(/[^a-z0-9_]/g, '');
+                            setEditForm({ ...editForm, templateName: formatted });
+                          }}
                           className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent"
                           spellCheck
                         />
+                        <p className="text-xs text-gray-500 mt-1">
+                          ⓘ Meta rules: Only lowercase letters, numbers, and underscore (_)
+                        </p>
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         <div>
