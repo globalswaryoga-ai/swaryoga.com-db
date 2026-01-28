@@ -198,10 +198,17 @@ export async function processDueBroadcastRuns(options?: {
           
           if (runProvider === 'qr') {
             // Send via QR Bridge
-            const bridgeUrl = process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3001';
+            const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3333';
+            const bridgeSecret = process.env.WHATSAPP_BRIDGE_SECRET || '';
+            
+            console.log('[Broadcast QR] Sending to:', to, 'via', bridgeUrl);
+            
             const bridgeResponse = await fetch(`${bridgeUrl}/send-message`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                ...(bridgeSecret ? { 'x-bridge-secret': bridgeSecret } : {}),
+              },
               body: JSON.stringify({
                 to: to.includes('@') ? to : `${to}@c.us`,
                 message: String((template as any).templateContent || '').trim(),
@@ -209,10 +216,13 @@ export async function processDueBroadcastRuns(options?: {
             });
             
             if (!bridgeResponse.ok) {
-              throw new Error(`QR Bridge error: ${bridgeResponse.status}`);
+              const errText = await bridgeResponse.text().catch(() => '');
+              console.error('[Broadcast QR] Bridge error:', bridgeResponse.status, errText);
+              throw new Error(`QR Bridge error: ${bridgeResponse.status} - ${errText}`);
             }
             
             const bridgeData = await bridgeResponse.json();
+            console.log('[Broadcast QR] Bridge response:', bridgeData);
             apiResult = {
               waMessageId: bridgeData?.data?.id || bridgeData?.id || `qr_${Date.now()}`,
               raw: { provider: 'qr' },
