@@ -141,6 +141,8 @@ export default function ChatbotBuilder() {
   const [activeCategory, setActiveCategory] = useState<string>('basic');
   const [flowName, setFlowName] = useState('Untitled Flow');
   const [flowEnabled, setFlowEnabled] = useState(true);
+  const [templates, setTemplates] = useState<Array<{ _id: string; templateName: string; language: string; metaStatus?: string; headerMedia?: { url: string } }>>([]);
+  const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const rafMoveRef = useRef<number | null>(null);
 
@@ -197,6 +199,22 @@ export default function ChatbotBuilder() {
 
     fetchDetail();
   }, [chatbotId, token]);
+
+  // Fetch templates for template block dropdown
+  useEffect(() => {
+    if (!token) return;
+    const fetchTemplates = async () => {
+      try {
+        const res = await crm.fetch('/api/admin/crm/templates');
+        if (res?.templates) {
+          setTemplates(res.templates);
+        }
+      } catch (err) {
+        console.error('Failed to load templates', err);
+      }
+    };
+    fetchTemplates();
+  }, [token]);
 
   const blockColors: Record<string, string> = BLOCK_TYPES.reduce((acc, b) => {
     acc[b.id] = b.color;
@@ -1070,15 +1088,35 @@ export default function ChatbotBuilder() {
 
                   {/* TEMPLATE */}
                   {block.type === 'template' && (
-                    <label className="block">
-                      <span className="text-xs font-semibold text-gray-700">Template Name</span>
-                      <input
-                        value={block.data?.templateName || ''}
-                        onChange={(e) => updateBlockData(block.id, { templateName: e.target.value })}
-                        className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                        placeholder="e.g. welcome_message"
-                      />
-                    </label>
+                    <div className="space-y-4">
+                      <label className="block">
+                        <span className="text-xs font-semibold text-gray-700">Select Template</span>
+                        <select
+                          value={block.data?.templateName || ''}
+                          onChange={(e) => updateBlockData(block.id, { templateName: e.target.value })}
+                          className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                        >
+                          <option value="">-- Select a template --</option>
+                          {templates.map((tpl) => (
+                            <option key={tpl._id} value={tpl.templateName}>
+                              {tpl.templateName} ({tpl.language}) {tpl.metaStatus === 'APPROVED' ? '✅' : tpl.metaStatus === 'PENDING' ? '⏳' : '❌'}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {templates.length === 0 && (
+                        <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                          No templates found. Create templates in the CRM Templates section first.
+                        </p>
+                      )}
+                      {block.data?.templateName && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <span className="text-xs font-medium text-green-700">
+                            Selected: {block.data.templateName}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* DELAY - Enhanced with time units */}
@@ -1479,16 +1517,111 @@ export default function ChatbotBuilder() {
 
                   {/* MEDIA NODES */}
                   {(['image', 'document', 'audio', 'video'].includes(block.type)) && (
-                    <>
-                      <label className="block">
-                        <span className="text-xs font-semibold text-gray-700">Media URL</span>
+                    <div className="space-y-4">
+                      {/* Upload Section */}
+                      <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
                         <input
-                          value={block.data?.mediaUrl || ''}
-                          onChange={(e) => updateBlockData(block.id, { mediaUrl: e.target.value })}
-                          className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                          placeholder="https://..."
+                          type="file"
+                          id={`file-upload-${block.id}`}
+                          className="hidden"
+                          accept={
+                            block.type === 'image' ? 'image/*' :
+                            block.type === 'document' ? '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx' :
+                            block.type === 'audio' ? 'audio/*' :
+                            block.type === 'video' ? 'video/*' : '*/*'
+                          }
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            
+                            setUploadingBlockId(block.id);
+                            try {
+                              // Convert to base64
+                              const reader = new FileReader();
+                              reader.onload = async () => {
+                                const base64 = reader.result as string;
+                                const res = await crm.fetch('/api/admin/crm/upload/s3/base64', {
+                                  method: 'POST',
+                                  body: JSON.stringify({
+                                    base64,
+                                    fileName: file.name,
+                                    category: 'chatbot-media'
+                                  })
+                                });
+                                if (res?.data?.publicUrl) {
+                                  updateBlockData(block.id, { mediaUrl: res.data.publicUrl });
+                                }
+                                setUploadingBlockId(null);
+                              };
+                              reader.readAsDataURL(file);
+                            } catch (err) {
+                              console.error('Upload failed:', err);
+                              setUploadingBlockId(null);
+                            }
+                          }}
                         />
-                      </label>
+                        <label
+                          htmlFor={`file-upload-${block.id}`}
+                          className="cursor-pointer flex flex-col items-center gap-2"
+                        >
+                          {uploadingBlockId === block.id ? (
+                            <>
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
+                              <span className="text-sm text-gray-500">Uploading to S3...</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-3xl">
+                                {block.type === 'image' ? '🖼️' : block.type === 'document' ? '📄' : block.type === 'audio' ? '🎵' : '🎬'}
+                              </div>
+                              <span className="text-sm font-medium text-pink-600">Click to upload {block.type}</span>
+                              <span className="text-xs text-gray-400">
+                                {block.type === 'image' ? 'JPG, PNG, GIF up to 5MB' :
+                                 block.type === 'document' ? 'PDF, DOC, XLS, PPT up to 10MB' :
+                                 block.type === 'audio' ? 'MP3, WAV, OGG up to 16MB' :
+                                 'MP4, WebM up to 16MB'}
+                              </span>
+                            </>
+                          )}
+                        </label>
+                      </div>
+
+                      {/* Preview or URL */}
+                      {block.data?.mediaUrl && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-green-700">✅ Uploaded</span>
+                            <button
+                              onClick={() => updateBlockData(block.id, { mediaUrl: '' })}
+                              className="text-xs text-red-500 hover:text-red-700"
+                            >Remove</button>
+                          </div>
+                          {block.type === 'image' && (
+                            <img src={block.data.mediaUrl} alt="Preview" className="w-full h-32 object-cover rounded" />
+                          )}
+                          {block.type !== 'image' && (
+                            <p className="text-xs text-green-600 truncate">{block.data.mediaUrl}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Or enter URL manually */}
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-gray-200"></div>
+                        </div>
+                        <div className="relative flex justify-center text-xs">
+                          <span className="px-2 bg-white text-gray-400">or enter URL</span>
+                        </div>
+                      </div>
+
+                      <input
+                        value={block.data?.mediaUrl || ''}
+                        onChange={(e) => updateBlockData(block.id, { mediaUrl: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                        placeholder="https://..."
+                      />
+
                       {(['image', 'video'].includes(block.type)) && (
                         <label className="block">
                           <span className="text-xs font-semibold text-gray-700">Caption (optional)</span>
@@ -1499,7 +1632,7 @@ export default function ChatbotBuilder() {
                           />
                         </label>
                       )}
-                    </>
+                    </div>
                   )}
 
                   {/* LOCATION */}
