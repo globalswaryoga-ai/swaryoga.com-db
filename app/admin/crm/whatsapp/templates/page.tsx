@@ -83,51 +83,20 @@ type Template = {
 type StatusType = 'all' | 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'disabled';
 
 /**
- * Component to load template images via media proxy
- * Uses the proxy API to handle S3 private bucket access
+ * Component to load template images - uses direct S3 URL (bucket is public-read for these files)
  */
 function TemplateImageThumbnail({ imageFile, token, fullWidth }: { imageFile: any; token: string | null; fullWidth?: boolean }) {
-  const [imageUrl, setImageUrl] = useState<string>('');
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (!imageFile?.url || !token) {
-      setError(true);
-      setLoading(false);
-      return;
-    }
-
-    const url = imageFile.url;
-    
-    // Skip blob: URLs - they're temporary browser URLs that won't work
-    if (url.startsWith('blob:')) {
-      setError(true);
-      setLoading(false);
-      return;
-    }
-    
-    // For S3 or other remote URLs, use the media proxy
-    if (url.includes('s3.') || url.includes('amazonaws.com') || url.startsWith('https://')) {
-      const proxyUrl = `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(token)}`;
-      setImageUrl(proxyUrl);
-    } else {
-      // Direct URL (unlikely, but fallback)
-      setImageUrl(url);
-    }
-    setLoading(false);
-  }, [imageFile?.url, token]);
+  // Get the image URL directly - S3 bucket allows public read for template images
+  const imageUrl = imageFile?.url || '';
+  
+  // Skip invalid URLs
+  const isValidUrl = imageUrl && !imageUrl.startsWith('blob:') && imageUrl.startsWith('http');
 
   // Full width mode for WhatsApp-style card preview
   if (fullWidth) {
-    if (loading) {
-      return (
-        <div className="w-full h-40 bg-gray-200 animate-pulse flex items-center justify-center">
-          <span className="text-gray-400">⏳</span>
-        </div>
-      );
-    }
-    if (error || !imageUrl) {
+    if (!isValidUrl || error) {
       return (
         <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
           <span className="text-gray-400 text-3xl">🖼️</span>
@@ -145,19 +114,7 @@ function TemplateImageThumbnail({ imageFile, token, fullWidth }: { imageFile: an
   }
 
   // Default thumbnail mode
-  if (loading) {
-    return (
-      <div className="space-y-1">
-        <p className="text-xs font-semibold text-gray-700">📷 Image</p>
-        <div className="h-24 w-24 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center animate-pulse">
-          <div className="text-gray-400">⏳</div>
-        </div>
-        <p className="text-xs text-gray-500 truncate">{imageFile?.fileName || 'Loading...'}</p>
-      </div>
-    );
-  }
-
-  if (error || !imageUrl) {
+  if (!isValidUrl || error) {
     return (
       <div className="space-y-1">
         <p className="text-xs font-semibold text-gray-700">📷 Image</p>
