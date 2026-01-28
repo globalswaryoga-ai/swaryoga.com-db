@@ -55,62 +55,52 @@ function formatWhatsAppText(text: string): string {
 }
 
 // Parse template content to extract header, body, footer, buttons
+// Matches templates page parsing exactly
 function parseTemplateContent(template: WhatsAppTemplate) {
-  // Try to parse JSON content first
-  try {
-    const trimmed = template.templateContent?.trim() || '';
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      const parsed = JSON.parse(trimmed);
-      const candidate = parsed?.preview || parsed;
-      if (candidate?.body || candidate?.headerText) {
-        return {
-          headerText: candidate?.headerText || template.headerContent || '',
-          body: candidate?.body || '',
-          footer: candidate?.footer || template.footerText || '',
-          buttons: candidate?.buttons || template.buttons || [],
-        };
-      }
-    }
-  } catch {}
-
-  // Parse from templateContent string - look for patterns
-  let content = template.templateContent || '';
-  let headerText = template.headerContent || '';
-  let footerText = template.footerText || '';
-  let body = content;
+  const lines = (template.templateContent || '').split('\n').filter(l => l.trim());
   
-  // If content contains newlines, try to extract structure
-  const lines = content.split('\n').filter(l => l.trim());
-  if (lines.length >= 2) {
-    // First line might be header if it's short and bold-like
-    const firstLine = lines[0].trim();
-    if (firstLine.startsWith('*') && firstLine.endsWith('*') && firstLine.length < 50) {
-      headerText = headerText || firstLine.replace(/^\*|\*$/g, '');
-      body = lines.slice(1).join('\n').trim();
-    }
-  }
-
-  // Extract buttons from content (look for [QUICK_REPLY] or button patterns)
-  const buttons: Array<{ title: string }> = template.buttons || [];
-  const buttonMatch = body.match(/\[QUICK_REPLY\]\s*(.+?)(?:\n|$)/i);
-  if (buttonMatch && buttons.length === 0) {
-    buttons.push({ title: buttonMatch[1].trim() });
-    body = body.replace(/•?\s*\[QUICK_REPLY\]\s*.+?(?:\n|$)/i, '').trim();
-  }
-
-  // Clean up body - remove header if duplicated
-  if (headerText && body.startsWith(headerText)) {
-    body = body.slice(headerText.length).trim();
-  }
-  if (footerText && body.endsWith(footerText)) {
-    body = body.slice(0, body.length - footerText.length).trim();
-  }
+  // Extract text header from first line if it starts with * (bold marker)
+  const firstLineIsBold = lines[0]?.startsWith('*') && lines[0]?.endsWith('*');
+  const textHeader = firstLineIsBold ? lines[0].replace(/^\*|\*$/g, '').trim() : '';
+  
+  // headerContent from DB might be URL (for IMAGE type) - don't display URLs
+  const dbHeaderContent = template.headerContent || '';
+  const isUrlHeader = dbHeaderContent.startsWith('http') || dbHeaderContent.startsWith('blob:');
+  
+  // Use text header from templateContent, or non-URL headerContent from DB
+  const headerText = textHeader || (isUrlHeader ? '' : dbHeaderContent);
+  
+  const footerText = template.footerText || '';
+  
+  // Extract buttons from content (lines starting with •, -, or [QUICK_REPLY])
+  const buttonLines = lines.filter(l => 
+    l.trim().startsWith('•') || 
+    l.includes('[QUICK_REPLY]') ||
+    l.includes('• [')
+  );
+  const buttons = buttonLines.map(b => ({
+    title: b.replace(/^[•\-]\s*/, '')
+           .replace(/\[QUICK_REPLY\]\s*/g, '')
+           .trim()
+  })).filter(b => b.title.length > 0 && b.title.length < 50);
+  
+  // Also use buttons from template.buttons if present and no buttons parsed
+  const finalButtons = buttons.length > 0 ? buttons : (template.buttons || []);
+  
+  // Body is everything except header (first bold line), buttons, and footer
+  const bodyLines = lines.filter((l, idx) => 
+    !l.trim().startsWith('•') && 
+    !l.includes('[QUICK_REPLY]') &&
+    !(idx === 0 && firstLineIsBold) &&  // Skip first line if it's the header
+    !(footerText && l.trim() === footerText.trim())  // Skip footer line
+  );
+  const body = bodyLines.join('\n').trim() || template.templateContent;
 
   return {
     headerText,
     body,
     footer: footerText,
-    buttons,
+    buttons: finalButtons,
   };
 }
 
