@@ -98,9 +98,23 @@ function TemplateImageThumbnail({ imageFile, token, fullWidth }: { imageFile: an
       return;
     }
 
-    // Use the media proxy API for reliable S3 image loading
-    const proxyUrl = `/api/admin/crm/media/proxy?url=${encodeURIComponent(imageFile.url)}&token=${encodeURIComponent(token)}`;
-    setImageUrl(proxyUrl);
+    const url = imageFile.url;
+    
+    // Skip blob: URLs - they're temporary browser URLs that won't work
+    if (url.startsWith('blob:')) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
+    
+    // For S3 or other remote URLs, use the media proxy
+    if (url.includes('s3.') || url.includes('amazonaws.com') || url.startsWith('https://')) {
+      const proxyUrl = `/api/admin/crm/media/proxy?url=${encodeURIComponent(url)}&token=${encodeURIComponent(token)}`;
+      setImageUrl(proxyUrl);
+    } else {
+      // Direct URL (unlikely, but fallback)
+      setImageUrl(url);
+    }
     setLoading(false);
   }, [imageFile?.url, token]);
 
@@ -1225,7 +1239,13 @@ function TemplatesContent() {
               {filteredTemplates.map((t) => {
                 // Parse template content to extract header, body, footer, and buttons
                 const lines = (t.templateContent || '').split('\n').filter(l => l.trim());
-                const headerContent = t.headerContent || (lines[0]?.startsWith('*') ? lines[0].replace(/^\*|\*$/g, '') : '');
+                
+                // Extract header - but skip if it looks like a URL (image headers are stored as URLs)
+                const rawHeader = t.headerContent || (lines[0]?.startsWith('*') ? lines[0].replace(/^\*|\*$/g, '') : '');
+                // Don't display URLs as header text - URLs are for images, not text display
+                const isUrlHeader = rawHeader.startsWith('http') || rawHeader.startsWith('blob:');
+                const headerContent = (isUrlHeader || t.imageFile) ? '' : rawHeader;
+                
                 const footerContent = t.footerText || '';
                 
                 // Extract buttons from content (lines starting with •, -, or [QUICK_REPLY])
@@ -1305,13 +1325,13 @@ function TemplatesContent() {
                       <div className="p-3 space-y-2">
                         {/* Header (bold) */}
                         {headerContent && (
-                          <h4 className="font-bold text-gray-900 text-sm leading-tight">
+                          <h4 className="font-bold text-black text-sm leading-tight">
                             {headerContent}
                           </h4>
                         )}
                         
                         {/* Body text */}
-                        <div className="text-gray-800 text-sm whitespace-pre-wrap leading-relaxed line-clamp-6">
+                        <div className="text-black text-sm whitespace-pre-wrap leading-relaxed line-clamp-6">
                           {bodyContent.slice(0, 300)}{bodyContent.length > 300 ? '...' : ''}
                         </div>
                         
