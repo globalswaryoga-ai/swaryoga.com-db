@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     const decoded = verifyToken(token);
 
     if (!decoded?.isAdmin) {
+      console.error('[Template Upload] Auth failed - not admin');
       return NextResponse.json(
         { error: 'Unauthorized: Admin access required' },
         { status: 403 }
@@ -32,8 +33,18 @@ export async function POST(request: NextRequest) {
     const fileType = formData.get('fileType') as string | null;
     const templateId = formData.get('templateId') as string | null;
 
+    console.log('[Template Upload] Received:', { 
+      hasFile: !!file, 
+      fileName: file?.name,
+      fileSize: file?.size,
+      fileMimeType: file?.type,
+      fileType, 
+      templateId 
+    });
+
     // 3. Validate inputs
     if (!file) {
+      console.error('[Template Upload] Missing file');
       return NextResponse.json(
         { error: 'Missing file' },
         { status: 400 }
@@ -41,6 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!fileType || !['image', 'document', 'video'].includes(fileType)) {
+      console.error('[Template Upload] Invalid fileType:', fileType);
       return NextResponse.json(
         { error: 'Invalid fileType: must be "image", "video" or "document"' },
         { status: 400 }
@@ -48,6 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!templateId) {
+      console.error('[Template Upload] Missing templateId');
       return NextResponse.json(
         { error: 'Missing templateId' },
         { status: 400 }
@@ -58,6 +71,8 @@ export async function POST(request: NextRequest) {
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || 'application/octet-stream';
 
+    console.log('[Template Upload] File buffer size:', fileBuffer.length, 'MIME:', mimeType);
+
     // 5. Validate file (size, type)
     const validation = validateTemplateFile(
       fileBuffer,
@@ -66,6 +81,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!validation.valid) {
+      console.error('[Template Upload] Validation failed:', validation.error);
       return NextResponse.json(
         { error: validation.error },
         { status: 400 }
