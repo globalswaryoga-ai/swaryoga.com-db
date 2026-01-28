@@ -197,22 +197,59 @@ export async function processDueBroadcastRuns(options?: {
           let apiResult: any;
           
           if (runProvider === 'qr') {
-            // Send via QR Bridge
-            const bridgeUrl = process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || 'http://localhost:3333';
-            const bridgeSecret = process.env.WHATSAPP_BRIDGE_SECRET || '';
+            // Send via QR Bridge using /send endpoint (same as single message send)
+            const bridgeUrl = (process.env.WHATSAPP_BRIDGE_HTTP_URL || process.env.WHATSAPP_BRIDGE_URL || 'http://52.91.198.23:3333').trim();
+            const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024').trim();
+            
+            // Build template message content with header, body, footer
+            const templateContent = String((template as any).templateContent || '').trim();
+            const headerText = (template as any).headerContent ? String((template as any).headerContent).trim() : '';
+            const footerText = (template as any).footerText ? String((template as any).footerText).trim() : '';
+            const buttons = Array.isArray((template as any).buttons) ? (template as any).buttons : [];
+            
+            // Format message: Header (bold), Body, Footer (italic), Buttons
+            let fullMessage = '';
+            if (headerText) fullMessage += `*${headerText}*\n\n`;
+            fullMessage += templateContent;
+            if (footerText) fullMessage += `\n\n_${footerText}_`;
+            
+            // Add button text as clickable format (QR can't send native buttons)
+            const buttonTexts = buttons
+              .filter((b: any) => b.title && b.type !== 'url')
+              .map((b: any) => `📌 ${b.title}`)
+              .join('\n');
+            if (buttonTexts) fullMessage += `\n\n${buttonTexts}`;
+            
+            // Check for header media (image)
+            const headerMedia = (template as any).headerMedia;
+            const mediaUrl = headerMedia?.url || headerMedia?.link || null;
+            const hasImage = mediaUrl && headerMedia?.kind === 'image';
             
             console.log('[Broadcast QR] Sending to:', to, 'via', bridgeUrl);
+            console.log('[Broadcast QR] Has image:', hasImage, 'URL:', mediaUrl?.substring(0, 50));
             
-            const bridgeResponse = await fetch(`${bridgeUrl}/send-message`, {
+            // Build payload matching single send endpoint format
+            const bridgePayload: any = {
+              to: to, // Use plain number, not @c.us format
+              message: hasImage ? '' : fullMessage,
+              type: hasImage ? 'media' : 'text',
+            };
+            
+            if (hasImage) {
+              bridgePayload.media = mediaUrl;
+              bridgePayload.caption = fullMessage;
+            }
+            
+            console.log('[Broadcast QR] Payload:', JSON.stringify(bridgePayload, null, 2).substring(0, 500));
+            
+            const bridgeResponse = await fetch(`${bridgeUrl}/send`, {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
-                ...(bridgeSecret ? { 'x-bridge-secret': bridgeSecret } : {}),
+                'x-bridge-secret': bridgeSecret,
               },
-              body: JSON.stringify({
-                to: to.includes('@') ? to : `${to}@c.us`,
-                message: String((template as any).templateContent || '').trim(),
-              }),
+              body: JSON.stringify(bridgePayload),
+              cache: 'no-store',
             });
             
             if (!bridgeResponse.ok) {
@@ -224,7 +261,7 @@ export async function processDueBroadcastRuns(options?: {
             const bridgeData = await bridgeResponse.json();
             console.log('[Broadcast QR] Bridge response:', bridgeData);
             apiResult = {
-              waMessageId: bridgeData?.data?.id || bridgeData?.id || `qr_${Date.now()}`,
+              waMessageId: bridgeData?.id || bridgeData?.messageId || bridgeData?.key?.id || `qr_${Date.now()}`,
               raw: { provider: 'qr' },
             };
           } else {
