@@ -291,9 +291,11 @@ function TemplateCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                e.preventDefault();
+                console.log('[TemplateCard] Use button clicked for:', template.templateName);
                 onUse();
               }}
-              className="px-3 py-1 bg-[#00A884] hover:bg-[#008f6f] text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+              className="px-3 py-1 bg-[#00A884] hover:bg-[#008f6f] text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm z-10"
             >
               <Send size={12} />
               Use
@@ -561,7 +563,12 @@ export default function TemplateSelector({
             {/* Use Template Button */}
             <button
               type="button"
-              onClick={() => handleUseTemplate(previewTemplate)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[TemplateSelector] Use This Template clicked:', previewTemplate.templateName);
+                handleUseTemplate(previewTemplate);
+              }}
               className="w-full mt-4 px-4 py-3 bg-[#00A884] hover:bg-[#008f6f] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg"
             >
               <Check size={18} />
