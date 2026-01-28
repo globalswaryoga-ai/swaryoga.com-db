@@ -174,6 +174,8 @@ export default function CRMDashboard() {
                     <Link href="/admin/community" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📝 Posts</Link>
                     <Link href="/admin/crm/send-template" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📨 Send Template</Link>
                     <Link href="/admin/crm/broadcast" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">📢 Broadcast</Link>
+                    <Link href="/admin/crm/reports/meta" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">🟢 Meta Reports</Link>
+                    <Link href="/admin/crm/reports/qr" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm">💚 QR Reports</Link>
                     <Link href="/admin/crm/whatsapp-groups" className="flex items-center gap-2 px-4 py-2.5 text-green-100 hover:bg-green-600/30 hover:text-white text-sm rounded-b-lg">👥 Groups</Link>
                   </div>
                 </div>
@@ -252,9 +254,11 @@ export default function CRMDashboard() {
               { href: '/admin/crm/meta', label: 'Meta WhatsApp', icon: '🟢' },
               { href: '/admin/crm/qr', label: 'QR WhatsApp', icon: '💚' },
               { href: '/admin/crm/send-template', label: 'Send Template', icon: '📨' },
+              { href: '/admin/crm/broadcast', label: 'Broadcast', icon: '📢' },
+              { href: '/admin/crm/reports/meta', label: 'Meta Reports', icon: '📊' },
+              { href: '/admin/crm/reports/qr', label: 'QR Reports', icon: '📈' },
               { href: '/admin/crm/sales', label: 'Sales', icon: '💰' },
               { href: '/admin/crm/community', label: 'Community', icon: '🌍' },
-              { href: '/admin/crm/community-moderation', label: 'Moderation', icon: '📬' },
               { href: '/admin/crm/devices', label: 'Devices', icon: '📱' },
               { href: '/admin/crm/analytics', label: 'Analytics', icon: '📈' },
               { href: '/admin/crm/chatbot', label: 'Chatbot (AI)', icon: '🤖' },
