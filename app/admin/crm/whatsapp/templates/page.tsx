@@ -499,6 +499,7 @@ function TemplatesContent() {
         const formData = new FormData();
         formData.append('file', editImageFile);
         formData.append('fileType', 'image');
+        formData.append('templateId', editingId || `template-${Date.now()}`);
         
         const uploadRes = await fetch('/api/admin/crm/templates/upload', {
           method: 'POST',
@@ -525,6 +526,7 @@ function TemplatesContent() {
           const formData = new FormData();
           formData.append('file', doc);
           formData.append('fileType', 'document');
+          formData.append('templateId', editingId || `template-${Date.now()}`);
           
           const uploadRes = await fetch('/api/admin/crm/templates/upload', {
             method: 'POST',
