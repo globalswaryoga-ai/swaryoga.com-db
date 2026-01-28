@@ -1581,8 +1581,8 @@ function QRWhatsAppInboxPageContent() {
         setNewMessage(''); // Caption was sent
         showToast(`✅ ${pendingMedia.length} file(s) sent successfully`, 'success');
       } else if (selectedTemplate && templateMediaUrl) {
-        // 2. Send Template via Meta Cloud API (official WhatsApp template with image, text, button)
-        console.log('[sendMessage] Sending template via Meta:', selectedTemplate.templateName);
+        // 2. Send Template - try Meta first, fallback to QR if offline
+        console.log('[sendMessage] Sending template:', selectedTemplate.templateName);
         
         // Add optimistic UI showing template card
         const optimisticMessage = {
@@ -1597,38 +1597,82 @@ function QRWhatsAppInboxPageContent() {
         };
         setMessages(prev => [...prev, optimisticMessage]);
         
-        // Send via Meta Cloud API (template endpoint)
         const phoneNumber = chatId.replace(/@.*$/, '').replace(/\D/g, '');
-        const res = await fetch('/api/admin/crm/whatsapp/send-template', {
-          method: 'POST',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            phoneNumber,
-            templateId: selectedTemplate._id,
-            leadId: activeLeadId || undefined
-          })
-        });
-
-        const data = await res.json().catch(() => ({}));
+        let sendSuccess = false;
+        let sentVia = '';
         
-        if (res.ok && data.success) {
-          setMessages(prev => 
-            prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent', waMessageId: data.data?.waMessageId || data.waMessageId } : m)
-          );
+        // Try Meta Cloud API first (sends actual template with button)
+        try {
+          console.log('[sendMessage] Trying Meta Cloud API...');
+          const metaRes = await fetch('/api/admin/crm/whatsapp/send-template', {
+            method: 'POST',
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              phoneNumber,
+              templateId: selectedTemplate._id,
+              leadId: activeLeadId || undefined
+            })
+          });
+
+          const metaData = await metaRes.json().catch(() => ({}));
+          
+          if (metaRes.ok && metaData.success) {
+            setMessages(prev => 
+              prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent', waMessageId: metaData.data?.waMessageId } : m)
+            );
+            sendSuccess = true;
+            sentVia = 'Meta';
+          }
+        } catch (metaErr) {
+          console.log('[sendMessage] Meta failed, trying QR...', metaErr);
+        }
+        
+        // If Meta failed and QR bridge is connected, try QR (image + text, no native button)
+        if (!sendSuccess && status === 'connected') {
+          try {
+            console.log('[sendMessage] Trying QR Bridge...');
+            const qrRes = await fetch('/api/admin/crm/whatsapp/qr/send', {
+              method: 'POST',
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: chatId,
+                message: newMessage,
+                type: 'media',
+                media: templateMediaUrl,
+                caption: newMessage,
+                leadId: activeLeadId || undefined
+              })
+            });
+
+            if (qrRes.ok) {
+              const qrData = await qrRes.json().catch(() => ({}));
+              setMessages(prev => 
+                prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent', waMessageId: qrData.id } : m)
+              );
+              sendSuccess = true;
+              sentVia = 'QR';
+            }
+          } catch (qrErr) {
+            console.log('[sendMessage] QR also failed:', qrErr);
+          }
+        }
+        
+        if (sendSuccess) {
           setNewMessage('');
           setTemplateMediaUrl(null);
           setSelectedTemplate(null);
-          showToast('✅ Template sent with image & button!', 'success');
+          showToast(`✅ Template sent via ${sentVia}!`, 'success');
         } else {
           setMessages(prev => 
             prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
           );
-          const errMsg = data.error || 'Failed to send template';
-          setBridgeError(errMsg);
-          showToast(`❌ ${errMsg}`, 'error');
+          showToast('❌ Failed to send template via Meta and QR', 'error');
         }
       } else if (templateMediaUrl) {
         // 2b. Send just media URL (no template selected, just image with caption)
