@@ -1199,11 +1199,17 @@ function TemplatesContent() {
                 // Parse template content to extract header, body, footer, and buttons
                 const lines = (t.templateContent || '').split('\n').filter(l => l.trim());
                 
-                // Extract header - but skip if it looks like a URL (image headers are stored as URLs)
-                const rawHeader = t.headerContent || (lines[0]?.startsWith('*') ? lines[0].replace(/^\*|\*$/g, '') : '');
-                // Don't display URLs as header text - URLs are for images, not text display
-                const isUrlHeader = rawHeader.startsWith('http') || rawHeader.startsWith('blob:');
-                const headerContent = (isUrlHeader || t.imageFile) ? '' : rawHeader;
+                // Extract text header from first line if it starts with * (bold marker)
+                // This is the title like "Swar Yoga Basic Program" - should show even with image
+                const firstLineIsBold = lines[0]?.startsWith('*') && lines[0]?.endsWith('*');
+                const textHeader = firstLineIsBold ? lines[0].replace(/^\*|\*$/g, '').trim() : '';
+                
+                // headerContent from DB might be URL (for IMAGE type) - don't display URLs
+                const dbHeaderContent = t.headerContent || '';
+                const isUrlHeader = dbHeaderContent.startsWith('http') || dbHeaderContent.startsWith('blob:');
+                
+                // Use text header from templateContent, or non-URL headerContent from DB
+                const headerContent = textHeader || (isUrlHeader ? '' : dbHeaderContent);
                 
                 const footerContent = t.footerText || '';
                 
@@ -1219,11 +1225,11 @@ function TemplatesContent() {
                    .trim()
                 ).filter(b => b.length > 0 && b.length < 50);
                 
-                // Body is everything except header and buttons
-                const bodyLines = lines.filter(l => 
+                // Body is everything except header (first bold line) and buttons
+                const bodyLines = lines.filter((l, idx) => 
                   !l.trim().startsWith('•') && 
                   !l.includes('[QUICK_REPLY]') &&
-                  l !== lines[0]
+                  !(idx === 0 && firstLineIsBold)  // Skip first line if it's the header
                 );
                 const bodyContent = bodyLines.join('\n').trim() || t.templateContent;
 
