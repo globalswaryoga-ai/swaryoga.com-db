@@ -33,12 +33,14 @@ export default function SendTemplatePage() {
 
     const fetchTemplates = async () => {
       try {
-        const res = await fetch('/api/admin/crm/whatsapp/templates', {
+        const res = await fetch('/api/admin/crm/templates', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-          setTemplates(data.data);
+        if (data.success && Array.isArray(data.data?.templates)) {
+          setTemplates(data.data.templates);
+        } else if (data.success && Array.isArray(data.templates)) {
+          setTemplates(data.templates);
         }
       } catch (err) {
         console.error('Failed to fetch templates:', err);
