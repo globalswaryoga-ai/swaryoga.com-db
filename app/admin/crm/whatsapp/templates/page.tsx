@@ -293,6 +293,23 @@ function TemplatesContent() {
     fetchTemplates();
   }, [token, router, searchParams, fetchTemplates]);
 
+  // Auto-sync status from Meta on page load for pending templates
+  const [autoSynced, setAutoSynced] = useState(false);
+  useEffect(() => {
+    if (autoSynced || templates.length === 0 || loading) return;
+    
+    // Find templates that have metaTemplateId but are still pending
+    const pendingWithMetaId = templates.filter(
+      t => t.metaTemplateId && t.status === 'pending_approval'
+    );
+    
+    if (pendingWithMetaId.length > 0) {
+      setAutoSynced(true);
+      // Auto-sync all templates from Meta silently
+      syncAllFromMeta(false).catch(() => {});
+    }
+  }, [templates, loading, autoSynced, syncAllFromMeta]);
+
   const deleteTemplate = async (id: string) => {
     if (!confirm('Delete this template?')) return;
     try {
