@@ -202,20 +202,24 @@ export async function processDueBroadcastRuns(options?: {
             const bridgeSecret = (process.env.WHATSAPP_WEB_BRIDGE_SECRET || process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024').trim();
             
             // Build template message content with header, body, footer
-            const templateContent = String((template as any).templateContent || '').trim();
+            // Clean templateContent - remove [QUICK_REPLY] markers and button lines
+            const rawContent = String((template as any).templateContent || '').trim();
+            const templateContent = rawContent
+              .replace(/•\s*\[QUICK_REPLY\][^\n]*/gi, '') // Remove • [QUICK_REPLY] lines
+              .replace(/\[QUICK_REPLY\][^\n]*/gi, '')     // Remove [QUICK_REPLY] lines
+              .replace(/\n{3,}/g, '\n\n')                  // Collapse multiple newlines
+              .trim();
+            
             const headerText = (template as any).headerContent ? String((template as any).headerContent).trim() : '';
             const footerText = (template as any).footerText ? String((template as any).footerText).trim() : '';
             const buttons = Array.isArray((template as any).buttons) ? (template as any).buttons : [];
             
-            // Format message: Header (bold), Body, Footer (italic), Buttons
-            let fullMessage = '';
-            if (headerText) fullMessage += `*${headerText}*\n\n`;
-            fullMessage += templateContent;
-            if (footerText) fullMessage += `\n\n_${footerText}_`;
+            // Format message: Body only (header/footer already in template body for QR)
+            let fullMessage = templateContent;
             
             // Add button text as clickable format (QR can't send native buttons)
             const buttonTexts = buttons
-              .filter((b: any) => b.title && b.type !== 'url')
+              .filter((b: any) => b.title)
               .map((b: any) => `📌 ${b.title}`)
               .join('\n');
             if (buttonTexts) fullMessage += `\n\n${buttonTexts}`;
