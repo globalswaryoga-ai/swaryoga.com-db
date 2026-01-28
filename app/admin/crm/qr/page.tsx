@@ -142,6 +142,9 @@ function QRWhatsAppInboxPageContent() {
   
   // Template media URL (for images from templates)
   const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
+  
+  // Selected template for sending via Meta Cloud API
+  const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(null);
 
   // Inbound media cache (bridge returns base64 via /messages/media/:msgId)
   const [messageMediaCache, setMessageMediaCache] = useState<
@@ -1577,9 +1580,59 @@ function QRWhatsAppInboxPageContent() {
         setUploadingMedia(false);
         setNewMessage(''); // Caption was sent
         showToast(`✅ ${pendingMedia.length} file(s) sent successfully`, 'success');
+      } else if (selectedTemplate && templateMediaUrl) {
+        // 2. Send Template via Meta Cloud API (official WhatsApp template with image, text, button)
+        console.log('[sendMessage] Sending template via Meta:', selectedTemplate.templateName);
+        
+        // Add optimistic UI showing template card
+        const optimisticMessage = {
+          id: `opt-${Date.now()}`,
+          fromMe: true,
+          timestamp: new Date(),
+          type: 'template',
+          body: newMessage,
+          status: 'pending',
+          mediaUrl: templateMediaUrl,
+          templateName: selectedTemplate.templateName
+        };
+        setMessages(prev => [...prev, optimisticMessage]);
+        
+        // Send via Meta Cloud API (template endpoint)
+        const phoneNumber = chatId.replace(/@.*$/, '').replace(/\D/g, '');
+        const res = await fetch('/api/admin/crm/whatsapp/send-template', {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phoneNumber,
+            templateId: selectedTemplate._id,
+            leadId: activeLeadId || undefined
+          })
+        });
+
+        const data = await res.json().catch(() => ({}));
+        
+        if (res.ok && data.success) {
+          setMessages(prev => 
+            prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent', waMessageId: data.data?.waMessageId || data.waMessageId } : m)
+          );
+          setNewMessage('');
+          setTemplateMediaUrl(null);
+          setSelectedTemplate(null);
+          showToast('✅ Template sent with image & button!', 'success');
+        } else {
+          setMessages(prev => 
+            prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
+          );
+          const errMsg = data.error || 'Failed to send template';
+          setBridgeError(errMsg);
+          showToast(`❌ ${errMsg}`, 'error');
+        }
       } else if (templateMediaUrl) {
-        // 2. Send Template Media (URL already exists, no upload needed)
-        console.log('[sendMessage] Sending template media:', templateMediaUrl);
+        // 2b. Send just media URL (no template selected, just image with caption)
+        console.log('[sendMessage] Sending media URL:', templateMediaUrl);
         
         // Add optimistic UI
         const optimisticMessage = {
@@ -1614,7 +1667,7 @@ function QRWhatsAppInboxPageContent() {
           );
           setNewMessage('');
           setTemplateMediaUrl(null);
-          showToast('✅ Template message sent with image', 'success');
+          showToast('✅ Image sent with caption', 'success');
         } else {
           setMessages(prev => 
             prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
@@ -3767,6 +3820,9 @@ function QRWhatsAppInboxPageContent() {
                         .trim();
                       setNewMessage(cleanContent);
                       
+                      // Store the full template for sending via Meta
+                      setSelectedTemplate(template);
+                      
                       // Set template media if available
                       const mediaUrl = template.headerMedia?.url || template.imageFile?.url || null;
                       if (mediaUrl) {
@@ -3862,13 +3918,16 @@ function QRWhatsAppInboxPageContent() {
                           className="w-full h-full object-cover"
                         />
                         <button
-                          onClick={() => setTemplateMediaUrl(null)}
+                          onClick={() => {
+                            setTemplateMediaUrl(null);
+                            setSelectedTemplate(null);
+                          }}
                           className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors shadow"
                         >
                           ✕
                         </button>
                         <div className="absolute bottom-0 left-0 right-0 bg-emerald-500 text-white text-[8px] text-center py-0.5 font-medium">
-                          Template
+                          {selectedTemplate ? '📤 Meta' : 'Image'}
                         </div>
                       </div>
                     </div>
