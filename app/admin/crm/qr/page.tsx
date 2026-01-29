@@ -1600,7 +1600,13 @@ function QRWhatsAppInboxPageContent() {
       } else if (selectedTemplate) {
         // 2. Send Template via QR Bridge (with image + text + buttons)
         console.log('[sendMessage] Sending template via QR Bridge:', selectedTemplate.templateName);
-        console.log('[sendMessage] Template has media:', !!templateMediaUrl);
+        
+        // Get image URL from template (multiple possible sources)
+        const effectiveImageUrl = templateMediaUrl || 
+          selectedTemplate.headerMedia?.url || 
+          (selectedTemplate.headerFormat === 'IMAGE' ? selectedTemplate.headerContent : null);
+        
+        console.log('[sendMessage] Template has media:', !!effectiveImageUrl);
         
         // Use original template content - don't add buttons/footer here
         // The bridge handles formatting with buttons and footer
@@ -1609,9 +1615,9 @@ function QRWhatsAppInboxPageContent() {
         // Prepare template metadata for inbox display
         const templateMetadata = {
           templateName: selectedTemplate.templateName,
-          headerFormat: selectedTemplate.headerFormat || (templateMediaUrl ? 'IMAGE' : 'TEXT'),
-          headerContent: templateMediaUrl || selectedTemplate.headerContent,
-          headerMedia: templateMediaUrl ? { kind: 'image', url: templateMediaUrl } : null,
+          headerFormat: selectedTemplate.headerFormat || (effectiveImageUrl ? 'IMAGE' : 'TEXT'),
+          headerContent: effectiveImageUrl || selectedTemplate.headerContent,
+          headerMedia: effectiveImageUrl ? { kind: 'image', url: effectiveImageUrl } : null,
           footerText: selectedTemplate.footerText,
           buttons: selectedTemplate.buttons,
         };
@@ -1632,10 +1638,10 @@ function QRWhatsAppInboxPageContent() {
           id: `opt-${Date.now()}`,
           fromMe: true,
           timestamp: new Date(),
-          type: templateMediaUrl ? 'image' : 'text',
+          type: effectiveImageUrl ? 'image' : 'text',
           body: displayMessage,
           status: 'pending',
-          mediaUrl: templateMediaUrl,
+          mediaUrl: effectiveImageUrl,
           templateName: selectedTemplate.templateName,
           metadata: { template: templateMetadata }
         };
@@ -1649,7 +1655,7 @@ function QRWhatsAppInboxPageContent() {
           console.log('[sendMessage] Sending template via QR Bridge...');
           
           // Send template via QR Bridge (EC2) with image + buttons
-          if (templateMediaUrl || (selectedTemplate.buttons && selectedTemplate.buttons.length > 0)) {
+          if (effectiveImageUrl || (selectedTemplate.buttons && selectedTemplate.buttons.length > 0)) {
             console.log('[sendMessage] Template has image/buttons, sending via QR Bridge /send-template');
             
             // Extract button texts for native buttons
@@ -1666,7 +1672,7 @@ function QRWhatsAppInboxPageContent() {
               body: JSON.stringify({
                 to: chatId,
                 type: 'template',  // New type for bundled template
-                url: templateMediaUrl,
+                url: effectiveImageUrl,
                 message: fullMessage,
                 caption: fullMessage,
                 buttons: buttonTexts,  // Pass buttons for native rendering

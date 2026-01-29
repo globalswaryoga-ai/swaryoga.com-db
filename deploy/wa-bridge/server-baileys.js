@@ -609,6 +609,11 @@ app.post("/send-template", authMiddleware, async (req, res) => {
   try {
     const jid = toJid(to);
     const messageIds = [];
+    
+    // Check if bodyText already contains the footer to avoid duplication
+    const bodyAlreadyHasFooter = bodyText && footerText && 
+      bodyText.toLowerCase().trim().endsWith(footerText.toLowerCase().trim());
+    const effectiveFooter = bodyAlreadyHasFooter ? '' : footerText;
 
     // Method 1: Try legacy buttonsMessage (works on some older WhatsApp versions)
     if (buttons && buttons.length > 0 && buttons.length <= 3) {
@@ -625,14 +630,14 @@ app.post("/send-template", authMiddleware, async (req, res) => {
           msg = {
             image: { url: imageUrl },
             caption: bodyText || "",
-            footer: footerText,
+            footer: effectiveFooter || undefined,
             buttons: buttonRows,
             headerType: 4
           };
         } else {
           msg = {
             text: bodyText || "",
-            footer: footerText,
+            footer: effectiveFooter || undefined,
             buttons: buttonRows,
             headerType: 1
           };
@@ -663,7 +668,7 @@ app.post("/send-template", authMiddleware, async (req, res) => {
           templateMessage: {
             hydratedTemplate: {
               hydratedContentText: bodyText || "",
-              hydratedFooterText: footerText,
+              hydratedFooterText: effectiveFooter || undefined,
               hydratedButtons: hydratedButtons,
               ...(imageUrl && { imageMessage: { url: imageUrl } })
             }
@@ -680,9 +685,51 @@ app.post("/send-template", authMiddleware, async (req, res) => {
         console.log("Template message failed:", templateErr.message);
       }
 
-      // Method 3: Try interactive nativeFlow
+      // Method 3: Try interactive listMessage (single select button)
       try {
-        console.log("Trying Method 3: Interactive nativeFlow");
+        console.log("Trying Method 3: Interactive listMessage");
+        const listRows = buttons.map((btn, idx) => {
+          const text = typeof btn === 'string' ? btn : (btn.text || btn.title || btn);
+          return {
+            title: text,
+            rowId: `btn_${idx}`,
+            description: ""
+          };
+        });
+
+        const listMsg = {
+          text: bodyText || "",
+          footer: effectiveFooter || undefined,
+          title: "Options",
+          buttonText: "Select",
+          sections: [{
+            title: "Choose an option",
+            rows: listRows
+          }]
+        };
+
+        // If has image, send image first then list
+        if (imageUrl) {
+          const imgResult = await sock.sendMessage(jid, { 
+            image: { url: imageUrl }, 
+            caption: bodyText || ""
+          });
+          messageIds.push(imgResult?.key?.id);
+        }
+
+        const result = await sock.sendMessage(jid, listMsg);
+        if (result?.key?.id) {
+          messageIds.push(result.key.id);
+          console.log("✅ List message sent to", jid);
+          return res.json({ success: true, messageIds, method: "list_message" });
+        }
+      } catch (listErr) {
+        console.log("List message failed:", listErr.message);
+      }
+
+      // Method 4: Try interactive nativeFlow
+      try {
+        console.log("Trying Method 4: Interactive nativeFlow");
         const interactiveButtons = buttons.map((btn, idx) => {
           const text = typeof btn === 'string' ? btn : (btn.text || btn.title || btn);
           return {
@@ -700,7 +747,7 @@ app.post("/send-template", authMiddleware, async (req, res) => {
                   hasMediaAttachment: true
                 } : (headerText ? { title: headerText } : undefined),
                 body: { text: bodyText || "" },
-                footer: { text: footerText },
+                footer: effectiveFooter ? { text: effectiveFooter } : undefined,
                 nativeFlowMessage: {
                   buttons: interactiveButtons,
                   messageParamsJson: ""
@@ -733,7 +780,7 @@ app.post("/send-template", authMiddleware, async (req, res) => {
           return `\n${i + 1}️⃣ *${text}*`;
         }).join("");
         captionWithButtons += `\n${buttonList}`;
-        if (footerText) captionWithButtons += `\n\n_${footerText}_`;
+        if (effectiveFooter) captionWithButtons += `\n\n_${effectiveFooter}_`;
       }
       
       const imgResult = await sock.sendMessage(jid, { 
@@ -751,7 +798,7 @@ app.post("/send-template", authMiddleware, async (req, res) => {
           return `\n${i + 1}️⃣ *${text}*`;
         }).join("");
         textWithButtons += `\n${buttonList}`;
-        if (footerText) textWithButtons += `\n\n_${footerText}_`;
+        if (effectiveFooter) textWithButtons += `\n\n_${effectiveFooter}_`;
       }
       
       const textResult = await sock.sendMessage(jid, { text: textWithButtons });
