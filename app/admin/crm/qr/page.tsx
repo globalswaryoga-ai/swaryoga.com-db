@@ -241,6 +241,7 @@ function QRWhatsAppInboxPageContent() {
   const CHAT_CACHE_KEY = 'wa_qr_cached_chats_v1';
   const CHAT_SELECTED_CACHE_KEY = 'wa_qr_cached_selected_chat_id_v1';
   const MESSAGES_CACHE_KEY_PREFIX = 'wa_qr_cached_messages_v1:';
+  const QUICK_REPLIES_CACHE_KEY = 'wa_qr_quick_replies_v1';
   const cacheKeyForChat = (chat: any) => {
     const id = typeof chat?.id === 'string' ? chat.id : chat?.id?._serialized;
     return id ? `${MESSAGES_CACHE_KEY_PREFIX}${id}` : null;
@@ -503,7 +504,20 @@ function QRWhatsAppInboxPageContent() {
         }
       }
     }
+
+    // Load cached quick replies
+    const cachedQuickReplies = safeJsonParse<Array<{ id: string; message: string }>>(localStorage.getItem(QUICK_REPLIES_CACHE_KEY));
+    if (Array.isArray(cachedQuickReplies) && cachedQuickReplies.length > 0) {
+      setQuickReplies(cachedQuickReplies);
+    }
   }, []);
+
+  // Save quick replies to localStorage when they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && quickReplies.length > 0) {
+      localStorage.setItem(QUICK_REPLIES_CACHE_KEY, JSON.stringify(quickReplies));
+    }
+  }, [quickReplies]);
 
   // Check status - poll less frequently to reduce flickering/vibration
   useEffect(() => {
@@ -3800,6 +3814,111 @@ function QRWhatsAppInboxPageContent() {
                   <Smile size={18} />
                 </button>
 
+                {/* Text Formatting Separator */}
+                <div className="w-px h-5 bg-gray-200 mx-1" />
+
+                {/* Bold Button */}
+                <button
+                  onClick={() => {
+                    const textarea = document.querySelector('textarea[spellcheck="true"]') as HTMLTextAreaElement;
+                    if (textarea) {
+                      const start = textarea.selectionStart;
+                      const end = textarea.selectionEnd;
+                      const text = newMessage;
+                      if (start !== end) {
+                        // Wrap selection in *bold*
+                        const selected = text.substring(start, end);
+                        const newText = text.substring(0, start) + '*' + selected + '*' + text.substring(end);
+                        setNewMessage(newText);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + 1, end + 1);
+                        }, 0);
+                      } else {
+                        // Insert ** at cursor
+                        const newText = text.substring(0, start) + '**' + text.substring(start);
+                        setNewMessage(newText);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + 1, start + 1);
+                        }, 0);
+                      }
+                    }
+                  }}
+                  className="p-2 rounded-lg transition-colors flex-shrink-0 hover:bg-[#F5EBE0]/60 text-[#0f3a4d]/60 font-bold"
+                  title="Bold (*text*)"
+                >
+                  <span className="text-sm font-black">B</span>
+                </button>
+
+                {/* Italic Button */}
+                <button
+                  onClick={() => {
+                    const textarea = document.querySelector('textarea[spellcheck="true"]') as HTMLTextAreaElement;
+                    if (textarea) {
+                      const start = textarea.selectionStart;
+                      const end = textarea.selectionEnd;
+                      const text = newMessage;
+                      if (start !== end) {
+                        // Wrap selection in _italic_
+                        const selected = text.substring(start, end);
+                        const newText = text.substring(0, start) + '_' + selected + '_' + text.substring(end);
+                        setNewMessage(newText);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + 1, end + 1);
+                        }, 0);
+                      } else {
+                        // Insert __ at cursor
+                        const newText = text.substring(0, start) + '__' + text.substring(start);
+                        setNewMessage(newText);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + 1, start + 1);
+                        }, 0);
+                      }
+                    }
+                  }}
+                  className="p-2 rounded-lg transition-colors flex-shrink-0 hover:bg-[#F5EBE0]/60 text-[#0f3a4d]/60"
+                  title="Italic (_text_)"
+                >
+                  <span className="text-sm italic font-semibold">I</span>
+                </button>
+
+                {/* Strikethrough Button */}
+                <button
+                  onClick={() => {
+                    const textarea = document.querySelector('textarea[spellcheck="true"]') as HTMLTextAreaElement;
+                    if (textarea) {
+                      const start = textarea.selectionStart;
+                      const end = textarea.selectionEnd;
+                      const text = newMessage;
+                      if (start !== end) {
+                        // Wrap selection in ~strikethrough~
+                        const selected = text.substring(start, end);
+                        const newText = text.substring(0, start) + '~' + selected + '~' + text.substring(end);
+                        setNewMessage(newText);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + 1, end + 1);
+                        }, 0);
+                      } else {
+                        // Insert ~~ at cursor
+                        const newText = text.substring(0, start) + '~~' + text.substring(start);
+                        setNewMessage(newText);
+                        setTimeout(() => {
+                          textarea.focus();
+                          textarea.setSelectionRange(start + 1, start + 1);
+                        }, 0);
+                      }
+                    }
+                  }}
+                  className="p-2 rounded-lg transition-colors flex-shrink-0 hover:bg-[#F5EBE0]/60 text-[#0f3a4d]/60"
+                  title="Strikethrough (~text~)"
+                >
+                  <span className="text-sm line-through font-semibold">S</span>
+                </button>
+
                 {/* Media Dropdown Menu */}
                 {showMediaMenu && (
                   <div className="absolute bottom-28 left-4 bg-[#FAFAF8] rounded-xl shadow-2xl border border-[#E8DFD5] min-w-[200px] z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -3884,14 +4003,33 @@ function QRWhatsAppInboxPageContent() {
                     </div>
                     <div className="max-h-[200px] overflow-y-auto p-2 space-y-1">
                       {quickReplies.map((qr) => (
-                        <button
+                        <div
                           key={qr.id}
-                          onClick={() => insertQuickReply(qr.message)}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F5EBE0] text-sm text-gray-700 transition-colors"
+                          className="flex items-center gap-2 group"
                         >
-                          {qr.message}
-                        </button>
+                          <button
+                            onClick={() => insertQuickReply(qr.message)}
+                            className="flex-1 text-left px-3 py-2 rounded-lg hover:bg-[#F5EBE0] text-sm text-gray-700 transition-colors"
+                          >
+                            {qr.message}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickReplies(quickReplies.filter(r => r.id !== qr.id));
+                            }}
+                            className="p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-100 text-red-500 transition-all"
+                            title="Delete quick reply"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
                       ))}
+                      {quickReplies.length === 0 && (
+                        <div className="text-center py-4 text-gray-400 text-sm">
+                          No quick replies yet. Add one below!
+                        </div>
+                      )}
                     </div>
                     <div className="px-4 py-2 border-t border-gray-200 flex gap-2">
                       <input
@@ -3912,6 +4050,138 @@ function QRWhatsAppInboxPageContent() {
                       >
                         Add
                       </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Schedule & Delay Panel */}
+              {showSchedulePanel && (
+                <div className="absolute bottom-20 left-0 right-0 mx-4 z-50 animate-in slide-in-from-bottom-2 duration-200">
+                  <div className="bg-white rounded-xl shadow-2xl border border-[#E8DFD5] overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-teal-50 to-emerald-50">
+                      <h3 className="font-bold text-gray-900">⏰ Schedule / Delay Message</h3>
+                      <button
+                        onClick={() => setShowSchedulePanel(false)}
+                        className="p-1 rounded-lg hover:bg-gray-100"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      {/* Option: Schedule at specific time */}
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={useSchedule}
+                            onChange={(e) => {
+                              setUseSchedule(e.target.checked);
+                              if (e.target.checked) setUseDelay(false);
+                            }}
+                            className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                          />
+                          <span className="font-semibold text-gray-800">📅 Schedule at specific time</span>
+                        </label>
+                        {useSchedule && (
+                          <input
+                            type="datetime-local"
+                            value={scheduleDateTime}
+                            onChange={(e) => setScheduleDateTime(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400 outline-none"
+                            min={new Date().toISOString().slice(0, 16)}
+                          />
+                        )}
+                      </div>
+
+                      {/* Option: Delay by duration */}
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={useDelay}
+                            onChange={(e) => {
+                              setUseDelay(e.target.checked);
+                              if (e.target.checked) setUseSchedule(false);
+                            }}
+                            className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                          />
+                          <span className="font-semibold text-gray-800">⏱️ Delay by duration</span>
+                        </label>
+                        {useDelay && (
+                          <div className="grid grid-cols-4 gap-2">
+                            <div className="flex flex-col">
+                              <label className="text-xs text-gray-500 mb-1">Days</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="30"
+                                value={delayDays}
+                                onChange={(e) => setDelayDays(e.target.value)}
+                                className="px-2 py-1.5 border border-gray-200 rounded-lg text-center focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400 outline-none"
+                              />
+                            </div>
+                            <div className="flex flex-col">
+                              <label className="text-xs text-gray-500 mb-1">Hours</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="23"
+                                value={delayHours}
+                                onChange={(e) => setDelayHours(e.target.value)}
+                                className="px-2 py-1.5 border border-gray-200 rounded-lg text-center focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400 outline-none"
+                              />
+                            </div>
+                            <div className="flex flex-col">
+                              <label className="text-xs text-gray-500 mb-1">Minutes</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={delayMinutes}
+                                onChange={(e) => setDelayMinutes(e.target.value)}
+                                className="px-2 py-1.5 border border-gray-200 rounded-lg text-center focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400 outline-none"
+                              />
+                            </div>
+                            <div className="flex flex-col">
+                              <label className="text-xs text-gray-500 mb-1">Seconds</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={delaySeconds}
+                                onChange={(e) => setDelaySeconds(e.target.value)}
+                                className="px-2 py-1.5 border border-gray-200 rounded-lg text-center focus:ring-2 focus:ring-teal-400/30 focus:border-teal-400 outline-none"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Status indicator */}
+                      {(useSchedule || useDelay) && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                          <strong>⚠️ Note:</strong> Message will be {useSchedule ? `scheduled for ${scheduleDateTime || 'selected time'}` : `delayed by ${delayDays}d ${delayHours}h ${delayMinutes}m ${delaySeconds}s`}. Click Send to queue it.
+                        </div>
+                      )}
+
+                      {/* Clear button */}
+                      {(useSchedule || useDelay) && (
+                        <button
+                          onClick={() => {
+                            setUseSchedule(false);
+                            setUseDelay(false);
+                            setScheduleDateTime('');
+                            setDelayDays('0');
+                            setDelayHours('0');
+                            setDelayMinutes('0');
+                            setDelaySeconds('0');
+                          }}
+                          className="w-full py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          Clear schedule settings
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -82,6 +82,112 @@ function buildAppSecretProof(accessToken: string, appSecret?: string): string {
 }
 
 /**
+ * Upload media to Meta for use in template headers
+ * Uses the Resumable Upload API: https://developers.facebook.com/docs/graph-api/guides/upload
+ * 
+ * @param mediaUrl - Public URL of the media to upload (S3 signed URL)
+ * @param mimeType - MIME type of the media
+ * @param fileName - File name for the upload
+ * @returns Media handle to use in template header
+ */
+export async function uploadMediaToMeta(
+  mediaUrl: string,
+  mimeType: string,
+  fileName: string
+): Promise<{ success: boolean; handle?: string; error?: string }> {
+  const env = getWhatsAppEnv();
+  if (!env) {
+    return { success: false, error: 'WhatsApp Cloud API not configured' };
+  }
+
+  const { accessToken, appSecret } = env;
+  const proof = buildAppSecretProof(accessToken, appSecret);
+  
+  // Get Meta App ID from environment
+  const appId = (process.env.META_APP_ID || process.env.FACEBOOK_APP_ID || '').trim();
+  if (!appId) {
+    console.warn('[META-TEMPLATES] META_APP_ID not set - using direct URL for template');
+    return { success: false, error: 'META_APP_ID not configured' };
+  }
+
+  try {
+    console.log(`[META-TEMPLATES] Downloading media from: ${mediaUrl.substring(0, 60)}...`);
+    
+    // Download the media file
+    const mediaResponse = await fetch(mediaUrl);
+    if (!mediaResponse.ok) {
+      return { success: false, error: `Failed to download media: ${mediaResponse.status}` };
+    }
+    
+    const mediaBuffer = Buffer.from(await mediaResponse.arrayBuffer());
+    const fileSize = mediaBuffer.length;
+    
+    console.log(`[META-TEMPLATES] Downloaded ${fileSize} bytes, uploading to Meta...`);
+
+    // Step 1: Create upload session
+    let createUrl = `https://graph.facebook.com/${META_API_VERSION}/${appId}/uploads`;
+    if (proof) {
+      createUrl += `?appsecret_proof=${proof}`;
+    }
+    
+    const createParams = new URLSearchParams({
+      file_name: fileName,
+      file_length: fileSize.toString(),
+      file_type: mimeType,
+    });
+
+    const createResponse = await fetch(`${createUrl}&${createParams}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+
+    const createData = await createResponse.json();
+    if (!createResponse.ok || !createData.id) {
+      console.error('[META-TEMPLATES] Failed to create upload session:', createData);
+      return { success: false, error: createData?.error?.message || 'Failed to create upload session' };
+    }
+
+    const uploadSessionId = createData.id;
+    console.log(`[META-TEMPLATES] Upload session created: ${uploadSessionId}`);
+
+    // Step 2: Upload the file data
+    let uploadUrl = `https://graph.facebook.com/${META_API_VERSION}/${uploadSessionId}`;
+    if (proof) {
+      uploadUrl += `?appsecret_proof=${proof}`;
+    }
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `OAuth ${accessToken}`,
+        'file_offset': '0',
+        'Content-Type': 'application/octet-stream',
+      },
+      body: mediaBuffer,
+    });
+
+    const uploadData = await uploadResponse.json();
+    if (!uploadResponse.ok || !uploadData.h) {
+      console.error('[META-TEMPLATES] Failed to upload file:', uploadData);
+      return { success: false, error: uploadData?.error?.message || 'Failed to upload file' };
+    }
+
+    const handle = uploadData.h;
+    console.log(`[META-TEMPLATES] Media uploaded successfully, handle: ${handle.substring(0, 30)}...`);
+    
+    return { success: true, handle };
+  } catch (error) {
+    console.error('[META-TEMPLATES] Upload error:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown upload error' 
+    };
+  }
+}
+
+/**
  * Submit a template to Meta for approval
  * 
  * @param template - Template data to submit
@@ -340,10 +446,15 @@ export function convertToMetaFormat(localTemplate: {
   headerContent?: string;
   footerText?: string;
   buttons?: Array<{ title: string }>;
-  imageFile?: { url: string };
+  imageFile?: { url: string; fileName?: string; mimeType?: string };
   videoUrl?: string;
+  documents?: Array<{ url: string; fileName?: string; mimeType?: string }>;
+  headerMedia?: { kind?: string; url?: string; fileName?: string; mimeType?: string };
+}, options?: {
+  mediaHandle?: string; // Pre-uploaded media handle for IMAGE/VIDEO/DOCUMENT headers
 }): MetaTemplateSubmission {
   const components: MetaTemplateComponent[] = [];
+  const mediaHandle = options?.mediaHandle;
 
   /**
    * Clean template text for Meta:
@@ -362,9 +473,6 @@ export function convertToMetaFormat(localTemplate: {
   }
 
   // Header component
-  // NOTE: For IMAGE/VIDEO/DOCUMENT headers, Meta requires uploading media first to get a handle.
-  // For now, we skip media headers and only support TEXT headers.
-  // Templates with images will be submitted without header - image can be added later in Meta dashboard.
   if (localTemplate.headerFormat && localTemplate.headerFormat !== 'NONE') {
     if (localTemplate.headerFormat === 'TEXT' && localTemplate.headerContent) {
       // Clean header text and skip if it's a URL
@@ -384,9 +492,51 @@ export function convertToMetaFormat(localTemplate: {
         }
         components.push(headerComponent);
       }
+    } else if (localTemplate.headerFormat === 'IMAGE') {
+      // For IMAGE headers, we need a media handle from Meta's Resumable Upload API
+      if (mediaHandle) {
+        const headerComponent: MetaTemplateComponent = {
+          type: 'HEADER',
+          format: 'IMAGE',
+          example: {
+            header_handle: [mediaHandle],
+          },
+        };
+        components.push(headerComponent);
+        console.log('[convertToMetaFormat] Added IMAGE header with handle:', mediaHandle.substring(0, 30));
+      } else {
+        // If no handle provided, log warning - caller should upload media first
+        console.warn('[convertToMetaFormat] IMAGE header format but no mediaHandle provided. Upload media using uploadMediaToMeta() first.');
+      }
+    } else if (localTemplate.headerFormat === 'VIDEO') {
+      if (mediaHandle) {
+        const headerComponent: MetaTemplateComponent = {
+          type: 'HEADER',
+          format: 'VIDEO',
+          example: {
+            header_handle: [mediaHandle],
+          },
+        };
+        components.push(headerComponent);
+        console.log('[convertToMetaFormat] Added VIDEO header with handle:', mediaHandle.substring(0, 30));
+      } else {
+        console.warn('[convertToMetaFormat] VIDEO header format but no mediaHandle provided.');
+      }
+    } else if (localTemplate.headerFormat === 'DOCUMENT') {
+      if (mediaHandle) {
+        const headerComponent: MetaTemplateComponent = {
+          type: 'HEADER',
+          format: 'DOCUMENT',
+          example: {
+            header_handle: [mediaHandle],
+          },
+        };
+        components.push(headerComponent);
+        console.log('[convertToMetaFormat] Added DOCUMENT header with handle:', mediaHandle.substring(0, 30));
+      } else {
+        console.warn('[convertToMetaFormat] DOCUMENT header format but no mediaHandle provided.');
+      }
     }
-    // Skip IMAGE/VIDEO/DOCUMENT headers for now - they require media upload to Meta first
-    // User can add media header in Meta Business Manager after template is approved
   }
 
   // Body component (required) - keep bold formatting

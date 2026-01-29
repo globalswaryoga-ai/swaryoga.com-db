@@ -153,7 +153,7 @@ export default function SendTemplatePage() {
         // ====================================================================
         // SEND VIA QR BRIDGE API
         // ====================================================================
-        // Build message content for QR (text-based, no native buttons)
+        // Build message content for QR
         const rawContent = selectedTemplate.templateContent || '';
         const templateContent = rawContent
           .replace(/•\s*\[QUICK_REPLY\][^\n]*/gi, '')
@@ -161,11 +161,13 @@ export default function SendTemplatePage() {
           .replace(/\n{3,}/g, '\n\n')
           .trim();
 
-        // Add button text as numbered options (QR can't send native buttons)
+        // Get buttons for trying native buttons first
         const buttons = selectedTemplate.buttons || [];
-        const buttonTexts = buttons
-          .filter((b) => b.title)
-          .map((b, i) => `${['1️⃣', '2️⃣', '3️⃣'][i] || `${i+1}.`} ${b.title}`)
+        const buttonTitles = buttons.filter((b) => b.title).map((b) => b.title);
+        
+        // Create fallback text format with buttons as numbered options
+        const buttonTexts = buttonTitles
+          .map((title, i) => `${['1️⃣', '2️⃣', '3️⃣'][i] || `${i+1}.`} ${title}`)
           .join('\n');
 
         let fullMessage = templateContent;
@@ -177,20 +179,30 @@ export default function SendTemplatePage() {
         const hasImage = mediaUrl && headerMedia?.kind === 'image';
 
         // Build payload for QR send API
+        // Try native buttons if available (may not work due to WhatsApp restrictions)
         const qrPayload: any = {
           to: phone,
-          message: hasImage ? fullMessage : fullMessage,
-          type: hasImage ? 'media' : 'text',
+          message: templateContent, // Use clean content without button text for buttons type
         };
 
-        if (hasImage) {
+        // If we have buttons and no image, try native buttons first
+        if (buttonTitles.length > 0 && !hasImage) {
+          qrPayload.type = 'buttons';
+          qrPayload.buttons = buttonTitles;
+          qrPayload.caption = 'Swar Yoga';
+        } else if (hasImage) {
+          qrPayload.type = 'media';
           qrPayload.url = mediaUrl;
-          qrPayload.caption = fullMessage;
+          qrPayload.caption = fullMessage; // Include button text in caption for image
+          qrPayload.message = fullMessage;
+        } else {
+          qrPayload.type = 'text';
+          qrPayload.message = fullMessage; // Include button text in message
         }
 
         console.log('[SendTemplate QR] Sending via API:', qrPayload);
 
-        const res = await fetch('/api/admin/crm/whatsapp/qr/send', {
+        let res = await fetch('/api/admin/crm/whatsapp/qr/send', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -199,7 +211,26 @@ export default function SendTemplatePage() {
           body: JSON.stringify(qrPayload),
         });
 
-        const data = await res.json();
+        let data = await res.json();
+
+        // If native buttons failed, retry with text format
+        if (!res.ok && qrPayload.type === 'buttons') {
+          console.log('[SendTemplate QR] Native buttons failed, falling back to text format');
+          const fallbackPayload = {
+            to: phone,
+            type: 'text',
+            message: fullMessage, // Use message with button text
+          };
+          res = await fetch('/api/admin/crm/whatsapp/qr/send', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(fallbackPayload),
+          });
+          data = await res.json();
+        }
 
         if (res.ok && data.success) {
           setResult({

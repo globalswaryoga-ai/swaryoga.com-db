@@ -625,12 +625,19 @@ export async function sendWhatsAppTemplate(input: WhatsAppSendTemplateInput): Pr
 
 // Helps server routes build a stable send contract from our stored template schema.
 export function buildCloudTemplateSendInput(template: any, to: string): WhatsAppSendTemplateInput {
-  const headerMediaUrl = String(template?.headerMedia?.url || '').trim();
-  const headerMediaKind = String(template?.headerMedia?.kind || '').trim();
+  // Check both headerMedia (legacy) and imageFile (new schema) for image URLs
+  let headerMediaUrl = String(template?.headerMedia?.url || '').trim();
+  let headerMediaKind = String(template?.headerMedia?.kind || '').trim();
+  
+  // Fallback to imageFile if headerMedia is empty
+  if (!headerMediaUrl && template?.imageFile?.url) {
+    headerMediaUrl = String(template.imageFile.url).trim();
+    headerMediaKind = 'image';
+  }
 
   const headerMedia: WhatsAppTemplateHeaderMedia | null =
     headerMediaUrl && (headerMediaKind === 'image' || headerMediaKind === 'video')
-      ? { kind: headerMediaKind, url: headerMediaUrl }
+      ? { kind: headerMediaKind as 'image' | 'video', url: headerMediaUrl }
       : null;
 
   const buttons: WhatsAppTemplateButton[] = [];

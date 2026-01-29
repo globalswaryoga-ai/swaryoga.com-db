@@ -7,7 +7,9 @@ import {
   convertToMetaFormat,
   getTemplateStatusFromMeta,
   mapMetaStatusToLocal,
+  uploadMediaToMeta,
 } from '@/lib/meta-templates';
+import { getPublicMediaUrl } from '@/lib/whatsapp';
 import mongoose from 'mongoose';
 
 export const dynamic = 'force-dynamic';
@@ -79,6 +81,55 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Check if template has media header that needs uploading
+    let mediaHandle: string | undefined;
+    const headerFormat = (template as any).headerFormat;
+    
+    if (headerFormat === 'IMAGE' || headerFormat === 'VIDEO' || headerFormat === 'DOCUMENT') {
+      // Get the media URL
+      let mediaUrl: string | undefined;
+      let mimeType = 'image/jpeg';
+      let fileName = 'media';
+      
+      if (headerFormat === 'IMAGE') {
+        const imageFile = (template as any).imageFile;
+        const headerMedia = (template as any).headerMedia;
+        mediaUrl = imageFile?.url || headerMedia?.url;
+        mimeType = imageFile?.mimeType || headerMedia?.mimeType || 'image/jpeg';
+        fileName = imageFile?.fileName || headerMedia?.fileName || 'image.jpg';
+      } else if (headerFormat === 'VIDEO') {
+        const headerMedia = (template as any).headerMedia;
+        mediaUrl = (template as any).videoUrl || headerMedia?.url;
+        mimeType = headerMedia?.mimeType || 'video/mp4';
+        fileName = headerMedia?.fileName || 'video.mp4';
+      } else if (headerFormat === 'DOCUMENT') {
+        const doc = (template as any).documents?.[0];
+        mediaUrl = doc?.url;
+        mimeType = doc?.mimeType || 'application/pdf';
+        fileName = doc?.fileName || 'document.pdf';
+      }
+      
+      if (mediaUrl) {
+        console.log(`[META SUBMIT] Uploading ${headerFormat} to Meta: ${mediaUrl.substring(0, 50)}...`);
+        
+        // Get a signed URL if it's an S3 URL
+        let downloadUrl = mediaUrl;
+        if (mediaUrl.includes('s3.') || mediaUrl.includes('amazonaws.com')) {
+          downloadUrl = await getPublicMediaUrl(mediaUrl);
+        }
+        
+        const uploadResult = await uploadMediaToMeta(downloadUrl, mimeType, fileName);
+        
+        if (uploadResult.success && uploadResult.handle) {
+          mediaHandle = uploadResult.handle;
+          console.log(`[META SUBMIT] Media uploaded, handle: ${mediaHandle.substring(0, 30)}...`);
+        } else {
+          console.warn(`[META SUBMIT] Media upload failed: ${uploadResult.error}. Continuing without media header.`);
+          // Continue without media header - Meta will still accept the template
+        }
+      }
+    }
+
     // Convert to Meta format and submit
     const metaFormat = convertToMetaFormat({
       templateName: (template as any).templateName,
@@ -90,8 +141,10 @@ export async function POST(request: NextRequest) {
       footerText: (template as any).footerText,
       buttons: (template as any).buttons,
       imageFile: (template as any).imageFile,
+      documents: (template as any).documents,
+      headerMedia: (template as any).headerMedia,
       videoUrl: (template as any).videoUrl,
-    });
+    }, { mediaHandle });
 
     console.log('[META SUBMIT] Submitting template:', metaFormat.name);
     const result = await submitTemplateToMeta(metaFormat);

@@ -245,13 +245,18 @@ export async function processDueBroadcastRuns(options?: {
             // Format message: Body only (header/footer already in template body for QR)
             let fullMessage = templateContent;
             
-            // Add button text as clickable format (QR can't send native buttons)
-            // Use numbered format so recipients can reply with a number
-            const buttonTexts = buttons
+            // Extract button titles for native buttons attempt
+            const buttonTitles = buttons
               .filter((b: any) => b.title)
-              .map((b: any, i: number) => `${['1️⃣', '2️⃣', '3️⃣'][i] || `${i+1}.`} ${b.title}`)
+              .map((b: any) => String(b.title).substring(0, 20));
+            
+            // Prepare text fallback for buttons
+            const buttonTexts = buttonTitles
+              .map((title: string, i: number) => `${['1️⃣', '2️⃣', '3️⃣'][i] || `${i+1}.`} ${title}`)
               .join('\n');
-            if (buttonTexts) fullMessage += `\n\n📲 Reply with number:\n${buttonTexts}`;
+            const fullMessageWithButtonText = buttonTexts 
+              ? `${templateContent}\n\n📲 Reply with number:\n${buttonTexts}` 
+              : templateContent;
             
             // Check for header media (image)
             const headerMedia = (template as any).headerMedia;
@@ -265,24 +270,33 @@ export async function processDueBroadcastRuns(options?: {
             
             console.log('[Broadcast QR] Sending to:', to, 'via', bridgeUrl);
             console.log('[Broadcast QR] Has image:', hasImage, 'URL:', mediaUrl?.substring(0, 80));
+            console.log('[Broadcast QR] Buttons:', buttonTitles.length, buttonTitles);
             
             // Build payload matching single send endpoint format
-            const bridgePayload: any = {
+            let bridgePayload: any = {
               to: to, // Use plain number, not @c.us format
               type: hasImage ? 'media' : 'text',
             };
             
             if (hasImage) {
               bridgePayload.url = mediaUrl;
-              bridgePayload.caption = fullMessage;
-              bridgePayload.message = fullMessage;
+              bridgePayload.caption = fullMessageWithButtonText;
+              bridgePayload.message = fullMessageWithButtonText;
             } else {
-              bridgePayload.message = fullMessage;
+              // Try native buttons if we have buttons and no image
+              if (buttonTitles.length > 0) {
+                bridgePayload.type = 'buttons';
+                bridgePayload.message = templateContent;
+                bridgePayload.buttons = buttonTitles;
+                bridgePayload.caption = 'Swar Yoga';
+              } else {
+                bridgePayload.message = fullMessageWithButtonText;
+              }
             }
             
             console.log('[Broadcast QR] Payload:', JSON.stringify(bridgePayload, null, 2).substring(0, 500));
             
-            const bridgeResponse = await fetch(`${bridgeUrl}/send`, {
+            let bridgeResponse = await fetch(`${bridgeUrl}/send`, {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
@@ -291,6 +305,25 @@ export async function processDueBroadcastRuns(options?: {
               body: JSON.stringify(bridgePayload),
               cache: 'no-store',
             });
+            
+            // If native buttons failed, fallback to text format
+            if (!bridgeResponse.ok && bridgePayload.type === 'buttons') {
+              console.log('[Broadcast QR] Native buttons failed, falling back to text format');
+              bridgePayload = {
+                to: to,
+                type: 'text',
+                message: fullMessageWithButtonText,
+              };
+              bridgeResponse = await fetch(`${bridgeUrl}/send`, {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'x-bridge-secret': bridgeSecret,
+                },
+                body: JSON.stringify(bridgePayload),
+                cache: 'no-store',
+              });
+            }
             
             if (!bridgeResponse.ok) {
               const errText = await bridgeResponse.text().catch(() => '');
@@ -309,8 +342,13 @@ export async function processDueBroadcastRuns(options?: {
             const { buildCloudTemplateSendInput, sendWhatsAppTemplate, sendWhatsAppText } = await import('@/lib/whatsapp');
 
             try {
+              // Log template details for debugging
+              console.log('[Broadcast Meta] Template name:', (template as any).templateName);
+              console.log('[Broadcast Meta] Template headerMedia:', JSON.stringify((template as any).headerMedia));
+              console.log('[Broadcast Meta] Template buttons:', JSON.stringify((template as any).buttons));
+              console.log('[Broadcast Meta] Template imageFile:', JSON.stringify((template as any).imageFile));
+              
               const cloudInput = buildCloudTemplateSendInput(template, to);
-              console.log('[Broadcast Meta] Template:', (template as any).templateName);
               console.log('[Broadcast Meta] Cloud input:', JSON.stringify(cloudInput, null, 2));
               apiResult = await sendWhatsAppTemplate(cloudInput);
               console.log('[Broadcast Meta] Send result:', apiResult);
