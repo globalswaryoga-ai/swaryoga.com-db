@@ -1147,6 +1147,7 @@ function QRWhatsAppInboxPageContent() {
             ack: isOutbound ? statusToAck(msg.status) : 0, // Only show ticks for outbound
             // Media fields - extracted from CRM schema
             mediaUrl: mediaUrl,
+            media: msg.media, // Keep original media object for fallback access
             mimeType: mimeType,
             hasMedia: Boolean(mediaUrl),
             // Admin sender info for outbound messages
@@ -1414,7 +1415,19 @@ function QRWhatsAppInboxPageContent() {
 
   // Send message
   const handleSendMessage = async () => {
-    if ((!newMessage.trim() && pendingMedia.length === 0 && !templateMediaUrl) || !selectedChat || sending || isSendingRef.current) return;
+    console.log('[handleSendMessage] Called with:', { 
+      newMessage: newMessage?.slice(0, 30), 
+      pendingMediaCount: pendingMedia.length,
+      templateMediaUrl: !!templateMediaUrl,
+      selectedChat: !!selectedChat,
+      sending,
+      isSendingRef: isSendingRef.current
+    });
+    
+    if ((!newMessage.trim() && pendingMedia.length === 0 && !templateMediaUrl) || !selectedChat || sending || isSendingRef.current) {
+      console.log('[handleSendMessage] Early return - conditions not met');
+      return;
+    }
 
     // CHECK PERMISSIONS: Non-super-admins can only message assigned leads
     if (!isSuperAdmin && activeLeadId && !assignedLeadIds.has(activeLeadId)) {
@@ -2102,7 +2115,11 @@ function QRWhatsAppInboxPageContent() {
   };
 
   const handleScheduledSend = async () => {
-    if (sending || isSendingRef.current || !newMessage.trim() || !selectedChat) return;
+    // Allow sending if there's text OR media OR template media
+    if (sending || isSendingRef.current || (!newMessage.trim() && pendingMedia.length === 0 && !templateMediaUrl) || !selectedChat) {
+      console.log('[handleScheduledSend] Early return:', { sending, isSendingRef: isSendingRef.current, newMessage: newMessage?.slice(0, 20), pendingMediaCount: pendingMedia.length, templateMediaUrl: !!templateMediaUrl, selectedChat: !!selectedChat });
+      return;
+    }
     
     const delayMs = calculateDelayMs();
     const scheduledTime = new Date(Date.now() + delayMs);
