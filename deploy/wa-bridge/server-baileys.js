@@ -9,7 +9,8 @@ const {
   useMultiFileAuthState, 
   DisconnectReason,
   fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore
+  makeCacheableSignalKeyStore,
+  downloadMediaMessage
 } = require("baileys");
 
 const app = express();
@@ -213,6 +214,7 @@ async function initializeClient() {
       let messageContent = "";
       let messageType = "text";
       let mediaUrl = null;
+      let mediaBuffer = null;
       
       if (msg.message?.conversation) {
         messageContent = msg.message.conversation;
@@ -221,15 +223,40 @@ async function initializeClient() {
       } else if (msg.message?.imageMessage) {
         messageType = "image";
         messageContent = msg.message.imageMessage.caption || "[Image]";
+        // Download media
+        try {
+          mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
+          console.log("📷 Downloaded image, size:", mediaBuffer?.length);
+        } catch (dlErr) {
+          console.log("⚠️ Could not download image:", dlErr.message);
+        }
       } else if (msg.message?.videoMessage) {
         messageType = "video";
         messageContent = msg.message.videoMessage.caption || "[Video]";
+        try {
+          mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
+          console.log("🎬 Downloaded video, size:", mediaBuffer?.length);
+        } catch (dlErr) {
+          console.log("⚠️ Could not download video:", dlErr.message);
+        }
       } else if (msg.message?.audioMessage) {
         messageType = "audio";
         messageContent = "[Audio]";
+        try {
+          mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
+          console.log("🎵 Downloaded audio, size:", mediaBuffer?.length);
+        } catch (dlErr) {
+          console.log("⚠️ Could not download audio:", dlErr.message);
+        }
       } else if (msg.message?.documentMessage) {
         messageType = "document";
         messageContent = msg.message.documentMessage.fileName || "[Document]";
+        try {
+          mediaBuffer = await downloadMediaMessage(msg, 'buffer', {});
+          console.log("📄 Downloaded document, size:", mediaBuffer?.length);
+        } catch (dlErr) {
+          console.log("⚠️ Could not download document:", dlErr.message);
+        }
       } else if (msg.message?.stickerMessage) {
         messageType = "sticker";
         messageContent = "[Sticker]";
@@ -239,7 +266,7 @@ async function initializeClient() {
         messageContent = msg.message.listResponseMessage.title || msg.message.listResponseMessage.singleSelectReply?.selectedRowId;
       }
       
-      if (!messageContent && !mediaUrl) continue;
+      if (!messageContent && !mediaBuffer) continue;
       
       console.log(`📥 Incoming from ${phone}: ${messageContent.substring(0, 50)}...`);
       
@@ -252,6 +279,12 @@ async function initializeClient() {
           messageContent: messageContent,
           messageType: messageType,
           mediaUrl: mediaUrl,
+          // Send media as base64 if downloaded
+          mediaBase64: mediaBuffer ? mediaBuffer.toString('base64') : null,
+          mediaMimeType: msg.message?.imageMessage?.mimetype || 
+                        msg.message?.videoMessage?.mimetype || 
+                        msg.message?.audioMessage?.mimetype || 
+                        msg.message?.documentMessage?.mimetype || null,
           timestamp: msg.messageTimestamp ? msg.messageTimestamp * 1000 : Date.now(),
           raw: {
             key: msg.key,

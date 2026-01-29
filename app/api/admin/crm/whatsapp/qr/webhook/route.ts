@@ -112,6 +112,9 @@ export async function POST(req: NextRequest) {
     const messageId = body.messageId;
     const contactName = body.contactName || body.pushName;
     const mediaUrl = body.mediaUrl;
+    // New: media sent directly as base64 from bridge
+    const mediaBase64 = body.mediaBase64;
+    const mediaMimeType = body.mediaMimeType;
 
     // Skip if no sender - but allow empty body for media messages
     if (!from) {
@@ -181,9 +184,37 @@ export async function POST(req: NextRequest) {
 
     // Handle media if present
     let savedMediaUrl: string | undefined = mediaUrl; // Use mediaUrl from Baileys if already provided
-    let mimeType: string | undefined;
+    let mimeType: string | undefined = mediaMimeType;
     
-    if (hasMedia && messageId && !savedMediaUrl) {
+    // If media sent as base64 directly from bridge, upload to S3
+    if (mediaBase64 && !savedMediaUrl) {
+      try {
+        console.log('[QR WEBHOOK MEDIA] Processing base64 media, type:', mediaMimeType, 'size:', mediaBase64.length);
+        const buffer = Buffer.from(mediaBase64, 'base64');
+        
+        if (buffer.length > 0) {
+          // Determine file extension from mimetype
+          const ext = (mediaMimeType || 'application/octet-stream').split('/')[1]?.split(';')[0] || 'bin';
+          const fileName = `whatsapp-qr-inbound/${phoneNumber}/${Date.now()}.${ext}`;
+          
+          // Upload to S3
+          savedMediaUrl = await uploadToS3(buffer, fileName, {
+            metadata: {
+              'wa-message-id': messageId || 'unknown',
+              'phone-number': phoneNumber,
+              'media-type': type,
+              'direction': 'inbound',
+              'provider': 'qr-bridge'
+            }
+          });
+          mimeType = mediaMimeType;
+          console.log('[QR WEBHOOK MEDIA] ✅ Uploaded base64 media to S3:', savedMediaUrl);
+        }
+      } catch (uploadErr: any) {
+        console.error('[QR WEBHOOK MEDIA] Error uploading base64 media:', uploadErr.message);
+      }
+    } else if (hasMedia && messageId && !savedMediaUrl) {
+      // Fallback: try to fetch from bridge endpoint (legacy)
       const mediaResult = await fetchAndUploadMedia(messageId, phoneNumber, type || 'media');
       if (mediaResult) {
         savedMediaUrl = mediaResult.url;
