@@ -358,7 +358,6 @@ export async function processDueBroadcastRuns(options?: {
           result.sent++;
           
           // Add delay between messages to respect rate limits
-          const runProvider = String((run as any).provider || 'meta');
           const delayMs = runProvider === 'meta' 
             ? BULK_CONFIG.MESSAGE_DELAY_MS 
             : BULK_CONFIG.MESSAGE_DELAY_MS * 2; // QR is slower
