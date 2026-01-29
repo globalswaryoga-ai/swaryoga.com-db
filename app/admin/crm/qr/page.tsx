@@ -3758,12 +3758,16 @@ function QRWhatsAppInboxPageContent() {
                           >
                             {/* Media Content - Using unified InlineMediaPreview */}
                             {(() => {
-                              // Check for template header media
-                              const templateHeaderMedia = (msg as any).metadata?.template?.headerMedia?.url || 
-                                                          (msg as any).metadata?.template?.headerContent;
-                              const templateMediaKind = (msg as any).metadata?.template?.headerMedia?.kind || 'image';
-                              const templateButtons = (msg as any).metadata?.template?.buttons;
-                              const isTemplateMessage = !!(msg as any).metadata?.template;
+                              // Check for template header media - ONLY use URL-like values
+                              const templateMeta = (msg as any).metadata?.template;
+                              const headerMediaUrl = templateMeta?.headerMedia?.url;
+                              // Only use headerContent as image URL if it looks like a URL (starts with http)
+                              const headerContentAsUrl = templateMeta?.headerContent && 
+                                String(templateMeta.headerContent).startsWith('http') ? templateMeta.headerContent : null;
+                              const templateHeaderMedia = headerMediaUrl || headerContentAsUrl;
+                              const templateMediaKind = templateMeta?.headerMedia?.kind || 'image';
+                              const templateButtons = templateMeta?.buttons;
+                              const isTemplateMessage = !!templateMeta;
                               
                               // Use template media if available, otherwise fall back to regular media
                               const effectiveMediaUrl = templateHeaderMedia || resolvedMediaUrl;

@@ -553,8 +553,11 @@ export function InlineMediaPreview({
   const [expanded, setExpanded] = useState(false);
   const [imageError, setImageError] = useState(false);
   
-  // Don't render anything if no URL provided
-  if (!url || url.trim() === '') {
+  // Don't render anything if no URL provided or URL is not valid
+  // URL must start with http://, https://, data:, or blob:
+  if (!url || url.trim() === '' || 
+      (!url.startsWith('http://') && !url.startsWith('https://') && 
+       !url.startsWith('data:') && !url.startsWith('blob:'))) {
     return null;
   }
   

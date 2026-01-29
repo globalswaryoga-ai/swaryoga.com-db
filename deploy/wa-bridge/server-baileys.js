@@ -176,21 +176,36 @@ async function initializeClient() {
       }
       
       const remoteJid = msg.key.remoteJid || "";
+      const pushName = msg.pushName || "";
       
-      // Skip @lid (LinkedIn-linked accounts) - these can't be replied to reliably
-      if (remoteJid.includes("@lid")) {
-        console.log("⚠️ Skipping @lid message from:", remoteJid);
-        continue;
-      }
+      // Log raw message for debugging
+      console.log("📨 RAW incoming:", JSON.stringify({
+        remoteJid,
+        participant: msg.key.participant,
+        pushName,
+        messageKeys: Object.keys(msg.message || {})
+      }));
       
-      // Skip group messages (@g.us)
+      // Skip group messages (@g.us) - only skip groups, process @lid
       if (remoteJid.includes("@g.us")) {
         console.log("⚠️ Skipping group message from:", remoteJid);
         continue;
       }
       
-      const phone = remoteJid.replace("@s.whatsapp.net", "").replace("@c.us", "");
-      const pushName = msg.pushName || "";
+      // For @lid format, try to get real phone from participant or use the lid as identifier
+      let phone = "";
+      if (remoteJid.includes("@lid")) {
+        // Check if there's a participant with real phone
+        if (msg.key.participant) {
+          phone = msg.key.participant.replace("@s.whatsapp.net", "").replace("@c.us", "");
+        } else {
+          // Use lid as identifier - we'll still forward it
+          phone = remoteJid.replace("@lid", "");
+          console.log("⚠️ @lid message, using lid as phone:", phone);
+        }
+      } else {
+        phone = remoteJid.replace("@s.whatsapp.net", "").replace("@c.us", "");
+      }
       
       console.log("📨 Processing incoming from:", phone, "name:", pushName);
       
@@ -584,8 +599,7 @@ app.post("/send", authMiddleware, async (req, res) => {
 });
 
 // Template card with image and buttons (for 1-1 QR messaging)
-// NOTE: WhatsApp disabled classic buttons API for unofficial clients
-// Using interactive messages with sections/buttons instead
+// Trying multiple button methods - some work on certain WhatsApp versions
 app.post("/send-template", authMiddleware, async (req, res) => {
   if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
   
@@ -596,10 +610,79 @@ app.post("/send-template", authMiddleware, async (req, res) => {
     const jid = toJid(to);
     const messageIds = [];
 
-    // Method 1: Try interactive buttons (works on some versions)
+    // Method 1: Try legacy buttonsMessage (works on some older WhatsApp versions)
     if (buttons && buttons.length > 0 && buttons.length <= 3) {
       try {
-        // Baileys interactive button format
+        console.log("Trying Method 1: Legacy buttonsMessage");
+        const buttonRows = buttons.map((btn, idx) => ({
+          buttonId: `btn_${idx}`,
+          buttonText: { displayText: typeof btn === 'string' ? btn : (btn.text || btn.title || btn) },
+          type: 1
+        }));
+
+        let msg;
+        if (imageUrl) {
+          msg = {
+            image: { url: imageUrl },
+            caption: bodyText || "",
+            footer: footerText,
+            buttons: buttonRows,
+            headerType: 4
+          };
+        } else {
+          msg = {
+            text: bodyText || "",
+            footer: footerText,
+            buttons: buttonRows,
+            headerType: 1
+          };
+        }
+
+        const result = await sock.sendMessage(jid, msg);
+        if (result?.key?.id) {
+          messageIds.push(result.key.id);
+          console.log("✅ Legacy buttons sent to", jid);
+          return res.json({ success: true, messageIds, method: "legacy_buttons" });
+        }
+      } catch (legacyErr) {
+        console.log("Legacy buttons failed:", legacyErr.message);
+      }
+
+      // Method 2: Try templateMessage format
+      try {
+        console.log("Trying Method 2: templateMessage");
+        const hydratedButtons = buttons.map((btn, idx) => ({
+          index: idx + 1,
+          quickReplyButton: {
+            displayText: typeof btn === 'string' ? btn : (btn.text || btn.title || btn),
+            id: `btn_${idx}`
+          }
+        }));
+
+        const templateMsg = {
+          templateMessage: {
+            hydratedTemplate: {
+              hydratedContentText: bodyText || "",
+              hydratedFooterText: footerText,
+              hydratedButtons: hydratedButtons,
+              ...(imageUrl && { imageMessage: { url: imageUrl } })
+            }
+          }
+        };
+
+        const result = await sock.sendMessage(jid, templateMsg);
+        if (result?.key?.id) {
+          messageIds.push(result.key.id);
+          console.log("✅ Template message sent to", jid);
+          return res.json({ success: true, messageIds, method: "template_message" });
+        }
+      } catch (templateErr) {
+        console.log("Template message failed:", templateErr.message);
+      }
+
+      // Method 3: Try interactive nativeFlow
+      try {
+        console.log("Trying Method 3: Interactive nativeFlow");
         const interactiveButtons = buttons.map((btn, idx) => {
           const text = typeof btn === 'string' ? btn : (btn.text || btn.title || btn);
           return {
@@ -630,8 +713,8 @@ app.post("/send-template", authMiddleware, async (req, res) => {
         const result = await sock.sendMessage(jid, interactiveMsg);
         if (result?.key?.id) {
           messageIds.push(result.key.id);
-          console.log("Interactive template sent to", jid);
-          return res.json({ success: true, messageIds, method: "interactive" });
+          console.log("✅ Interactive nativeFlow sent to", jid);
+          return res.json({ success: true, messageIds, method: "interactive_nativeflow" });
         }
       } catch (interactiveErr) {
         console.log("Interactive buttons failed, trying fallback:", interactiveErr.message);
