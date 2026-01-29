@@ -16,6 +16,35 @@ interface WhatsAppTemplate {
   createdAt?: string;
 }
 
+interface QuickMessage {
+  id: string;
+  text: string;
+  imageUrl?: string;
+  buttons?: string[];
+  delayMinutes?: number;
+}
+
+interface AutoAssignRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  keywords?: string[];
+  assignTo: string;
+}
+
+interface FormTemplate {
+  id: string;
+  name: string;
+  url: string;
+  description?: string;
+}
+
+interface AdminUser {
+  _id: string;
+  userId: string;
+  name: string;
+}
+
 interface ChatbotConfig {
   enabled: boolean;
   welcomeMessage: string;
@@ -38,6 +67,19 @@ interface ChatbotConfig {
   aiModel: string;
   aiSystemPrompt: string;
   maxAiTokens: number;
+  // NEW: Quick Messages with Image + Buttons
+  quickMessages: QuickMessage[];
+  // NEW: Auto Assign
+  autoAssignEnabled: boolean;
+  autoAssignRules: AutoAssignRule[];
+  defaultAssignee: string;
+  // NEW: Forms
+  formTemplates: FormTemplate[];
+  // NEW: Auto Close
+  autoCloseEnabled: boolean;
+  autoCloseMinutes: number;
+  autoCloseMessage: string;
+  autoCloseExcludeLabels: string[];
 }
 
 const defaultConfig: ChatbotConfig = {
@@ -63,6 +105,23 @@ const defaultConfig: ChatbotConfig = {
   aiModel: 'gpt-3.5-turbo',
   aiSystemPrompt: 'You are a helpful assistant for Swar Yoga, a yoga and pranayama center. Be friendly, concise, and helpful. Answer questions about yoga, breathing techniques, and our services.',
   maxAiTokens: 150,
+  // NEW defaults
+  quickMessages: [
+    { id: '1', text: 'Hello! How can I help you today?' },
+    { id: '2', text: 'Thank you for your interest in Swar Yoga.' },
+    { id: '3', text: 'Our next workshop is scheduled soon. Would you like details?' },
+  ],
+  autoAssignEnabled: true,
+  autoAssignRules: [],
+  defaultAssignee: '',
+  formTemplates: [
+    { id: '1', name: 'Workshop Registration', url: 'https://swaryoga.com/register', description: 'Register for upcoming workshops' },
+    { id: '2', name: 'Feedback Form', url: 'https://swaryoga.com/feedback', description: 'Share your experience' },
+  ],
+  autoCloseEnabled: false,
+  autoCloseMinutes: 1440, // 24 hours
+  autoCloseMessage: 'This chat has been closed due to inactivity. Feel free to message us again anytime! 🙏',
+  autoCloseExcludeLabels: ['VIP', 'Priority'],
 };
 
 export default function ChatbotPage() {
@@ -72,10 +131,17 @@ export default function ChatbotPage() {
   const [config, setConfig] = useState<ChatbotConfig>(defaultConfig);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'general' | 'keywords' | 'templates' | 'ai' | 'hours'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'keywords' | 'templates' | 'messages' | 'assign' | 'forms' | 'autoclose' | 'ai' | 'hours'>('general');
   const [newKeyword, setNewKeyword] = useState({ keyword: '', response: '', action: 'reply' as const, templateName: '' });
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+
+  // Quick Message Composer State
+  const [qmText, setQmText] = useState('');
+  const [qmImageUrl, setQmImageUrl] = useState('');
+  const [qmButtons, setQmButtons] = useState<string[]>(['']);
+  const [qmDelay, setQmDelay] = useState(0);
 
   // Get token
   const getToken = () => {
@@ -100,6 +166,24 @@ export default function ChatbotPage() {
       console.error('Failed to load templates:', err);
     } finally {
       setLoadingTemplates(false);
+    }
+  };
+
+  // Load admin users
+  const fetchAdminUsers = async () => {
+    const token = getToken();
+    if (!token) return;
+
+    try {
+      const res = await fetch('/api/admin/users', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminUsers(data?.users || data?.data?.users || []);
+      }
+    } catch (err) {
+      console.error('Failed to load admin users:', err);
     }
   };
 
@@ -132,6 +216,7 @@ export default function ChatbotPage() {
 
     fetchConfig();
     fetchTemplates();
+    fetchAdminUsers();
   }, [router]);
 
   // Save config
@@ -267,11 +352,15 @@ export default function ChatbotPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto">
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
           {[
             { id: 'general', label: '⚙️ General', icon: '⚙️' },
             { id: 'keywords', label: '🔑 Keywords', icon: '🔑' },
             { id: 'templates', label: '📋 Templates', icon: '📋' },
+            { id: 'messages', label: '💬 Messages+Buttons', icon: '💬' },
+            { id: 'assign', label: '👥 Auto Assign', icon: '👥' },
+            { id: 'forms', label: '📝 Forms', icon: '📝' },
+            { id: 'autoclose', label: '🔒 Auto Close', icon: '🔒' },
             { id: 'ai', label: '🧠 AI Settings', icon: '🧠' },
             { id: 'hours', label: '🕐 Working Hours', icon: '🕐' },
           ].map((tab) => (
@@ -553,6 +642,507 @@ export default function ChatbotPage() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Messages + Buttons Tab (NEW) */}
+          {activeTab === 'messages' && (
+            <div className="space-y-6">
+              {/* Message Composer */}
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-white mb-4">📝 Create Quick Message with Image & Buttons</h3>
+                
+                {/* Image URL */}
+                <div className="mb-4">
+                  <label className="block text-white font-medium mb-2">🖼️ Image URL (optional)</label>
+                  <input
+                    type="url"
+                    value={qmImageUrl}
+                    onChange={(e) => setQmImageUrl(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    className="w-full bg-slate-600 border border-slate-500 rounded-lg px-4 py-2 text-white placeholder-slate-400"
+                  />
+                </div>
+
+                {/* Message Text */}
+                <div className="mb-4">
+                  <label className="block text-white font-medium mb-2">💬 Message Text *</label>
+                  <textarea
+                    value={qmText}
+                    onChange={(e) => setQmText(e.target.value)}
+                    rows={3}
+                    placeholder="Enter your message... Use *bold*, _italic_ for formatting"
+                    className="w-full bg-slate-600 border border-slate-500 rounded-lg px-4 py-3 text-white placeholder-slate-400"
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div className="mb-4">
+                  <label className="block text-white font-medium mb-2">🔘 Quick Reply Buttons (max 3)</label>
+                  <div className="space-y-2">
+                    {qmButtons.map((btn, i) => (
+                      <div key={i} className="flex gap-2">
+                        <input
+                          type="text"
+                          value={btn}
+                          onChange={(e) => {
+                            const newBtns = [...qmButtons];
+                            newBtns[i] = e.target.value;
+                            setQmButtons(newBtns);
+                          }}
+                          maxLength={20}
+                          placeholder={`Button ${i + 1}`}
+                          className="flex-1 bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white placeholder-slate-400"
+                        />
+                        {qmButtons.length > 1 && (
+                          <button
+                            onClick={() => setQmButtons(prev => prev.filter((_, idx) => idx !== i))}
+                            className="px-3 py-2 text-red-400 hover:bg-red-900/30 rounded-lg"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {qmButtons.length < 3 && (
+                      <button
+                        onClick={() => setQmButtons(prev => [...prev, ''])}
+                        className="text-sm text-purple-300 hover:text-purple-200"
+                      >
+                        + Add button
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Timer/Delay */}
+                <div className="mb-4">
+                  <label className="block text-white font-medium mb-2">⏱️ Send Delay (optional)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={qmDelay}
+                      onChange={(e) => setQmDelay(Number(e.target.value))}
+                      min={0}
+                      max={1440}
+                      className="w-24 bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white"
+                    />
+                    <span className="text-purple-200">minutes</span>
+                    <span className="text-xs text-slate-400">(0 = send immediately)</span>
+                  </div>
+                </div>
+
+                {/* Preview & Add */}
+                <div className="flex gap-3 pt-4 border-t border-slate-600">
+                  <button
+                    onClick={() => {
+                      if (!qmText.trim()) return;
+                      const newMsg: QuickMessage = {
+                        id: Date.now().toString(),
+                        text: qmText,
+                        imageUrl: qmImageUrl || undefined,
+                        buttons: qmButtons.filter(b => b.trim()),
+                        delayMinutes: qmDelay || undefined,
+                      };
+                      setConfig(prev => ({
+                        ...prev,
+                        quickMessages: [...(prev.quickMessages || []), newMsg],
+                      }));
+                      setQmText('');
+                      setQmImageUrl('');
+                      setQmButtons(['']);
+                      setQmDelay(0);
+                    }}
+                    disabled={!qmText.trim()}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white rounded-lg font-medium"
+                  >
+                    ➕ Add Quick Message
+                  </button>
+                </div>
+
+                {/* Preview */}
+                {qmText && (
+                  <div className="mt-4 p-4 bg-[#0d1418] rounded-lg">
+                    <p className="text-xs text-purple-300 mb-2">Preview:</p>
+                    <div className="max-w-xs bg-slate-700 rounded-lg overflow-hidden">
+                      {qmImageUrl && (
+                        <img src={qmImageUrl} alt="" className="w-full h-24 object-cover" />
+                      )}
+                      <div className="p-3">
+                        <p className="text-white text-sm whitespace-pre-wrap">{qmText}</p>
+                        <p className="text-xs text-slate-400 text-right mt-1">
+                          {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      {qmButtons.filter(b => b.trim()).length > 0 && (
+                        <div className="border-t border-slate-600">
+                          {qmButtons.filter(b => b.trim()).map((btn, i) => (
+                            <div key={i} className="p-2 text-center text-blue-400 text-sm border-b border-slate-600 last:border-0">
+                              {btn}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {qmDelay > 0 && (
+                      <p className="text-xs text-amber-300 mt-2">⏱️ Will be sent after {qmDelay} minute(s)</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Saved Quick Messages */}
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-4">Saved Quick Messages ({config.quickMessages?.length || 0})</h3>
+                {!config.quickMessages || config.quickMessages.length === 0 ? (
+                  <p className="text-center text-purple-300 py-4">No quick messages saved yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {config.quickMessages.map(msg => (
+                      <div key={msg.id} className="flex items-start gap-3 bg-slate-700/50 rounded-lg p-3">
+                        <div className="flex-1">
+                          <p className="text-white text-sm">{msg.text}</p>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {msg.imageUrl && (
+                              <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">📷 Image</span>
+                            )}
+                            {msg.buttons && msg.buttons.length > 0 && (
+                              <span className="text-xs bg-green-900/50 text-green-300 px-2 py-0.5 rounded">🔘 {msg.buttons.length} btn</span>
+                            )}
+                            {msg.delayMinutes && (
+                              <span className="text-xs bg-amber-900/50 text-amber-300 px-2 py-0.5 rounded">⏱️ {msg.delayMinutes}m</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            quickMessages: prev.quickMessages?.filter(m => m.id !== msg.id) || [],
+                          }))}
+                          className="text-red-400 hover:text-red-300 p-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Auto Assign Tab (NEW) */}
+          {activeTab === 'assign' && (
+            <div className="space-y-6">
+              {/* Enable Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+                <div>
+                  <h3 className="text-white font-medium">Auto-Assign New Leads</h3>
+                  <p className="text-purple-200 text-sm">Automatically assign incoming leads to admin users</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.autoAssignEnabled}
+                    onChange={(e) => setConfig({ ...config, autoAssignEnabled: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
+              </div>
+
+              {config.autoAssignEnabled && (
+                <>
+                  {/* Default Assignee */}
+                  <div>
+                    <label className="block text-white font-medium mb-2">Default Assignee</label>
+                    <select
+                      value={config.defaultAssignee}
+                      onChange={(e) => setConfig({ ...config, defaultAssignee: e.target.value })}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white"
+                    >
+                      <option value="">-- Select Admin User --</option>
+                      {adminUsers.map(u => (
+                        <option key={u._id} value={u.userId}>{u.name} ({u.userId})</option>
+                      ))}
+                    </select>
+                    <p className="text-purple-300 text-sm mt-1">New leads will be assigned to this user when no rules match</p>
+                  </div>
+
+                  {/* Rules */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-white font-medium">Assignment Rules</h4>
+                      <button
+                        onClick={() => {
+                          const newRule: AutoAssignRule = {
+                            id: Date.now().toString(),
+                            name: `Rule ${(config.autoAssignRules?.length || 0) + 1}`,
+                            enabled: true,
+                            keywords: [],
+                            assignTo: config.defaultAssignee || adminUsers[0]?.userId || '',
+                          };
+                          setConfig(prev => ({
+                            ...prev,
+                            autoAssignRules: [...(prev.autoAssignRules || []), newRule],
+                          }));
+                        }}
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm"
+                      >
+                        ➕ Add Rule
+                      </button>
+                    </div>
+                    
+                    {!config.autoAssignRules || config.autoAssignRules.length === 0 ? (
+                      <p className="text-center text-purple-300 py-4">No rules defined. All leads will go to default assignee.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {config.autoAssignRules.map((rule, idx) => (
+                          <div key={rule.id} className="bg-slate-700/50 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <input
+                                type="text"
+                                value={rule.name}
+                                onChange={(e) => {
+                                  const updated = [...config.autoAssignRules];
+                                  updated[idx].name = e.target.value;
+                                  setConfig(prev => ({ ...prev, autoAssignRules: updated }));
+                                }}
+                                className="bg-transparent text-white font-medium border-b border-transparent hover:border-slate-500 focus:border-purple-500 outline-none"
+                              />
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-1 text-sm text-purple-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={rule.enabled}
+                                    onChange={(e) => {
+                                      const updated = [...config.autoAssignRules];
+                                      updated[idx].enabled = e.target.checked;
+                                      setConfig(prev => ({ ...prev, autoAssignRules: updated }));
+                                    }}
+                                    className="w-4 h-4 rounded"
+                                  />
+                                  Active
+                                </label>
+                                <button
+                                  onClick={() => setConfig(prev => ({
+                                    ...prev,
+                                    autoAssignRules: prev.autoAssignRules.filter(r => r.id !== rule.id),
+                                  }))}
+                                  className="text-red-400 hover:text-red-300 p-1"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-xs text-purple-300 block mb-1">Assign To</label>
+                                <select
+                                  value={rule.assignTo}
+                                  onChange={(e) => {
+                                    const updated = [...config.autoAssignRules];
+                                    updated[idx].assignTo = e.target.value;
+                                    setConfig(prev => ({ ...prev, autoAssignRules: updated }));
+                                  }}
+                                  className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white text-sm"
+                                >
+                                  {adminUsers.map(u => (
+                                    <option key={u._id} value={u.userId}>{u.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-xs text-purple-300 block mb-1">Keywords (comma-separated)</label>
+                                <input
+                                  type="text"
+                                  value={(rule.keywords || []).join(', ')}
+                                  onChange={(e) => {
+                                    const updated = [...config.autoAssignRules];
+                                    updated[idx].keywords = e.target.value.split(',').map(k => k.trim()).filter(Boolean);
+                                    setConfig(prev => ({ ...prev, autoAssignRules: updated }));
+                                  }}
+                                  placeholder="workshop, yoga, health"
+                                  className="w-full bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white text-sm placeholder-slate-400"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Forms Tab (NEW) */}
+          {activeTab === 'forms' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">📝 Form Templates for WhatsApp</h3>
+                <p className="text-purple-200 text-sm mb-4">Send form links to collect lead information</p>
+
+                {/* Existing Forms */}
+                <div className="space-y-3 mb-6">
+                  {(config.formTemplates || []).map((form, idx) => (
+                    <div key={form.id} className="bg-slate-700/50 rounded-lg p-4 flex items-start justify-between">
+                      <div>
+                        <h4 className="text-white font-medium">{form.name}</h4>
+                        {form.description && <p className="text-purple-200 text-sm">{form.description}</p>}
+                        <a href={form.url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-400 hover:underline">
+                          {form.url}
+                        </a>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const msg = `Please fill out this form: ${form.url}`;
+                            navigator.clipboard.writeText(msg);
+                            setMessage('✅ Form link copied!');
+                            setTimeout(() => setMessage(''), 2000);
+                          }}
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm"
+                        >
+                          📋 Copy
+                        </button>
+                        <button
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            formTemplates: prev.formTemplates.filter(f => f.id !== form.id),
+                          }))}
+                          className="px-3 py-1.5 text-red-400 hover:bg-red-900/30 rounded-lg text-sm"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add New Form */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <h4 className="text-white font-medium mb-3">Add New Form</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <input
+                      type="text"
+                      id="newFormName"
+                      placeholder="Form Name"
+                      className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white placeholder-slate-400"
+                    />
+                    <input
+                      type="url"
+                      id="newFormUrl"
+                      placeholder="Form URL"
+                      className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white placeholder-slate-400"
+                    />
+                    <input
+                      type="text"
+                      id="newFormDesc"
+                      placeholder="Description (optional)"
+                      className="bg-slate-600 border border-slate-500 rounded-lg px-3 py-2 text-white placeholder-slate-400"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      const nameEl = document.getElementById('newFormName') as HTMLInputElement;
+                      const urlEl = document.getElementById('newFormUrl') as HTMLInputElement;
+                      const descEl = document.getElementById('newFormDesc') as HTMLInputElement;
+                      if (!nameEl.value || !urlEl.value) return;
+                      
+                      const newForm: FormTemplate = {
+                        id: Date.now().toString(),
+                        name: nameEl.value,
+                        url: urlEl.value,
+                        description: descEl.value || undefined,
+                      };
+                      setConfig(prev => ({
+                        ...prev,
+                        formTemplates: [...(prev.formTemplates || []), newForm],
+                      }));
+                      nameEl.value = '';
+                      urlEl.value = '';
+                      descEl.value = '';
+                    }}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg"
+                  >
+                    ➕ Add Form
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Auto Close Tab (NEW) */}
+          {activeTab === 'autoclose' && (
+            <div className="space-y-6">
+              {/* Enable Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+                <div>
+                  <h3 className="text-white font-medium">Auto-Close Inactive Chats</h3>
+                  <p className="text-purple-200 text-sm">Automatically close conversations after inactivity</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.autoCloseEnabled}
+                    onChange={(e) => setConfig({ ...config, autoCloseEnabled: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                </label>
+              </div>
+
+              {config.autoCloseEnabled && (
+                <>
+                  {/* Inactivity Duration */}
+                  <div>
+                    <label className="block text-white font-medium mb-2">Close after inactivity of</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={config.autoCloseMinutes}
+                        onChange={(e) => setConfig({ ...config, autoCloseMinutes: Number(e.target.value) })}
+                        min={60}
+                        max={10080}
+                        className="w-24 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white"
+                      />
+                      <span className="text-purple-200">minutes</span>
+                      <span className="text-sm text-slate-400">({Math.floor((config.autoCloseMinutes || 1440) / 60)} hours)</span>
+                    </div>
+                  </div>
+
+                  {/* Close Message */}
+                  <div>
+                    <label className="block text-white font-medium mb-2">Closing Message</label>
+                    <textarea
+                      value={config.autoCloseMessage}
+                      onChange={(e) => setConfig({ ...config, autoCloseMessage: e.target.value })}
+                      rows={2}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400"
+                      placeholder="Message sent when chat is closed..."
+                    />
+                    <p className="text-purple-300 text-sm mt-1">Leave empty to close silently without sending a message</p>
+                  </div>
+
+                  {/* Exclude Labels */}
+                  <div>
+                    <label className="block text-white font-medium mb-2">Exclude Labels</label>
+                    <input
+                      type="text"
+                      value={(config.autoCloseExcludeLabels || []).join(', ')}
+                      onChange={(e) => setConfig({
+                        ...config,
+                        autoCloseExcludeLabels: e.target.value.split(',').map(l => l.trim()).filter(Boolean)
+                      })}
+                      placeholder="VIP, Priority, Active"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400"
+                    />
+                    <p className="text-purple-300 text-sm mt-1">Leads with these labels won't be auto-closed</p>
+                  </div>
+                </>
               )}
             </div>
           )}

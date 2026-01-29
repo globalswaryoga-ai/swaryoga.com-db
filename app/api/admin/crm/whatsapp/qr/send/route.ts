@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    let { to, message, type, url, buttons, caption, leadId } = body;
+    let { to, message, type, url, buttons, caption, leadId, templateData } = body;
     const viewerUserId = getViewerUserId(decoded);
     const superAdmin = decoded.userId === 'admincrm' || decoded.userId === 'admin';
     // Super admin shows as "Swar Yoga", others show their username
@@ -142,20 +142,38 @@ export async function POST(req: NextRequest) {
       // For media without caption, use a descriptive placeholder
       const mediaLabel = type === 'image' ? '📷 Image' : type === 'video' ? '🎬 Video' : type === 'audio' ? '🎵 Audio' : type === 'document' ? '📄 Document' : '📎 Media';
       const contentToStore = message || caption || (url ? mediaLabel : 'Message');
+      
+      // Determine messageType for DB storage
+      const dbMessageType = templateData ? 'template' : (type === 'buttons' ? 'interactive' : (type === 'text' ? 'text' : 'media'));
+      // Map 'media' to 'image' for bridge compatibility
+      const bridgeMediaType = (type === 'media' || type === 'image') ? 'image' : type;
+
+      console.log(`[QR SEND] Saving message: type=${type}, bridgeType=${bridgeMediaType}, messageType=${dbMessageType}`);
 
       const savedMessage = await WhatsAppMessage.create({
         phoneNumber: phone || 'unknown',
         leadId: lead?._id || leadId,
         direction: 'outbound',
         messageContent: contentToStore,
-        messageType: type === 'buttons' ? 'interactive' : (type === 'text' ? 'text' : 'media'),
-        media: url ? { kind: type, url: url } : undefined,
+        messageType: dbMessageType,
+        media: url ? { kind: bridgeMediaType, url: url } : undefined,
         status: 'pending', // Mark as pending initially
         sentByLabel: adminName,
         sentByUserId: viewerUserId,
         senderDisplayName: adminName,
         provider: 'whatsapp_web_bridge',
-        sentAt: new Date()
+        sentAt: new Date(),
+        // Store template metadata for inbox preview
+        metadata: templateData ? {
+          template: {
+            templateName: templateData.templateName,
+            headerFormat: templateData.headerFormat,
+            headerContent: templateData.headerContent,
+            headerMedia: templateData.headerMedia,
+            footerText: templateData.footerText,
+            buttons: templateData.buttons,
+          }
+        } : undefined
       });
       savedDbMessageId = savedMessage._id.toString();
       console.log(`[QR SEND] 💾 Initial log saved to DB: ${savedDbMessageId}`);
@@ -174,18 +192,59 @@ export async function POST(req: NextRequest) {
         console.log('[QR SEND] Converted URL to signed:', signedUrl?.substring(0, 80));
       }
       
-      const bridgeRes = await fetch(`${BRIDGE_URL}/send`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-bridge-secret': BRIDGE_SECRET
-        },
-        body: JSON.stringify({ to, message: finalMessage, type, url: signedUrl, buttons, caption: finalCaption }),
-        signal: AbortSignal.timeout(10000) // 10s timeout for bridge call
-      });
+      // Use /send-template endpoint for templates (supports image + blue buttons)
+      if (templateData && (templateData.headerMedia || templateData.buttons?.length > 0)) {
+        console.log('[QR SEND] Using /send-template for bundled template with buttons');
+        
+        // Extract button texts
+        const buttonTexts = templateData.buttons?.map((b: any) => 
+          typeof b === 'string' ? b : (b.text || b.title || b.payload)
+        ).filter(Boolean) || [];
+        
+        const bridgeRes = await fetch(`${BRIDGE_URL}/send-template`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-bridge-secret': BRIDGE_SECRET
+          },
+          body: JSON.stringify({ 
+            to,
+            imageUrl: signedUrl,
+            bodyText: message || caption,  // Body text (will be image caption)
+            buttons: buttonTexts,
+            footerText: templateData.footerText || 'Swar Yoga'
+          }),
+          signal: AbortSignal.timeout(15000) // 15s timeout for template (sends 2 messages)
+        });
 
-      bridgeData = await bridgeRes.json();
-      bridgeOk = bridgeRes.ok;
+        bridgeData = await bridgeRes.json();
+        bridgeOk = bridgeRes.ok;
+      } else {
+        // Regular message (text/image without buttons)
+        // Map 'media' type to 'image' for bridge compatibility
+        const bridgeSendType = (type === 'media') ? 'image' : type;
+        console.log(`[QR SEND] Calling bridge /send with type=${bridgeSendType}`);
+        
+        const bridgeRes = await fetch(`${BRIDGE_URL}/send`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-bridge-secret': BRIDGE_SECRET
+          },
+          body: JSON.stringify({ 
+            to, 
+            message: finalMessage, 
+            type: bridgeSendType,
+            url: signedUrl, 
+            buttons, 
+            caption: finalCaption 
+          }),
+          signal: AbortSignal.timeout(10000)
+        });
+
+        bridgeData = await bridgeRes.json();
+        bridgeOk = bridgeRes.ok;
+      }
     } catch (fetchErr: any) {
       console.error('[QR SEND BRIDGE FETCH ERROR]:', fetchErr.message);
       return NextResponse.json({ 

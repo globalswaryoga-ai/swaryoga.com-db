@@ -1649,19 +1649,28 @@ export default function MetaInboxPage() {
                         }`}>
                           {/* Media Rendering - Using unified InlineMediaPreview component */}
                           {(() => {
-                            // Check for media in various places
-                            const rawMediaUrl = msg.media?.url || (msg as any).metadata?.mediaUrl || (msg as any).mediaUrl;
-                            const mediaKind = msg.media?.kind || (msg as any).metadata?.mediaKind || 'image';
+                            // Check for media in various places including template header media
+                            const templateHeaderMedia = (msg as any).metadata?.template?.headerMedia?.url || 
+                                                        (msg as any).metadata?.template?.headerContent;
+                            const rawMediaUrl = msg.media?.url || 
+                                                (msg as any).metadata?.mediaUrl || 
+                                                (msg as any).mediaUrl ||
+                                                templateHeaderMedia;
+                            const templateMediaKind = (msg as any).metadata?.template?.headerMedia?.kind || 
+                                                      ((msg as any).metadata?.template?.headerFormat === 'IMAGE' ? 'image' : 
+                                                       (msg as any).metadata?.template?.headerFormat === 'VIDEO' ? 'video' : null);
+                            const mediaKind = msg.media?.kind || (msg as any).metadata?.mediaKind || templateMediaKind || 'image';
                             
                             // Proxy S3 URLs through our API to handle bucket access restrictions
                             const mediaUrl = rawMediaUrl ? getProxiedMediaUrl(rawMediaUrl, token) : null;
                             
                             // Debug: Log media info for troubleshooting
-                            if (msg.messageType === 'media' || msg.media) {
+                            if (msg.messageType === 'media' || msg.media || msg.messageType === 'template') {
                               console.log('[Meta Media Debug]', {
                                 msgId: msg._id,
                                 messageType: msg.messageType,
                                 hasMedia: !!msg.media,
+                                hasTemplateMedia: !!templateHeaderMedia,
                                 rawUrl: rawMediaUrl ? rawMediaUrl.substring(0, 50) + '...' : 'EMPTY',
                                 proxiedUrl: mediaUrl ? (mediaUrl.startsWith('/api') ? 'PROXIED' : 'DIRECT') : 'NONE',
                                 mediaKind,
@@ -1762,6 +1771,25 @@ export default function MetaInboxPage() {
                             return (
                               <div className="space-y-1">
                                 {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
+                              </div>
+                            );
+                          })()}
+                          
+                          {/* Template Buttons Rendering */}
+                          {(() => {
+                            const templateButtons = (msg as any).metadata?.template?.buttons;
+                            if (!Array.isArray(templateButtons) || templateButtons.length === 0) return null;
+                            
+                            return (
+                              <div className="mt-2 -mx-4 -mb-2.5 border-t border-gray-200/50">
+                                {templateButtons.map((btn: any, idx: number) => (
+                                  <div 
+                                    key={idx} 
+                                    className="px-4 py-2.5 text-center text-[#00a884] font-medium text-sm border-b border-gray-200/50 last:border-b-0 hover:bg-gray-50/50"
+                                  >
+                                    {btn.title || btn.text || 'Button'}
+                                  </div>
+                                ))}
                               </div>
                             );
                           })()}
@@ -2269,9 +2297,42 @@ export default function MetaInboxPage() {
                         {actionModal.type === 'template' ? (
                           <TemplateSelector
                             token={token}
-                            onSelect={(template: WhatsAppTemplate) => {
-                              setComposerText(template.templateContent || '');
-                              closeActionModal();
+                            onSelect={async (template: WhatsAppTemplate) => {
+                              // Send template via API with image and buttons
+                              if (!selected?.phoneNumber) {
+                                alert('No phone number selected');
+                                return;
+                              }
+                              
+                              try {
+                                setSending(true);
+                                const res = await fetch('/api/admin/crm/whatsapp/send-template', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`,
+                                  },
+                                  body: JSON.stringify({
+                                    phoneNumber: selected.phoneNumber,
+                                    templateId: template._id, // Use _id as templateId
+                                    leadId: selected.leadId || selected._id,
+                                  }),
+                                });
+                                
+                                const data = await res.json();
+                                if (data.success) {
+                                  // Refresh messages to show the sent template
+                                  loadMessages(selected.leadId || selected._id || selected.phoneNumber);
+                                  closeActionModal();
+                                } else {
+                                  alert(data.error || 'Failed to send template');
+                                }
+                              } catch (err) {
+                                console.error('Error sending template:', err);
+                                alert('Failed to send template');
+                              } finally {
+                                setSending(false);
+                              }
                             }}
                             onClose={closeActionModal}
                             showSearch={true}

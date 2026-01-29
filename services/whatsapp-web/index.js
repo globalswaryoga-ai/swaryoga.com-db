@@ -894,6 +894,91 @@ app.post('/send', authenticate, async (req, res) => {
   }
 });
 
+// NEW ENDPOINT: Send template with image + blue buttons
+// Sends image with body as caption, then sends interactive buttons
+app.post('/send-template', authenticate, async (req, res) => {
+  const { to, imageUrl, bodyText, buttons, footerText } = req.body;
+  console.log(`📩 TEMPLATE SEND: to=${to}, hasImage=${!!imageUrl}, buttons=${buttons?.length || 0}`);
+  
+  if (!to) {
+    return res.status(400).json({ error: 'Missing recipient (to)' });
+  }
+
+  if (!client) {
+    console.error('❌ Client is null, returning 503');
+    return res.status(503).json({ error: 'Client uninitialized, restart in progress' });
+  }
+
+  if (clientStatus !== 'connected' && clientStatus !== 'authenticated') {
+    console.warn(`⚠️  Client status is ${clientStatus}, cannot send`);
+    return res.status(503).json({ error: `Client not ready (status: ${clientStatus})` });
+  }
+
+  try {
+    const formattedTo = to.includes('@') ? to : `${to}@c.us`;
+    console.log(`📩 Sending template to: ${formattedTo}`);
+    
+    const messageIds = [];
+    
+    // Step 1: Send image with body text as caption (if image exists)
+    if (imageUrl) {
+      try {
+        console.log(`📷 Sending image: ${imageUrl.substring(0, 60)}...`);
+        const media = await MessageMedia.fromUrl(imageUrl, { unsafe: true });
+        const imgResponse = await client.sendMessage(formattedTo, media, { 
+          caption: bodyText || ''
+        });
+        console.log('✅ Image sent:', imgResponse.id._serialized);
+        messageIds.push(imgResponse.id._serialized);
+      } catch (imgErr) {
+        console.error('❌ Image send failed:', imgErr.message);
+        return res.status(500).json({ error: 'Failed to send image: ' + imgErr.message });
+      }
+    } else if (bodyText) {
+      // No image, send body as text
+      const textResponse = await client.sendMessage(formattedTo, bodyText);
+      console.log('✅ Text sent:', textResponse.id._serialized);
+      messageIds.push(textResponse.id._serialized);
+    }
+    
+    // Step 2: Send interactive buttons (if provided)
+    if (buttons && buttons.length > 0) {
+      try {
+        // Small delay to ensure proper ordering
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        console.log(`🔘 Sending ${buttons.length} buttons:`, buttons);
+        const buttonList = buttons.map(b => ({ body: typeof b === 'string' ? b : b.text }));
+        const buttonMessage = new Buttons(
+          'Please select an option:',  // Body text for button message
+          buttonList,
+          footerText || 'Swar Yoga',   // Title
+          'Tap to select'              // Footer
+        );
+        
+        const btnResponse = await client.sendMessage(formattedTo, buttonMessage);
+        console.log('✅ Buttons sent:', btnResponse.id._serialized);
+        messageIds.push(btnResponse.id._serialized);
+      } catch (btnErr) {
+        console.error('⚠️ Buttons send failed (may be deprecated):', btnErr.message);
+        // Don't fail the whole request - image was sent successfully
+        // Buttons may be deprecated by WhatsApp
+      }
+    }
+    
+    console.log('📩 Template send complete, messageIds:', messageIds);
+    res.json({ 
+      success: true, 
+      messageId: messageIds[0],  // Primary message ID (image)
+      allMessageIds: messageIds 
+    });
+    
+  } catch (err) {
+    console.error('❌ TEMPLATE SEND ERROR:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/messages/presence', authenticate, async (req, res) => {
   const { phone, type } = req.body;
   if (!phone || !type) return res.status(400).json({ error: 'Missing phone or type' });

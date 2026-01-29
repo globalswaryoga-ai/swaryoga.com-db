@@ -1595,17 +1595,33 @@ function QRWhatsAppInboxPageContent() {
         setNewMessage(''); // Caption was sent
         showToast(`✅ ${pendingMedia.length} file(s) sent successfully`, 'success');
       } else if (selectedTemplate) {
-        // 2. Send Template via Meta Cloud API (with image + button)
-        console.log('[sendMessage] Sending template via Meta:', selectedTemplate.templateName);
+        // 2. Send Template via QR Bridge (with image + text + buttons as text)
+        console.log('[sendMessage] Sending template via QR Bridge:', selectedTemplate.templateName);
         console.log('[sendMessage] Template has media:', !!templateMediaUrl);
+        
+        // Build the full message with buttons as text options
+        let fullMessage = newMessage || selectedTemplate.templateContent || '';
+        
+        // Add buttons as numbered text options at the end
+        if (Array.isArray(selectedTemplate.buttons) && selectedTemplate.buttons.length > 0) {
+          const buttonText = selectedTemplate.buttons
+            .map((btn: any, idx: number) => `${idx + 1}. ${btn.title || btn.text || 'Option'}`)
+            .join('\n');
+          fullMessage = fullMessage.trim() + '\n\n' + buttonText;
+        }
+        
+        // Add footer if exists
+        if (selectedTemplate.footerText) {
+          fullMessage = fullMessage.trim() + '\n\n' + selectedTemplate.footerText;
+        }
         
         // Add optimistic UI showing template card
         const optimisticMessage = {
           id: `opt-${Date.now()}`,
           fromMe: true,
           timestamp: new Date(),
-          type: 'template',
-          body: newMessage,
+          type: templateMediaUrl ? 'image' : 'text',
+          body: fullMessage,
           status: 'pending',
           mediaUrl: templateMediaUrl,
           templateName: selectedTemplate.templateName
@@ -1614,52 +1630,100 @@ function QRWhatsAppInboxPageContent() {
         
         const phoneNumber = chatId.replace(/@.*$/, '').replace(/\D/g, '');
         let sendSuccess = false;
-        let sentVia = '';
         let errorMessage = '';
         
-        // Get template ID - handle both _id and id formats
-        const templateId = String(selectedTemplate._id || selectedTemplate.id || '');
-        console.log('[sendMessage] Template ID:', templateId, 'Phone:', phoneNumber);
+        // Prepare template metadata for inbox display
+        const templateMetadata = {
+          templateName: selectedTemplate.templateName,
+          headerFormat: selectedTemplate.headerFormat || (templateMediaUrl ? 'IMAGE' : 'TEXT'),
+          headerContent: templateMediaUrl || selectedTemplate.headerContent,
+          headerMedia: templateMediaUrl ? { kind: 'image', url: templateMediaUrl } : null,
+          footerText: selectedTemplate.footerText,
+          buttons: selectedTemplate.buttons,
+        };
         
-        // Send via Meta Cloud API (sends actual template with image + button)
         try {
-          console.log('[sendMessage] Sending via Meta Cloud API...');
-          const metaRes = await fetch('/api/admin/crm/whatsapp/send-template', {
-            method: 'POST',
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              phoneNumber,
-              templateId,
-              leadId: activeLeadId || undefined
-            })
-          });
-
-          const metaData = await metaRes.json().catch(() => ({}));
-          console.log('[sendMessage] Meta response:', metaRes.status, metaData);
+          console.log('[sendMessage] Sending template via QR Bridge...');
           
-          if (metaRes.ok && metaData.success) {
-            setMessages(prev => 
-              prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent', waMessageId: metaData.data?.waMessageId } : m)
-            );
-            sendSuccess = true;
-            sentVia = 'Meta';
+          // Send template via QR Bridge (EC2) with image + buttons
+          if (templateMediaUrl || (selectedTemplate.buttons && selectedTemplate.buttons.length > 0)) {
+            console.log('[sendMessage] Template has image/buttons, sending via QR Bridge /send-template');
+            
+            // Extract button texts for native buttons
+            const buttonTexts = selectedTemplate.buttons?.map((b: any) => 
+              typeof b === 'string' ? b : (b.text || b.title || b.payload)
+            ).filter(Boolean) || [];
+            
+            const qrRes = await fetch('/api/admin/crm/whatsapp/qr/send', {
+              method: 'POST',
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: chatId,
+                type: 'template',  // New type for bundled template
+                url: templateMediaUrl,
+                message: fullMessage,
+                caption: fullMessage,
+                buttons: buttonTexts,  // Pass buttons for native rendering
+                leadId: activeLeadId || undefined,
+                templateData: templateMetadata
+              })
+            });
+
+            const qrData = await qrRes.json().catch(() => ({}));
+            console.log('[sendMessage] QR Bridge response:', qrRes.status, qrData);
+            
+            if (qrRes.ok && (qrData.success || qrData.messageId)) {
+              setMessages(prev => 
+                prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent', waMessageId: qrData.messageId } : m)
+              );
+              sendSuccess = true;
+            } else {
+              errorMessage = qrData.error || 'QR Bridge failed';
+              console.error('[sendMessage] QR Bridge failed:', errorMessage);
+            }
           } else {
-            errorMessage = metaData.error || 'Meta API failed';
-            console.error('[sendMessage] Meta failed:', errorMessage);
+            // Text only template
+            const qrRes = await fetch('/api/admin/crm/whatsapp/qr/send', {
+              method: 'POST',
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: chatId,
+                type: 'text',
+                message: fullMessage,
+                leadId: activeLeadId || undefined,
+                templateData: templateMetadata
+              })
+            });
+
+            const qrData = await qrRes.json().catch(() => ({}));
+            console.log('[sendMessage] QR Bridge response:', qrRes.status, qrData);
+            
+            if (qrRes.ok && (qrData.success || qrData.messageId)) {
+              setMessages(prev => 
+                prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'sent', waMessageId: qrData.messageId } : m)
+              );
+              sendSuccess = true;
+            } else {
+              errorMessage = qrData.error || 'QR Bridge failed';
+              console.error('[sendMessage] QR Bridge failed:', errorMessage);
+            }
           }
-        } catch (metaErr: any) {
-          errorMessage = metaErr?.message || 'Meta request failed';
-          console.error('[sendMessage] Meta error:', metaErr);
+        } catch (qrErr: any) {
+          errorMessage = qrErr?.message || 'QR Bridge request failed';
+          console.error('[sendMessage] QR Bridge error:', qrErr);
         }
         
         if (sendSuccess) {
           setNewMessage('');
           setTemplateMediaUrl(null);
           setSelectedTemplate(null);
-          showToast(`✅ Template sent via ${sentVia} with image & button!`, 'success');
+          showToast(`✅ Template sent via QR Bridge!`, 'success');
         } else {
           setMessages(prev => 
             prev.map(m => m.id === optimisticMessage.id ? { ...m, status: 'failed' } : m)
@@ -3689,54 +3753,89 @@ function QRWhatsAppInboxPageContent() {
                             style={{ fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif", whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                           >
                             {/* Media Content - Using unified InlineMediaPreview */}
-                            {wantsMediaLoad ? (
-                              <div className="space-y-2">
-                                <div className={`text-sm ${msg.fromMe ? 'text-stone-600' : 'text-white/80'}`}>📎 Media message</div>
-                                <button
-                                  onClick={() => loadMediaForMessage(msg, { force: true })}
-                                  className={`px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-60 ${msg.fromMe ? 'bg-teal-100 text-teal-700 hover:bg-teal-200 border border-teal-300' : 'bg-white/20 text-white hover:bg-white/30'}`}
-                                  disabled={Boolean(messageMediaLoading[msgId])}
-                                >
-                                  {messageMediaLoading[msgId] ? 'Loading…' : 'Load media'}
-                                </button>
-                              </div>
-                            ) : resolvedMediaUrl ? (
-                              <div className="space-y-2">
-                                <div className="-mx-4 -mt-2.5">
-                                  <InlineMediaPreview 
-                                    url={resolvedMediaUrl}
-                                    type={isImage ? 'image' : isVideo ? 'video' : 'document'}
-                                    className="rounded-t-xl rounded-b-none w-full"
-                                  />
-                                </div>
-                                {msg.body && msg.body.trim() && (() => {
-                                  // Extract [admincrm] or similar tags and show below message
-                                  const tagMatch = msg.body.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
-                                  const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : msg.body;
-                                  const tag = tagMatch ? tagMatch[1] : null;
-                                  return (
-                                    <div className="space-y-1">
-                                      {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
-                                      {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
+                            {(() => {
+                              // Check for template header media
+                              const templateHeaderMedia = (msg as any).metadata?.template?.headerMedia?.url || 
+                                                          (msg as any).metadata?.template?.headerContent;
+                              const templateMediaKind = (msg as any).metadata?.template?.headerMedia?.kind || 'image';
+                              const templateButtons = (msg as any).metadata?.template?.buttons;
+                              const isTemplateMessage = !!(msg as any).metadata?.template;
+                              
+                              // Use template media if available, otherwise fall back to regular media
+                              const effectiveMediaUrl = templateHeaderMedia || resolvedMediaUrl;
+                              const effectiveMediaKind = templateHeaderMedia ? templateMediaKind : (isImage ? 'image' : isVideo ? 'video' : 'document');
+                              
+                              // Get proxied URL for template media
+                              const proxiedTemplateMedia = templateHeaderMedia ? getProxiedMediaUrl(templateHeaderMedia, token) : null;
+                              const finalMediaUrl = proxiedTemplateMedia || effectiveMediaUrl;
+                              
+                              return (
+                                <>
+                                  {wantsMediaLoad && !isTemplateMessage ? (
+                                    <div className="space-y-2">
+                                      <div className={`text-sm ${msg.fromMe ? 'text-stone-600' : 'text-white/80'}`}>📎 Media message</div>
+                                      <button
+                                        onClick={() => loadMediaForMessage(msg, { force: true })}
+                                        className={`px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-60 ${msg.fromMe ? 'bg-teal-100 text-teal-700 hover:bg-teal-200 border border-teal-300' : 'bg-white/20 text-white hover:bg-white/30'}`}
+                                        disabled={Boolean(messageMediaLoading[msgId])}
+                                      >
+                                        {messageMediaLoading[msgId] ? 'Loading…' : 'Load media'}
+                                      </button>
                                     </div>
-                                  );
-                                })()}
-                              </div>
-                            ) : (
-                              (() => {
-                                // Extract [admincrm] or similar tags and show below message
-                                const tagMatch = msg.body?.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
-                                const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : (msg.body || '');
-                                const tag = tagMatch ? tagMatch[1] : null;
-                                
-                                return (
-                                  <div className="space-y-1">
-                                    {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
-                                    {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
-                                  </div>
-                                );
-                              })()
-                            )}
+                                  ) : finalMediaUrl ? (
+                                    <div className="space-y-2">
+                                      <div className="-mx-4 -mt-2.5">
+                                        <InlineMediaPreview 
+                                          url={finalMediaUrl}
+                                          type={effectiveMediaKind === 'sticker' ? 'image' : effectiveMediaKind}
+                                          className="rounded-t-xl rounded-b-none w-full"
+                                        />
+                                      </div>
+                                      {msg.body && msg.body.trim() && (() => {
+                                        // Extract [admincrm] or similar tags and show below message
+                                        const tagMatch = msg.body.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
+                                        const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : msg.body;
+                                        const tag = tagMatch ? tagMatch[1] : null;
+                                        return (
+                                          <div className="space-y-1">
+                                            {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
+                                            {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+                                  ) : (
+                                    (() => {
+                                      // Extract [admincrm] or similar tags and show below message
+                                      const tagMatch = msg.body?.match(/\s*\[(admincrm|admin|crm)\]\s*$/i);
+                                      const mainBody = tagMatch ? msg.body.replace(tagMatch[0], '').trim() : (msg.body || '');
+                                      const tag = tagMatch ? tagMatch[1] : null;
+                                      
+                                      return (
+                                        <div className="space-y-1">
+                                          {mainBody && <div className="leading-relaxed">{formatWhatsAppText(mainBody)}</div>}
+                                          {tag && <div className="text-[10px] opacity-60 italic">via {tag}</div>}
+                                        </div>
+                                      );
+                                    })()
+                                  )}
+                                  
+                                  {/* Template Buttons */}
+                                  {Array.isArray(templateButtons) && templateButtons.length > 0 && (
+                                    <div className="mt-2 -mx-4 -mb-2.5 border-t border-gray-200/50">
+                                      {templateButtons.map((btn: any, idx: number) => (
+                                        <div 
+                                          key={idx} 
+                                          className="px-4 py-2.5 text-center text-[#00a884] font-medium text-sm border-b border-gray-200/50 last:border-b-0 bg-white/80"
+                                        >
+                                          {btn.title || btn.text || 'Button'}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
 
                             {/* Time and status row */}
                             <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.fromMe ? 'justify-end text-stone-500' : 'justify-start text-white/70'}`}>

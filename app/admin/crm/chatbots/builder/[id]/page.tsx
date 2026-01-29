@@ -73,6 +73,7 @@ type Connection = {
   fromId: string;
   toId: string;
   label?: string;
+  optionIndex?: number; // For button/question blocks - which option this connection is from
 };
 
 // Comprehensive node types organized by category
@@ -136,15 +137,28 @@ export default function ChatbotBuilder() {
   const [saving, setSaving] = useState(false);
   const [draggingBlock, setDraggingBlock] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [draggingFrom, setDraggingFrom] = useState<string | null>(null);
+  const [draggingOptionIndex, setDraggingOptionIndex] = useState<number | null>(null); // Track which option port is being dragged
   const [hoveringBlock, setHoveringBlock] = useState<string | null>(null); // Block being hovered for connection drop
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null); // Track mouse during connection drag
   const [activeCategory, setActiveCategory] = useState<string>('basic');
   const [flowName, setFlowName] = useState('Untitled Flow');
   const [flowEnabled, setFlowEnabled] = useState(true);
-  const [templates, setTemplates] = useState<Array<{ _id: string; templateName: string; language: string; metaStatus?: string; headerMedia?: { url: string } }>>([]);
+  const [templates, setTemplates] = useState<Array<{ _id: string; templateName: string; language: string; metaStatus?: string; headerMedia?: { url: string; type?: string }; headerFormat?: string; templateContent?: string; bodyText?: string; footerText?: string; buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>; category?: string }>>([]);
   const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const rafMoveRef = useRef<number | null>(null);
+
+  // WhatsApp text formatting helper
+  const formatWhatsAppText = (text: string) => {
+    if (!text) return text;
+    // Replace *bold* with <strong>
+    let formatted = text.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+    // Replace _italic_ with <em>
+    formatted = formatted.replace(/_([^_]+)_/g, '<em>$1</em>');
+    // Replace ~strikethrough~ with <s>
+    formatted = formatted.replace(/~([^~]+)~/g, '<s>$1</s>');
+    return formatted;
+  };
 
   // Get block color helper
   const getBlockColor = (type: string) => {
@@ -351,20 +365,33 @@ export default function ChatbotBuilder() {
   // Handle dropping connection on a block's input port
   const handleInputPortMouseUp = useCallback((targetBlockId: string) => {
     if (draggingFrom && draggingFrom !== targetBlockId) {
-      // Prevent duplicate connections
-      const existsAlready = connections.some(c => c.fromId === draggingFrom && c.toId === targetBlockId);
-      if (!existsAlready) {
-        setConnections(prev => [...prev, { fromId: draggingFrom, toId: targetBlockId }]);
+      const fromBlock = blocks.find(b => b.id === draggingFrom);
+      
+      // For button/question blocks with optionIndex, check if this option already has a connection
+      if (draggingOptionIndex !== null && (fromBlock?.type === 'buttons' || fromBlock?.type === 'question')) {
+        // Remove existing connection from this option, then add new one
+        setConnections(prev => [
+          ...prev.filter(c => !(c.fromId === draggingFrom && c.optionIndex === draggingOptionIndex)),
+          { fromId: draggingFrom, toId: targetBlockId, optionIndex: draggingOptionIndex }
+        ]);
+      } else {
+        // Regular block - prevent duplicate connections
+        const existsAlready = connections.some(c => c.fromId === draggingFrom && c.toId === targetBlockId && c.optionIndex === undefined);
+        if (!existsAlready) {
+          setConnections(prev => [...prev, { fromId: draggingFrom, toId: targetBlockId }]);
+        }
       }
     }
     setDraggingFrom(null);
+    setDraggingOptionIndex(null);
     setMousePos(null);
     setHoveringBlock(null);
-  }, [draggingFrom, connections]);
+  }, [draggingFrom, draggingOptionIndex, connections, blocks]);
 
   const handleMouseUp = useCallback(() => {
     setDraggingBlock(null);
     setDraggingFrom(null);
+    setDraggingOptionIndex(null);
     setMousePos(null);
     setHoveringBlock(null);
     if (rafMoveRef.current) {
@@ -382,9 +409,14 @@ export default function ChatbotBuilder() {
     if (selectedBlock === blockId) setSelectedBlock(null);
   }, [selectedBlock]);
 
-  // Delete connection
-  const deleteConnection = useCallback((fromId: string, toId: string) => {
-    setConnections((prev) => prev.filter((c) => !(c.fromId === fromId && c.toId === toId)));
+  // Delete connection - also handle optionIndex
+  const deleteConnection = useCallback((fromId: string, toId: string, optionIndex?: number) => {
+    setConnections((prev) => prev.filter((c) => {
+      if (optionIndex !== undefined) {
+        return !(c.fromId === fromId && c.toId === toId && c.optionIndex === optionIndex);
+      }
+      return !(c.fromId === fromId && c.toId === toId);
+    }));
   }, []);
 
   const updateBlockData = useCallback((blockId: string, data: Partial<Block['data']>) => {
@@ -641,22 +673,50 @@ export default function ChatbotBuilder() {
             if (!fromBlock || !toBlock) return null;
 
             const x1 = fromBlock.x + 240; // Right side (output port)
-            const y1 = fromBlock.y + 50;
+            
+            // Calculate Y1 based on block type and optionIndex
+            let y1 = fromBlock.y + 50; // Default center
+            if ((fromBlock.type === 'buttons' || fromBlock.type === 'question') && fromBlock.data?.options && fromBlock.data.options.length > 0) {
+              // Use optionIndex from connection if available
+              const idx = conn.optionIndex !== undefined ? conn.optionIndex : 0;
+              const baseOffset = 100;
+              const optionHeight = 32;
+              y1 = fromBlock.y + baseOffset + (idx * optionHeight) + (optionHeight / 2);
+            } else if (fromBlock.type === 'template' && fromBlock.data?.templateName) {
+              // Template blocks are taller due to preview, adjust Y
+              y1 = fromBlock.y + 80;
+            }
+            
             const x2 = toBlock.x; // Left side (input port)
-            const y2 = toBlock.y + 50;
+            
+            // Calculate Y2 - target block's input port position
+            let y2 = toBlock.y + 50; // Default center
+            // Adjust for taller blocks
+            if ((toBlock.type === 'buttons' || toBlock.type === 'question') && toBlock.data?.options) {
+              y2 = toBlock.y + 80;
+            } else if (toBlock.type === 'template' && toBlock.data?.templateName) {
+              y2 = toBlock.y + 100;
+            }
             
             // Calculate control points for smooth bezier curve
             const midX = (x1 + x2) / 2;
+            
+            // Get option label for display
+            const optionLabel = conn.optionIndex !== undefined && fromBlock.data?.options?.[conn.optionIndex]
+              ? (typeof fromBlock.data.options[conn.optionIndex] === 'string' 
+                  ? fromBlock.data.options[conn.optionIndex] 
+                  : fromBlock.data.options[conn.optionIndex].label)
+              : null;
 
             return (
-              <g key={`${conn.fromId}-${conn.toId}`} className="group cursor-pointer" style={{ pointerEvents: 'auto' }}>
+              <g key={`${conn.fromId}-${conn.toId}-${conn.optionIndex ?? 'default'}`} className="group cursor-pointer" style={{ pointerEvents: 'auto' }}>
                 {/* Invisible wider path for easier clicking */}
                 <path
                   d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
                   stroke="transparent"
                   strokeWidth="12"
                   fill="none"
-                  onClick={() => deleteConnection(conn.fromId, conn.toId)}
+                  onClick={() => deleteConnection(conn.fromId, conn.toId, conn.optionIndex)}
                 />
                 {/* Visible path */}
                 <path
@@ -792,10 +852,56 @@ export default function ChatbotBuilder() {
                 </div>
               )}
               
-              {/* Template */}
+              {/* Template - with inline preview popup */}
               {block.type === 'template' && (
                 <div style={{ fontSize: 11, color: '#1f2937' }}>
-                  📋 {block.data?.templateName || 'Select template...'}
+                  <div>📋 {block.data?.templateName || 'Select template...'}</div>
+                  {/* Inline Preview */}
+                  {block.data?.templateName && (() => {
+                    const tpl = templates.find(t => t.templateName === block.data?.templateName);
+                    if (!tpl) return null;
+                    const bodyText = tpl.templateContent || tpl.bodyText || '';
+                    return (
+                      <div style={{ marginTop: 6, background: '#e5ddd5', borderRadius: 8, padding: 6, maxWidth: 200 }}>
+                        {/* Header Image */}
+                        {tpl.headerMedia?.url && (
+                          <img 
+                            src={tpl.headerMedia.url} 
+                            alt="" 
+                            style={{ width: '100%', height: 60, objectFit: 'cover', borderRadius: 6 }}
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        )}
+                        {/* Body */}
+                        <div style={{ background: '#fff', borderRadius: 6, padding: 6, marginTop: tpl.headerMedia?.url ? 4 : 0 }}>
+                          <p 
+                            style={{ fontSize: 10, color: '#222', margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.3 }}
+                            dangerouslySetInnerHTML={{ __html: formatWhatsAppText(bodyText.length > 80 ? bodyText.slice(0, 80) + '...' : bodyText || '(No body)') }}
+                          />
+                        </div>
+                        {/* Buttons */}
+                        {tpl.buttons && tpl.buttons.length > 0 && (
+                          <div style={{ marginTop: 4 }}>
+                            {tpl.buttons.slice(0, 3).map((btn: any, i: number) => (
+                              <div key={i} style={{ 
+                                background: '#fff', 
+                                borderRadius: 4, 
+                                padding: '4px 8px', 
+                                textAlign: 'center', 
+                                color: '#0084ff', 
+                                fontSize: 10, 
+                                fontWeight: 500,
+                                marginTop: 2,
+                                border: '1px solid #e5e7eb'
+                              }}>
+                                {btn.title || btn.text || btn.label || 'Button'}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               
@@ -942,50 +1048,108 @@ export default function ChatbotBuilder() {
             </div>
 
             {/* Input Port (Left side - for receiving connections) */}
-            <div
-              onMouseUp={() => handleInputPortMouseUp(block.id)}
-              onMouseEnter={() => draggingFrom && setHoveringBlock(block.id)}
-              onMouseLeave={() => setHoveringBlock(null)}
-              style={{
-                width: 16,
-                height: 16,
-                background: hoveringBlock === block.id && draggingFrom ? '#22c55e' : '#e5e7eb',
-                borderRadius: '50%',
-                border: `2px solid ${hoveringBlock === block.id && draggingFrom ? '#16a34a' : '#cbd5e1'}`,
-                position: 'absolute',
-                left: -8,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                cursor: draggingFrom ? 'pointer' : 'default',
-                transition: 'all 0.15s ease',
-                zIndex: 10,
-              }}
-              title="Drop connection here"
-            />
+            {(() => {
+              // Calculate input port Y position based on block type
+              let inputPortTop = '50%';
+              let inputPortTransform = 'translateY(-50%)';
+              
+              if ((block.type === 'buttons' || block.type === 'question') && block.data?.options && block.data.options.length > 0) {
+                inputPortTop = '80px';
+                inputPortTransform = 'none';
+              } else if (block.type === 'template' && block.data?.templateName) {
+                inputPortTop = '100px';
+                inputPortTransform = 'none';
+              }
+              
+              return (
+                <div
+                  onMouseUp={() => handleInputPortMouseUp(block.id)}
+                  onMouseEnter={() => draggingFrom && setHoveringBlock(block.id)}
+                  onMouseLeave={() => setHoveringBlock(null)}
+                  style={{
+                    width: 16,
+                    height: 16,
+                    background: hoveringBlock === block.id && draggingFrom ? '#22c55e' : '#e5e7eb',
+                    borderRadius: '50%',
+                    border: `2px solid ${hoveringBlock === block.id && draggingFrom ? '#16a34a' : '#cbd5e1'}`,
+                    position: 'absolute',
+                    left: -8,
+                    top: inputPortTop,
+                    transform: inputPortTransform,
+                    cursor: draggingFrom ? 'pointer' : 'default',
+                    transition: 'all 0.15s ease',
+                    zIndex: 10,
+                  }}
+                  title="Drop connection here"
+                />
+              );
+            })()}
 
             {/* Output Port (Right side - for creating connections) */}
-            <div
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                handleBlockMouseDown(e, block.id, true);
-              }}
-              style={{
-                width: 16,
-                height: 16,
-                background: draggingFrom === block.id ? '#3b82f6' : blockColors[block.type],
-                borderRadius: '50%',
-                border: '2px solid #fff',
-                position: 'absolute',
-                right: -8,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                cursor: 'crosshair',
-                transition: 'all 0.15s ease',
-                boxShadow: draggingFrom === block.id ? '0 0 8px rgba(59, 130, 246, 0.6)' : 'none',
-                zIndex: 10,
-              }}
-              title="Drag to connect"
-            />
+            {/* For Button Menu / Question with options, show multiple output ports */}
+            {(block.type === 'buttons' || block.type === 'question') && block.data?.options && block.data.options.length > 0 ? (
+              <>
+                {block.data.options.map((opt: any, idx: number) => {
+                  // Calculate vertical position for each option's port
+                  const baseOffset = 100; // Header height approximately
+                  const optionHeight = 32; // Height per option row
+                  const portY = baseOffset + (idx * optionHeight) + (optionHeight / 2);
+                  
+                  // Check if this option has a connection
+                  const hasConnection = connections.some(c => c.fromId === block.id && c.optionIndex === idx);
+                  
+                  return (
+                    <div
+                      key={`port-${idx}`}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setDraggingFrom(block.id);
+                        setDraggingOptionIndex(idx);
+                        setMousePos({ x: e.clientX, y: e.clientY });
+                      }}
+                      style={{
+                        width: 14,
+                        height: 14,
+                        background: hasConnection ? '#22c55e' : '#3b82f6',
+                        borderRadius: '50%',
+                        border: '2px solid #fff',
+                        position: 'absolute',
+                        right: -7,
+                        top: portY,
+                        cursor: 'crosshair',
+                        transition: 'all 0.15s ease',
+                        boxShadow: hasConnection ? '0 0 4px rgba(34, 197, 94, 0.6)' : '0 0 4px rgba(59, 130, 246, 0.4)',
+                        zIndex: 10,
+                      }}
+                      title={`Connect: "${typeof opt === 'string' ? opt : opt.label}" → ${hasConnection ? '(connected)' : 'drag to target'}`}
+                    />
+                  );
+                })}
+              </>
+            ) : (
+              <div
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  handleBlockMouseDown(e, block.id, true);
+                }}
+                style={{
+                  width: 16,
+                  height: 16,
+                  background: draggingFrom === block.id ? '#3b82f6' : blockColors[block.type],
+                  borderRadius: '50%',
+                  border: '2px solid #fff',
+                  position: 'absolute',
+                  right: -8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  cursor: 'crosshair',
+                  transition: 'all 0.15s ease',
+                  boxShadow: draggingFrom === block.id ? '0 0 8px rgba(59, 130, 246, 0.6)' : 'none',
+                  zIndex: 10,
+                }}
+                title="Drag to connect"
+              />
+            )}
           </div>
         ))}
       </div>
@@ -1116,6 +1280,68 @@ export default function ChatbotBuilder() {
                           </span>
                         </div>
                       )}
+                      
+                      {/* Template Preview */}
+                      {block.data?.templateName && (() => {
+                        const tpl = templates.find(t => t.templateName === block.data?.templateName);
+                        if (!tpl) return null;
+                        const bodyText = tpl.templateContent || tpl.bodyText || '';
+                        return (
+                          <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-gray-100 px-3 py-1.5 border-b border-gray-200">
+                              <span className="text-xs font-semibold text-gray-600">📱 Template Preview</span>
+                            </div>
+                            <div className="bg-[#e5ddd5] p-3">
+                              <div className="max-w-[280px] bg-white rounded-lg shadow-sm overflow-hidden">
+                                {/* Header Image */}
+                                {tpl.headerMedia?.url && (
+                                  <div className="bg-gray-100">
+                                    <img 
+                                      src={tpl.headerMedia.url} 
+                                      alt="Template header" 
+                                      className="w-full h-32 object-cover"
+                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                  </div>
+                                )}
+                                {/* Body */}
+                                <div className="p-3">
+                                  <p 
+                                    className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed"
+                                    dangerouslySetInnerHTML={{ __html: formatWhatsAppText(bodyText || '(No body text)') }}
+                                  />
+                                  {/* Footer */}
+                                  {tpl.footerText && (
+                                    <p className="text-xs text-gray-500 mt-2">{tpl.footerText}</p>
+                                  )}
+                                  {/* Timestamp */}
+                                  <p className="text-[10px] text-gray-400 text-right mt-1">
+                                    {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                                {/* Buttons */}
+                                {tpl.buttons && tpl.buttons.length > 0 && (
+                                  <div className="border-t border-gray-100">
+                                    {tpl.buttons.map((btn: any, i: number) => (
+                                      <div key={i} className="flex items-center justify-center gap-1 py-2 border-b border-gray-100 last:border-b-0 text-blue-500 text-sm font-medium">
+                                        {btn.type === 'URL' && <span>🔗</span>}
+                                        {btn.type === 'PHONE_NUMBER' && <span>📞</span>}
+                                        {btn.type === 'QUICK_REPLY' && <span>↩️</span>}
+                                        {btn.title || btn.text || btn.label || 'Button'}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {/* Meta info */}
+                            <div className="px-3 py-2 bg-gray-50 flex items-center justify-between text-xs text-gray-500">
+                              <span>📂 {tpl.category || 'MARKETING'}</span>
+                              <span>🌐 {tpl.language || 'en'}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 
