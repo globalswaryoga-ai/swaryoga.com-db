@@ -226,11 +226,12 @@ const WhatsAppMessageSchema = new mongoose.Schema(
     headerText: String,
     footerText: String,
     media: {
-      kind: { type: String, enum: ['image', 'video', 'document'] },
+      kind: { type: String, enum: ['image', 'video', 'document', 'audio', 'sticker'] },
       url: String,
       fileName: String,
       mimeType: String,
       sizeBytes: Number,
+      error: String, // Track media processing errors
     },
     templateId: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppTemplate' },
     templateVariables: mongoose.Schema.Types.Mixed, // For template parameter substitution
@@ -1708,11 +1709,13 @@ ZoomRecordingSyncSchema.index({ topic: 1 });
 function getModel(modelName: string, schema: any) {
   // Return cached model if available (using global to survive hot reloads)
   if (global._crmModelCache[modelName]) {
+    console.log(`[enterpriseSchemas] Using cached model: ${modelName}`);
     return global._crmModelCache[modelName];
   }
   
   // Initialize on first use (safe because this happens after connectDB)
   const crmDb = getCrmDb();
+  console.log(`[enterpriseSchemas] Creating new model: ${modelName} on db: ${crmDb.name}`);
 
   // PROACTIVE REGISTRATION:
   // If we are registering any CRM model other than Lead, ensure Lead is registered first on this connection.
@@ -1724,6 +1727,7 @@ function getModel(modelName: string, schema: any) {
 
   const model = crmDb.models[modelName] || crmDb.model(modelName, schema);
   global._crmModelCache[modelName] = model;
+  console.log(`[enterpriseSchemas] Model ${modelName} created, db.name: ${model.db?.name}`);
   return model;
 }
 

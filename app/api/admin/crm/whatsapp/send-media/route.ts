@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 import { connectDB } from '@/lib/db';
-import { Lead, WhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getWhatsAppMessage } from '@/lib/schemas/enterpriseSchemas';
 import { normalizePhone, sendWhatsAppMedia } from '@/lib/whatsapp';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
 
@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
+    
+    // Get models after connectDB()
+    const Lead = getLead();
+    const WhatsAppMessage = getWhatsAppMessage();
 
     const superAdmin = decoded?.userId === 'admincrm';
     const to = normalizePhone(String(phoneNumber));
@@ -92,7 +96,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create message record in database
+    // Create message record in database with proper media field
     const messageRecord = await WhatsAppMessage.create({
       leadId: lead._id,
       phoneNumber: to,
@@ -102,12 +106,12 @@ export async function POST(request: NextRequest) {
       status: 'queued',
       sentAt: new Date(),
       provider: 'pending',
+      media: {
+        kind: mediaType,
+        url: mediaUrl,
+      },
       metadata: {
-        media: {
-          kind: mediaType,
-          url: mediaUrl,
-          caption: caption || null,
-        },
+        caption: caption || null,
       },
     });
 
@@ -140,7 +144,7 @@ export async function POST(request: NextRequest) {
       await WhatsAppMessage.findByIdAndUpdate(messageRecord._id, {
         status: 'failed',
         provider: 'none',
-        errorMessage: message,
+        failureReason: message,
       });
 
       return NextResponse.json(

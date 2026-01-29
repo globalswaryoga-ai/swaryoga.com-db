@@ -1,3 +1,11 @@
+export type NormalizedQRMedia = {
+  kind: 'image' | 'video' | 'audio' | 'document' | 'sticker';
+  url?: string;
+  mimetype?: string;
+  filename?: string;
+  base64?: string; // Some bridges send base64 data
+};
+
 export type NormalizedQRMessage = {
   from: string;
   to?: string;
@@ -5,6 +13,9 @@ export type NormalizedQRMessage = {
   messageId?: string;
   timestamp?: Date;
   fromMe?: boolean;
+  hasMedia?: boolean;
+  media?: NormalizedQRMedia;
+  type?: string; // 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker'
 };
 
 function asString(v: unknown): string | undefined {
@@ -14,9 +25,53 @@ function asString(v: unknown): string | undefined {
 }
 
 /**
+ * Detect media type from message payload
+ */
+function extractMediaInfo(m: any): NormalizedQRMedia | undefined {
+  // whatsapp-web.js style
+  if (m.hasMedia || m.type === 'image' || m.type === 'video' || m.type === 'audio' || 
+      m.type === 'document' || m.type === 'sticker' || m.type === 'ptt') {
+    const kind = m.type === 'ptt' ? 'audio' : 
+                 (m.type === 'image' || m.type === 'video' || m.type === 'audio' || 
+                  m.type === 'document' || m.type === 'sticker') ? m.type : 'image';
+    
+    return {
+      kind: kind as NormalizedQRMedia['kind'],
+      mimetype: asString(m.mimetype || m.mimeType || m._data?.mimetype),
+      filename: asString(m.filename || m.fileName || m._data?.filename),
+      base64: asString(m._data?.data || m.mediaData?.data || m.base64 || m.data),
+      url: asString(m.mediaUrl || m.media?.url || m.url),
+    };
+  }
+  
+  // Check for media object directly
+  if (m.media && typeof m.media === 'object') {
+    return {
+      kind: (m.media.type || m.media.kind || 'image') as NormalizedQRMedia['kind'],
+      mimetype: asString(m.media.mimetype || m.media.mimeType),
+      filename: asString(m.media.filename || m.media.fileName),
+      base64: asString(m.media.data || m.media.base64),
+      url: asString(m.media.url),
+    };
+  }
+  
+  // Check for image/video URLs directly
+  if (m.imageUrl || m.videoUrl || m.audioUrl || m.documentUrl) {
+    const kind = m.imageUrl ? 'image' : m.videoUrl ? 'video' : m.audioUrl ? 'audio' : 'document';
+    return {
+      kind,
+      url: asString(m.imageUrl || m.videoUrl || m.audioUrl || m.documentUrl),
+    };
+  }
+  
+  return undefined;
+}
+
+/**
  * Normalizes the many possible payload shapes we get from QR/WhatsApp-web bridges.
  *
  * Supports whatsapp-web.js message_create payloads (id._serialized, fromMe, body, to).
+ * Now includes media support for images, videos, audio, and documents.
  */
 export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[] {
   let list: any[] = [];
@@ -31,6 +86,7 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
     // Common single-message shapes
     if (payload?.from || payload?.sender || payload?.phone || payload?.id?._serialized) {
       const m = payload;
+      const media = extractMediaInfo(m);
       return [
         {
           from: asString(m.from || m.sender || m.phone) || '',
@@ -39,6 +95,9 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
           messageId: asString(m.id?._serialized || m.id || m.messageId || m.msgId),
           timestamp: m.timestamp ? new Date(Number(m.timestamp) * 1000) : undefined,
           fromMe: !!m.fromMe,
+          hasMedia: !!media,
+          media,
+          type: media ? media.kind : 'text',
         },
       ].filter((m) => !!m.from || m.fromMe);
     }
@@ -69,6 +128,8 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         }
       }
 
+      const media = extractMediaInfo(m);
+
       return {
         from: asString(m.from || m.sender || m.phone || m?.contact?.id || m?.chatId) || '',
         to: asString(m.to || m.receiver),
@@ -76,6 +137,9 @@ export function normalizeQRIncomingMessages(payload: any): NormalizedQRMessage[]
         messageId: asString(m.id?._serialized || m.id || m.messageId || m.msgId || m?.key?.id),
         timestamp,
         fromMe: !!m.fromMe,
+        hasMedia: !!media,
+        media,
+        type: media ? media.kind : 'text',
       } as NormalizedQRMessage;
     })
     .filter((m) => !!m.from || m.fromMe);

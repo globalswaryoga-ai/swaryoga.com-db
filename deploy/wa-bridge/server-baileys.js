@@ -632,7 +632,8 @@ app.post("/send", authMiddleware, async (req, res) => {
 });
 
 // Template card with image and buttons (for 1-1 QR messaging)
-// Trying multiple button methods - some work on certain WhatsApp versions
+// STRATEGY: Send image first (if any), then text with button options
+// This ensures image is always visible since WhatsApp button formats are unreliable
 app.post("/send-template", authMiddleware, async (req, res) => {
   if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
   
@@ -648,198 +649,45 @@ app.post("/send-template", authMiddleware, async (req, res) => {
       bodyText.toLowerCase().trim().endsWith(footerText.toLowerCase().trim());
     const effectiveFooter = bodyAlreadyHasFooter ? '' : footerText;
 
-    // Method 1: Try legacy buttonsMessage (works on some older WhatsApp versions)
-    if (buttons && buttons.length > 0 && buttons.length <= 3) {
-      try {
-        console.log("Trying Method 1: Legacy buttonsMessage");
-        const buttonRows = buttons.map((btn, idx) => ({
-          buttonId: `btn_${idx}`,
-          buttonText: { displayText: typeof btn === 'string' ? btn : (btn.text || btn.title || btn) },
-          type: 1
-        }));
-
-        let msg;
-        if (imageUrl) {
-          msg = {
-            image: { url: imageUrl },
-            caption: bodyText || "",
-            footer: effectiveFooter || undefined,
-            buttons: buttonRows,
-            headerType: 4
-          };
-        } else {
-          msg = {
-            text: bodyText || "",
-            footer: effectiveFooter || undefined,
-            buttons: buttonRows,
-            headerType: 1
-          };
-        }
-
-        const result = await sock.sendMessage(jid, msg);
-        if (result?.key?.id) {
-          messageIds.push(result.key.id);
-          console.log("✅ Legacy buttons sent to", jid);
-          return res.json({ success: true, messageIds, method: "legacy_buttons" });
-        }
-      } catch (legacyErr) {
-        console.log("Legacy buttons failed:", legacyErr.message);
-      }
-
-      // Method 2: Try templateMessage format
-      try {
-        console.log("Trying Method 2: templateMessage");
-        const hydratedButtons = buttons.map((btn, idx) => ({
-          index: idx + 1,
-          quickReplyButton: {
-            displayText: typeof btn === 'string' ? btn : (btn.text || btn.title || btn),
-            id: `btn_${idx}`
-          }
-        }));
-
-        const templateMsg = {
-          templateMessage: {
-            hydratedTemplate: {
-              hydratedContentText: bodyText || "",
-              hydratedFooterText: effectiveFooter || undefined,
-              hydratedButtons: hydratedButtons,
-              ...(imageUrl && { imageMessage: { url: imageUrl } })
-            }
-          }
-        };
-
-        const result = await sock.sendMessage(jid, templateMsg);
-        if (result?.key?.id) {
-          messageIds.push(result.key.id);
-          console.log("✅ Template message sent to", jid);
-          return res.json({ success: true, messageIds, method: "template_message" });
-        }
-      } catch (templateErr) {
-        console.log("Template message failed:", templateErr.message);
-      }
-
-      // Method 3: Try interactive listMessage (single select button)
-      try {
-        console.log("Trying Method 3: Interactive listMessage");
-        const listRows = buttons.map((btn, idx) => {
-          const text = typeof btn === 'string' ? btn : (btn.text || btn.title || btn);
-          return {
-            title: text,
-            rowId: `btn_${idx}`,
-            description: ""
-          };
-        });
-
-        const listMsg = {
-          text: bodyText || "",
-          footer: effectiveFooter || undefined,
-          title: "Options",
-          buttonText: "Select",
-          sections: [{
-            title: "Choose an option",
-            rows: listRows
-          }]
-        };
-
-        // If has image, send image first then list
-        if (imageUrl) {
-          const imgResult = await sock.sendMessage(jid, { 
-            image: { url: imageUrl }, 
-            caption: bodyText || ""
-          });
-          messageIds.push(imgResult?.key?.id);
-        }
-
-        const result = await sock.sendMessage(jid, listMsg);
-        if (result?.key?.id) {
-          messageIds.push(result.key.id);
-          console.log("✅ List message sent to", jid);
-          return res.json({ success: true, messageIds, method: "list_message" });
-        }
-      } catch (listErr) {
-        console.log("List message failed:", listErr.message);
-      }
-
-      // Method 4: Try interactive nativeFlow
-      try {
-        console.log("Trying Method 4: Interactive nativeFlow");
-        const interactiveButtons = buttons.map((btn, idx) => {
-          const text = typeof btn === 'string' ? btn : (btn.text || btn.title || btn);
-          return {
-            name: "quick_reply",
-            buttonParamsJson: JSON.stringify({ display_text: text, id: `btn_${idx}` })
-          };
-        });
-
-        const interactiveMsg = {
-          viewOnceMessage: {
-            message: {
-              interactiveMessage: {
-                header: imageUrl ? {
-                  imageMessage: { url: imageUrl },
-                  hasMediaAttachment: true
-                } : (headerText ? { title: headerText } : undefined),
-                body: { text: bodyText || "" },
-                footer: effectiveFooter ? { text: effectiveFooter } : undefined,
-                nativeFlowMessage: {
-                  buttons: interactiveButtons,
-                  messageParamsJson: ""
-                }
-              }
-            }
-          }
-        };
-
-        const result = await sock.sendMessage(jid, interactiveMsg);
-        if (result?.key?.id) {
-          messageIds.push(result.key.id);
-          console.log("✅ Interactive nativeFlow sent to", jid);
-          return res.json({ success: true, messageIds, method: "interactive_nativeflow" });
-        }
-      } catch (interactiveErr) {
-        console.log("Interactive buttons failed, trying fallback:", interactiveErr.message);
-      }
-    }
-
-    // Method 2: Fallback - Send image + text with button options as text
-    // Send image with caption
+    // STEP 1: Send image first if provided (this ensures image is always shown)
     if (imageUrl) {
-      let captionWithButtons = bodyText || "";
-      
-      // Add buttons as clickable-looking text
-      if (buttons && buttons.length > 0) {
-        const buttonList = buttons.map((b, i) => {
-          const text = typeof b === 'string' ? b : (b.text || b.title || b);
-          return `\n${i + 1}️⃣ *${text}*`;
-        }).join("");
-        captionWithButtons += `\n${buttonList}`;
-        if (effectiveFooter) captionWithButtons += `\n\n_${effectiveFooter}_`;
+      try {
+        console.log("📷 Sending image first:", imageUrl.substring(0, 50));
+        const imgResult = await sock.sendMessage(jid, { 
+          image: { url: imageUrl }, 
+          caption: "" // No caption - text comes in next message
+        });
+        if (imgResult?.key?.id) {
+          messageIds.push(imgResult.key.id);
+          console.log("✅ Image sent successfully");
+        }
+      } catch (imgErr) {
+        console.log("⚠️ Image send failed:", imgErr.message);
       }
-      
-      const imgResult = await sock.sendMessage(jid, { 
-        image: { url: imageUrl }, 
-        caption: captionWithButtons
-      });
-      messageIds.push(imgResult?.key?.id);
-    } else {
-      // Text only with buttons
-      let textWithButtons = bodyText || "";
-      
-      if (buttons && buttons.length > 0) {
-        const buttonList = buttons.map((b, i) => {
-          const text = typeof b === 'string' ? b : (b.text || b.title || b);
-          return `\n${i + 1}️⃣ *${text}*`;
-        }).join("");
-        textWithButtons += `\n${buttonList}`;
-        if (effectiveFooter) textWithButtons += `\n\n_${effectiveFooter}_`;
-      }
-      
-      const textResult = await sock.sendMessage(jid, { text: textWithButtons });
-      messageIds.push(textResult?.key?.id);
     }
 
-    console.log("Template (fallback) sent to", jid, "messageIds:", messageIds);
-    res.json({ success: true, messageIds, method: "fallback" });
+    // STEP 2: Send text with buttons as numbered list
+    let textWithButtons = bodyText || "";
+    
+    if (buttons && buttons.length > 0) {
+      const buttonList = buttons.map((b, i) => {
+        const text = typeof b === 'string' ? b : (b.text || b.title || b);
+        return `${i + 1}️⃣ *${text}*`;
+      }).join("\n");
+      textWithButtons = textWithButtons.trim() + "\n\n" + buttonList;
+    }
+    
+    if (effectiveFooter) {
+      textWithButtons = textWithButtons.trim() + "\n\n_" + effectiveFooter + "_";
+    }
+
+    const textResult = await sock.sendMessage(jid, { text: textWithButtons });
+    if (textResult?.key?.id) {
+      messageIds.push(textResult.key.id);
+    }
+
+    console.log("✅ Template sent to", jid, "messageIds:", messageIds);
+    res.json({ success: true, messageIds, method: "image_then_text" });
   } catch (err) {
     console.error("Send template error:", err.message);
     res.status(500).json({ success: false, error: err.message });

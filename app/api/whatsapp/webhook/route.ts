@@ -544,14 +544,17 @@ async function handleWebhookPayload(payload: any) {
 
             // Always save media info for media messages
             if (isMediaType) {
-              // Normalize kind for UI convenience
-              const mediaKind = (type === 'image' || type === 'sticker') 
+              // Map media types to schema-valid kinds
+              // Schema enum: ['image', 'video', 'document', 'audio', 'sticker']
+              const mediaKind = type === 'image' 
                 ? 'image' 
-                : type === 'video' 
-                  ? 'video' 
-                  : type === 'audio'
-                    ? 'audio'
-                    : 'document';
+                : type === 'sticker'
+                  ? 'sticker'
+                  : type === 'video' 
+                    ? 'video' 
+                    : type === 'audio'
+                      ? 'audio'
+                      : 'document';
                   
               insertData.media = {
                 kind: mediaKind,

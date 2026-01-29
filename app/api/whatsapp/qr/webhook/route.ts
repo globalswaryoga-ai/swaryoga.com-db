@@ -65,15 +65,20 @@ async function ingestQRPayload(payload: any) {
 
   const { getWhatsAppMessage, getLead } = await import('@/lib/schemas/enterpriseSchemas');
   const { isValidPhoneNumber } = await import('@/lib/whatsapp');
+  const { uploadToS3 } = await import('@/lib/aws-s3');
   const WhatsAppMessage = getWhatsAppMessage();
   const Lead = getLead();
 
   let created = 0;
   let skippedInvalidPhone = 0;
+  let mediaProcessed = 0;
   
   for (const m of messages) {
     const text = (m.text || '').trim();
-    if (!text) continue;
+    const hasMedia = m.hasMedia && m.media;
+    
+    // Allow messages with media even if no text
+    if (!text && !hasMedia) continue;
 
     const fromPhone = m.fromMe ? (m.to || m.from) : m.from;
     const normalizedPhone = normalizePhone(fromPhone);
@@ -85,12 +90,16 @@ async function ingestQRPayload(payload: any) {
       continue;
     }
 
+    // Determine message type
+    const messageType = hasMedia ? 'media' : 'text';
+    const messageContent = text || (hasMedia ? `[${m.media?.kind || 'media'} message]` : '');
+
     const doc: any = {
       provider: 'whatsapp_web_bridge', // Unified provider for all QR/Bridge messages
       direction: m.fromMe ? 'outbound' : 'inbound',
       phoneNumber: normalizedPhone,
-      messageContent: text,
-      messageType: 'text',
+      messageContent,
+      messageType,
       status: 'delivered',
       waMessageId: m.messageId,
       // sentAt is used widely for sorting.
@@ -103,6 +112,52 @@ async function ingestQRPayload(payload: any) {
         to: m.to,
       },
     };
+
+    // Handle media - upload to S3 if we have base64 data or URL
+    if (hasMedia && m.media) {
+      let s3MediaUrl: string | undefined;
+      let mediaError: string | undefined;
+      
+      try {
+        if (m.media.base64) {
+          // Upload base64 data to S3
+          console.log(`[QR WEBHOOK] Processing base64 media: ${m.media.kind}`);
+          const buffer = Buffer.from(m.media.base64, 'base64');
+          const extension = m.media.mimetype?.split('/')[1]?.split(';')[0] || 
+                           (m.media.kind === 'image' ? 'jpg' : 
+                            m.media.kind === 'video' ? 'mp4' : 
+                            m.media.kind === 'audio' ? 'mp3' : 'bin');
+          const fileName = `whatsapp-qr-inbound/${normalizedPhone}/${Date.now()}.${extension}`;
+          
+          s3MediaUrl = await uploadToS3(buffer, fileName, {
+            metadata: {
+              'wa-message-id': m.messageId || '',
+              'phone-number': normalizedPhone,
+              'media-type': m.media.kind,
+              'direction': doc.direction,
+              'source': 'qr-bridge'
+            }
+          });
+          console.log(`[QR WEBHOOK] ✅ Uploaded to S3: ${s3MediaUrl}`);
+          mediaProcessed++;
+        } else if (m.media.url) {
+          // Use existing URL directly (may need to re-upload for permanence)
+          s3MediaUrl = m.media.url;
+          console.log(`[QR WEBHOOK] Using existing media URL: ${s3MediaUrl}`);
+        }
+      } catch (uploadErr: any) {
+        mediaError = uploadErr?.message || 'Failed to upload media';
+        console.error('[QR WEBHOOK] Media upload error:', mediaError);
+      }
+
+      doc.media = {
+        kind: m.media.kind,
+        url: s3MediaUrl || null,
+        mimeType: m.media.mimetype || null,
+        fileName: m.media.filename || null,
+        error: mediaError || null,
+      };
+    }
 
     // Avoid duplicates when provider provides a stable id.
     if (m.messageId) {
@@ -142,7 +197,7 @@ async function ingestQRPayload(payload: any) {
     created++;
 
     // TRIGGER AUTOMATIONS (Chatbot, Auto-replies, etc.)
-    if (text && doc.direction === 'inbound') {
+    if ((text || hasMedia) && doc.direction === 'inbound') {
       try {
         // Check if this is the first inbound message in recent history (e.g. 24h)
         const count = await WhatsAppMessage.countDocuments({
@@ -154,7 +209,7 @@ async function ingestQRPayload(payload: any) {
         await handleInboundWhatsAppAutomations({
           leadId: lead._id,
           phoneNumber: normalizedPhone,
-          messageBody: text,
+          messageBody: text || `[${m.media?.kind || 'media'} message]`,
           wasFirstInbound: count <= 1 // Including current one
         });
       } catch (autoErr) {
@@ -163,7 +218,7 @@ async function ingestQRPayload(payload: any) {
     }
   }
 
-  return { count: created, skippedInvalidPhone };
+  return { count: created, skippedInvalidPhone, mediaProcessed };
 }
 
 async function logQREvent(event: {
