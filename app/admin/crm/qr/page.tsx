@@ -2699,9 +2699,49 @@ function QRWhatsAppInboxPageContent() {
   const refreshQr = async () => {
     try {
       setBridgeError(null);
-      console.log('[refreshQr] Fetching QR from fallback endpoint...');
       
-      // Use fallback endpoint which handles retries, caching, and auto-restart
+      // First, check bridge status via the working bridge-proxy
+      console.log('[refreshQr] Checking bridge status first...');
+      const statusRes = await bridgeFetch('/status', { method: 'GET' }, 5000);
+      
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        console.log('[refreshQr] Bridge status:', statusData);
+        
+        // If session is already connected, no need for QR
+        if (statusData.sessionReady || statusData.status === 'connected') {
+          console.log('[refreshQr] Session already connected, no QR needed');
+          setStatus('connected');
+          setBridgeError(null);
+          // Don't show QR modal - session is ready
+          return;
+        }
+        
+        // If QR is available in status response, use it
+        if (statusData.qr) {
+          console.log('[refreshQr] QR found in status response');
+          setQr(statusData.qr);
+          setShowQRModal(true);
+          return;
+        }
+        
+        // If bridge says it has QR, fetch from /qr endpoint
+        if (statusData.hasQr) {
+          console.log('[refreshQr] Fetching QR from bridge /qr endpoint...');
+          const qrRes = await bridgeFetch('/qr', { method: 'GET' }, 8000);
+          if (qrRes.ok) {
+            const qrData = await qrRes.json();
+            if (qrData.qr) {
+              setQr(qrData.qr);
+              setShowQRModal(true);
+              return;
+            }
+          }
+        }
+      }
+      
+      // Fallback: try the qr-fallback endpoint (may timeout on Vercel)
+      console.log('[refreshQr] Trying fallback endpoint...');
       const fallbackRes = await fetch('/api/admin/crm/whatsapp/qr-fallback', {
         method: 'GET',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -2725,10 +2765,15 @@ function QRWhatsAppInboxPageContent() {
         }
       }
       
-      // If fallback also failed, show error
-      const fallbackError = await fallbackRes.json();
+      // If fallback also failed, check if session is connected (no QR needed)
+      if (status === 'connected') {
+        console.log('[refreshQr] Already connected, ignoring fallback error');
+        return;
+      }
+      
+      const fallbackError = await fallbackRes.json().catch(() => ({}));
       console.error('[refreshQr] Fallback failed:', fallbackError);
-      setBridgeError(fallbackError.message || 'Unable to retrieve QR code. Please try again.');
+      setBridgeError(fallbackError.message || 'Unable to retrieve QR code. Session may already be connected.');
       
       // QR is included directly in the /status response
       if (typeof data.qr === 'string' && data.qr.length > 0) {
