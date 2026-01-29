@@ -26,6 +26,19 @@ export async function GET(request: NextRequest) {
       signal: AbortSignal.timeout(15_000)
     });
 
+    // Handle 503 (WhatsApp not connected) gracefully
+    if (res.status === 503) {
+      // For /chats endpoint, return empty array instead of error
+      if (path === '/chats') {
+        return NextResponse.json([]);
+      }
+      // For other endpoints, return proper error with status info
+      return NextResponse.json(
+        { error: 'WhatsApp not connected', status: 'disconnected', needsQr: true },
+        { status: 200 } // Return 200 so frontend can handle gracefully
+      );
+    }
+
     if (!res.ok) {
       return NextResponse.json(
         { error: `Bridge error: ${res.status}` },
@@ -49,9 +62,17 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Bridge proxy error';
     console.error('[bridge-proxy] Error:', message);
+    
+    // Return empty array for /chats on error to prevent UI breaking
+    const { searchParams } = new URL(request.url);
+    const path = searchParams.get('path') || '/status';
+    if (path === '/chats') {
+      return NextResponse.json([]);
+    }
+    
     return NextResponse.json(
-      { error: message },
-      { status: 503 }
+      { error: message, status: 'error' },
+      { status: 200 } // Return 200 so frontend can handle gracefully
     );
   }
 }

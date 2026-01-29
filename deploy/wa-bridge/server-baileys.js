@@ -1,0 +1,713 @@
+const express = require("express");
+const qrcode = require("qrcode");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+const pino = require("pino");
+const { 
+  default: makeWASocket, 
+  useMultiFileAuthState, 
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore
+} = require("baileys");
+
+const app = express();
+const PORT = 3333;
+const BRIDGE_SECRET = "swar-bridge-secret-2024";
+const AUTH_DIR = "/tmp/.baileys_auth";
+const DATA_DIR = "/tmp/.baileys_data";
+
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], credentials: true, allowedHeaders: ["Content-Type", "x-bridge-secret"] }));
+app.use(express.json({ limit: "50mb" }));
+
+const authMiddleware = (req, res, next) => {
+  if (req.headers["x-bridge-secret"] !== BRIDGE_SECRET) return res.status(401).json({ error: "Unauthorized" });
+  next();
+};
+
+let sock = null;
+let qrCode = null;
+let sessionReady = false;
+
+// ============ BROADCAST SETTINGS ============
+let broadcastSettings = {
+  delayBetweenMessages: 5000,      // 5 seconds default
+  gapAfterMessages: 10,            // Pause after every 10 messages
+  gapPauseDuration: 30000,         // 30 seconds pause
+  allowedStartHour: 7,             // 7 AM
+  allowedEndHour: 21,              // 9 PM
+  enabled: true
+};
+
+// ============ MESSAGE TRACKING ============
+// Structure: { messageId: { phone, status, timestamp, error } }
+let messageTracking = {};
+let blockedNumbers = new Set();
+let scheduledBroadcasts = [];
+
+// Load saved data
+function loadData() {
+  try {
+    const settingsFile = path.join(DATA_DIR, "settings.json");
+    const trackingFile = path.join(DATA_DIR, "tracking.json");
+    const blockedFile = path.join(DATA_DIR, "blocked.json");
+    const scheduledFile = path.join(DATA_DIR, "scheduled.json");
+    
+    if (fs.existsSync(settingsFile)) broadcastSettings = JSON.parse(fs.readFileSync(settingsFile));
+    if (fs.existsSync(trackingFile)) messageTracking = JSON.parse(fs.readFileSync(trackingFile));
+    if (fs.existsSync(blockedFile)) blockedNumbers = new Set(JSON.parse(fs.readFileSync(blockedFile)));
+    if (fs.existsSync(scheduledFile)) scheduledBroadcasts = JSON.parse(fs.readFileSync(scheduledFile));
+    console.log("Data loaded successfully");
+  } catch (e) { console.error("Load data error:", e.message); }
+}
+
+function saveData() {
+  try {
+    fs.writeFileSync(path.join(DATA_DIR, "settings.json"), JSON.stringify(broadcastSettings, null, 2));
+    fs.writeFileSync(path.join(DATA_DIR, "tracking.json"), JSON.stringify(messageTracking, null, 2));
+    fs.writeFileSync(path.join(DATA_DIR, "blocked.json"), JSON.stringify([...blockedNumbers]));
+    fs.writeFileSync(path.join(DATA_DIR, "scheduled.json"), JSON.stringify(scheduledBroadcasts, null, 2));
+  } catch (e) { console.error("Save data error:", e.message); }
+}
+
+// Check if current time is within allowed broadcast hours
+function isWithinAllowedHours() {
+  const now = new Date();
+  const hour = now.getHours();
+  return hour >= broadcastSettings.allowedStartHour && hour < broadcastSettings.allowedEndHour;
+}
+
+// Sleep utility
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const logger = pino({ level: "warn" });
+
+async function initializeClient() {
+  console.log("Initializing Baileys WhatsApp client...");
+  loadData();
+  
+  if (!fs.existsSync(AUTH_DIR)) {
+    fs.mkdirSync(AUTH_DIR, { recursive: true });
+  }
+
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+  const { version } = await fetchLatestBaileysVersion();
+
+  sock = makeWASocket({
+    version,
+    logger,
+    printQRInTerminal: true,
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, logger)
+    },
+    generateHighQualityLinkPreview: true
+  });
+
+  sock.ev.on("creds.update", saveCreds);
+
+  sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      console.log("QR code received!");
+      try {
+        qrCode = await qrcode.toDataURL(qr);
+        console.log("QR ready for scanning");
+      } catch (e) {
+        console.error("QR generation error:", e);
+      }
+    }
+
+    if (connection === "close") {
+      const reason = lastDisconnect?.error?.output?.statusCode;
+      console.log("Connection closed, reason:", reason);
+      sessionReady = false;
+      qrCode = null;
+
+      if (reason !== DisconnectReason.loggedOut) {
+        console.log("Reconnecting...");
+        setTimeout(initializeClient, 5000);
+      } else {
+        console.log("Logged out, clearing session...");
+        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+        setTimeout(initializeClient, 3000);
+      }
+    } else if (connection === "open") {
+      console.log("WhatsApp CONNECTED!");
+      sessionReady = true;
+      qrCode = null;
+    }
+  });
+
+  // Track message updates (delivered, read)
+  sock.ev.on("messages.update", (updates) => {
+    for (const update of updates) {
+      const msgId = update.key?.id;
+      if (msgId && messageTracking[msgId]) {
+        if (update.update?.status === 2) {
+          messageTracking[msgId].status = "delivered";
+          messageTracking[msgId].deliveredAt = Date.now();
+        } else if (update.update?.status === 3 || update.update?.status === 4) {
+          messageTracking[msgId].status = "read";
+          messageTracking[msgId].readAt = Date.now();
+        }
+        saveData();
+      }
+    }
+  });
+
+  sock.ev.on("messages.upsert", (m) => {
+    console.log("New message received");
+  });
+}
+
+// Helper: format phone to JID
+function toJid(phone) {
+  let jid = phone;
+  if (!jid.includes("@")) {
+    jid = jid.replace(/\D/g, "") + "@s.whatsapp.net";
+  } else if (jid.includes("@c.us")) {
+    jid = jid.replace("@c.us", "@s.whatsapp.net");
+  }
+  return jid;
+}
+
+app.get("/status", authMiddleware, (req, res) => {
+  res.json({
+    status: sessionReady ? "connected" : (qrCode ? "qr" : "disconnected"),
+    hasQr: !!qrCode,
+    sessionReady,
+    qr: qrCode || null,
+    chatCount: 0
+  });
+});
+
+app.get("/qr", authMiddleware, (req, res) => {
+  if (sessionReady) return res.json({ ok: true, status: "connected", hasQr: false, message: "Already connected" });
+  if (!qrCode) return res.json({ ok: false, status: "disconnected", hasQr: false, message: "QR not ready yet" });
+  res.json({ ok: true, status: "qr", hasQr: true, qrCode });
+});
+
+app.get("/chats", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ error: "WhatsApp not connected" });
+  res.json([]);
+});
+
+// ============ BROADCAST SETTINGS ENDPOINTS ============
+
+// Get broadcast settings
+app.get("/broadcast/settings", authMiddleware, (req, res) => {
+  res.json({ success: true, settings: broadcastSettings });
+});
+
+// Update broadcast settings
+app.post("/broadcast/settings", authMiddleware, (req, res) => {
+  const { delayBetweenMessages, gapAfterMessages, gapPauseDuration, allowedStartHour, allowedEndHour, enabled } = req.body;
+  
+  if (delayBetweenMessages !== undefined) broadcastSettings.delayBetweenMessages = Math.max(1000, delayBetweenMessages);
+  if (gapAfterMessages !== undefined) broadcastSettings.gapAfterMessages = Math.max(1, gapAfterMessages);
+  if (gapPauseDuration !== undefined) broadcastSettings.gapPauseDuration = Math.max(5000, gapPauseDuration);
+  if (allowedStartHour !== undefined) broadcastSettings.allowedStartHour = Math.max(0, Math.min(23, allowedStartHour));
+  if (allowedEndHour !== undefined) broadcastSettings.allowedEndHour = Math.max(1, Math.min(24, allowedEndHour));
+  if (enabled !== undefined) broadcastSettings.enabled = enabled;
+  
+  saveData();
+  res.json({ success: true, settings: broadcastSettings });
+});
+
+// ============ BROADCAST REPORT ENDPOINTS ============
+
+// Get broadcast report
+app.get("/broadcast/report", authMiddleware, (req, res) => {
+  const { broadcastId, from, to } = req.query;
+  
+  let messages = Object.entries(messageTracking).map(([id, data]) => ({ id, ...data }));
+  
+  // Filter by broadcastId if provided
+  if (broadcastId) {
+    messages = messages.filter(m => m.broadcastId === broadcastId);
+  }
+  
+  // Filter by date range
+  if (from) messages = messages.filter(m => m.timestamp >= new Date(from).getTime());
+  if (to) messages = messages.filter(m => m.timestamp <= new Date(to).getTime());
+  
+  // Calculate stats
+  const stats = {
+    total: messages.length,
+    sent: messages.filter(m => m.status === "sent").length,
+    delivered: messages.filter(m => m.status === "delivered").length,
+    read: messages.filter(m => m.status === "read").length,
+    failed: messages.filter(m => m.status === "failed").length,
+    blocked: messages.filter(m => m.blocked).length
+  };
+  
+  res.json({ success: true, stats, messages, blockedNumbers: [...blockedNumbers] });
+});
+
+// Get blocked numbers
+app.get("/broadcast/blocked", authMiddleware, (req, res) => {
+  res.json({ success: true, blockedNumbers: [...blockedNumbers] });
+});
+
+// Remove from blocked list
+app.delete("/broadcast/blocked/:phone", authMiddleware, (req, res) => {
+  const phone = req.params.phone.replace(/\D/g, "");
+  blockedNumbers.delete(phone);
+  saveData();
+  res.json({ success: true, message: "Number removed from blocked list" });
+});
+
+// ============ BULK BROADCAST ENDPOINT ============
+
+app.post("/broadcast", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
+  
+  const { recipients, message, imageUrl, buttons, footerText, schedule } = req.body;
+  
+  if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ success: false, error: "Recipients array required" });
+  }
+  
+  // Check if scheduled for later
+  if (schedule) {
+    const scheduleTime = new Date(schedule).getTime();
+    if (scheduleTime > Date.now()) {
+      const broadcastId = `broadcast_${Date.now()}`;
+      scheduledBroadcasts.push({
+        id: broadcastId,
+        recipients,
+        message,
+        imageUrl,
+        buttons,
+        footerText,
+        scheduleTime,
+        status: "scheduled",
+        createdAt: Date.now()
+      });
+      saveData();
+      return res.json({ success: true, scheduled: true, broadcastId, scheduleTime });
+    }
+  }
+  
+  // Check allowed hours
+  if (!isWithinAllowedHours()) {
+    return res.status(400).json({ 
+      success: false, 
+      error: `Broadcast only allowed between ${broadcastSettings.allowedStartHour}:00 and ${broadcastSettings.allowedEndHour}:00` 
+    });
+  }
+  
+  // Start broadcast in background
+  const broadcastId = `broadcast_${Date.now()}`;
+  res.json({ success: true, broadcastId, message: "Broadcast started", totalRecipients: recipients.length });
+  
+  // Run broadcast asynchronously
+  runBroadcast(broadcastId, recipients, message, imageUrl, buttons, footerText);
+});
+
+async function runBroadcast(broadcastId, recipients, message, imageUrl, buttons, footerText) {
+  console.log(`Starting broadcast ${broadcastId} to ${recipients.length} recipients`);
+  
+  let sent = 0, failed = 0;
+  
+  for (let i = 0; i < recipients.length; i++) {
+    const phone = recipients[i].replace(/\D/g, "");
+    
+    // Skip blocked numbers
+    if (blockedNumbers.has(phone)) {
+      messageTracking[`${broadcastId}_${phone}`] = {
+        phone, broadcastId, status: "skipped", blocked: true, timestamp: Date.now()
+      };
+      failed++;
+      continue;
+    }
+    
+    // Check allowed hours during broadcast
+    if (!isWithinAllowedHours()) {
+      console.log("Outside allowed hours, pausing broadcast");
+      // Save remaining for later
+      const remaining = recipients.slice(i);
+      scheduledBroadcasts.push({
+        id: `${broadcastId}_resumed`,
+        recipients: remaining,
+        message, imageUrl, buttons, footerText,
+        scheduleTime: getNextAllowedTime(),
+        status: "scheduled",
+        originalBroadcastId: broadcastId
+      });
+      saveData();
+      break;
+    }
+    
+    try {
+      const jid = toJid(phone);
+      let result;
+      
+      if (buttons && buttons.length > 0) {
+        // Send with buttons
+        const buttonRows = buttons.slice(0, 3).map((btn, idx) => ({
+          buttonId: `btn_${idx}`,
+          buttonText: { displayText: typeof btn === 'string' ? btn : btn.text || btn },
+          type: 1
+        }));
+        
+        if (imageUrl) {
+          result = await sock.sendMessage(jid, {
+            image: { url: imageUrl },
+            caption: message || "",
+            footer: footerText || "Swar Yoga",
+            buttons: buttonRows,
+            headerType: 4
+          });
+        } else {
+          result = await sock.sendMessage(jid, {
+            text: message || "",
+            footer: footerText || "Swar Yoga",
+            buttons: buttonRows,
+            headerType: 1
+          });
+        }
+      } else if (imageUrl) {
+        result = await sock.sendMessage(jid, { image: { url: imageUrl }, caption: message || "" });
+      } else {
+        result = await sock.sendMessage(jid, { text: message });
+      }
+      
+      const msgId = result?.key?.id || `${broadcastId}_${phone}`;
+      messageTracking[msgId] = {
+        phone, broadcastId, status: "sent", timestamp: Date.now()
+      };
+      sent++;
+      console.log(`Sent to ${phone} (${sent}/${recipients.length})`);
+      
+    } catch (err) {
+      console.error(`Failed to send to ${phone}:`, err.message);
+      messageTracking[`${broadcastId}_${phone}`] = {
+        phone, broadcastId, status: "failed", error: err.message, timestamp: Date.now()
+      };
+      
+      // Check if blocked
+      if (err.message.includes("blocked") || err.message.includes("not on WhatsApp")) {
+        blockedNumbers.add(phone);
+        messageTracking[`${broadcastId}_${phone}`].blocked = true;
+      }
+      failed++;
+    }
+    
+    // Delay between messages
+    await sleep(broadcastSettings.delayBetweenMessages);
+    
+    // Gap pause after N messages
+    if ((i + 1) % broadcastSettings.gapAfterMessages === 0 && i < recipients.length - 1) {
+      console.log(`Pausing for ${broadcastSettings.gapPauseDuration/1000}s after ${i + 1} messages`);
+      await sleep(broadcastSettings.gapPauseDuration);
+    }
+  }
+  
+  saveData();
+  console.log(`Broadcast ${broadcastId} complete: ${sent} sent, ${failed} failed`);
+}
+
+function getNextAllowedTime() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(broadcastSettings.allowedStartHour, 0, 0, 0);
+  if (now.getHours() >= broadcastSettings.allowedEndHour) {
+    next.setDate(next.getDate() + 1);
+  }
+  return next.getTime();
+}
+
+// ============ SCHEDULED BROADCASTS ============
+
+app.get("/broadcast/scheduled", authMiddleware, (req, res) => {
+  res.json({ success: true, scheduled: scheduledBroadcasts });
+});
+
+app.delete("/broadcast/scheduled/:id", authMiddleware, (req, res) => {
+  scheduledBroadcasts = scheduledBroadcasts.filter(b => b.id !== req.params.id);
+  saveData();
+  res.json({ success: true, message: "Scheduled broadcast cancelled" });
+});
+
+// Check and run scheduled broadcasts every minute
+setInterval(() => {
+  if (!sessionReady) return;
+  
+  const now = Date.now();
+  const toRun = scheduledBroadcasts.filter(b => b.status === "scheduled" && b.scheduleTime <= now);
+  
+  for (const broadcast of toRun) {
+    broadcast.status = "running";
+    saveData();
+    runBroadcast(broadcast.id, broadcast.recipients, broadcast.message, broadcast.imageUrl, broadcast.buttons, broadcast.footerText);
+  }
+  
+  // Remove completed
+  scheduledBroadcasts = scheduledBroadcasts.filter(b => b.status === "scheduled");
+  saveData();
+}, 60000);
+
+// Simple text/media send
+app.post("/send", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
+  
+  const { to, message, type = "text", url, caption } = req.body;
+  if (!to) return res.status(400).json({ success: false, error: "Missing recipient" });
+
+  try {
+    const jid = toJid(to);
+    let result;
+
+    if (type === "text") {
+      result = await sock.sendMessage(jid, { text: message });
+    } else if (type === "image" && url) {
+      result = await sock.sendMessage(jid, { image: { url }, caption: caption || "" });
+    } else if (type === "video" && url) {
+      result = await sock.sendMessage(jid, { video: { url }, caption: caption || "" });
+    } else if (type === "document" && url) {
+      result = await sock.sendMessage(jid, { document: { url }, caption: caption || "", fileName: "document" });
+    } else if (type === "audio" && url) {
+      result = await sock.sendMessage(jid, { audio: { url }, mimetype: "audio/mp4" });
+    }
+
+    console.log("Message sent to", jid);
+    res.json({ success: true, id: result?.key?.id });
+  } catch (err) {
+    console.error("Send error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Template card with image and buttons (for 1-1 QR messaging)
+app.post("/send-template", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
+  
+  const { to, imageUrl, bodyText, buttons = [], footerText = "Swar Yoga", headerText } = req.body;
+  if (!to) return res.status(400).json({ success: false, error: "Missing recipient" });
+
+  try {
+    const jid = toJid(to);
+    const messageIds = [];
+
+    // Option 1: Use interactive buttons (blue buttons)
+    if (buttons && buttons.length > 0 && buttons.length <= 3) {
+      // Create button structure for Baileys
+      const buttonRows = buttons.map((btn, idx) => ({
+        buttonId: `btn_${idx}`,
+        buttonText: { displayText: typeof btn === 'string' ? btn : btn.text || btn },
+        type: 1
+      }));
+
+      if (imageUrl) {
+        // Image with buttons
+        const msg = {
+          image: { url: imageUrl },
+          caption: bodyText || "",
+          footer: footerText,
+          buttons: buttonRows,
+          headerType: 4 // Image header
+        };
+        const result = await sock.sendMessage(jid, msg);
+        messageIds.push(result?.key?.id);
+      } else {
+        // Text with buttons
+        const msg = {
+          text: bodyText || "",
+          footer: footerText,
+          buttons: buttonRows,
+          headerType: 1 // Text header
+        };
+        const result = await sock.sendMessage(jid, msg);
+        messageIds.push(result?.key?.id);
+      }
+    } else {
+      // Fallback: Send image + text separately (no button support or >3 buttons)
+      
+      // Send image with caption
+      if (imageUrl) {
+        const imgResult = await sock.sendMessage(jid, { 
+          image: { url: imageUrl }, 
+          caption: bodyText || "" 
+        });
+        messageIds.push(imgResult?.key?.id);
+      } else if (bodyText) {
+        const textResult = await sock.sendMessage(jid, { text: bodyText });
+        messageIds.push(textResult?.key?.id);
+      }
+
+      // Send buttons as formatted text (fallback)
+      if (buttons && buttons.length > 0) {
+        const btnText = buttons.map(b => {
+          const text = typeof b === 'string' ? b : b.text || b;
+          return `▸ ${text}`;
+        }).join("\n");
+        const fullText = footerText ? `${btnText}\n\n_${footerText}_` : btnText;
+        const btnResult = await sock.sendMessage(jid, { text: fullText });
+        messageIds.push(btnResult?.key?.id);
+      }
+    }
+
+    console.log("Template sent to", jid, "messageIds:", messageIds);
+    res.json({ success: true, messageIds });
+  } catch (err) {
+    console.error("Send template error:", err.message);
+    
+    // If button message fails, try fallback without buttons
+    try {
+      const jid = toJid(to);
+      const messageIds = [];
+      
+      if (imageUrl) {
+        const imgResult = await sock.sendMessage(jid, { 
+          image: { url: imageUrl }, 
+          caption: bodyText || "" 
+        });
+        messageIds.push(imgResult?.key?.id);
+      } else if (bodyText) {
+        const textResult = await sock.sendMessage(jid, { text: bodyText });
+        messageIds.push(textResult?.key?.id);
+      }
+
+      if (buttons && buttons.length > 0) {
+        const btnText = buttons.map(b => `▸ ${typeof b === 'string' ? b : b.text || b}`).join("\n");
+        const fullText = footerText ? `${btnText}\n\n_${footerText}_` : btnText;
+        const btnResult = await sock.sendMessage(jid, { text: fullText });
+        messageIds.push(btnResult?.key?.id);
+      }
+
+      console.log("Fallback template sent to", jid);
+      res.json({ success: true, messageIds, fallback: true });
+    } catch (fallbackErr) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+});
+
+// Send image only
+app.post("/send-image", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
+  
+  const { to, imageUrl, caption } = req.body;
+  if (!to || !imageUrl) return res.status(400).json({ success: false, error: "Missing recipient or imageUrl" });
+
+  try {
+    const jid = toJid(to);
+    const result = await sock.sendMessage(jid, { 
+      image: { url: imageUrl }, 
+      caption: caption || "" 
+    });
+    console.log("Image sent to", jid);
+    res.json({ success: true, id: result?.key?.id });
+  } catch (err) {
+    console.error("Send image error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Send buttons message (blue interactive buttons)
+app.post("/send-buttons", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
+  
+  const { to, text, buttons, footer, imageUrl } = req.body;
+  if (!to || !buttons || buttons.length === 0) {
+    return res.status(400).json({ success: false, error: "Missing recipient or buttons" });
+  }
+
+  try {
+    const jid = toJid(to);
+    
+    // Create button structure
+    const buttonRows = buttons.slice(0, 3).map((btn, idx) => ({
+      buttonId: `btn_${idx}`,
+      buttonText: { displayText: typeof btn === 'string' ? btn : btn.text || btn },
+      type: 1
+    }));
+
+    let msg;
+    if (imageUrl) {
+      msg = {
+        image: { url: imageUrl },
+        caption: text || "",
+        footer: footer || "Swar Yoga",
+        buttons: buttonRows,
+        headerType: 4
+      };
+    } else {
+      msg = {
+        text: text || "",
+        footer: footer || "Swar Yoga",
+        buttons: buttonRows,
+        headerType: 1
+      };
+    }
+
+    const result = await sock.sendMessage(jid, msg);
+    console.log("Buttons message sent to", jid);
+    res.json({ success: true, id: result?.key?.id });
+  } catch (err) {
+    console.error("Send buttons error:", err.message);
+    
+    // Fallback to text-based buttons
+    try {
+      const jid = toJid(to);
+      const btnText = buttons.map(b => `▸ ${typeof b === 'string' ? b : b.text || b}`).join("\n");
+      const fullText = `${text || ""}\n\n${btnText}\n\n_${footer || "Swar Yoga"}_`;
+      
+      let result;
+      if (imageUrl) {
+        result = await sock.sendMessage(jid, { image: { url: imageUrl }, caption: fullText });
+      } else {
+        result = await sock.sendMessage(jid, { text: fullText });
+      }
+      
+      res.json({ success: true, id: result?.key?.id, fallback: true });
+    } catch (fallbackErr) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+});
+
+// Send list message (for menus)
+app.post("/send-list", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
+  
+  const { to, text, buttonText, sections, footer } = req.body;
+  if (!to || !sections) {
+    return res.status(400).json({ success: false, error: "Missing recipient or sections" });
+  }
+
+  try {
+    const jid = toJid(to);
+    
+    const msg = {
+      text: text || "Select an option",
+      footer: footer || "Swar Yoga",
+      title: "Menu",
+      buttonText: buttonText || "Options",
+      sections: sections
+    };
+
+    const result = await sock.sendMessage(jid, msg);
+    console.log("List message sent to", jid);
+    res.json({ success: true, id: result?.key?.id });
+  } catch (err) {
+    console.error("Send list error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+process.on("SIGINT", () => console.log("SIGINT"));
+process.on("SIGTERM", () => console.log("SIGTERM"));
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("Baileys Bridge on port", PORT);
+  console.log("Endpoints: /send, /send-template, /send-image, /send-buttons, /send-list");
+  initializeClient();
+});
