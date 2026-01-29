@@ -2181,9 +2181,9 @@ function QRWhatsAppInboxPageContent() {
       console.log('[handleConnect] Waiting 3 seconds for bridge QR generation...');
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Fetch and display QR
+      // Fetch and display QR (force show modal since user clicked Connect)
       console.log('[handleConnect] Fetching QR...');
-      await refreshQr();
+      await refreshQr(true);
       console.log('[handleConnect] Success!');
       
       setBridgeError('🔐 Scan QR with WhatsApp. Keep scanning until you get "Successfully authenticated".');
@@ -2696,7 +2696,7 @@ function QRWhatsAppInboxPageContent() {
     }
   };
 
-  const refreshQr = async () => {
+  const refreshQr = async (forceShowModal = false) => {
     try {
       setBridgeError(null);
       
@@ -2708,8 +2708,8 @@ function QRWhatsAppInboxPageContent() {
         const statusData = await statusRes.json();
         console.log('[refreshQr] Bridge status:', statusData);
         
-        // If session is already connected, no need for QR
-        if (statusData.sessionReady || statusData.status === 'connected') {
+        // If session is already connected and we're not forcing modal, skip QR
+        if (!forceShowModal && (statusData.sessionReady || statusData.status === 'connected')) {
           console.log('[refreshQr] Session already connected, no QR needed');
           setStatus('connected');
           setBridgeError(null);
@@ -2839,7 +2839,7 @@ function QRWhatsAppInboxPageContent() {
         return;
       }
 
-      await refreshQr();
+      await refreshQr(true); // Force show modal for new number login
     } catch (err) {
       setBridgeError(err instanceof Error ? err.message : 'Failed to start new-number login');
     } finally {
