@@ -102,6 +102,10 @@ export async function POST(req: NextRequest) {
 
     if (type === 'text' && message) {
       finalMessage = message + attributionTag;
+    } else if (type === 'template' && message) {
+      // For templates, add attribution to the body text
+      finalMessage = message + attributionTag;
+      finalCaption = (caption || message) + attributionTag;
     } else if (caption) {
       finalCaption = caption + attributionTag;
     } else if (message) {
@@ -210,7 +214,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({ 
             to,
             imageUrl: signedUrl,
-            bodyText: message || caption,  // Body text (will be image caption)
+            bodyText: finalMessage || finalCaption,  // Body text with admin attribution
             buttons: buttonTexts,
             footerText: templateData.footerText || 'Swar Yoga'
           }),

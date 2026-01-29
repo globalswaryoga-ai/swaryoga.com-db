@@ -1598,25 +1598,13 @@ function QRWhatsAppInboxPageContent() {
         setNewMessage(''); // Caption was sent
         showToast(`✅ ${pendingMedia.length} file(s) sent successfully`, 'success');
       } else if (selectedTemplate) {
-        // 2. Send Template via QR Bridge (with image + text + buttons as text)
+        // 2. Send Template via QR Bridge (with image + text + buttons)
         console.log('[sendMessage] Sending template via QR Bridge:', selectedTemplate.templateName);
         console.log('[sendMessage] Template has media:', !!templateMediaUrl);
         
-        // Build the full message with buttons as text options
+        // Use original template content - don't add buttons/footer here
+        // The bridge handles formatting with buttons and footer
         let fullMessage = newMessage || selectedTemplate.templateContent || '';
-        
-        // Add buttons as numbered text options at the end
-        if (Array.isArray(selectedTemplate.buttons) && selectedTemplate.buttons.length > 0) {
-          const buttonText = selectedTemplate.buttons
-            .map((btn: any, idx: number) => `${idx + 1}. ${btn.title || btn.text || 'Option'}`)
-            .join('\n');
-          fullMessage = fullMessage.trim() + '\n\n' + buttonText;
-        }
-        
-        // Add footer if exists
-        if (selectedTemplate.footerText) {
-          fullMessage = fullMessage.trim() + '\n\n' + selectedTemplate.footerText;
-        }
         
         // Prepare template metadata for inbox display
         const templateMetadata = {
@@ -1628,13 +1616,25 @@ function QRWhatsAppInboxPageContent() {
           buttons: selectedTemplate.buttons,
         };
         
+        // Build display message for optimistic UI (includes buttons as text for preview)
+        let displayMessage = fullMessage;
+        if (Array.isArray(selectedTemplate.buttons) && selectedTemplate.buttons.length > 0) {
+          const buttonText = selectedTemplate.buttons
+            .map((btn: any, idx: number) => `${idx + 1}. ${btn.title || btn.text || 'Option'}`)
+            .join('\n');
+          displayMessage = displayMessage.trim() + '\n\n' + buttonText;
+        }
+        if (selectedTemplate.footerText) {
+          displayMessage = displayMessage.trim() + '\n\n' + selectedTemplate.footerText;
+        }
+        
         // Add optimistic UI showing template card with full metadata
         const optimisticMessage = {
           id: `opt-${Date.now()}`,
           fromMe: true,
           timestamp: new Date(),
           type: templateMediaUrl ? 'image' : 'text',
-          body: fullMessage,
+          body: displayMessage,
           status: 'pending',
           mediaUrl: templateMediaUrl,
           templateName: selectedTemplate.templateName,
