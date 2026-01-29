@@ -9,17 +9,28 @@ import mongoose from 'mongoose';
 //   Example: swaryoga_admin_crm (for separate DB) or swaryogaDB (same as main)
 const CRM_DB_NAME = process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm';
 
-// Cache for CRM database connection to avoid repeated useDb() calls
-let cachedCrmDb: any = null;
+// Use global to persist cache across Next.js hot reloads in dev
+declare global {
+  // eslint-disable-next-line no-var
+  var _crmDbCache: any;
+  // eslint-disable-next-line no-var
+  var _crmModelCache: Record<string, any>;
+}
+
+// Initialize globals if not present
+if (!global._crmModelCache) {
+  global._crmModelCache = {};
+}
 
 function getCrmDb() {
   // Note: connectDB() should be called before using these models.
   // useDb() is safe and will reuse the underlying connection.
-  // Cache the result to avoid calling useDb() repeatedly on the same connection
-  if (!cachedCrmDb) {
-    cachedCrmDb = mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
+  // Use global cache to survive hot reloads
+  if (!global._crmDbCache) {
+    console.log('[enterpriseSchemas] Creating CRM DB connection to:', CRM_DB_NAME);
+    global._crmDbCache = mongoose.connection.useDb(CRM_DB_NAME, { useCache: true });
   }
-  return cachedCrmDb;
+  return global._crmDbCache;
 }
 
 /**
@@ -1694,12 +1705,10 @@ ZoomRecordingSyncSchema.index({ topic: 1 });
 // Instead, we use Proxy objects that defer initialization until
 // the model is actually used (guaranteed after connectDB() is called).
 
-const modelCache: Record<string, any> = {};
-
 function getModel(modelName: string, schema: any) {
-  // Return cached model if available
-  if (modelCache[modelName]) {
-    return modelCache[modelName];
+  // Return cached model if available (using global to survive hot reloads)
+  if (global._crmModelCache[modelName]) {
+    return global._crmModelCache[modelName];
   }
   
   // Initialize on first use (safe because this happens after connectDB)
@@ -1714,7 +1723,7 @@ function getModel(modelName: string, schema: any) {
   }
 
   const model = crmDb.models[modelName] || crmDb.model(modelName, schema);
-  modelCache[modelName] = model;
+  global._crmModelCache[modelName] = model;
   return model;
 }
 

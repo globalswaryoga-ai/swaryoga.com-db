@@ -119,9 +119,12 @@ export async function POST(req: NextRequest) {
     // even if the bridge takes time or is briefly unavailable.
     let savedDbMessageId: string | null = null;
     try {
+      console.log('[QR SEND] Connecting to DB...');
       await connectDB();
+      console.log('[QR SEND] DB Connected, getting models...');
       const WhatsAppMessage = getWhatsAppMessage();
       const Lead = getLead();
+      console.log('[QR SEND] Models retrieved');
       
       // Extract phone number from `to` field
       // Handle formats: "919309986820@c.us", "919309986820", or object { user: "919309986820" }
@@ -155,7 +158,11 @@ export async function POST(req: NextRequest) {
       // Map 'media' to 'image' for bridge compatibility
       const bridgeMediaType = (type === 'media' || type === 'image') ? 'image' : type;
 
-      console.log(`[QR SEND] Saving message: type=${type}, bridgeType=${bridgeMediaType}, messageType=${dbMessageType}`);
+      // For templates, get image URL from headerMedia if available
+      const templateImageUrl = templateData?.headerMedia?.url || templateData?.headerContent;
+      const effectiveMediaUrl = url || (templateData?.headerFormat === 'IMAGE' ? templateImageUrl : null);
+
+      console.log(`[QR SEND] Saving message: type=${type}, bridgeType=${bridgeMediaType}, messageType=${dbMessageType}, mediaUrl=${effectiveMediaUrl ? 'yes' : 'no'}`);
 
       const savedMessage = await WhatsAppMessage.create({
         phoneNumber: phone || 'unknown',
@@ -163,7 +170,7 @@ export async function POST(req: NextRequest) {
         direction: 'outbound',
         messageContent: contentToStore,
         messageType: dbMessageType,
-        media: url ? { kind: bridgeMediaType, url: url } : undefined,
+        media: effectiveMediaUrl ? { kind: 'image', url: effectiveMediaUrl } : undefined,
         status: 'pending', // Mark as pending initially
         sentByLabel: adminName,
         sentByUserId: viewerUserId,
@@ -274,6 +281,7 @@ export async function POST(req: NextRequest) {
     
     // Check if bridge returned success (bridgeData.success can be true even if HTTP isn't 200)
     const bridgeSuccess = bridgeOk || bridgeData.success === true;
+    console.log(`[QR SEND] Bridge response: ok=${bridgeOk}, success=${bridgeData.success}, data=`, JSON.stringify(bridgeData).substring(0, 200));
     
     if (!bridgeSuccess) {
         // Check for "not connected" error from bridge
