@@ -1152,6 +1152,9 @@ function QRWhatsAppInboxPageContent() {
             // Admin sender info for outbound messages
             sentByLabel: msg.sentByLabel,
             senderDisplayName: msg.senderDisplayName,
+            // Template metadata for proper inbox rendering
+            metadata: msg.metadata,
+            templateName: msg.metadata?.template?.templateName,
             _crmMessage: true,
           };
         });
@@ -1615,23 +1618,6 @@ function QRWhatsAppInboxPageContent() {
           fullMessage = fullMessage.trim() + '\n\n' + selectedTemplate.footerText;
         }
         
-        // Add optimistic UI showing template card
-        const optimisticMessage = {
-          id: `opt-${Date.now()}`,
-          fromMe: true,
-          timestamp: new Date(),
-          type: templateMediaUrl ? 'image' : 'text',
-          body: fullMessage,
-          status: 'pending',
-          mediaUrl: templateMediaUrl,
-          templateName: selectedTemplate.templateName
-        };
-        setMessages(prev => [...prev, optimisticMessage]);
-        
-        const phoneNumber = chatId.replace(/@.*$/, '').replace(/\D/g, '');
-        let sendSuccess = false;
-        let errorMessage = '';
-        
         // Prepare template metadata for inbox display
         const templateMetadata = {
           templateName: selectedTemplate.templateName,
@@ -1641,6 +1627,24 @@ function QRWhatsAppInboxPageContent() {
           footerText: selectedTemplate.footerText,
           buttons: selectedTemplate.buttons,
         };
+        
+        // Add optimistic UI showing template card with full metadata
+        const optimisticMessage = {
+          id: `opt-${Date.now()}`,
+          fromMe: true,
+          timestamp: new Date(),
+          type: templateMediaUrl ? 'image' : 'text',
+          body: fullMessage,
+          status: 'pending',
+          mediaUrl: templateMediaUrl,
+          templateName: selectedTemplate.templateName,
+          metadata: { template: templateMetadata }
+        };
+        setMessages(prev => [...prev, optimisticMessage]);
+        
+        const phoneNumber = chatId.replace(/@.*$/, '').replace(/\D/g, '');
+        let sendSuccess = false;
+        let errorMessage = '';
         
         try {
           console.log('[sendMessage] Sending template via QR Bridge...');
