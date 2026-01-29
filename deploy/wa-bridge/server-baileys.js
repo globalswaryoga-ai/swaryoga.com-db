@@ -18,6 +18,9 @@ const BRIDGE_SECRET = "swar-bridge-secret-2024";
 const AUTH_DIR = "/tmp/.baileys_auth";
 const DATA_DIR = "/tmp/.baileys_data";
 
+// CRM Webhook URL to forward incoming messages
+const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || "https://crm.swaryoga.com/api/admin/crm/whatsapp/qr/webhook";
+
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -161,8 +164,84 @@ async function initializeClient() {
     }
   });
 
-  sock.ev.on("messages.upsert", (m) => {
-    console.log("New message received");
+  // Handle incoming messages - forward to CRM webhook
+  sock.ev.on("messages.upsert", async (m) => {
+    if (!m.messages || m.messages.length === 0) return;
+    
+    for (const msg of m.messages) {
+      // Skip outgoing messages (from us)
+      if (msg.key.fromMe) continue;
+      
+      const phone = msg.key.remoteJid?.replace("@s.whatsapp.net", "").replace("@c.us", "") || "";
+      const pushName = msg.pushName || "";
+      
+      // Extract message content
+      let messageContent = "";
+      let messageType = "text";
+      let mediaUrl = null;
+      
+      if (msg.message?.conversation) {
+        messageContent = msg.message.conversation;
+      } else if (msg.message?.extendedTextMessage?.text) {
+        messageContent = msg.message.extendedTextMessage.text;
+      } else if (msg.message?.imageMessage) {
+        messageType = "image";
+        messageContent = msg.message.imageMessage.caption || "[Image]";
+      } else if (msg.message?.videoMessage) {
+        messageType = "video";
+        messageContent = msg.message.videoMessage.caption || "[Video]";
+      } else if (msg.message?.audioMessage) {
+        messageType = "audio";
+        messageContent = "[Audio]";
+      } else if (msg.message?.documentMessage) {
+        messageType = "document";
+        messageContent = msg.message.documentMessage.fileName || "[Document]";
+      } else if (msg.message?.stickerMessage) {
+        messageType = "sticker";
+        messageContent = "[Sticker]";
+      } else if (msg.message?.buttonsResponseMessage) {
+        messageContent = msg.message.buttonsResponseMessage.selectedDisplayText || msg.message.buttonsResponseMessage.selectedButtonId;
+      } else if (msg.message?.listResponseMessage) {
+        messageContent = msg.message.listResponseMessage.title || msg.message.listResponseMessage.singleSelectReply?.selectedRowId;
+      }
+      
+      if (!messageContent && !mediaUrl) continue;
+      
+      console.log(`📥 Incoming from ${phone}: ${messageContent.substring(0, 50)}...`);
+      
+      // Forward to CRM webhook
+      try {
+        const webhookPayload = {
+          from: phone,
+          pushName: pushName,
+          messageId: msg.key.id,
+          messageContent: messageContent,
+          messageType: messageType,
+          mediaUrl: mediaUrl,
+          timestamp: msg.messageTimestamp ? msg.messageTimestamp * 1000 : Date.now(),
+          raw: {
+            key: msg.key,
+            messageType: Object.keys(msg.message || {})[0]
+          }
+        };
+        
+        fetch(CRM_WEBHOOK_URL, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-bridge-secret": BRIDGE_SECRET
+          },
+          body: JSON.stringify(webhookPayload)
+        }).then(res => {
+          if (res.ok) console.log(`✅ Forwarded to CRM: ${phone}`);
+          else console.log(`⚠️ CRM webhook returned ${res.status}`);
+        }).catch(err => {
+          console.error(`❌ CRM webhook error: ${err.message}`);
+        });
+      } catch (webhookErr) {
+        console.error("Webhook forward error:", webhookErr.message);
+      }
+    }
   });
 }
 
@@ -486,6 +565,8 @@ app.post("/send", authMiddleware, async (req, res) => {
 });
 
 // Template card with image and buttons (for 1-1 QR messaging)
+// NOTE: WhatsApp disabled classic buttons API for unofficial clients
+// Using interactive messages with sections/buttons instead
 app.post("/send-template", authMiddleware, async (req, res) => {
   if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
   
@@ -496,97 +577,90 @@ app.post("/send-template", authMiddleware, async (req, res) => {
     const jid = toJid(to);
     const messageIds = [];
 
-    // Option 1: Use interactive buttons (blue buttons)
+    // Method 1: Try interactive buttons (works on some versions)
     if (buttons && buttons.length > 0 && buttons.length <= 3) {
-      // Create button structure for Baileys
-      const buttonRows = buttons.map((btn, idx) => ({
-        buttonId: `btn_${idx}`,
-        buttonText: { displayText: typeof btn === 'string' ? btn : btn.text || btn },
-        type: 1
-      }));
-
-      if (imageUrl) {
-        // Image with buttons
-        const msg = {
-          image: { url: imageUrl },
-          caption: bodyText || "",
-          footer: footerText,
-          buttons: buttonRows,
-          headerType: 4 // Image header
-        };
-        const result = await sock.sendMessage(jid, msg);
-        messageIds.push(result?.key?.id);
-      } else {
-        // Text with buttons
-        const msg = {
-          text: bodyText || "",
-          footer: footerText,
-          buttons: buttonRows,
-          headerType: 1 // Text header
-        };
-        const result = await sock.sendMessage(jid, msg);
-        messageIds.push(result?.key?.id);
-      }
-    } else {
-      // Fallback: Send image + text separately (no button support or >3 buttons)
-      
-      // Send image with caption
-      if (imageUrl) {
-        const imgResult = await sock.sendMessage(jid, { 
-          image: { url: imageUrl }, 
-          caption: bodyText || "" 
+      try {
+        // Baileys interactive button format
+        const interactiveButtons = buttons.map((btn, idx) => {
+          const text = typeof btn === 'string' ? btn : (btn.text || btn.title || btn);
+          return {
+            name: "quick_reply",
+            buttonParamsJson: JSON.stringify({ display_text: text, id: `btn_${idx}` })
+          };
         });
-        messageIds.push(imgResult?.key?.id);
-      } else if (bodyText) {
-        const textResult = await sock.sendMessage(jid, { text: bodyText });
-        messageIds.push(textResult?.key?.id);
-      }
 
-      // Send buttons as formatted text (fallback)
-      if (buttons && buttons.length > 0) {
-        const btnText = buttons.map(b => {
-          const text = typeof b === 'string' ? b : b.text || b;
-          return `▸ ${text}`;
-        }).join("\n");
-        const fullText = footerText ? `${btnText}\n\n_${footerText}_` : btnText;
-        const btnResult = await sock.sendMessage(jid, { text: fullText });
-        messageIds.push(btnResult?.key?.id);
+        const interactiveMsg = {
+          viewOnceMessage: {
+            message: {
+              interactiveMessage: {
+                header: imageUrl ? {
+                  imageMessage: { url: imageUrl },
+                  hasMediaAttachment: true
+                } : (headerText ? { title: headerText } : undefined),
+                body: { text: bodyText || "" },
+                footer: { text: footerText },
+                nativeFlowMessage: {
+                  buttons: interactiveButtons,
+                  messageParamsJson: ""
+                }
+              }
+            }
+          }
+        };
+
+        const result = await sock.sendMessage(jid, interactiveMsg);
+        if (result?.key?.id) {
+          messageIds.push(result.key.id);
+          console.log("Interactive template sent to", jid);
+          return res.json({ success: true, messageIds, method: "interactive" });
+        }
+      } catch (interactiveErr) {
+        console.log("Interactive buttons failed, trying fallback:", interactiveErr.message);
       }
     }
 
-    console.log("Template sent to", jid, "messageIds:", messageIds);
-    res.json({ success: true, messageIds });
+    // Method 2: Fallback - Send image + text with button options as text
+    // Send image with caption
+    if (imageUrl) {
+      let captionWithButtons = bodyText || "";
+      
+      // Add buttons as clickable-looking text
+      if (buttons && buttons.length > 0) {
+        const buttonList = buttons.map((b, i) => {
+          const text = typeof b === 'string' ? b : (b.text || b.title || b);
+          return `\n${i + 1}️⃣ *${text}*`;
+        }).join("");
+        captionWithButtons += `\n${buttonList}`;
+        if (footerText) captionWithButtons += `\n\n_${footerText}_`;
+      }
+      
+      const imgResult = await sock.sendMessage(jid, { 
+        image: { url: imageUrl }, 
+        caption: captionWithButtons
+      });
+      messageIds.push(imgResult?.key?.id);
+    } else {
+      // Text only with buttons
+      let textWithButtons = bodyText || "";
+      
+      if (buttons && buttons.length > 0) {
+        const buttonList = buttons.map((b, i) => {
+          const text = typeof b === 'string' ? b : (b.text || b.title || b);
+          return `\n${i + 1}️⃣ *${text}*`;
+        }).join("");
+        textWithButtons += `\n${buttonList}`;
+        if (footerText) textWithButtons += `\n\n_${footerText}_`;
+      }
+      
+      const textResult = await sock.sendMessage(jid, { text: textWithButtons });
+      messageIds.push(textResult?.key?.id);
+    }
+
+    console.log("Template (fallback) sent to", jid, "messageIds:", messageIds);
+    res.json({ success: true, messageIds, method: "fallback" });
   } catch (err) {
     console.error("Send template error:", err.message);
-    
-    // If button message fails, try fallback without buttons
-    try {
-      const jid = toJid(to);
-      const messageIds = [];
-      
-      if (imageUrl) {
-        const imgResult = await sock.sendMessage(jid, { 
-          image: { url: imageUrl }, 
-          caption: bodyText || "" 
-        });
-        messageIds.push(imgResult?.key?.id);
-      } else if (bodyText) {
-        const textResult = await sock.sendMessage(jid, { text: bodyText });
-        messageIds.push(textResult?.key?.id);
-      }
-
-      if (buttons && buttons.length > 0) {
-        const btnText = buttons.map(b => `▸ ${typeof b === 'string' ? b : b.text || b}`).join("\n");
-        const fullText = footerText ? `${btnText}\n\n_${footerText}_` : btnText;
-        const btnResult = await sock.sendMessage(jid, { text: fullText });
-        messageIds.push(btnResult?.key?.id);
-      }
-
-      console.log("Fallback template sent to", jid);
-      res.json({ success: true, messageIds, fallback: true });
-    } catch (fallbackErr) {
-      res.status(500).json({ success: false, error: err.message });
-    }
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

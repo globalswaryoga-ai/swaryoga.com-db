@@ -101,9 +101,17 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    console.log('[QR WEBHOOK] Received:', JSON.stringify(body).substring(0, 200));
+    console.log('[QR WEBHOOK] Received:', JSON.stringify(body).substring(0, 300));
 
-    const { from, to, body: messageBody, timestamp, type, hasMedia, messageId, contactName } = body;
+    // Support both old format (from/body) and new Baileys format (from/messageContent)
+    const from = body.from;
+    const messageBody = body.body || body.messageContent;
+    const timestamp = body.timestamp;
+    const type = body.type || body.messageType || 'text';
+    const hasMedia = body.hasMedia || ['image', 'video', 'audio', 'document', 'sticker'].includes(type);
+    const messageId = body.messageId;
+    const contactName = body.contactName || body.pushName;
+    const mediaUrl = body.mediaUrl;
 
     // Skip if no sender - but allow empty body for media messages
     if (!from) {
@@ -133,7 +141,13 @@ export async function POST(req: NextRequest) {
     const Lead = getLead();
 
     // Extract phone number from WhatsApp ID (e.g., "919309986820@c.us" -> "919309986820")
-    const phoneNumber = from.split('@')[0].replace(/\D/g, '');
+    // Also handle raw phone number format from Baileys
+    let phoneNumber = from.split('@')[0].replace(/\D/g, '');
+    
+    // If already just digits, use as-is
+    if (!phoneNumber && /^\d+$/.test(from)) {
+      phoneNumber = from;
+    }
     
     // Validate: must be 10-15 digits (real phone numbers)
     if (!phoneNumber || phoneNumber.length < 10 || phoneNumber.length > 15) {
@@ -142,10 +156,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate message
-    const existing = await WhatsAppMessage.findOne({ waMessageId: messageId });
-    if (existing) {
-      console.log('[QR WEBHOOK] Duplicate message, skipping:', messageId);
-      return NextResponse.json({ success: true, skipped: true, reason: 'duplicate' });
+    if (messageId) {
+      const existing = await WhatsAppMessage.findOne({ waMessageId: messageId });
+      if (existing) {
+        console.log('[QR WEBHOOK] Duplicate message, skipping:', messageId);
+        return NextResponse.json({ success: true, skipped: true, reason: 'duplicate' });
+      }
     }
 
     // Find or create lead
@@ -164,13 +180,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Handle media if present
-    let mediaUrl: string | undefined;
+    let savedMediaUrl: string | undefined = mediaUrl; // Use mediaUrl from Baileys if already provided
     let mimeType: string | undefined;
     
-    if (hasMedia && messageId) {
+    if (hasMedia && messageId && !savedMediaUrl) {
       const mediaResult = await fetchAndUploadMedia(messageId, phoneNumber, type || 'media');
       if (mediaResult) {
-        mediaUrl = mediaResult.url;
+        savedMediaUrl = mediaResult.url;
         mimeType = mediaResult.mimeType;
       }
     }
@@ -191,9 +207,9 @@ export async function POST(req: NextRequest) {
       messageType: mappedType,
       hasMedia: hasMedia || false,
       // Store media info if available
-      ...(mediaUrl && {
+      ...(savedMediaUrl && {
         media: {
-          url: mediaUrl,
+          url: savedMediaUrl,
           mimeType: mimeType,
           type: type || 'media',
         }
@@ -201,7 +217,7 @@ export async function POST(req: NextRequest) {
       waMessageId: messageId,
       status: 'received',
       provider: 'whatsapp_web_bridge',
-      sentAt: timestamp ? new Date(timestamp * 1000) : new Date(),
+      sentAt: timestamp ? new Date(typeof timestamp === 'number' && timestamp > 1e12 ? timestamp : timestamp * 1000) : new Date(),
     });
 
     // Update lead name if we have contactName from bridge
