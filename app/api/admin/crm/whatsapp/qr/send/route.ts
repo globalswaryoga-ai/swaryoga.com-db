@@ -96,17 +96,20 @@ export async function POST(req: NextRequest) {
 
     // We append the admin name to the outgoing message so it's clear who sent it
     // Format: message on top, admin name in bold below
+    // NOTE: Templates should NOT have admin attribution - they are official branded messages
     const attributionTag = `\n\n*${adminName}*`;
     let finalMessage = message;
     let finalCaption = caption || message;
 
     if (type === 'text' && message) {
+      // Only add attribution to regular text messages, not templates
       finalMessage = message + attributionTag;
     } else if (type === 'template' && message) {
-      // For templates, add attribution to the body text
-      finalMessage = message + attributionTag;
-      finalCaption = (caption || message) + attributionTag;
-    } else if (caption) {
+      // Templates: NO attribution - they are official branded messages
+      finalMessage = message;
+      finalCaption = caption || message;
+    } else if (type === 'image' && caption) {
+      // Images with captions get attribution
       finalCaption = caption + attributionTag;
     } else if (message) {
       finalCaption = message + attributionTag;

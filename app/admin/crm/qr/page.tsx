@@ -1617,6 +1617,7 @@ function QRWhatsAppInboxPageContent() {
         };
         
         // Build display message for optimistic UI (includes buttons as text for preview)
+        // NOTE: Don't add footer here - bridge handles footer in the actual message
         let displayMessage = fullMessage;
         if (Array.isArray(selectedTemplate.buttons) && selectedTemplate.buttons.length > 0) {
           const buttonText = selectedTemplate.buttons
@@ -1624,9 +1625,7 @@ function QRWhatsAppInboxPageContent() {
             .join('\n');
           displayMessage = displayMessage.trim() + '\n\n' + buttonText;
         }
-        if (selectedTemplate.footerText) {
-          displayMessage = displayMessage.trim() + '\n\n' + selectedTemplate.footerText;
-        }
+        // Footer is NOT added here - the bridge will add it
         
         // Add optimistic UI showing template card with full metadata
         const optimisticMessage = {
