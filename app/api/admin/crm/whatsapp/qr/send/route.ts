@@ -244,35 +244,53 @@ export async function POST(req: NextRequest) {
 
         bridgeData = await bridgeRes.json();
         bridgeOk = bridgeRes.ok;
+        
+        // Check if WhatsApp is not connected (503 from bridge)
+        if (bridgeRes.status === 503) {
+          return NextResponse.json({ 
+            success: false, 
+            error: 'WhatsApp QR not connected. Please scan QR code first.',
+            needsQr: true,
+            dbMessageId: savedDbMessageId 
+          }, { status: 200 }); // Return 200 so frontend handles gracefully
+        }
       }
     } catch (fetchErr: any) {
       console.error('[QR SEND BRIDGE FETCH ERROR]:', fetchErr.message);
       return NextResponse.json({ 
         success: false, 
-        error: `Bridge connection error: ${fetchErr.message}`,
+        error: 'WhatsApp QR not connected or bridge unavailable. Please scan QR code.',
+        needsQr: true,
         dbMessageId: savedDbMessageId 
-      }, { status: 503 });
+      }, { status: 200 }); // Return 200 so frontend handles gracefully
     }
     
     // Check if bridge returned success (bridgeData.success can be true even if HTTP isn't 200)
     const bridgeSuccess = bridgeOk || bridgeData.success === true;
     
     if (!bridgeSuccess) {
+        // Check for "not connected" error from bridge
+        const errorMsg = bridgeData.error || 'Bridge send failed';
+        const isNotConnected = errorMsg.toLowerCase().includes('not connected') || 
+                              errorMsg.toLowerCase().includes('not ready');
+        
         // Update DB status to failed if bridge rejected it
         if (savedDbMessageId) {
           try {
             const WhatsAppMessage = getWhatsAppMessage();
             await WhatsAppMessage.findByIdAndUpdate(savedDbMessageId, { 
               status: 'failed', 
-              failureReason: bridgeData.error || 'Bridge rejected request' 
+              failureReason: errorMsg 
             });
           } catch (e) {}
         }
+        
         return NextResponse.json({ 
           success: false, 
-          error: bridgeData.error || 'Bridge send failed',
+          error: isNotConnected ? 'WhatsApp QR not connected. Please scan QR code first.' : errorMsg,
+          needsQr: isNotConnected,
           dbMessageId: savedDbMessageId
-        }, { status: 400 });
+        }, { status: 200 }); // Return 200 so frontend handles gracefully
     }
 
     // Extract WhatsApp message ID from bridge response
