@@ -170,10 +170,29 @@ async function initializeClient() {
     
     for (const msg of m.messages) {
       // Skip outgoing messages (from us)
-      if (msg.key.fromMe) continue;
+      if (msg.key.fromMe) {
+        console.log("⬆️ Outgoing message (skipped):", msg.key.id);
+        continue;
+      }
       
-      const phone = msg.key.remoteJid?.replace("@s.whatsapp.net", "").replace("@c.us", "") || "";
+      const remoteJid = msg.key.remoteJid || "";
+      
+      // Skip @lid (LinkedIn-linked accounts) - these can't be replied to reliably
+      if (remoteJid.includes("@lid")) {
+        console.log("⚠️ Skipping @lid message from:", remoteJid);
+        continue;
+      }
+      
+      // Skip group messages (@g.us)
+      if (remoteJid.includes("@g.us")) {
+        console.log("⚠️ Skipping group message from:", remoteJid);
+        continue;
+      }
+      
+      const phone = remoteJid.replace("@s.whatsapp.net", "").replace("@c.us", "");
       const pushName = msg.pushName || "";
+      
+      console.log("📨 Processing incoming from:", phone, "name:", pushName);
       
       // Extract message content
       let messageContent = "";
