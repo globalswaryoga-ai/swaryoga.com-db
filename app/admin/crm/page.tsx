@@ -328,7 +328,7 @@ export default function CRMDashboard() {
                 label="Total Sales"
                 value={stats.totalSales}
                 icon="💰"
-                color="from-[#1E7F43] to-[#166235]"
+                color="from-green-500 to-green-700"
                 href="/admin/crm/sales"
               />
               <StatCard
@@ -446,13 +446,13 @@ function StatCard({
 }) {
   return (
     <Link href={href}>
-      <div className={`bg-gradient-to-br ${color} rounded-xl p-6 text-white cursor-pointer transition-colors hover:opacity-90`}>
+      <div className={`bg-gradient-to-br ${color} rounded-xl p-6 text-white cursor-pointer transition-colors hover:opacity-90 shadow-lg`}>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-3xl">{icon}</span>
-          <span className="text-xs bg-white/20 px-2 py-1 rounded-full">↗</span>
+          <span className="text-3xl drop-shadow-md">{icon}</span>
+          <span className="text-xs bg-white/30 px-2 py-1 rounded-full font-medium">↗</span>
         </div>
-        <div className="text-3xl font-bold mb-1">{value}</div>
-        <div className="text-white/80 text-sm">{label}</div>
+        <div className="text-3xl font-bold mb-1 drop-shadow-sm">{value}</div>
+        <div className="text-white text-sm font-medium drop-shadow-sm">{label}</div>
       </div>
     </Link>
   );
