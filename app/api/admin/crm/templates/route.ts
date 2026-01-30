@@ -352,6 +352,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await connectDB();
+    const WhatsAppTemplate = getWhatsAppTemplate();
 
     // Get template before deleting to clean up S3 files
     const template = await WhatsAppTemplate.findById(templateId).lean();
