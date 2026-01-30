@@ -296,6 +296,74 @@ function LeadsFollowupPageContent() {
   const [whatsappShowEmoji, setWhatsappShowEmoji] = useState(false);
   const [whatsappBroadcast, setWhatsappBroadcast] = useState(false);
   const [whatsappBroadcastLabel, setWhatsappBroadcastLabel] = useState('');
+  
+  // WhatsApp provider toggle (QR Bridge vs Meta API)
+  const [whatsappProvider, setWhatsappProvider] = useState<'qr' | 'meta'>('qr');
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+
+  // Send WhatsApp message via QR Bridge or Meta API
+  const sendWhatsAppMessage = async (provider: 'qr' | 'meta') => {
+    if (!selectedLead || !message.trim() || sendingWhatsApp) return;
+
+    setSendingWhatsApp(true);
+    setError(null);
+    try {
+      const phoneNumber = selectedLead.phoneNumber;
+      if (!phoneNumber) {
+        throw new Error('Lead has no phone number');
+      }
+
+      const res = await fetch('/api/admin/crm/whatsapp/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadId: selectedLead._id,
+          phoneNumber,
+          messageContent: message.trim(),
+          provider, // 'qr' or 'meta'
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to send WhatsApp message');
+      }
+
+      setSuccess(`✅ WhatsApp sent via ${provider.toUpperCase()}!`);
+      setMessage('');
+
+      // Refresh chat history
+      if (provider === 'qr') {
+        await fetchLeadChat(selectedLead);
+      } else {
+        await fetchMetaMessages(selectedLead);
+      }
+
+      // Also save a note about the sent message
+      await fetch('/api/admin/crm/leads/followup', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          leadId: selectedLead._id,
+          actionType: 'notes',
+          followupNotes: `[WhatsApp-${provider.toUpperCase()}] ${message.trim()}`,
+        }),
+      });
+
+      // Refresh activity
+      await fetchLeadActivity(selectedLead._id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send WhatsApp');
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
 
   // Fetch all leads
   useEffect(() => {
@@ -887,6 +955,9 @@ function LeadsFollowupPageContent() {
       case 'whatsapp':
         hasContent = message.trim().length > 0;
         break;
+      case 'meta':
+        hasContent = message.trim().length > 0;
+        break;
       case 'email':
         hasContent = message.trim().length > 0; // TODO: implement email
         break;
@@ -947,6 +1018,11 @@ function LeadsFollowupPageContent() {
           payload.whatsappTemplate = whatsappTemplate;
           payload.whatsappBroadcast = whatsappBroadcast;
           payload.whatsappBroadcastLabel = whatsappBroadcastLabel;
+          break;
+        case 'meta':
+          payload.followupNotes = message;
+          payload.actionType = 'notes'; // Save as a note with [Meta] prefix
+          payload.followupNotes = `[Meta] ${message}`;
           break;
         case 'email':
           payload.followupNotes = message;
@@ -1551,6 +1627,37 @@ function LeadsFollowupPageContent() {
                         </div>
                       </div>
 
+                      {/* Provider Selection: QR Bridge vs Meta API */}
+                      <div className="bg-gradient-to-r from-green-50 to-cyan-50 border border-green-200 rounded-xl p-4">
+                        <label className="block text-sm font-bold text-slate-900 mb-3">📡 Send via:</label>
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setWhatsappProvider('qr')}
+                            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all text-sm border-2 ${
+                              whatsappProvider === 'qr'
+                                ? 'bg-green-600 text-white border-green-600 shadow-lg'
+                                : 'bg-white text-green-700 border-green-300 hover:border-green-500'
+                            }`}
+                          >
+                            🔗 QR Bridge
+                            <span className="block text-xs mt-1 opacity-80">Personal WhatsApp</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWhatsappProvider('meta')}
+                            className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-all text-sm border-2 ${
+                              whatsappProvider === 'meta'
+                                ? 'bg-cyan-600 text-white border-cyan-600 shadow-lg'
+                                : 'bg-white text-cyan-700 border-cyan-300 hover:border-cyan-500'
+                            }`}
+                          >
+                            📱 Meta API
+                            <span className="block text-xs mt-1 opacity-80">Business WhatsApp</span>
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Message Type Tabs */}
                       <div className="flex gap-2 flex-wrap border-b border-slate-200 pb-4">
                         <button
@@ -1915,6 +2022,40 @@ function LeadsFollowupPageContent() {
                           </div>
                         )}
                       </div>
+
+                      {/* Send WhatsApp Now Buttons */}
+                      <div className="border-t-2 border-green-200 pt-4 bg-gradient-to-r from-green-50 to-cyan-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
+                        <label className="block text-sm font-bold text-slate-900 mb-3">📤 Send Message Now:</label>
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => sendWhatsAppMessage('qr')}
+                            disabled={!message.trim() || sendingWhatsApp}
+                            className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                              whatsappProvider === 'qr'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-green-100 hover:bg-green-200 text-green-700 border border-green-300'
+                            }`}
+                          >
+                            {sendingWhatsApp && whatsappProvider === 'qr' ? '⏳ Sending...' : '🔗 Send via QR'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => sendWhatsAppMessage('meta')}
+                            disabled={!message.trim() || sendingWhatsApp}
+                            className={`flex-1 px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                              whatsappProvider === 'meta'
+                                ? 'bg-cyan-600 hover:bg-cyan-700 text-white'
+                                : 'bg-cyan-100 hover:bg-cyan-200 text-cyan-700 border border-cyan-300'
+                            }`}
+                          >
+                            {sendingWhatsApp && whatsappProvider === 'meta' ? '⏳ Sending...' : '📱 Send via Meta'}
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2 text-center">
+                          💡 QR Bridge uses your personal WhatsApp • Meta API uses the business number
+                        </p>
+                      </div>
                     </div>
                   )}
 
@@ -1991,6 +2132,21 @@ function LeadsFollowupPageContent() {
                           rows={6}
                         />
                         <div className="mt-2 text-xs text-slate-500 text-right">{message.length} characters</div>
+                      </div>
+
+                      {/* Send Meta Message Now Button */}
+                      <div className="border-t-2 border-cyan-200 pt-4 bg-gradient-to-r from-cyan-50 to-blue-50 -mx-8 px-8 pb-4 -mb-8 rounded-b-xl">
+                        <button
+                          type="button"
+                          onClick={() => sendWhatsAppMessage('meta')}
+                          disabled={!message.trim() || sendingWhatsApp}
+                          className="w-full px-4 py-3 rounded-lg font-bold transition-all text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-700 text-white"
+                        >
+                          {sendingWhatsApp ? '⏳ Sending...' : '📱 Send via Meta API'}
+                        </button>
+                        <p className="text-xs text-slate-500 mt-2 text-center">
+                          💡 Sends through Meta Business WhatsApp API
+                        </p>
                       </div>
                     </div>
                   )}
@@ -2179,40 +2335,41 @@ function LeadsFollowupPageContent() {
                     </>
                   )}
 
-                  {/* Actions */}
-                  <div className="flex gap-3 pt-6 border-t border-slate-200">
-                    <button
-                      onClick={handleSaveFollowup}
-                      disabled={
-                        loading ||
-                        (actionMode === 'notes' && !message.trim()) ||
-                        (actionMode === 'whatsapp' && !message.trim()) ||
-                        (actionMode === 'email' && !message.trim()) ||
-                        (actionMode === 'sms' && !message.trim()) ||
-                        (actionMode === 'todos' && !todos.trim()) ||
-                        (actionMode === 'reminder' && (!reminder.trim() || !reminderDate)) ||
-                        (actionMode === 'nextFollowup' && (!nextFollowupDate || !nextFollowupDetails.trim())) ||
-                        (actionMode === 'labels' && selectedLabels.length === 0)
-                      }
-                      className="flex-1 px-6 py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors"
-                    >
-                      {loading ? '⏳ Saving...' : actionMode === 'notes' ? '💾 Save Notes' : actionMode === 'todos' ? '💾 Save Todos' : actionMode === 'reminder' ? '⏰ Set Reminder' : actionMode === 'nextFollowup' ? '📅 Schedule' : actionMode === 'labels' ? '🏷️ Apply Labels' : '📤 Send'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setMessage('');
-                        setTodos('');
-                        setReminder('');
-                        setReminderDate('');
-                        setNextFollowupDate('');
-                        setNextFollowupDetails('');
-                        setNewLabel('');
-                      }}
-                      className="flex-1 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-900 rounded-lg font-bold transition-colors"
-                    >
-                      Clear
-                    </button>
-                  </div>
+                  {/* Actions - Hide for whatsapp/meta since they have dedicated send buttons */}
+                  {actionMode !== 'whatsapp' && actionMode !== 'meta' && (
+                    <div className="flex gap-3 pt-6 border-t border-slate-200">
+                      <button
+                        onClick={handleSaveFollowup}
+                        disabled={
+                          loading ||
+                          (actionMode === 'notes' && !message.trim()) ||
+                          (actionMode === 'email' && !message.trim()) ||
+                          (actionMode === 'sms' && !message.trim()) ||
+                          (actionMode === 'todos' && !todos.trim()) ||
+                          (actionMode === 'reminder' && (!reminder.trim() || !reminderDate)) ||
+                          (actionMode === 'nextFollowup' && (!nextFollowupDate || !nextFollowupDetails.trim())) ||
+                          (actionMode === 'labels' && selectedLabels.length === 0)
+                        }
+                        className="flex-1 px-6 py-3 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold transition-colors"
+                      >
+                        {loading ? '⏳ Saving...' : actionMode === 'notes' ? '💾 Save Notes' : actionMode === 'todos' ? '💾 Save Todos' : actionMode === 'reminder' ? '⏰ Set Reminder' : actionMode === 'nextFollowup' ? '📅 Schedule' : actionMode === 'labels' ? '🏷️ Apply Labels' : '📤 Send'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMessage('');
+                          setTodos('');
+                          setReminder('');
+                          setReminderDate('');
+                          setNextFollowupDate('');
+                          setNextFollowupDetails('');
+                          setNewLabel('');
+                        }}
+                        className="flex-1 px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-900 rounded-lg font-bold transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               </div>
