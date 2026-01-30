@@ -344,6 +344,30 @@ app.get("/chats", authMiddleware, async (req, res) => {
   res.json([]);
 });
 
+// Get messages for a chat (group or individual)
+// Note: Baileys doesn't store historical messages - this returns empty array
+// Messages are stored in MongoDB via the CRM webhook, so fetch from there instead
+app.get("/messages/:chatId", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ error: "WhatsApp not connected" });
+  
+  try {
+    const chatId = decodeURIComponent(req.params.chatId);
+    console.log("[MESSAGES] Fetching messages for:", chatId);
+    
+    // Baileys doesn't have a built-in message store
+    // Return empty array with info - frontend should fetch from MongoDB instead
+    res.json({ 
+      success: true, 
+      messages: [],
+      chatId,
+      note: "Baileys does not store historical messages. Use CRM API /api/admin/crm/whatsapp/messages to fetch from MongoDB."
+    });
+  } catch (err) {
+    console.error("[MESSAGES] Error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ============ BROADCAST SETTINGS ENDPOINTS ============
 
 // Get broadcast settings
