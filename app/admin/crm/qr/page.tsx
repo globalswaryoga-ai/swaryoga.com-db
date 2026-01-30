@@ -830,8 +830,10 @@ function QRWhatsAppInboxPageContent() {
         };
 
         setChats((prevChats) => {
+          // Check by normalized phone number from id._serialized
           const exists = prevChats.some((c) => {
-            const cPhone = String(c.name || c.id || '').replace(/\D/g, '');
+            const cId = typeof c.id === 'string' ? c.id : c.id?._serialized || '';
+            const cPhone = cId.replace('@c.us', '').replace(/\D/g, '');
             return cPhone === normalizedPhone;
           });
           
@@ -870,29 +872,44 @@ function QRWhatsAppInboxPageContent() {
             console.log('[loadChats] Got', conversations.length, 'conversations from CRM');
             
             // Convert CRM conversations to chat format for the UI
-            const crmChats = conversations.map((conv: any) => ({
-              id: { _serialized: `${conv.phoneNumber}@c.us` },
-              name: conv.name || conv.phoneNumber,
-              displayName: conv.name !== conv.phoneNumber ? conv.name : null,
-              leadId: conv.leadId,
-              leadNumber: conv.leadNumber,
-              leadStatus: conv.status,
-              leadLabel: conv.labels?.[0] || null,
-              assignedToUserId: conv.assignedToUserId || null,
-              status: conv.status,
-              labels: conv.labels || [],
-              unreadCount: conv.unreadCount || 0,
-              lastMessage: {
-                body: conv.lastMessageContent || '',
-                timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() / 1000 : 0,
-                fromMe: conv.lastDirection === 'outbound',
-              },
-              timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() / 1000 : 0,
-              isLeadOnly: false,
-              _fromCRM: true,
-            }));
+            // Deduplicate by phone number - keep the first (most recent) one
+            const seenPhones = new Set<string>();
+            const crmChats = conversations
+              .map((conv: any) => {
+                const phone = String(conv.phoneNumber || '').replace(/\D/g, '');
+                return {
+                  id: { _serialized: `${conv.phoneNumber}@c.us` },
+                  name: conv.name || conv.phoneNumber,
+                  displayName: conv.name !== conv.phoneNumber ? conv.name : null,
+                  leadId: conv.leadId,
+                  leadNumber: conv.leadNumber,
+                  leadStatus: conv.status,
+                  leadLabel: conv.labels?.[0] || null,
+                  assignedToUserId: conv.assignedToUserId || null,
+                  status: conv.status,
+                  labels: conv.labels || [],
+                  unreadCount: conv.unreadCount || 0,
+                  lastMessage: {
+                    body: conv.lastMessageContent || '',
+                    timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() / 1000 : 0,
+                    fromMe: conv.lastDirection === 'outbound',
+                  },
+                  timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() / 1000 : 0,
+                  isLeadOnly: false,
+                  _fromCRM: true,
+                  _phone: phone, // For dedup
+                };
+              })
+              .filter((chat: any) => {
+                if (seenPhones.has(chat._phone)) {
+                  console.log('[loadChats] Skipping duplicate phone:', chat._phone);
+                  return false;
+                }
+                seenPhones.add(chat._phone);
+                return true;
+              });
 
-            console.log('[loadChats] Converted to', crmChats.length, 'chats');
+            console.log('[loadChats] Converted to', crmChats.length, 'chats (after dedup)');
             
             if (crmChats.length > 0) {
               setChats(crmChats);
@@ -2916,6 +2933,7 @@ function QRWhatsAppInboxPageContent() {
     };
 
     const phoneId = formatPhone(phone);
+    const normalizedPhone = phone.replace(/\D/g, '');
     const syntheticChat = {
       id: { _serialized: phoneId },
       name: phone,
@@ -2927,7 +2945,16 @@ function QRWhatsAppInboxPageContent() {
       archived: false,
     };
 
-    setChats(prev => [syntheticChat, ...prev]);
+    setChats(prev => {
+      // Check for existing chat with same phone
+      const exists = prev.some((c) => {
+        const cId = typeof c.id === 'string' ? c.id : c.id?._serialized || '';
+        const cPhone = cId.replace('@c.us', '').replace(/\D/g, '');
+        return cPhone === normalizedPhone || cPhone.endsWith(normalizedPhone) || normalizedPhone.endsWith(cPhone);
+      });
+      if (exists) return prev;
+      return [syntheticChat, ...prev];
+    });
   };
 
   const statusPill = {
