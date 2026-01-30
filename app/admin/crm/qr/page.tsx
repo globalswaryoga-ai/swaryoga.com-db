@@ -3263,6 +3263,34 @@ function QRWhatsAppInboxPageContent() {
       .slice(0, 2);
   };
 
+  // Format chat/user name - handle @lid (hidden phone numbers) and raw JIDs
+  const formatDisplayName = (name: string | undefined, chatId?: string) => {
+    if (!name && !chatId) return 'Unknown';
+    
+    const value = name || chatId || '';
+    
+    // Handle @lid format (WhatsApp privacy-hidden numbers)
+    if (value.includes('@lid')) {
+      return 'WhatsApp User'; // Clean display for hidden numbers
+    }
+    
+    // Handle @s.whatsapp.net and @c.us formats - extract phone number
+    if (value.includes('@s.whatsapp.net') || value.includes('@c.us')) {
+      const phone = value.split('@')[0];
+      // If it's a valid phone number (all digits), format it
+      if (/^\d+$/.test(phone)) {
+        return phone;
+      }
+    }
+    
+    // If name looks like a raw JID with @, extract the first part
+    if (value.includes('@') && !value.includes(' ')) {
+      return value.split('@')[0];
+    }
+    
+    return value || 'Unknown';
+  };
+
   // Add new contact
   const handleAddNewContact = async () => {
     if (!newContactName.trim()) return;
@@ -3761,7 +3789,7 @@ function QRWhatsAppInboxPageContent() {
                       setActiveStatus(null);
                       setActiveLabel(null);
                     }
-                    if (chat.displayName || chat.name) setActiveName(chat.displayName || chat.name);
+                    if (chat.displayName || chat.name) setActiveName(formatDisplayName(chat.displayName || chat.name, getChatId(chat)));
                     markChatAsRead(chat);
                   }}
                   className={`p-4 border-b border-stone-100 cursor-pointer transition-all ${
@@ -3804,7 +3832,7 @@ function QRWhatsAppInboxPageContent() {
                         />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-xs">
-                          {getInitials(chat.name || 'U')}
+                          {getInitials(formatDisplayName(chat.name, getChatId(chat)))}
                         </div>
                       )}
                       
@@ -3824,7 +3852,7 @@ function QRWhatsAppInboxPageContent() {
                       {/* Name + Date + Assign on same line */}
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-semibold text-stone-800 truncate text-sm">
-                          {chat.displayName || chat.name || 'Unknown'}
+                          {formatDisplayName(chat.displayName || chat.name, getChatId(chat))}
                         </p>
                         <div className="flex items-center gap-1">
                           {/* Assign Icon (only for super admin / mr admin) */}
@@ -4287,7 +4315,7 @@ function QRWhatsAppInboxPageContent() {
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-sm">
-                    {getInitials(selectedChat.name || 'U')}
+                    {getInitials(formatDisplayName(selectedChat.name, getChatId(selectedChat)))}
                   </div>
                 )}
                 <div className="flex-1 cursor-pointer" onClick={() => {
@@ -4299,7 +4327,7 @@ function QRWhatsAppInboxPageContent() {
                 }}>
                   {/* Name (top line) */}
                   <h2 className="text-sm font-bold text-stone-800 truncate hover:text-teal-600 transition-colors">
-                    {activeName || selectedChat.name}
+                    {activeName || formatDisplayName(selectedChat.name, getChatId(selectedChat))}
                   </h2>
                   
                   {/* Phone Number (subtitle) */}
