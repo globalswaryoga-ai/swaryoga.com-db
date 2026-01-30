@@ -118,9 +118,8 @@ export default function AutomationPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch rules');
     } finally {
-      if (loadingScope !== 'page') {
-        setLoadingScope(null);
-      }
+      // Always clear loading state after fetch completes
+      setLoadingScope(null);
       inFlightRef.current = null;
     }
   }, [crm.fetch]); // Only depend on fetch function identity
@@ -138,9 +137,8 @@ export default function AutomationPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch scheduled');
     } finally {
-      if (loadingScope !== 'page') {
-        setLoadingScope(null);
-      }
+      // Always clear loading state after fetch completes
+      setLoadingScope(null);
       inFlightRef.current = null;
     }
   }, [crm.fetch]);
@@ -158,9 +156,8 @@ export default function AutomationPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch broadcasts');
     } finally {
-      if (loadingScope !== 'page') {
-        setLoadingScope(null);
-      }
+      // Always clear loading state after fetch completes
+      setLoadingScope(null);
       inFlightRef.current = null;
     }
   }, [crm.fetch]);
