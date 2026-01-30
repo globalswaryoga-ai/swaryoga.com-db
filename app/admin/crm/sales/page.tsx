@@ -26,6 +26,13 @@ function toDateInputValue(v: string | undefined | null): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Helper to get leadId as string (handles both string and populated object)
+function getLeadIdString(leadId: string | { _id: string } | undefined | null): string {
+  if (!leadId) return '';
+  if (typeof leadId === 'string') return leadId;
+  return (leadId as any)?._id || '';
+}
+
 function parseLabelsText(v: string | undefined | null): string[] {
   const raw = String(v || '');
   const parts = raw.split(/[,|\n\r]+/g).map((s) => s.trim()).filter(Boolean);
@@ -663,7 +670,7 @@ export default function SalesPage() {
               // Route into QR WhatsApp page (shared WhatsApp session).
               // If leadId exists, prefer it; otherwise fallback to phone.
               const params = new URLSearchParams();
-              if (sale.leadId) params.set('leadId', String(sale.leadId));
+              if (sale.leadId) params.set('leadId', getLeadIdString(sale.leadId));
               if (phone) params.set('phone', phone);
               if (sale.customerName) params.set('name', sale.customerName);
 

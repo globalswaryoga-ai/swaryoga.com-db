@@ -31,12 +31,19 @@ interface SaleRecord {
   paymentMode?: string;
   saleDate?: string;
   reportedByUserId?: string;
-  leadId?: string;
+  leadId?: string | { _id: string; name?: string; phoneNumber?: string };
   status?: string;
   labels?: string[];
   currency?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// Helper to get leadId as string (handles both string and populated object)
+function getLeadIdString(leadId: string | { _id: string; name?: string; phoneNumber?: string } | undefined): string {
+  if (!leadId) return '';
+  if (typeof leadId === 'string') return leadId;
+  return leadId._id || '';
 }
 
 export default function SaleDetailPage() {
@@ -101,7 +108,8 @@ export default function SaleDetailPage() {
       setReceiptError('Authentication required');
       return;
     }
-    if (!sale?.leadId) {
+    const leadIdStr = getLeadIdString(sale?.leadId);
+    if (!leadIdStr) {
       setReceiptError('Missing leadId for this sale. Please link the sale to a lead first.');
       return;
     }
@@ -111,7 +119,7 @@ export default function SaleDetailPage() {
       setReceiptError(null);
 
       // 1) Try fetching the most recent receipt
-      const res = await fetch(`/api/admin/crm/receipts?leadId=${encodeURIComponent(sale.leadId)}`, {
+      const res = await fetch(`/api/admin/crm/receipts?leadId=${encodeURIComponent(leadIdStr)}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });
@@ -131,7 +139,7 @@ export default function SaleDetailPage() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ leadId: sale.leadId }),
+        body: JSON.stringify({ leadId: leadIdStr }),
       });
       const created = await createRes.json().catch(() => null);
       if (!createRes.ok) throw new Error(created?.error || `Failed to create receipt (${createRes.status})`);
@@ -242,7 +250,7 @@ export default function SaleDetailPage() {
 
               <div>
                 <p className="text-xs font-bold text-slate-600 uppercase">Lead ID</p>
-                <p className="font-mono text-blue-700">{sale.leadId || 'N/A'}</p>
+                <p className="font-mono text-blue-700">{getLeadIdString(sale.leadId) || 'N/A'}</p>
               </div>
 
               <div>
@@ -336,7 +344,7 @@ export default function SaleDetailPage() {
               onClick={() => {
                 const normalized = normalizePhoneForMeta(sale.customerPhone || '');
                 router.push(
-                  `/admin/crm/whatsapp?leadId=${encodeURIComponent(sale.leadId || '')}&phone=${encodeURIComponent(normalized)}`
+                  `/admin/crm/whatsapp?leadId=${encodeURIComponent(getLeadIdString(sale.leadId))}&phone=${encodeURIComponent(normalized)}`
                 );
               }}
               className="flex-1 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded transition-colors"
@@ -354,7 +362,7 @@ export default function SaleDetailPage() {
               🧾 Receipt
             </button>
             <button
-              onClick={() => router.push(`/admin/crm/email?leadId=${encodeURIComponent(sale.leadId || '')}&email=${encodeURIComponent(sale.customerEmail || '')}`)}
+              onClick={() => router.push(`/admin/crm/email?leadId=${encodeURIComponent(getLeadIdString(sale.leadId))}&email=${encodeURIComponent(sale.customerEmail || '')}`)}
               className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded transition-colors"
             >
               📧 Email
@@ -452,7 +460,7 @@ export default function SaleDetailPage() {
                         .join('\n');
 
                       router.push(
-                        `/admin/crm/whatsapp?leadId=${encodeURIComponent(sale.leadId || '')}&phone=${encodeURIComponent(phone)}&message=${msg}`
+                        `/admin/crm/whatsapp?leadId=${encodeURIComponent(getLeadIdString(sale.leadId))}&phone=${encodeURIComponent(phone)}&message=${msg}`
                       );
                     }}
                     className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold"
