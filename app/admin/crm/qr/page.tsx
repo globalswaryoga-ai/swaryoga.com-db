@@ -1396,12 +1396,12 @@ function QRWhatsAppInboxPageContent() {
     
     const fetchAdminUsers = async () => {
       try {
-        const res = await fetch('/api/admin/users', {
+        const res = await fetch('/api/admin/auth/users', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) {
           const data = await res.json();
-          const users = data?.users || data?.data?.users || [];
+          const users = data?.data || data?.users || [];
           setAdminUsers(users.map((u: any) => ({
             userId: u.userId || u._id || '',
             name: u.name || u.email || 'Unknown',
