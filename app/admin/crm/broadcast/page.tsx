@@ -14,6 +14,8 @@ interface Lead {
   status?: string;
   labels?: string[];
   workshopName?: string;
+  assignedToUserId?: string;
+  userName?: string;
 }
 
 interface Template {
@@ -150,6 +152,8 @@ export default function BroadcastPage() {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterWorkshop, setFilterWorkshop] = useState('all');
+  const [filterAssignedUser, setFilterAssignedUser] = useState('all');
   const [templateSearch, setTemplateSearch] = useState('');
   
   // UI State
@@ -257,9 +261,11 @@ export default function BroadcastPage() {
         lead.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.phoneNumber.includes(searchQuery);
       const matchesStatus = filterStatus === 'all' || lead.status === filterStatus;
-      return matchesSearch && matchesStatus;
+      const matchesWorkshop = filterWorkshop === 'all' || lead.workshopName === filterWorkshop;
+      const matchesUser = filterAssignedUser === 'all' || lead.assignedToUserId === filterAssignedUser;
+      return matchesSearch && matchesStatus && matchesWorkshop && matchesUser;
     });
-  }, [leads, searchQuery, filterStatus]);
+  }, [leads, searchQuery, filterStatus, filterWorkshop, filterAssignedUser]);
 
   const filteredTemplates = useMemo(() => {
     if (!templateSearch) return templates;
@@ -271,7 +277,23 @@ export default function BroadcastPage() {
 
   const uniqueStatuses = useMemo(() => {
     const statuses = new Set(leads.map(l => l.status || 'lead'));
-    return Array.from(statuses);
+    return Array.from(statuses).sort();
+  }, [leads]);
+
+  const uniqueWorkshops = useMemo(() => {
+    const workshops = new Set(leads.map(l => l.workshopName).filter(Boolean));
+    return Array.from(workshops).sort() as string[];
+  }, [leads]);
+
+  const uniqueAssignedUsers = useMemo(() => {
+    const usersMap = new Map<string, string>();
+    leads.forEach(l => {
+      if (l.assignedToUserId) {
+        // Use userName if available, otherwise use assignedToUserId
+        usersMap.set(l.assignedToUserId, l.userName || l.assignedToUserId);
+      }
+    });
+    return Array.from(usersMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [leads]);
 
   // ============================================================================
@@ -706,30 +728,77 @@ export default function BroadcastPage() {
         {/* Step 1: Recipients */}
         {step === 1 && (
           <div className="bg-white rounded-2xl shadow-xl border p-6 animate-fadeIn">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 👥 Select Recipients
                 <span className="text-sm font-normal text-gray-500">({filteredLeads.length} available)</span>
               </h2>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="🔍 Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-40 sm:w-48 text-sm"
-                />
+              <input
+                type="text"
+                placeholder="🔍 Search name or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-56 text-sm"
+              />
+            </div>
+
+            {/* Filters Row */}
+            <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-gray-50 rounded-xl">
+              <span className="text-sm font-medium text-gray-600 mr-1">🎯 Filter:</span>
+              
+              {/* Status Filter */}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white min-w-[120px]"
+              >
+                <option value="all">All Status</option>
+                {uniqueStatuses.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+
+              {/* Workshop Filter */}
+              {uniqueWorkshops.length > 0 && (
                 <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  value={filterWorkshop}
+                  onChange={(e) => setFilterWorkshop(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white min-w-[140px]"
                 >
-                  <option value="all">All Status</option>
-                  {uniqueStatuses.map(s => (
-                    <option key={s} value={s}>{s}</option>
+                  <option value="all">All Workshops</option>
+                  {uniqueWorkshops.map(w => (
+                    <option key={w} value={w}>{w}</option>
                   ))}
                 </select>
-              </div>
+              )}
+
+              {/* Assigned User Filter */}
+              {uniqueAssignedUsers.length > 0 && (
+                <select
+                  value={filterAssignedUser}
+                  onChange={(e) => setFilterAssignedUser(e.target.value)}
+                  className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white min-w-[140px]"
+                >
+                  <option value="all">All Users</option>
+                  {uniqueAssignedUsers.map(([id, name]) => (
+                    <option key={id} value={id}>{name}</option>
+                  ))}
+                </select>
+              )}
+
+              {/* Clear Filters */}
+              {(filterStatus !== 'all' || filterWorkshop !== 'all' || filterAssignedUser !== 'all') && (
+                <button
+                  onClick={() => {
+                    setFilterStatus('all');
+                    setFilterWorkshop('all');
+                    setFilterAssignedUser('all');
+                  }}
+                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
+                >
+                  ✕ Clear
+                </button>
+              )}
             </div>
 
             {/* Selection Bar */}
@@ -793,7 +862,19 @@ export default function BroadcastPage() {
                       <div className="font-medium text-gray-800 truncate group-hover:text-blue-700 transition-colors">
                         {lead.name || 'Unknown'}
                       </div>
-                      <div className="text-sm text-gray-500">{lead.phoneNumber}</div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <span>{lead.phoneNumber}</span>
+                        {lead.workshopName && (
+                          <span className="px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded text-xs">
+                            {lead.workshopName}
+                          </span>
+                        )}
+                        {lead.userName && (
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded text-xs">
+                            👤 {lead.userName}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <StatusBadge status={lead.status || 'lead'} />
                   </label>
