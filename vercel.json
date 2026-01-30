@@ -1,6 +1,26 @@
 {
   "version": 2,
   "framework": "nextjs",
+  "functions": {
+    "app/api/admin/media/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/crm/templates/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/crm/sales/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/crm/leads/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/settings/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/workshops/videos/upload/route.ts": {
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/admin/crm/chatbot-actions/run",

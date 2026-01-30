@@ -8,6 +8,7 @@ import {
 } from '@/lib/aws-s3';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 // Max file sizes
 const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
