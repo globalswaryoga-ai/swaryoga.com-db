@@ -35,12 +35,6 @@
       "schedule": "* * * * *"
     }
   ],
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",
