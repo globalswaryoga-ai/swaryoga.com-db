@@ -374,9 +374,18 @@ export default function QRReportsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    {/* Run Now - for scheduled/pending runs */}
-                    {(selectedRun.status === 'scheduled' || selectedRun.status === 'pending' || selectedRun.status === 'draft' || 
-                      ((selectedRun.stats?.pending || 0) > 0 && !['completed', 'cancelled'].includes(selectedRun.status))) && (
+                    {/* Resume/Send Pending - shows when there are pending messages */}
+                    {(selectedRun.stats?.pending || 0) > 0 && (
+                      <button
+                        onClick={triggerRun}
+                        disabled={!!actionLoading}
+                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {actionLoading === 'run' ? '⏳ Sending...' : `▶️ Send ${selectedRun.stats?.pending || 0} Pending`}
+                      </button>
+                    )}
+                    {/* Run Now - for scheduled/draft runs with no pending (shouldn't happen but fallback) */}
+                    {(selectedRun.stats?.pending || 0) === 0 && ['scheduled', 'draft'].includes(selectedRun.status) && (
                       <button
                         onClick={triggerRun}
                         disabled={!!actionLoading}
@@ -395,16 +404,24 @@ export default function QRReportsPage() {
                         ⏹️ Cancel
                       </button>
                     )}
-                    {/* Retry Failed */}
+                    {/* Retry Failed - reset failed messages to pending then can run again */}
                     {(selectedRun.stats?.failed || 0) > 0 && (
                       <button
                         onClick={() => setShowConfirm('retry-failed')}
                         disabled={!!actionLoading}
                         className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
                       >
-                        {actionLoading === 'retry-failed' ? '⏳...' : '🔁 Retry Failed'}
+                        {actionLoading === 'retry-failed' ? '⏳...' : `🔁 Retry ${selectedRun.stats?.failed || 0} Failed`}
                       </button>
                     )}
+                    {/* Reset All - reset everything back to pending */}
+                    <button
+                      onClick={() => setShowConfirm('reset-all')}
+                      disabled={!!actionLoading}
+                      className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {actionLoading === 'reset-all' ? '⏳...' : '🔄 Reset All'}
+                    </button>
                     {/* Delete */}
                     <button
                       onClick={() => setShowConfirm('delete')}
@@ -446,10 +463,14 @@ export default function QRReportsPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                   <div>
                     <div className="text-sm text-gray-500">Total</div>
                     <div className="text-xl font-bold">{selectedRun.stats?.total || 0}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Pending</div>
+                    <div className="text-xl font-bold text-yellow-600">{selectedRun.stats?.pending || 0}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">Sent</div>
