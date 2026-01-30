@@ -3255,7 +3255,9 @@ function QRWhatsAppInboxPageContent() {
   };
 
   const getInitials = (name: string) => {
-    return name
+    // Clean @lid/@c.us/@s.whatsapp.net before getting initials
+    const cleanName = formatDisplayName(name);
+    return cleanName
       .split(' ')
       .map((n) => n[0])
       .join('')
@@ -3263,32 +3265,23 @@ function QRWhatsAppInboxPageContent() {
       .slice(0, 2);
   };
 
-  // Format chat/user name - handle @lid (hidden phone numbers) and raw JIDs
-  const formatDisplayName = (name: string | undefined, chatId?: string) => {
-    if (!name && !chatId) return 'Unknown';
-    
-    const value = name || chatId || '';
-    
-    // Handle @lid format (WhatsApp privacy-hidden numbers)
-    if (value.includes('@lid')) {
-      return 'WhatsApp User'; // Clean display for hidden numbers
+  // Helper to format display name - handles @lid hidden numbers
+  const formatDisplayName = (name: string | null | undefined): string => {
+    if (!name) return 'Unknown';
+    const nameStr = String(name);
+    // Check for @lid format (hidden phone numbers)
+    if (nameStr.includes('@lid')) {
+      return 'WhatsApp User';
     }
-    
-    // Handle @s.whatsapp.net and @c.us formats - extract phone number
-    if (value.includes('@s.whatsapp.net') || value.includes('@c.us')) {
-      const phone = value.split('@')[0];
-      // If it's a valid phone number (all digits), format it
-      if (/^\d+$/.test(phone)) {
+    // Check for @c.us or @s.whatsapp.net format
+    if (nameStr.includes('@c.us') || nameStr.includes('@s.whatsapp.net')) {
+      const phone = nameStr.split('@')[0];
+      // If it's a valid phone number, return it
+      if (/^\d{10,15}$/.test(phone)) {
         return phone;
       }
     }
-    
-    // If name looks like a raw JID with @, extract the first part
-    if (value.includes('@') && !value.includes(' ')) {
-      return value.split('@')[0];
-    }
-    
-    return value || 'Unknown';
+    return nameStr;
   };
 
   // Add new contact
@@ -3789,7 +3782,7 @@ function QRWhatsAppInboxPageContent() {
                       setActiveStatus(null);
                       setActiveLabel(null);
                     }
-                    if (chat.displayName || chat.name) setActiveName(formatDisplayName(chat.displayName || chat.name, getChatId(chat)));
+                    if (chat.displayName || chat.name) setActiveName(chat.displayName || chat.name);
                     markChatAsRead(chat);
                   }}
                   className={`p-4 border-b border-stone-100 cursor-pointer transition-all ${
@@ -3832,7 +3825,7 @@ function QRWhatsAppInboxPageContent() {
                         />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-xs">
-                          {getInitials(formatDisplayName(chat.name, getChatId(chat)))}
+                          {getInitials(chat.name || 'U')}
                         </div>
                       )}
                       
@@ -3852,7 +3845,7 @@ function QRWhatsAppInboxPageContent() {
                       {/* Name + Date + Assign on same line */}
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-semibold text-stone-800 truncate text-sm">
-                          {formatDisplayName(chat.displayName || chat.name, getChatId(chat))}
+                          {formatDisplayName(chat.displayName || chat.name)}
                         </p>
                         <div className="flex items-center gap-1">
                           {/* Assign Icon (only for super admin / mr admin) */}
@@ -3929,6 +3922,10 @@ function QRWhatsAppInboxPageContent() {
                         📱 {(() => {
                           // Extract phone from chat id or name
                           const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+                          // Check if it's @lid format (hidden number)
+                          if (chatIdStr.includes('@lid')) {
+                            return '🔒 Number hidden';
+                          }
                           const phoneFromId = chatIdStr.split('@')[0].replace(/\D/g, '');
                           const phoneFromName = String(chat.name || '').replace(/\D/g, '');
                           return phoneFromId || phoneFromName || chat.name || 'No number';
@@ -4315,7 +4312,7 @@ function QRWhatsAppInboxPageContent() {
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-sm">
-                    {getInitials(formatDisplayName(selectedChat.name, getChatId(selectedChat)))}
+                    {getInitials(selectedChat.name || 'U')}
                   </div>
                 )}
                 <div className="flex-1 cursor-pointer" onClick={() => {
@@ -4327,7 +4324,7 @@ function QRWhatsAppInboxPageContent() {
                 }}>
                   {/* Name (top line) */}
                   <h2 className="text-sm font-bold text-stone-800 truncate hover:text-teal-600 transition-colors">
-                    {activeName || formatDisplayName(selectedChat.name, getChatId(selectedChat))}
+                    {formatDisplayName(activeName || selectedChat.name)}
                   </h2>
                   
                   {/* Phone Number (subtitle) */}
@@ -4339,9 +4336,14 @@ function QRWhatsAppInboxPageContent() {
                   
                   {/* WhatsApp JID & Last Seen Row */}
                   <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    {/* WhatsApp JID */}
+                    {/* WhatsApp JID - show simplified version */}
                     <span className="text-[9px] text-purple-600/80 font-mono" title="WhatsApp JID">
-                      🆔 {typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id?._serialized || 'N/A'}
+                      🆔 {(() => {
+                        const jid = typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id?._serialized || 'N/A';
+                        // For @lid, show cleaner format
+                        if (jid.includes('@lid')) return '🔒 Hidden ID';
+                        return jid;
+                      })()}
                     </span>
                     
                     {/* Last Seen */}
