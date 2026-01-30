@@ -4269,28 +4269,33 @@ function QRWhatsAppInboxPageContent() {
               <FileText size={16} />
             </button>
 
-            <div className="w-px h-4 bg-white/30 mx-1"></div>
+            {/* QR and Logout - Super Admin Only */}
+            {isSuperAdmin && (
+              <>
+                <div className="w-px h-4 bg-white/30 mx-1"></div>
 
-            {/* QR Button - White/Teal */}
-            <button
-              onClick={handleNewNumber}
-              disabled={loggingInNewNumber || disconnecting || connecting}
-              className="px-2 py-1 rounded text-xs font-bold bg-white text-teal-700 hover:bg-teal-50 disabled:opacity-60 transition-colors flex items-center gap-1"
-              title="Scan new QR code"
-            >
-              <span>{loggingInNewNumber ? '⟳' : '📱'}</span> QR
-            </button>
+                {/* QR Button - White/Teal */}
+                <button
+                  onClick={handleNewNumber}
+                  disabled={loggingInNewNumber || disconnecting || connecting}
+                  className="px-2 py-1 rounded text-xs font-bold bg-white text-teal-700 hover:bg-teal-50 disabled:opacity-60 transition-colors flex items-center gap-1"
+                  title="Scan new QR code"
+                >
+                  <span>{loggingInNewNumber ? '⟳' : '📱'}</span> QR
+                </button>
 
-            {/* Logout Button - Red */}
-            {status === 'connected' && (
-              <button
-                onClick={handleDisconnect}
-                disabled={disconnecting}
-                className="px-2 py-1 rounded text-xs font-bold bg-red-500 text-white hover:bg-red-600 disabled:opacity-60 transition-colors flex items-center gap-1"
-                title="Logout"
-              >
-                <span>{disconnecting ? '⟳' : '→'}</span> Logout
-              </button>
+                {/* Logout Button - Red */}
+                {status === 'connected' && (
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={disconnecting}
+                    className="px-2 py-1 rounded text-xs font-bold bg-red-500 text-white hover:bg-red-600 disabled:opacity-60 transition-colors flex items-center gap-1"
+                    title="Logout"
+                  >
+                    <span>{disconnecting ? '⟳' : '→'}</span> Logout
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -5882,8 +5887,8 @@ function QRWhatsAppInboxPageContent() {
         </div>
       )}
 
-      {/* QR Modal */}
-      {showQRModal && (
+      {/* QR Modal - Super Admin Only */}
+      {showQRModal && isSuperAdmin && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#FAFAF8] rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden">
             <div className="bg-[#FAFAF8] p-4 border-b border-[#E8DFD5] flex items-center justify-between">
@@ -5932,6 +5937,7 @@ function QRWhatsAppInboxPageContent() {
                   </div>
                 )}
 
+                {/* QR Modal Actions - Super Admin Only */}
                 <div className="mt-5 flex flex-col gap-2">
                   <div className="flex gap-3">
                     <button
