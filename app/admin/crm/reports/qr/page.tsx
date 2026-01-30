@@ -83,6 +83,9 @@ export default function QRReportsPage() {
   const [selectedRun, setSelectedRun] = useState<BroadcastRun | null>(null);
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
   const [messageFilter, setMessageFilter] = useState<string>('all');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState<string | null>(null);
 
   // Fetch QR broadcast runs only
   const fetchRuns = useCallback(async () => {
@@ -119,6 +122,78 @@ export default function QRReportsPage() {
       setLoading(false);
     }
   }, [token]);
+
+  // Trigger the broadcast run manually
+  const triggerRun = async () => {
+    if (!token || !runId) return;
+    setActionLoading('run');
+    setActionResult(null);
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-runs/run', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ runId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const stats = data.data?.runResults?.[0] || data.data || {};
+        setActionResult(`✅ Run triggered! Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Skipped: ${stats.skipped || 0}`);
+        setTimeout(() => fetchRunDetail(runId), 1500);
+      } else {
+        setActionResult(`❌ ${data.error || 'Failed to trigger run'}`);
+      }
+    } catch (err: any) {
+      setActionResult(`❌ ${err.message || 'Error triggering run'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Perform an action on the broadcast run
+  const performAction = async (action: string) => {
+    if (!token || !runId) return;
+    setShowConfirm(null);
+    setActionLoading(action);
+    setActionResult(null);
+    try {
+      if (action === 'delete') {
+        const res = await fetch(`/api/admin/crm/broadcast-runs/${runId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setActionResult(`✅ ${data.data?.message || 'Deleted'}`);
+          setTimeout(() => router.push('/admin/crm/reports/qr'), 1500);
+        } else {
+          setActionResult(`❌ ${data.error || 'Failed'}`);
+        }
+      } else {
+        const res = await fetch(`/api/admin/crm/broadcast-runs/${runId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setActionResult(`✅ ${data.data?.message || 'Done'}`);
+          setTimeout(() => fetchRunDetail(runId), 1000);
+        } else {
+          setActionResult(`❌ ${data.error || 'Failed'}`);
+        }
+      }
+    } catch (err: any) {
+      setActionResult(`❌ ${err.message || 'Error'}`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -291,7 +366,86 @@ export default function QRReportsPage() {
 
             {selectedRun && (
               <div className="bg-white rounded-xl border shadow-sm p-6 mb-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">{selectedRun.name}</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-800">{selectedRun.name}</h2>
+                    <div className="text-sm text-gray-500">
+                      Status: <StatusBadge status={selectedRun.status} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Run Now - for scheduled/pending runs */}
+                    {(selectedRun.status === 'scheduled' || selectedRun.status === 'pending' || selectedRun.status === 'draft' || 
+                      ((selectedRun.stats?.pending || 0) > 0 && !['completed', 'cancelled'].includes(selectedRun.status))) && (
+                      <button
+                        onClick={triggerRun}
+                        disabled={!!actionLoading}
+                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {actionLoading === 'run' ? '⏳...' : '▶️ Run Now'}
+                      </button>
+                    )}
+                    {/* Cancel - for running/scheduled runs */}
+                    {['scheduled', 'running', 'draft'].includes(selectedRun.status) && (
+                      <button
+                        onClick={() => setShowConfirm('cancel')}
+                        disabled={!!actionLoading}
+                        className="px-3 py-1.5 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 disabled:opacity-50"
+                      >
+                        ⏹️ Cancel
+                      </button>
+                    )}
+                    {/* Retry Failed */}
+                    {(selectedRun.stats?.failed || 0) > 0 && (
+                      <button
+                        onClick={() => setShowConfirm('retry-failed')}
+                        disabled={!!actionLoading}
+                        className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {actionLoading === 'retry-failed' ? '⏳...' : '🔁 Retry Failed'}
+                      </button>
+                    )}
+                    {/* Delete */}
+                    <button
+                      onClick={() => setShowConfirm('delete')}
+                      disabled={!!actionLoading}
+                      className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {actionLoading === 'delete' ? '⏳...' : '🗑️ Delete'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Result */}
+                {actionResult && (
+                  <div className={`mb-4 p-3 rounded-lg text-sm ${actionResult.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {actionResult}
+                  </div>
+                )}
+
+                {/* Confirmation Dialog */}
+                {showConfirm && (
+                  <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800 mb-3">
+                      Are you sure you want to <strong>{showConfirm}</strong> this broadcast run?
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => performAction(showConfirm)}
+                        className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
+                      >
+                        Yes, {showConfirm}
+                      </button>
+                      <button
+                        onClick={() => setShowConfirm(null)}
+                        className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div>
                     <div className="text-sm text-gray-500">Total</div>
