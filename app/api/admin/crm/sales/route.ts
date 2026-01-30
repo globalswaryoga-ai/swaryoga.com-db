@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
     const visibleUserIds = getVisibleUserIds(decoded);
 
     const url = new URL(request.url);
+    const saleId = url.searchParams.get('id'); // Single sale fetch by ID
     const view = url.searchParams.get('view') || 'list';
     const startDate = url.searchParams.get('startDate');
     const endDate = url.searchParams.get('endDate');
@@ -96,6 +97,21 @@ export async function GET(request: NextRequest) {
     const { limit, skip } = parsePagination(request);
 
     await connectDB();
+
+    // If fetching single sale by ID
+    if (saleId) {
+      if (!isValidObjectId(saleId)) {
+        return NextResponse.json({ success: false, error: 'Invalid sale ID' }, { status: 400 });
+      }
+      const sale = await SalesReport.findById(toObjectId(saleId))
+        .populate('userId', 'name email')
+        .populate('leadId', 'phoneNumber name')
+        .lean();
+      if (!sale) {
+        return NextResponse.json({ success: false, error: 'Sale not found' }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, data: sale });
+    }
 
     const filter: any = {};
 
