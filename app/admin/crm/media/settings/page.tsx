@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Settings, Save, TestTube, CheckCircle, AlertCircle, ArrowLeft, Globe, Lock, Users, HardDrive, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
 
 interface S3Settings {
   bucket: string;
@@ -22,6 +23,7 @@ interface StorageStats {
 }
 
 export default function S3SettingsPage() {
+  const token = useAuth();
   const [settings, setSettings] = useState<S3Settings>({
     bucket: '',
     region: 'us-east-1',
@@ -39,13 +41,14 @@ export default function S3SettingsPage() {
   const [showSecrets, setShowSecrets] = useState(false);
 
   useEffect(() => {
-    fetchSettings();
-    fetchStats();
-  }, []);
+    if (token) {
+      fetchSettings();
+      fetchStats();
+    }
+  }, [token]);
 
   const fetchSettings = async () => {
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/admin/media/settings', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -62,7 +65,6 @@ export default function S3SettingsPage() {
 
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/admin/media/stats', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -78,7 +80,6 @@ export default function S3SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/admin/media/settings', {
         method: 'PUT',
         headers: {
@@ -105,7 +106,6 @@ export default function S3SettingsPage() {
     setTesting(true);
     setTestResult(null);
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/admin/media/test', {
         method: 'POST',
         headers: {
