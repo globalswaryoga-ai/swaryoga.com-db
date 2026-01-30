@@ -667,51 +667,40 @@ export default function SaleDetailPage() {
                     </div>
 
                     {/* Footer - Seal, Thank You, Signature */}
-                    <div className="relative px-8 py-6 flex justify-between items-end mt-4">
+                    <div className="relative px-8 py-6 flex justify-between items-end mt-4 mb-20">
                       {/* Left - Seal & Thank You */}
                       <div className="flex flex-col items-center">
-                        {/* Circular Company Seal */}
-                        <div className="w-28 h-28 rounded-full border-[5px] border-blue-700 flex flex-col items-center justify-center text-center bg-white relative">
-                          <div className="absolute inset-2 rounded-full border-2 border-blue-600"></div>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center">
-                              <div className="text-[7px] text-blue-800 font-medium leading-tight">Upamnyu International</div>
-                              <div className="text-[7px] text-blue-800 font-medium leading-tight">Education Pvt. Ltd.</div>
-                              <div className="bg-red-100 px-2 py-0.5 rounded mt-0.5">
-                                <div className="text-[8px] text-red-700 font-bold">CIN No.</div>
-                                <div className="text-[7px] text-red-700 font-bold">U92400PN2022</div>
-                                <div className="text-[7px] text-red-700 font-bold">PTC212555</div>
-                              </div>
-                              <div className="text-[7px] text-blue-800 mt-0.5">• Sangammer •</div>
-                            </div>
-                          </div>
+                        {/* Company Seal Image */}
+                        <div className="w-32 h-32">
+                          <img 
+                            src="/swar-yoga-seal.png" 
+                            alt="Company Seal" 
+                            className="w-full h-full object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
                         </div>
                         
                         {/* Thank You Message */}
                         <div className="mt-6 text-center">
-                          <p className="text-green-700 font-bold text-lg">&quot;Thank you!</p>
-                          <p className="text-green-700 font-medium text-sm">Your registration &amp; payment</p>
-                          <p className="text-green-700 font-medium text-sm">are confirmed&quot;</p>
+                          <p className="text-green-700 font-bold text-xl">&quot;Thank you!</p>
+                          <p className="text-green-700 font-medium text-base">Your registration &amp; payment</p>
+                          <p className="text-green-700 font-medium text-base">are confirmed&quot;</p>
                         </div>
                       </div>
 
                       {/* Right - Signature */}
                       <div className="text-center pr-8">
-                        {/* Signature Image/Line */}
-                        <div className="h-16 w-40 flex items-end justify-center mb-1">
-                          <svg viewBox="0 0 160 50" className="w-full h-full">
-                            <path 
-                              d="M5,40 Q15,30 25,35 Q40,42 55,28 Q65,18 75,22 Q85,26 95,18 Q105,10 115,20 Q125,30 135,25 Q145,20 155,28" 
-                              stroke="#1d4ed8" 
-                              strokeWidth="1.5" 
-                              fill="none"
-                              strokeLinecap="round"
-                            />
-                            <text x="90" y="48" fontSize="10" fill="#1d4ed8" fontFamily="cursive" fontStyle="italic">Inj.</text>
-                          </svg>
+                        {/* Signature Image */}
+                        <div className="h-20 w-48 flex items-end justify-center mb-2">
+                          <img 
+                            src="/signature.png" 
+                            alt="Signature" 
+                            className="h-full object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
                         </div>
-                        <p className="text-xl font-bold text-green-700">Mohan Kalburgi</p>
-                        <p className="text-sm text-slate-500 italic">Yogacharya</p>
+                        <p className="text-2xl font-bold text-green-700">Mohan Kalburgi</p>
+                        <p className="text-base text-slate-500 italic">Yogacharya</p>
                       </div>
                     </div>
 
