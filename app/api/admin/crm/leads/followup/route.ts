@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { Lead, LeadNote, LeadFollowUp, WhatsAppMessage, WhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
+import { getLead, getLeadNote, getLeadFollowUp, getWhatsAppMessage, getWhatsAppScheduledJob } from '@/lib/schemas/enterpriseSchemas';
 import { verifyToken } from '@/lib/auth';
 import { ConsentManager } from '@/lib/consentManager';
 import { sendWhatsAppText } from '@/lib/whatsapp';
@@ -36,6 +36,13 @@ function parseTodosText(input: unknown): Array<{ text: string; dueDate?: string 
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
+    
+    // Get models after connectDB
+    const Lead = getLead();
+    const LeadNote = getLeadNote();
+    const LeadFollowUp = getLeadFollowUp();
+    const WhatsAppMessage = getWhatsAppMessage();
+    const WhatsAppScheduledJob = getWhatsAppScheduledJob();
 
     // Verify admin token
     const token = request.headers.get('authorization')?.slice('Bearer '.length);
