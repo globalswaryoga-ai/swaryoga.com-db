@@ -487,232 +487,234 @@ export default function SaleDetailPage() {
                 {receiptBusy ? <LoadingSpinner /> : null}
 
                 <div ref={receiptPrintRef} className="mx-auto max-w-[820px]">
-                  {/* Professional Invoice/Receipt - Matching Demo Design */}
-                  <div className="bg-white border-2 border-slate-200 rounded-xl overflow-hidden relative shadow-lg" style={{ minHeight: '1000px' }}>
-                    {/* Decorative corner accents - Top Left */}
-                    <div className="absolute top-0 left-0 w-40 h-40">
-                      <svg viewBox="0 0 100 100" className="w-full h-full">
-                        <path d="M0,0 Q0,50 50,50 Q0,50 0,100 L0,0 Z" fill="rgba(34, 139, 87, 0.15)" />
+                  {/* Professional Invoice/Receipt - Exact Match to PNG Design */}
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden relative" style={{ minHeight: '1100px' }}>
+                    
+                    {/* Green Wave - Top Left Corner */}
+                    <div className="absolute top-0 left-0 w-48 h-48 pointer-events-none">
+                      <svg viewBox="0 0 200 200" className="w-full h-full">
+                        <defs>
+                          <linearGradient id="greenWave1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.4"/>
+                            <stop offset="100%" stopColor="#16a34a" stopOpacity="0.2"/>
+                          </linearGradient>
+                        </defs>
+                        <path d="M0,0 L0,180 Q30,160 60,140 Q100,110 120,80 Q140,50 160,30 Q180,10 200,0 L0,0 Z" fill="url(#greenWave1)"/>
+                        <path d="M0,0 L0,140 Q20,120 50,100 Q80,75 100,55 Q130,30 160,15 Q180,5 200,0 L0,0 Z" fill="#22c55e" fillOpacity="0.3"/>
                       </svg>
                     </div>
-                    {/* Decorative corner accents - Bottom Right */}
-                    <div className="absolute bottom-0 right-0 w-56 h-56">
-                      <svg viewBox="0 0 100 100" className="w-full h-full">
-                        <path d="M100,100 Q100,50 50,50 Q100,50 100,0 L100,100 Z" fill="rgba(34, 139, 87, 0.15)" />
+
+                    {/* Green Wave - Bottom Left & Right */}
+                    <div className="absolute bottom-0 left-0 w-full h-32 pointer-events-none">
+                      <svg viewBox="0 0 800 120" preserveAspectRatio="none" className="w-full h-full">
+                        <defs>
+                          <linearGradient id="greenWave2" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.15"/>
+                            <stop offset="100%" stopColor="#16a34a" stopOpacity="0.35"/>
+                          </linearGradient>
+                        </defs>
+                        <path d="M0,60 Q100,30 200,50 Q350,80 500,40 Q650,0 800,30 L800,120 L0,120 Z" fill="url(#greenWave2)"/>
+                        <path d="M0,80 Q150,50 300,70 Q450,90 600,60 Q700,40 800,50 L800,120 L0,120 Z" fill="#22c55e" fillOpacity="0.25"/>
                       </svg>
                     </div>
                     
                     {/* Header Section */}
                     <div className="relative px-8 pt-8 pb-4">
                       <div className="flex items-start justify-between">
-                        {/* Left - Owner Photo + Title */}
-                        <div className="flex items-center gap-5">
-                          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-green-700 shadow-xl bg-gray-100">
+                        {/* Left - Owner Photo + SWAR YOGA */}
+                        <div className="flex items-center gap-4">
+                          <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-green-600 shadow-lg bg-gray-100 flex-shrink-0">
                             <img 
                               src="/logo with mohan sir.png" 
                               alt="Mohan Kalburgi" 
                               className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                             />
                           </div>
-                          <div>
-                            <h1 className="text-4xl font-black text-slate-900 tracking-wider">SWAR YOGA</h1>
-                          </div>
+                          <h1 className="text-3xl font-black text-slate-800 tracking-wide">SWAR YOGA</h1>
                         </div>
 
-                        {/* Right - Logo */}
-                        <div className="text-right">
-                          <div className="w-20 h-20 ml-auto rounded-full overflow-hidden border-2 border-green-600">
+                        {/* Right - Logo + INVOICE */}
+                        <div className="text-right flex flex-col items-end">
+                          <div className="w-16 h-16 rounded-full overflow-hidden border-[3px] border-green-600 bg-white shadow-md">
                             <img 
                               src="/logo-square.png" 
                               alt="Swar Yoga Logo" 
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain p-1"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                             />
                           </div>
-                          <div className="text-sm text-orange-600 font-bold mt-2">SWAR YOGA</div>
-                          <div className="text-[10px] text-slate-500">Organised by: Upamnyu International Education P. Ltd.</div>
+                          <p className="text-sm text-orange-500 font-bold mt-1">SWAR YOGA</p>
+                          <p className="text-[9px] text-slate-500">Organised by: Upamnyu International Education P. Ltd.</p>
+                          <h2 className="text-4xl font-black text-slate-700 tracking-wider mt-3">INVOICE</h2>
+                          <p className="text-sm text-slate-500">No: {receipt?.receiptNumber || `R-${String(sale._id || '').slice(-6).toUpperCase()}`}</p>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Invoice Title Section */}
-                    <div className="px-8 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1 h-[2px] bg-gradient-to-r from-green-600 to-slate-300" />
-                        <div className="text-center">
-                          <h2 className="text-5xl font-black text-slate-800 tracking-[0.2em]">INVOICE</h2>
-                          <p className="text-base text-slate-500 mt-1">No: {receipt?.receiptNumber || `${String(id || '').slice(-10).toUpperCase() || '1234567890'}`}</p>
-                        </div>
-                        <div className="flex-1 h-[2px] bg-gradient-to-l from-green-600 to-slate-300" />
                       </div>
                     </div>
 
                     {/* Invoice To & Date Section */}
-                    <div className="px-8 py-4">
-                      <div className="flex justify-between items-start border-y-2 border-slate-200 py-4">
+                    <div className="relative px-8 py-5 mx-6 bg-slate-50/60 rounded-xl mt-2">
+                      <div className="flex justify-between items-start">
+                        {/* Left - Customer Info */}
                         <div>
                           <p className="text-sm text-slate-500 uppercase font-semibold tracking-wide">Invoice To :</p>
-                          <p className="text-2xl font-bold text-green-700 mt-2">{receipt?.customerName || sale.customerName || 'CUSTOMER NAME'}</p>
-                          <div className="mt-3 space-y-1 text-sm text-slate-600">
+                          <p className="text-2xl font-bold text-orange-500 mt-1">{(receipt?.customerName || sale.customerName || 'CUSTOMER NAME').toUpperCase()}</p>
+                          <p className="text-base font-bold text-slate-800 mt-1">ID: {sale.customerId || String(sale._id || '').slice(-6).toUpperCase()}</p>
+                          <div className="mt-2 space-y-0.5 text-sm text-slate-600">
                             <p>{receipt?.customerPhone || sale.customerPhone || '+91-XXX-XXX-XXXX'}</p>
                             <p>{receipt?.customerEmail || sale.customerEmail || 'email@example.com'}</p>
-                            <p className="max-w-xs">{receipt?.customerAddress || sale.customerAddress || 'Address'}</p>
+                            <p className="max-w-[280px]">{receipt?.customerAddress || sale.customerAddress || 'Address'}</p>
                           </div>
                         </div>
+                        
+                        {/* Right - Date & Amount */}
                         <div className="text-right">
-                          <p className="text-sm text-slate-600">
+                          <p className="text-sm text-slate-700">
                             <span className="font-semibold">Date:</span> {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </p>
-                          <div className="mt-4 h-1 w-20 bg-slate-800 ml-auto" />
-                          <p className="text-sm text-slate-500 uppercase font-semibold mt-4 tracking-wide">Total Amount</p>
-                          <p className="text-4xl font-black text-orange-500">₹{Number(sale.workshopFee || sale.saleAmount || receipt?.payment?.amount || 0).toLocaleString()}</p>
+                          <p className="text-xs text-slate-500 uppercase font-semibold mt-6 tracking-wide">Total Amount</p>
+                          <p className="text-4xl font-black text-orange-500 mt-1">RS. {Number(sale.workshopFee || sale.saleAmount || receipt?.payment?.amount || 0).toLocaleString()}/-</p>
                         </div>
                       </div>
                     </div>
 
                     {/* Workshop Table */}
-                    <div className="px-8 py-4">
-                      <table className="w-full text-sm border-collapse">
+                    <div className="relative px-8 py-5">
+                      <table className="w-full text-sm border-collapse rounded-lg overflow-hidden">
                         <thead>
                           <tr className="bg-gradient-to-r from-orange-500 to-orange-400 text-white">
-                            <th className="text-left px-5 py-4 font-bold text-base rounded-l-lg">WORKSHOPS</th>
-                            <th className="text-center px-5 py-4 font-bold text-base">PERSON</th>
-                            <th className="text-center px-5 py-4 font-bold text-base">FEES</th>
-                            <th className="text-right px-5 py-4 font-bold text-base rounded-r-lg">TOTAL</th>
+                            <th className="text-left px-4 py-3 font-bold text-sm rounded-tl-lg" style={{ width: '45%' }}>WORKSHOPS</th>
+                            <th className="text-center px-3 py-3 font-bold text-sm" style={{ width: '15%' }}>PERSON</th>
+                            <th className="text-center px-3 py-3 font-bold text-sm" style={{ width: '20%' }}>FEES</th>
+                            <th className="text-right px-4 py-3 font-bold text-sm rounded-tr-lg" style={{ width: '20%' }}>TOTAL</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="bg-white">
+                          {/* Workshop Row */}
                           <tr className="border-b border-slate-200">
-                            <td className="px-5 py-4 text-slate-800 font-medium text-base">{receipt?.workshopName || sale.workshopName || 'Swar Yoga Master Class'}</td>
-                            <td className="text-center px-5 py-4 text-slate-600 text-base">1</td>
-                            <td className="text-center px-5 py-4 text-slate-600 text-base">{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-Rs</td>
-                            <td className="text-right px-5 py-4 text-slate-800 font-medium text-base">{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 text-slate-800 font-semibold">{receipt?.workshopName || sale.workshopName || 'Swar Yoga Master Class'}</td>
+                            <td className="text-center px-3 py-3 text-slate-700">1</td>
+                            <td className="text-center px-3 py-3 text-slate-700">{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-Rs</td>
+                            <td className="text-right px-4 py-3 text-slate-800"></td>
                           </tr>
-                          {/* Payment history rows */}
+                          
+                          {/* Payment History Rows */}
                           {sale.paymentHistory && sale.paymentHistory.length > 0 ? (
                             sale.paymentHistory.map((payment, idx) => (
-                              <tr key={idx} className="border-b border-slate-200">
-                                <td className="px-5 py-3 text-slate-600 italic">
+                              <tr key={idx} className="border-b border-slate-100">
+                                <td className="px-4 py-2.5 text-slate-600 text-sm">
                                   Received on the date of- {new Date(payment.date).toLocaleDateString('en-IN')}
                                 </td>
-                                <td className="text-center px-5 py-3 text-slate-600"></td>
-                                <td className="text-center px-5 py-3 text-slate-600">{Number(payment.amount).toLocaleString()}/-</td>
-                                <td className="text-right px-5 py-3 text-slate-800">{Number(payment.amount).toLocaleString()}</td>
+                                <td className="text-center px-3 py-2.5 text-slate-600"></td>
+                                <td className="text-center px-3 py-2.5 text-slate-600">{Number(payment.amount).toLocaleString()}/-</td>
+                                <td className="text-right px-4 py-2.5 text-slate-700">{Number(payment.amount).toLocaleString()}</td>
                               </tr>
                             ))
                           ) : (
-                            <tr className="border-b border-slate-200">
-                              <td className="px-5 py-3 text-slate-600 italic">
+                            <tr className="border-b border-slate-100">
+                              <td className="px-4 py-2.5 text-slate-600 text-sm">
                                 Received on the date of- {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN')}
                               </td>
-                              <td className="text-center px-5 py-3 text-slate-600"></td>
-                              <td className="text-center px-5 py-3 text-slate-600">{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}/-</td>
-                              <td className="text-right px-5 py-3 text-slate-800">{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</td>
+                              <td className="text-center px-3 py-2.5 text-slate-600"></td>
+                              <td className="text-center px-3 py-2.5 text-slate-600">{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}/-</td>
+                              <td className="text-right px-4 py-2.5 text-slate-700">{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</td>
                             </tr>
                           )}
+                          
+                          {/* Amount Receivable Row */}
                           <tr>
-                            <td className="px-5 py-3 text-slate-700 font-semibold">
-                              Amount Receivable&nbsp;&nbsp;&nbsp;&nbsp;{Number(sale.dueAmount || 0).toLocaleString()}/-
+                            <td className="px-4 py-3 text-slate-700">
+                              <span className="font-medium">Amount Receivable</span>
+                              <span className="ml-4 text-slate-600">{Number(sale.dueAmount || 0).toLocaleString()}/-</span>
                             </td>
-                            <td colSpan={3}></td>
+                            <td className="text-center px-3 py-3"></td>
+                            <td className="text-center px-3 py-3"></td>
+                            <td className="text-right px-4 py-3"></td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
 
-                    {/* Payment Method & Totals */}
-                    <div className="px-8 py-6 flex justify-between items-start">
-                      <div>
-                        <p className="text-xl font-bold text-slate-800">Payment Method :</p>
-                        <p className="text-lg text-slate-700 font-medium mt-2 capitalize">{receipt?.payment?.method || sale.paymentMode || 'UPI/Bank/PayPal'}</p>
-                        {sale.paymentType && sale.paymentType !== 'full' && (
-                          <p className="text-base text-orange-600 font-semibold mt-1">
-                            ({sale.paymentType === 'part' ? 'Part Payment' : 'Advance Payment'})
-                          </p>
-                        )}
-                        {(receipt?.payment?.transactionId || sale.transactionId) && (
-                          <p className="text-sm text-slate-500 italic mt-1">Txn ID: {receipt?.payment?.transactionId || sale.transactionId}</p>
-                        )}
-                      </div>
-                      <div className="text-right w-64">
-                        <div className="flex justify-between py-2 border-b border-slate-200">
-                          <span className="text-slate-600">Sub-total :</span>
-                          <span className="font-semibold">{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-</span>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-slate-200">
-                          <span className="text-slate-600">Tax :</span>
-                          <span className="font-semibold">0</span>
-                        </div>
-                        {sale.paymentType !== 'full' && (sale.paidAmount || sale.dueAmount) && (
+                    {/* Payment Method & Totals Section */}
+                    <div className="relative px-8 py-4 flex justify-between items-start">
+                      {/* Left - Payment Method */}
+                      <div className="pt-2">
+                        <p className="text-lg font-bold text-slate-800">Payment Method :</p>
+                        <p className="text-base text-slate-700 font-semibold mt-2">{receipt?.payment?.method || sale.paymentMode || 'UPI/Bank/Paypal'}</p>
+                        {(sale.bankCode || sale.transactionId) && (
                           <>
-                            <div className="flex justify-between py-2 border-b border-slate-200 text-green-600">
-                              <span>Paid :</span>
-                              <span className="font-semibold">₹{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between py-2 border-b border-slate-200 text-orange-600">
-                              <span>Due :</span>
-                              <span className="font-semibold">₹{Number(sale.dueAmount || 0).toLocaleString()}</span>
-                            </div>
+                            <p className="text-sm text-slate-500 italic mt-1">Bank Code : {sale.bankCode || '****'}</p>
+                            <p className="text-sm text-slate-500 italic">Account No : {sale.transactionId || '***-*****-**'}</p>
                           </>
                         )}
-                        <div className="flex justify-between py-3 bg-gradient-to-r from-orange-500 to-orange-400 text-white px-4 rounded-lg mt-3">
-                          <span className="font-bold text-lg">Total :</span>
-                          <span className="font-black text-xl">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</span>
+                      </div>
+                      
+                      {/* Right - Totals */}
+                      <div className="w-56 border border-slate-200 rounded-lg overflow-hidden">
+                        <div className="flex justify-between px-4 py-2 border-b border-slate-200 bg-slate-50">
+                          <span className="text-slate-600 text-sm">Sub-total :</span>
+                          <span className="font-semibold text-sm">{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-</span>
+                        </div>
+                        <div className="flex justify-between px-4 py-2 border-b border-slate-200 bg-slate-50">
+                          <span className="text-slate-600 text-sm">Tax :</span>
+                          <span className="font-semibold text-sm">0</span>
+                        </div>
+                        <div className="flex justify-between px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-400 text-white">
+                          <span className="font-bold">Total :</span>
+                          <span className="font-black">Rs-{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Footer with Seal and Signature */}
-                    <div className="px-8 py-8 flex justify-between items-end relative mt-4">
-                      {/* Company Seal & Thank You */}
+                    {/* Footer - Seal, Thank You, Signature */}
+                    <div className="relative px-8 py-6 flex justify-between items-end mt-4">
+                      {/* Left - Seal & Thank You */}
                       <div className="flex flex-col items-center">
-                        {/* Circular Seal Design */}
-                        <div className="w-32 h-32 rounded-full border-[6px] border-blue-700 flex flex-col items-center justify-center text-center bg-white relative">
-                          {/* Outer ring text simulation */}
+                        {/* Circular Company Seal */}
+                        <div className="w-28 h-28 rounded-full border-[5px] border-blue-700 flex flex-col items-center justify-center text-center bg-white relative">
                           <div className="absolute inset-2 rounded-full border-2 border-blue-600"></div>
-                          <div className="absolute inset-4 rounded-full border border-blue-500"></div>
-                          <div className="text-[7px] text-blue-700 font-semibold leading-tight">Upamnyu International</div>
-                          <div className="text-[7px] text-blue-700 font-semibold leading-tight">Education Pvt. Ltd.</div>
-                          <div className="text-[10px] text-blue-800 font-bold mt-1">CIN No.</div>
-                          <div className="text-[9px] text-blue-800 font-bold">U92400PN2022</div>
-                          <div className="text-[9px] text-blue-800 font-bold">PTC212555</div>
-                          <div className="flex items-center gap-1 mt-1">
-                            <span className="text-blue-700 text-lg">•</span>
-                            <span className="text-[8px] text-blue-700 font-semibold">Sangammer</span>
-                            <span className="text-blue-700 text-lg">•</span>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-center">
+                              <div className="text-[7px] text-blue-800 font-medium leading-tight">Upamnyu International</div>
+                              <div className="text-[7px] text-blue-800 font-medium leading-tight">Education Pvt. Ltd.</div>
+                              <div className="bg-red-100 px-2 py-0.5 rounded mt-0.5">
+                                <div className="text-[8px] text-red-700 font-bold">CIN No.</div>
+                                <div className="text-[7px] text-red-700 font-bold">U92400PN2022</div>
+                                <div className="text-[7px] text-red-700 font-bold">PTC212555</div>
+                              </div>
+                              <div className="text-[7px] text-blue-800 mt-0.5">• Sangammer •</div>
+                            </div>
                           </div>
                         </div>
+                        
                         {/* Thank You Message */}
                         <div className="mt-6 text-center">
-                          <p className="text-green-700 font-bold text-xl">&quot;Thank you!</p>
-                          <p className="text-green-700 font-semibold text-base">Your registration &amp; payment</p>
-                          <p className="text-green-700 font-semibold text-base">are confirmed&quot;</p>
+                          <p className="text-green-700 font-bold text-lg">&quot;Thank you!</p>
+                          <p className="text-green-700 font-medium text-sm">Your registration &amp; payment</p>
+                          <p className="text-green-700 font-medium text-sm">are confirmed&quot;</p>
                         </div>
                       </div>
 
-                      {/* Signature */}
-                      <div className="text-center">
-                        {/* Signature Line */}
-                        <div className="h-24 w-52 flex items-center justify-center">
-                          <svg viewBox="0 0 200 60" className="w-full h-full text-blue-700">
+                      {/* Right - Signature */}
+                      <div className="text-center pr-8">
+                        {/* Signature Image/Line */}
+                        <div className="h-16 w-40 flex items-end justify-center mb-1">
+                          <svg viewBox="0 0 160 50" className="w-full h-full">
                             <path 
-                              d="M10,45 Q20,35 30,40 Q50,50 70,30 Q80,20 90,25 Q100,30 110,20 Q120,10 130,25 Q140,40 150,30 Q160,20 170,35 Q180,50 190,40" 
-                              stroke="currentColor" 
-                              strokeWidth="2" 
+                              d="M5,40 Q15,30 25,35 Q40,42 55,28 Q65,18 75,22 Q85,26 95,18 Q105,10 115,20 Q125,30 135,25 Q145,20 155,28" 
+                              stroke="#1d4ed8" 
+                              strokeWidth="1.5" 
                               fill="none"
+                              strokeLinecap="round"
                             />
-                            <text x="60" y="55" fontSize="8" fill="currentColor" fontStyle="italic">Mohan K.</text>
+                            <text x="90" y="48" fontSize="10" fill="#1d4ed8" fontFamily="cursive" fontStyle="italic">Inj.</text>
                           </svg>
                         </div>
-                        <p className="text-xl font-bold text-slate-800 italic mt-2">Mohan Kalburgi</p>
-                        <p className="text-base text-slate-600">Yogacharya</p>
+                        <p className="text-xl font-bold text-green-700">Mohan Kalburgi</p>
+                        <p className="text-sm text-slate-500 italic">Yogacharya</p>
                       </div>
                     </div>
 
-                    {/* Bottom note */}
-                    <div className="px-8 pb-6 text-sm text-slate-500 border-t border-slate-200 pt-4">
-                      <p><strong>Note:</strong> Workshop fees are non-refundable and non-transferable.</p>
-                      <p className="mt-1">Address: {receiptAddressLine}</p>
-                    </div>
                   </div>
                 </div>
               </div>
