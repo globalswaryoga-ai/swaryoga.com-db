@@ -25,6 +25,7 @@ type BroadcastRun = {
     skipped: number;
     blocked: number;
   };
+  scheduledAt?: string;
   startedAt?: string;
   completedAt?: string;
 };
@@ -369,8 +370,27 @@ export default function QRReportsPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h2 className="text-xl font-bold text-gray-800">{selectedRun.name}</h2>
-                    <div className="text-sm text-gray-500">
-                      Status: <StatusBadge status={selectedRun.status} />
+                    <div className="text-sm text-gray-500 space-y-1">
+                      <div>Status: <StatusBadge status={selectedRun.status} /></div>
+                      {selectedRun.scheduledAt && (
+                        <div className="text-yellow-600 font-medium">
+                          📅 Scheduled: {new Date(selectedRun.scheduledAt).toLocaleString('en-IN', { 
+                            dateStyle: 'medium', 
+                            timeStyle: 'short',
+                            timeZone: 'Asia/Kolkata'
+                          })} IST
+                        </div>
+                      )}
+                      {selectedRun.startedAt && (
+                        <div className="text-blue-600">
+                          ▶️ Started: {new Date(selectedRun.startedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                        </div>
+                      )}
+                      {selectedRun.completedAt && (
+                        <div className="text-green-600">
+                          ✅ Completed: {new Date(selectedRun.completedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
