@@ -180,6 +180,10 @@ function QRWhatsAppInboxPageContent() {
   const [showAssignDropdown, setShowAssignDropdown] = useState<string | null>(null);
   const [assigningChat, setAssigningChat] = useState(false);
   
+  // Tools dropdown menu state
+  const [showToolsDropdown, setShowToolsDropdown] = useState(false);
+  const toolsDropdownRef = useRef<HTMLDivElement>(null);
+  
   // Track the phone parameter to always display at top
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(nameParam || null); // Initialize with param
@@ -664,6 +668,17 @@ function QRWhatsAppInboxPageContent() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showAssignDropdown]);
+
+  // Close tools dropdown when clicking outside
+  useEffect(() => {
+    const handleToolsClickOutside = (e: MouseEvent) => {
+      if (showToolsDropdown && toolsDropdownRef.current && !toolsDropdownRef.current.contains(e.target as Node)) {
+        setShowToolsDropdown(false);
+      }
+    };
+    document.addEventListener('click', handleToolsClickOutside);
+    return () => document.removeEventListener('click', handleToolsClickOutside);
+  }, [showToolsDropdown]);
 
   // Fetch user list for assignment
   useEffect(() => {
@@ -3563,10 +3578,7 @@ function QRWhatsAppInboxPageContent() {
       <div className="flex-1 flex flex-col bg-[#FAF8F5]">
         {/* Top Header - Before Chat Area */}
         <div className="bg-gradient-to-r from-teal-500 to-teal-600 px-3 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-white font-bold text-xs">Swar Yoga</span>
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* Home Button - Orange */}
             <button
               onClick={() => {
@@ -3577,6 +3589,97 @@ function QRWhatsAppInboxPageContent() {
             >
               <span>🏠</span> Home
             </button>
+
+            {/* Tools Dropdown */}
+            <div className="relative" ref={toolsDropdownRef}>
+              <button
+                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+                className="px-2 py-1 rounded text-xs font-bold bg-white/20 text-white hover:bg-white/30 transition-colors flex items-center gap-1"
+                title="Tools"
+              >
+                <span>🔧</span> TOOLS <span className="text-[10px]">▼</span>
+              </button>
+              {showToolsDropdown && (
+                <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden">
+                  <button
+                    onClick={() => { window.location.href = '/admin/crm/automation'; setShowToolsDropdown(false); }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-teal-50 flex items-center gap-2"
+                  >
+                    <span>⚙️</span> Automation Rules
+                  </button>
+                  <button
+                    onClick={() => { window.location.href = '/admin/crm/chatbot'; setShowToolsDropdown(false); }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-teal-50 flex items-center gap-2"
+                  >
+                    <span>🤖</span> AI Chatbot
+                  </button>
+                  <button
+                    onClick={() => { window.location.href = '/admin/crm/templates'; setShowToolsDropdown(false); }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-teal-50 flex items-center gap-2"
+                  >
+                    <span>📋</span> Templates
+                  </button>
+                  <button
+                    onClick={() => { window.location.href = '/admin/crm/media'; setShowToolsDropdown(false); }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-teal-50 flex items-center gap-2"
+                  >
+                    <span>🖼️</span> Media Library
+                  </button>
+                  <button
+                    onClick={() => { window.location.href = '/admin/crm/analytics'; setShowToolsDropdown(false); }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-teal-50 flex items-center gap-2"
+                  >
+                    <span>📊</span> Analytics
+                  </button>
+                  <div className="border-t border-gray-100"></div>
+                  <button
+                    onClick={() => { window.location.href = '/admin/crm/whatsapp/webhook-events'; setShowToolsDropdown(false); }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-teal-50 flex items-center gap-2"
+                  >
+                    <span>📡</span> Webhook Events
+                  </button>
+                  <button
+                    onClick={() => { setShowDiagnostics(!showDiagnostics); setShowToolsDropdown(false); }}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-teal-50 flex items-center gap-2"
+                  >
+                    <span>🔧</span> Bridge Diagnostics
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* AI Status Indicator */}
+            <div className="flex items-center gap-1 px-2 py-1 rounded bg-white/10 text-white/80 text-xs">
+              <span className="text-[10px]">🤖</span>
+              <span className="font-medium">AI OFFLINE</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Quick Action Icons */}
+            <button
+              onClick={() => window.location.href = '/admin/crm/media/settings'}
+              className="p-1.5 rounded hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              title="Settings"
+            >
+              <Settings size={16} />
+            </button>
+            <button
+              onClick={() => window.location.href = '/admin/crm/automation'}
+              className="p-1.5 rounded hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              title="Quick Actions"
+            >
+              <Zap size={16} />
+            </button>
+            <button
+              onClick={() => setShowQuickReplies(!showQuickReplies)}
+              className="p-1.5 rounded hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              title="Quick Replies"
+            >
+              <FileText size={16} />
+            </button>
+
+            <div className="w-px h-4 bg-white/30 mx-1"></div>
 
             {/* QR Button - White/Teal */}
             <button
