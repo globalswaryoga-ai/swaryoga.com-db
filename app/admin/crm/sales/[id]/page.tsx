@@ -479,123 +479,131 @@ export default function SaleDetailPage() {
                 {receiptBusy ? <LoadingSpinner /> : null}
 
                 <div ref={receiptPrintRef} className="mx-auto max-w-[820px]">
-                  {/* Professional Invoice/Receipt */}
-                  <div className="bg-white border border-slate-300 rounded-lg overflow-hidden relative">
-                    {/* Decorative corner accents */}
-                    <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-green-600/20 to-transparent rounded-br-full" />
-                    <div className="absolute bottom-0 right-0 w-48 h-48 bg-gradient-to-tl from-green-600/20 to-transparent rounded-tl-full" />
+                  {/* Professional Invoice/Receipt - Matching Demo Design */}
+                  <div className="bg-white border-2 border-slate-200 rounded-xl overflow-hidden relative shadow-lg" style={{ minHeight: '1000px' }}>
+                    {/* Decorative corner accents - Top Left */}
+                    <div className="absolute top-0 left-0 w-40 h-40">
+                      <svg viewBox="0 0 100 100" className="w-full h-full">
+                        <path d="M0,0 Q0,50 50,50 Q0,50 0,100 L0,0 Z" fill="rgba(34, 139, 87, 0.15)" />
+                      </svg>
+                    </div>
+                    {/* Decorative corner accents - Bottom Right */}
+                    <div className="absolute bottom-0 right-0 w-56 h-56">
+                      <svg viewBox="0 0 100 100" className="w-full h-full">
+                        <path d="M100,100 Q100,50 50,50 Q100,50 100,0 L100,100 Z" fill="rgba(34, 139, 87, 0.15)" />
+                      </svg>
+                    </div>
                     
                     {/* Header Section */}
-                    <div className="relative p-6 pb-4">
+                    <div className="relative px-8 pt-8 pb-4">
                       <div className="flex items-start justify-between">
-                        {/* Left - Owner Photo */}
-                        <div className="flex items-center gap-4">
-                          <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-green-600 shadow-lg">
+                        {/* Left - Owner Photo + Title */}
+                        <div className="flex items-center gap-5">
+                          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-green-700 shadow-xl bg-gray-100">
                             <img 
-                              src="/images/invoice/owner.png" 
+                              src="/logo with mohan sir.png" 
                               alt="Mohan Kalburgi" 
                               className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = '/logo with mohan sir.png';
-                              }}
                             />
                           </div>
                           <div>
-                            <h1 className="text-3xl font-bold text-slate-900 tracking-wide">SWAR YOGA</h1>
+                            <h1 className="text-4xl font-black text-slate-900 tracking-wider">SWAR YOGA</h1>
                           </div>
                         </div>
 
                         {/* Right - Logo */}
                         <div className="text-right">
-                          <div className="w-16 h-16 ml-auto">
+                          <div className="w-20 h-20 ml-auto rounded-full overflow-hidden border-2 border-green-600">
                             <img 
-                              src="/images/invoice/logo.png" 
+                              src="/logo-square.png" 
                               alt="Swar Yoga Logo" 
-                              className="w-full h-full object-contain"
-                              onError={(e) => {
-                                e.currentTarget.src = '/logo-square.png';
-                              }}
+                              className="w-full h-full object-cover"
                             />
                           </div>
-                          <div className="text-xs text-green-700 font-medium mt-1">Swar Yoga</div>
+                          <div className="text-sm text-orange-600 font-bold mt-2">SWAR YOGA</div>
                           <div className="text-[10px] text-slate-500">Organised by: Upamnyu International Education P. Ltd.</div>
                         </div>
                       </div>
                     </div>
 
                     {/* Invoice Title Section */}
-                    <div className="px-6 flex items-center justify-between">
-                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
-                      <div className="px-6">
-                        <h2 className="text-4xl font-bold text-slate-800 tracking-widest">INVOICE</h2>
-                        <p className="text-sm text-slate-500 text-center mt-1">No: {receipt?.receiptNumber || `INV-${id?.slice(-10).toUpperCase()}`}</p>
+                    <div className="px-8 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 h-[2px] bg-gradient-to-r from-green-600 to-slate-300" />
+                        <div className="text-center">
+                          <h2 className="text-5xl font-black text-slate-800 tracking-[0.2em]">INVOICE</h2>
+                          <p className="text-base text-slate-500 mt-1">No: {receipt?.receiptNumber || `${String(id || '').slice(-10).toUpperCase() || '1234567890'}`}</p>
+                        </div>
+                        <div className="flex-1 h-[2px] bg-gradient-to-l from-green-600 to-slate-300" />
                       </div>
-                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
                     </div>
 
-                    {/* Invoice Details Row */}
-                    <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-start">
-                      <div>
-                        <p className="text-xs text-slate-500 uppercase font-semibold">Invoice To :</p>
-                        <p className="text-xl font-bold text-green-700 mt-1">{receipt?.customerName || sale.customerName || 'N/A'}</p>
-                        <p className="text-sm text-slate-600 mt-2">{receipt?.customerPhone || sale.customerPhone || ''}</p>
-                        <p className="text-sm text-slate-600">{receipt?.customerEmail || sale.customerEmail || ''}</p>
-                        <p className="text-sm text-slate-600 max-w-xs">{receipt?.customerAddress || sale.customerAddress || '—'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-slate-600">
-                          <span className="font-medium">Date:</span> {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN')}
-                        </p>
-                        <div className="mt-3 h-px w-16 bg-slate-800 ml-auto" />
-                        <p className="text-xs text-slate-500 uppercase font-semibold mt-3">Total Amount</p>
-                        <p className="text-3xl font-bold text-orange-500">₹{Number(sale.workshopFee || sale.saleAmount || receipt?.payment?.amount || 0).toLocaleString()}</p>
+                    {/* Invoice To & Date Section */}
+                    <div className="px-8 py-4">
+                      <div className="flex justify-between items-start border-y-2 border-slate-200 py-4">
+                        <div>
+                          <p className="text-sm text-slate-500 uppercase font-semibold tracking-wide">Invoice To :</p>
+                          <p className="text-2xl font-bold text-green-700 mt-2">{receipt?.customerName || sale.customerName || 'CUSTOMER NAME'}</p>
+                          <div className="mt-3 space-y-1 text-sm text-slate-600">
+                            <p>{receipt?.customerPhone || sale.customerPhone || '+91-XXX-XXX-XXXX'}</p>
+                            <p>{receipt?.customerEmail || sale.customerEmail || 'email@example.com'}</p>
+                            <p className="max-w-xs">{receipt?.customerAddress || sale.customerAddress || 'Address'}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-slate-600">
+                            <span className="font-semibold">Date:</span> {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </p>
+                          <div className="mt-4 h-1 w-20 bg-slate-800 ml-auto" />
+                          <p className="text-sm text-slate-500 uppercase font-semibold mt-4 tracking-wide">Total Amount</p>
+                          <p className="text-4xl font-black text-orange-500">₹{Number(sale.workshopFee || sale.saleAmount || receipt?.payment?.amount || 0).toLocaleString()}</p>
+                        </div>
                       </div>
                     </div>
 
                     {/* Workshop Table */}
-                    <div className="px-6 py-4">
-                      <table className="w-full text-sm">
+                    <div className="px-8 py-4">
+                      <table className="w-full text-sm border-collapse">
                         <thead>
                           <tr className="bg-gradient-to-r from-orange-500 to-orange-400 text-white">
-                            <th className="text-left px-4 py-3 font-semibold rounded-l-lg">WORKSHOPS</th>
-                            <th className="text-center px-4 py-3 font-semibold">PERSON</th>
-                            <th className="text-center px-4 py-3 font-semibold">FEES</th>
-                            <th className="text-right px-4 py-3 font-semibold rounded-r-lg">TOTAL</th>
+                            <th className="text-left px-5 py-4 font-bold text-base rounded-l-lg">WORKSHOPS</th>
+                            <th className="text-center px-5 py-4 font-bold text-base">PERSON</th>
+                            <th className="text-center px-5 py-4 font-bold text-base">FEES</th>
+                            <th className="text-right px-5 py-4 font-bold text-base rounded-r-lg">TOTAL</th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-b border-slate-100">
-                            <td className="px-4 py-3 text-slate-800 font-medium">{receipt?.workshopName || sale.workshopName || 'Swar Yoga Master Class'}</td>
-                            <td className="text-center px-4 py-3 text-slate-600">1</td>
-                            <td className="text-center px-4 py-3 text-slate-600">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-Rs</td>
-                            <td className="text-right px-4 py-3 text-slate-800 font-medium">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</td>
+                          <tr className="border-b border-slate-200">
+                            <td className="px-5 py-4 text-slate-800 font-medium text-base">{receipt?.workshopName || sale.workshopName || 'Swar Yoga Master Class'}</td>
+                            <td className="text-center px-5 py-4 text-slate-600 text-base">1</td>
+                            <td className="text-center px-5 py-4 text-slate-600 text-base">{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-Rs</td>
+                            <td className="text-right px-5 py-4 text-slate-800 font-medium text-base">{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</td>
                           </tr>
                           {/* Payment history rows */}
                           {sale.paymentHistory && sale.paymentHistory.length > 0 ? (
                             sale.paymentHistory.map((payment, idx) => (
-                              <tr key={idx} className="border-b border-slate-100">
-                                <td className="px-4 py-3 text-slate-600 italic">
-                                  Received on the date of - {new Date(payment.date).toLocaleDateString('en-IN')}
-                                  {payment.note && <span className="text-slate-500 ml-2">({payment.note})</span>}
+                              <tr key={idx} className="border-b border-slate-200">
+                                <td className="px-5 py-3 text-slate-600 italic">
+                                  Received on the date of- {new Date(payment.date).toLocaleDateString('en-IN')}
                                 </td>
-                                <td className="text-center px-4 py-3 text-slate-600"></td>
-                                <td className="text-center px-4 py-3 text-slate-600">₹{Number(payment.amount).toLocaleString()}/-</td>
-                                <td className="text-right px-4 py-3 text-slate-800">₹{Number(payment.amount).toLocaleString()}</td>
+                                <td className="text-center px-5 py-3 text-slate-600"></td>
+                                <td className="text-center px-5 py-3 text-slate-600">{Number(payment.amount).toLocaleString()}/-</td>
+                                <td className="text-right px-5 py-3 text-slate-800">{Number(payment.amount).toLocaleString()}</td>
                               </tr>
                             ))
                           ) : (
-                            <tr className="border-b border-slate-100">
-                              <td className="px-4 py-3 text-slate-600 italic">
-                                Received on the date of - {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN')}
+                            <tr className="border-b border-slate-200">
+                              <td className="px-5 py-3 text-slate-600 italic">
+                                Received on the date of- {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN')}
                               </td>
-                              <td className="text-center px-4 py-3 text-slate-600"></td>
-                              <td className="text-center px-4 py-3 text-slate-600">₹{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}/-</td>
-                              <td className="text-right px-4 py-3 text-slate-800">₹{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</td>
+                              <td className="text-center px-5 py-3 text-slate-600"></td>
+                              <td className="text-center px-5 py-3 text-slate-600">{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}/-</td>
+                              <td className="text-right px-5 py-3 text-slate-800">{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</td>
                             </tr>
                           )}
                           <tr>
-                            <td className="px-4 py-3 text-slate-700 font-medium">
-                              Amount Receivable: ₹{Number(sale.dueAmount || 0).toLocaleString()}/-
+                            <td className="px-5 py-3 text-slate-700 font-semibold">
+                              Amount Receivable&nbsp;&nbsp;&nbsp;&nbsp;{Number(sale.dueAmount || 0).toLocaleString()}/-
                             </td>
                             <td colSpan={3}></td>
                           </tr>
@@ -604,108 +612,96 @@ export default function SaleDetailPage() {
                     </div>
 
                     {/* Payment Method & Totals */}
-                    <div className="px-6 py-4 flex justify-between items-start">
+                    <div className="px-8 py-6 flex justify-between items-start">
                       <div>
-                        <p className="text-lg font-bold text-slate-800">Payment Method :</p>
-                        <p className="text-slate-700 font-medium mt-1 capitalize">{receipt?.payment?.method || sale.paymentMode || 'UPI/Bank/Cash'}</p>
+                        <p className="text-xl font-bold text-slate-800">Payment Method :</p>
+                        <p className="text-lg text-slate-700 font-medium mt-2 capitalize">{receipt?.payment?.method || sale.paymentMode || 'UPI/Bank/PayPal'}</p>
                         {sale.paymentType && sale.paymentType !== 'full' && (
-                          <p className="text-sm text-orange-600 font-semibold mt-1">
-                            Payment Type: {sale.paymentType === 'part' ? 'Part Payment' : 'Advance Payment'}
+                          <p className="text-base text-orange-600 font-semibold mt-1">
+                            ({sale.paymentType === 'part' ? 'Part Payment' : 'Advance Payment'})
                           </p>
                         )}
                         {(receipt?.payment?.transactionId || sale.transactionId) && (
-                          <p className="text-sm text-slate-500 italic">Txn: {receipt?.payment?.transactionId || sale.transactionId}</p>
-                        )}
-                        {receipt?.payment?.provider && (
-                          <p className="text-sm text-slate-500 italic">Provider: {receipt.payment.provider}</p>
+                          <p className="text-sm text-slate-500 italic mt-1">Txn ID: {receipt?.payment?.transactionId || sale.transactionId}</p>
                         )}
                       </div>
-                      <div className="text-right w-56">
-                        <div className="flex justify-between py-1 border-b border-slate-200">
+                      <div className="text-right w-64">
+                        <div className="flex justify-between py-2 border-b border-slate-200">
                           <span className="text-slate-600">Sub-total :</span>
-                          <span className="font-medium">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-</span>
+                          <span className="font-semibold">{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-</span>
                         </div>
-                        <div className="flex justify-between py-1 border-b border-slate-200">
+                        <div className="flex justify-between py-2 border-b border-slate-200">
                           <span className="text-slate-600">Tax :</span>
-                          <span className="font-medium">0</span>
+                          <span className="font-semibold">0</span>
                         </div>
                         {sale.paymentType !== 'full' && (sale.paidAmount || sale.dueAmount) && (
                           <>
-                            <div className="flex justify-between py-1 border-b border-slate-200 text-green-600">
+                            <div className="flex justify-between py-2 border-b border-slate-200 text-green-600">
                               <span>Paid :</span>
-                              <span className="font-medium">₹{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</span>
+                              <span className="font-semibold">₹{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between py-1 border-b border-slate-200 text-orange-600">
+                            <div className="flex justify-between py-2 border-b border-slate-200 text-orange-600">
                               <span>Due :</span>
-                              <span className="font-medium">₹{Number(sale.dueAmount || 0).toLocaleString()}</span>
+                              <span className="font-semibold">₹{Number(sale.dueAmount || 0).toLocaleString()}</span>
                             </div>
                           </>
                         )}
-                        <div className="flex justify-between py-2 bg-gradient-to-r from-orange-500 to-orange-400 text-white px-3 rounded-lg mt-2">
-                          <span className="font-bold">Total :</span>
-                          <span className="font-bold text-lg">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</span>
+                        <div className="flex justify-between py-3 bg-gradient-to-r from-orange-500 to-orange-400 text-white px-4 rounded-lg mt-3">
+                          <span className="font-bold text-lg">Total :</span>
+                          <span className="font-black text-xl">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Footer with Seal and Signature */}
-                    <div className="px-6 py-6 flex justify-between items-end relative">
-                      {/* Company Seal */}
+                    <div className="px-8 py-8 flex justify-between items-end relative mt-4">
+                      {/* Company Seal & Thank You */}
                       <div className="flex flex-col items-center">
-                        <div className="w-28 h-28">
-                          <img 
-                            src="/images/invoice/seal.png" 
-                            alt="Company Seal"
-                            className="w-full h-full object-contain"
-                            onError={(e) => {
-                              // Fallback to text-based seal
-                              e.currentTarget.style.display = 'none';
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                parent.innerHTML = `
-                                  <div class="w-28 h-28 rounded-full border-4 border-blue-700 flex flex-col items-center justify-center text-center bg-blue-50/50 shadow-md">
-                                    <div class="text-[7px] text-blue-700 font-medium">Upamnyu International Education Pvt. Ltd.</div>
-                                    <div class="text-[9px] text-blue-800 font-bold mt-1">CIN No.</div>
-                                    <div class="text-[8px] text-blue-800 font-bold">U92400PN2022</div>
-                                    <div class="text-[8px] text-blue-800 font-bold">PTC212555</div>
-                                    <div class="text-[7px] text-blue-700 font-medium mt-0.5">• Sangammer •</div>
-                                  </div>
-                                `;
-                              }
-                            }}
-                          />
+                        {/* Circular Seal Design */}
+                        <div className="w-32 h-32 rounded-full border-[6px] border-blue-700 flex flex-col items-center justify-center text-center bg-white relative">
+                          {/* Outer ring text simulation */}
+                          <div className="absolute inset-2 rounded-full border-2 border-blue-600"></div>
+                          <div className="absolute inset-4 rounded-full border border-blue-500"></div>
+                          <div className="text-[7px] text-blue-700 font-semibold leading-tight">Upamnyu International</div>
+                          <div className="text-[7px] text-blue-700 font-semibold leading-tight">Education Pvt. Ltd.</div>
+                          <div className="text-[10px] text-blue-800 font-bold mt-1">CIN No.</div>
+                          <div className="text-[9px] text-blue-800 font-bold">U92400PN2022</div>
+                          <div className="text-[9px] text-blue-800 font-bold">PTC212555</div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-blue-700 text-lg">•</span>
+                            <span className="text-[8px] text-blue-700 font-semibold">Sangammer</span>
+                            <span className="text-blue-700 text-lg">•</span>
+                          </div>
                         </div>
-                        <div className="mt-4 text-center">
-                          <p className="text-green-700 font-bold text-lg">&quot;Thank you!</p>
-                          <p className="text-green-700 font-semibold text-sm">Your registration &amp; payment</p>
-                          <p className="text-green-700 font-semibold text-sm">are confirmed&quot;</p>
+                        {/* Thank You Message */}
+                        <div className="mt-6 text-center">
+                          <p className="text-green-700 font-bold text-xl">&quot;Thank you!</p>
+                          <p className="text-green-700 font-semibold text-base">Your registration &amp; payment</p>
+                          <p className="text-green-700 font-semibold text-base">are confirmed&quot;</p>
                         </div>
                       </div>
 
                       {/* Signature */}
                       <div className="text-center">
-                        <div className="h-20 w-44 flex items-center justify-center">
-                          <img 
-                            src="/images/invoice/signature.png" 
-                            alt="Signature"
-                            className="max-h-full max-w-full object-contain"
-                            onError={(e) => {
-                              // Fallback to text signature
-                              e.currentTarget.style.display = 'none';
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                parent.innerHTML = `<span class="text-2xl font-script text-blue-700 italic">Mohan K.</span>`;
-                              }
-                            }}
-                          />
+                        {/* Signature Line */}
+                        <div className="h-24 w-52 flex items-center justify-center">
+                          <svg viewBox="0 0 200 60" className="w-full h-full text-blue-700">
+                            <path 
+                              d="M10,45 Q20,35 30,40 Q50,50 70,30 Q80,20 90,25 Q100,30 110,20 Q120,10 130,25 Q140,40 150,30 Q160,20 170,35 Q180,50 190,40" 
+                              stroke="currentColor" 
+                              strokeWidth="2" 
+                              fill="none"
+                            />
+                            <text x="60" y="55" fontSize="8" fill="currentColor" fontStyle="italic">Mohan K.</text>
+                          </svg>
                         </div>
-                        <p className="text-lg font-bold text-slate-800 italic">Mohan Kalburgi</p>
-                        <p className="text-sm text-slate-600">Yogacharya</p>
+                        <p className="text-xl font-bold text-slate-800 italic mt-2">Mohan Kalburgi</p>
+                        <p className="text-base text-slate-600">Yogacharya</p>
                       </div>
                     </div>
 
                     {/* Bottom note */}
-                    <div className="px-6 pb-4 text-xs text-slate-500 border-t border-slate-200 pt-3">
+                    <div className="px-8 pb-6 text-sm text-slate-500 border-t border-slate-200 pt-4">
                       <p><strong>Note:</strong> Workshop fees are non-refundable and non-transferable.</p>
                       <p className="mt-1">Address: {receiptAddressLine}</p>
                     </div>
