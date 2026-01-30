@@ -580,7 +580,7 @@ export function InlineMediaPreview({
         <img 
           src={url} 
           alt="Media" 
-          className={`w-full max-w-[320px] rounded-lg cursor-pointer hover:opacity-90 ${className}`}
+          className={`w-full max-w-full rounded-lg cursor-pointer hover:opacity-90 ${className}`}
           onClick={() => setExpanded(true)}
           onError={() => {
             console.warn('[MediaPreview] Failed to load image:', url);
@@ -602,7 +602,7 @@ export function InlineMediaPreview({
       <video 
         src={url} 
         controls 
-        className={`max-w-[300px] max-h-[200px] rounded-lg ${className}`}
+        className={`w-full max-w-full max-h-[300px] rounded-lg ${className}`}
       />
     );
   }
