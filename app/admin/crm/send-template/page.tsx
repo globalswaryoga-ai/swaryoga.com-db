@@ -177,27 +177,43 @@ export default function SendTemplatePage() {
         const headerMedia = selectedTemplate.headerMedia;
         const mediaUrl = headerMedia?.url || null;
         const hasImage = mediaUrl && headerMedia?.kind === 'image';
+        const hasVideo = mediaUrl && headerMedia?.kind === 'video';
 
         // Build payload for QR send API
-        // Try native buttons if available (may not work due to WhatsApp restrictions)
+        // Pass templateData so backend uses /send-template endpoint for proper formatting
         const qrPayload: any = {
           to: phone,
-          message: templateContent, // Use clean content without button text for buttons type
+          message: templateContent,
+          // Pass template data for proper template sending with buttons
+          templateData: {
+            templateName: selectedTemplate.templateName,
+            headerFormat: hasImage ? 'IMAGE' : (hasVideo ? 'VIDEO' : 'TEXT'),
+            headerMedia: headerMedia,
+            footerText: selectedTemplate.footerText || 'Swar Yoga',
+            buttons: buttons.map(b => b.title || b.text || ''),
+          }
         };
 
-        // If we have buttons and no image, try native buttons first
-        if (buttonTitles.length > 0 && !hasImage) {
+        // If we have image/video with buttons, use template mode
+        if ((hasImage || hasVideo) && buttonTitles.length > 0) {
+          qrPayload.type = 'template';
+          qrPayload.url = mediaUrl;
+          qrPayload.caption = templateContent;
+        } else if (hasImage || hasVideo) {
+          // Image/video without buttons
+          qrPayload.type = 'media';
+          qrPayload.url = mediaUrl;
+          qrPayload.caption = fullMessage;
+          qrPayload.message = fullMessage;
+        } else if (buttonTitles.length > 0) {
+          // Text with buttons - try native buttons first
           qrPayload.type = 'buttons';
           qrPayload.buttons = buttonTitles;
           qrPayload.caption = 'Swar Yoga';
-        } else if (hasImage) {
-          qrPayload.type = 'media';
-          qrPayload.url = mediaUrl;
-          qrPayload.caption = fullMessage; // Include button text in caption for image
-          qrPayload.message = fullMessage;
         } else {
+          // Plain text
           qrPayload.type = 'text';
-          qrPayload.message = fullMessage; // Include button text in message
+          qrPayload.message = fullMessage;
         }
 
         console.log('[SendTemplate QR] Sending via API:', qrPayload);
