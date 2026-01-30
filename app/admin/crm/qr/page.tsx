@@ -207,6 +207,9 @@ function QRWhatsAppInboxPageContent() {
   const [savingSidebar, setSavingSidebar] = useState(false);
   const labelOptions = ['New', 'Chatting/Replying', 'No Reply', 'Call Pending', 'Call Done', 'Interested', 'Enrolled'];
 
+  // Admin Users for assignment (loaded once)
+  const [adminUsers, setAdminUsers] = useState<Array<{ userId: string; name: string; email: string }>>([]);
+
   // Quick Replies & Templates
   const [quickReplies, setQuickReplies] = useState<Array<{ id: string; message: string }>>([
     { id: '1', message: 'Thank you for contacting us!' },
@@ -1336,6 +1339,7 @@ function QRWhatsAppInboxPageContent() {
           labels: sidebarData.labels.length > 0 ? sidebarData.labels : undefined,
           notes: sidebarData.notes || undefined,
           nextFollowUp: sidebarData.followUpDate || undefined,
+          assignedToUserId: sidebarData.assignedTo || undefined,
         }),
       });
       
@@ -1385,6 +1389,32 @@ function QRWhatsAppInboxPageContent() {
     
     loadLeadDetails();
   }, [activeLeadId, token]);
+
+  // Load admin users for assignment dropdown (once on mount)
+  useEffect(() => {
+    if (!token) return;
+    
+    const fetchAdminUsers = async () => {
+      try {
+        const res = await fetch('/api/admin/users', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const users = data?.users || data?.data?.users || [];
+          setAdminUsers(users.map((u: any) => ({
+            userId: u.userId || u._id || '',
+            name: u.name || u.email || 'Unknown',
+            email: u.email || '',
+          })));
+        }
+      } catch (e) {
+        console.warn('Failed to load admin users:', e);
+      }
+    };
+    
+    fetchAdminUsers();
+  }, [token]);
 
   // Handle right-click on misspelled words for spell suggestions
   const handleSpellCheck = useCallback(async (e: React.MouseEvent<HTMLTextAreaElement>) => {
@@ -4724,6 +4754,23 @@ function QRWhatsAppInboxPageContent() {
                   Lead ID: {activeLeadNumber || 'N/A'}
                 </span>
               </div>
+
+              {/* Assign User Dropdown */}
+              <section>
+                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Assign To</label>
+                <select 
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 font-semibold text-blue-700"
+                  value={sidebarData.assignedTo}
+                  onChange={(e) => setSidebarData({ ...sidebarData, assignedTo: e.target.value })}
+                >
+                  <option value="">Unassigned</option>
+                  {adminUsers.map(u => (
+                    <option key={u.userId} value={u.userId}>
+                      {u.name} {u.email ? `(${u.email})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </section>
 
               {/* Status Dropdown */}
               <section>

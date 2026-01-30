@@ -228,8 +228,12 @@ export default function MetaInboxPage() {
     labels: [] as string[],
     notes: '',
     followUpDate: '',
+    assignedTo: '',
   });
   const [savingSidebar, setSavingSidebar] = useState(false);
+
+  // Admin Users for assignment (loaded once)
+  const [adminUsers, setAdminUsers] = useState<Array<{ userId: string; name: string; email: string }>>([]);
 
   // Tabs should reflect the current route (so browser navigation + redirects stay consistent)
   const activeTab = useMemo(() => {
@@ -271,6 +275,32 @@ export default function MetaInboxPage() {
 
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // Load admin users for assignment dropdown (once on mount)
+  useEffect(() => {
+    if (!token) return;
+    
+    const fetchAdminUsers = async () => {
+      try {
+        const res = await fetch('/api/admin/users', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const users = data?.users || data?.data?.users || [];
+          setAdminUsers(users.map((u: any) => ({
+            userId: u.userId || u._id || '',
+            name: u.name || u.email || 'Unknown',
+            email: u.email || '',
+          })));
+        }
+      } catch (e) {
+        console.warn('Failed to load admin users:', e);
+      }
+    };
+    
+    fetchAdminUsers();
   }, [token]);
 
   // Search-triggered reload (debounced)
@@ -626,6 +656,7 @@ export default function MetaInboxPage() {
       labels: conv.labels || [],
       notes: '', // Notes need a separate fetch usually
       followUpDate: '', // Follow-ups need a separate fetch usually
+      assignedTo: conv.assignedToUserId || '',
     });
 
     // Fetch notes and followups for this lead
@@ -721,12 +752,13 @@ export default function MetaInboxPage() {
     if (!selected || !selected.leadId) return;
     setSavingSidebar(true);
     try {
-      // 1. Update Lead Status & Labels
+      // 1. Update Lead Status, Labels, and Assignment
       const updateLeadPromise = crmFetch(`/api/admin/crm/leads/${selected.leadId}`, {
         method: 'PUT',
         body: {
           status: sidebarData.status,
           labels: sidebarData.labels,
+          assignedToUserId: sidebarData.assignedTo || undefined,
         }
       });
 
@@ -2398,9 +2430,24 @@ export default function MetaInboxPage() {
                   <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">CRM Details</label>
                   <div className="space-y-2.5">
                     <div className="flex flex-col gap-1 text-sm py-1.5 border-b border-gray-50">
-                      <span className="text-slate-500 text-[10px] uppercase font-extrabold opacity-70">Status</span>
+                      <span className="text-slate-500 text-[10px] uppercase font-extrabold opacity-70">Assign To</span>
                       <select 
                         className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 font-semibold text-blue-700"
+                        value={sidebarData.assignedTo}
+                        onChange={(e) => setSidebarData({ ...sidebarData, assignedTo: e.target.value })}
+                      >
+                        <option value="">Unassigned</option>
+                        {adminUsers.map(u => (
+                          <option key={u.userId} value={u.userId}>
+                            {u.name} {u.email ? `(${u.email})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1 text-sm py-1.5 border-b border-gray-50">
+                      <span className="text-slate-500 text-[10px] uppercase font-extrabold opacity-70">Status</span>
+                      <select 
+                        className="w-full border border-slate-200 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none bg-slate-50 font-semibold text-green-700"
                         value={sidebarData.status}
                         onChange={(e) => setSidebarData({ ...sidebarData, status: e.target.value })}
                       >
@@ -2409,10 +2456,6 @@ export default function MetaInboxPage() {
                         <option value="customer">Customer</option>
                         <option value="inactive">Inactive</option>
                       </select>
-                    </div>
-                    <div className="flex justify-between text-sm py-1.5 border-b border-gray-50">
-                      <span className="text-slate-500">Assigned To</span>
-                      <span className="font-semibold text-slate-900">Admin</span>
                     </div>
                   </div>
                 </section>
