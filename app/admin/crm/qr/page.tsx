@@ -3582,9 +3582,9 @@ function QRWhatsAppInboxPageContent() {
             )}
           </div>
           
-          {/* Bulk Select Toggle - Admin Only */}
-          {isSuperAdmin && sidebarTab === 'chats' && (
-            <div className="flex items-center justify-between">
+          {/* Bulk Select Toggle - Available to all admins for 'chats' tab */}
+          {sidebarTab === 'chats' && (
+            <div className="flex items-center justify-between bg-slate-50 rounded-lg p-2 border border-slate-200">
               <button
                 onClick={() => {
                   setBulkSelectMode(!bulkSelectMode);
@@ -3593,21 +3593,21 @@ function QRWhatsAppInboxPageContent() {
                     setShowBulkActionMenu(false);
                   }
                 }}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
                   bulkSelectMode
-                    ? 'bg-purple-100 text-purple-700 border border-purple-300'
-                    : 'text-slate-500 hover:bg-slate-100'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'bg-white text-purple-700 border border-purple-300 hover:bg-purple-50'
                 }`}
               >
-                {bulkSelectMode ? '✕ Cancel Select' : '☑️ Bulk Select'}
+                {bulkSelectMode ? '✕ Exit Bulk Mode' : '☑️ Bulk Select'}
               </button>
               
               {bulkSelectMode && (
                 <button
                   onClick={toggleSelectAll}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-white text-slate-600 border border-slate-300 hover:bg-slate-100"
                 >
-                  {selectedChatIds.size > 0 ? 'Deselect All' : 'Select All'}
+                  {selectedChatIds.size > 0 ? `Deselect (${selectedChatIds.size})` : 'Select All'}
                 </button>
               )}
             </div>
