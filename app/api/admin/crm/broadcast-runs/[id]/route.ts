@@ -29,6 +29,37 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const run = await BroadcastRun.findById(id).lean();
     if (!run) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+    // Recalculate stats from actual message statuses for accuracy
+    const statsCounts = await BroadcastRunMessage.aggregate([
+      { $match: { runId: (run as any)._id } },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]);
+    const statsMap = new Map<string, number>();
+    statsCounts.forEach((c: any) => statsMap.set(String(c._id).toLowerCase(), Number(c.count || 0)));
+    
+    const pendingRaw = (statsMap.get('pending') || 0) + (statsMap.get('sending') || 0);
+    const sentRaw = statsMap.get('sent') || 0;
+    const deliveredRaw = statsMap.get('delivered') || 0;
+    const readRaw = statsMap.get('read') || 0;
+    const failed = statsMap.get('failed') || 0;
+    const skipped = statsMap.get('skipped') || 0;
+    const blocked = statsMap.get('blocked') || 0;
+    
+    // Status is cumulative: read implies delivered implies sent
+    const calculatedStats = {
+      total: pendingRaw + sentRaw + deliveredRaw + readRaw + failed + skipped + blocked,
+      pending: pendingRaw,
+      sent: sentRaw + deliveredRaw + readRaw,
+      delivered: deliveredRaw + readRaw,
+      read: readRaw,
+      failed,
+      skipped,
+      blocked,
+    };
+
+    // Merge with run data
+    const runWithStats = { ...run, stats: calculatedStats };
+
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
     const limit = Math.min(Number(url.searchParams.get('limit') || 200) || 200, 500);
@@ -60,7 +91,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
       {
         success: true,
         data: {
-          run,
+          run: runWithStats,
           messages,
           total,
           limit,
