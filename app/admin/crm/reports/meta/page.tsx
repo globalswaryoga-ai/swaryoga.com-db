@@ -88,6 +88,10 @@ export default function MetaReportsPage() {
   const [selectedRun, setSelectedRun] = useState<BroadcastRun | null>(null);
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
   const [messageFilter, setMessageFilter] = useState<string>('all');
+  const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [actionResult, setActionResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showConfirm, setShowConfirm] = useState<{ action: string; label: string } | null>(null);
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
 
   // Fetch Meta broadcast runs only
   const fetchRuns = useCallback(async () => {
@@ -111,6 +115,7 @@ export default function MetaReportsPage() {
   const fetchRunDetail = useCallback(async (id: string) => {
     if (!token) return;
     setLoading(true);
+    setSelectedMessages(new Set());
     try {
       const res = await fetch(`/api/admin/crm/broadcast-runs/${id}?limit=500`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -124,6 +129,100 @@ export default function MetaReportsPage() {
       setLoading(false);
     }
   }, [token]);
+
+  // Trigger the broadcast run manually
+  const triggerRun = async () => {
+    if (!token || !runId) return;
+    setActionLoading(true);
+    setActionResult(null);
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-runs/run', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ runId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const stats = data.data?.runResults?.[0] || data.data || {};
+        setActionResult({ success: true, message: `Run triggered! Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Skipped: ${stats.skipped || 0}` });
+        setTimeout(() => fetchRunDetail(runId), 1500);
+      } else {
+        setActionResult({ success: false, message: data.error || 'Failed to trigger run' });
+      }
+    } catch (err: any) {
+      setActionResult({ success: false, message: err.message || 'Error triggering run' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Perform an action on the broadcast run
+  const performAction = async (action: string) => {
+    if (!token || !runId) return;
+    setShowConfirm(null);
+    setActionLoading(true);
+    setActionResult(null);
+    try {
+      if (action === 'delete') {
+        const res = await fetch(`/api/admin/crm/broadcast-runs/${runId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setActionResult({ success: true, message: data.data?.message || 'Deleted' });
+          setTimeout(() => router.push('/admin/crm/reports/meta'), 1500);
+        } else {
+          setActionResult({ success: false, message: data.error || 'Failed' });
+        }
+      } else {
+        const res = await fetch(`/api/admin/crm/broadcast-runs/${runId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setActionResult({ success: true, message: data.data?.message || 'Done' });
+          setTimeout(() => fetchRunDetail(runId), 1000);
+        } else {
+          setActionResult({ success: false, message: data.error || 'Failed' });
+        }
+      }
+    } catch (err: any) {
+      setActionResult({ success: false, message: err.message || 'Error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Toggle message selection
+  const toggleMessageSelection = (msgId: string) => {
+    setSelectedMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(msgId)) {
+        newSet.delete(msgId);
+      } else {
+        newSet.add(msgId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select/deselect all visible messages
+  const toggleSelectAll = () => {
+    if (selectedMessages.size === filteredMessages.length) {
+      setSelectedMessages(new Set());
+    } else {
+      setSelectedMessages(new Set(filteredMessages.map(m => m._id)));
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -324,8 +423,110 @@ export default function MetaReportsPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    {/* Send Pending */}
+                    {(selectedRun.status === 'pending' || selectedRun.status === 'scheduled') && (
+                      <button
+                        onClick={() => triggerRun()}
+                        disabled={actionLoading}
+                        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {actionLoading ? '⏳' : '📤'} Send Pending
+                      </button>
+                    )}
+                    
+                    {/* Resume (for paused) */}
+                    {selectedRun.status === 'paused' && (
+                      <button
+                        onClick={() => triggerRun()}
+                        disabled={actionLoading}
+                        className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {actionLoading ? '⏳' : '▶️'} Resume
+                      </button>
+                    )}
+
+                    {/* Cancel (for running) */}
+                    {selectedRun.status === 'running' && (
+                      <button
+                        onClick={() => performAction('cancel')}
+                        disabled={actionLoading}
+                        className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                      >
+                        {actionLoading ? '⏳' : '⏸️'} Cancel
+                      </button>
+                    )}
+
+                    {/* Retry Failed */}
+                    {(selectedRun.stats?.failed || 0) > 0 && (
+                      <button
+                        onClick={() => performAction('retry')}
+                        disabled={actionLoading}
+                        className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+                      >
+                        {actionLoading ? '⏳' : '🔄'} Retry Failed
+                      </button>
+                    )}
+
+                    {/* Reset All */}
+                    <button
+                      onClick={() => performAction('reset')}
+                      disabled={actionLoading}
+                      className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {actionLoading ? '⏳' : '🔁'} Reset All
+                    </button>
+
+                    {/* Delete */}
+                    <button
+                      onClick={() => setShowConfirm({ action: 'delete', label: 'Delete' })}
+                      disabled={actionLoading}
+                      className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {actionLoading ? '⏳' : '🗑️'} Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+
+                {/* Action Result */}
+                {actionResult && (
+                  <div className={`mt-4 p-3 rounded-lg ${actionResult.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {actionResult.message}
+                  </div>
+                )}
+
+                {/* Confirm Dialog */}
+                {showConfirm && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl p-6 max-w-md mx-4">
+                      <h3 className="text-lg font-bold mb-2">⚠️ Confirm {showConfirm.label}</h3>
+                      <p className="text-gray-600 mb-4">
+                        Are you sure you want to {showConfirm.label.toLowerCase()} this broadcast? This action cannot be undone.
+                      </p>
+                      <div className="flex gap-3 justify-end">
+                        <button
+                          onClick={() => setShowConfirm(null)}
+                          className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => {
+                            performAction(showConfirm.action);
+                            setShowConfirm(null);
+                          }}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                        >
+                          {showConfirm.label}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mt-4">
                   <div>
                     <div className="text-sm text-gray-500">Total</div>
                     <div className="text-xl font-bold">{selectedRun.stats?.total || 0}</div>
@@ -357,13 +558,21 @@ export default function MetaReportsPage() {
             {/* Messages Table */}
             <div className="bg-white rounded-xl border shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
-                <h3 className="font-semibold">Messages ({filteredMessages.length})</h3>
+                <h3 className="font-semibold">
+                  Messages ({filteredMessages.length})
+                  {selectedMessages.size > 0 && (
+                    <span className="ml-2 text-sm text-blue-600">
+                      • {selectedMessages.size} selected
+                    </span>
+                  )}
+                </h3>
                 <select
                   value={messageFilter}
                   onChange={(e) => setMessageFilter(e.target.value)}
                   className="border rounded-lg px-3 py-1.5 text-sm"
                 >
                   <option value="all">All</option>
+                  <option value="pending">Pending</option>
                   <option value="sent">Sent</option>
                   <option value="delivered">Delivered</option>
                   <option value="read">Read</option>
@@ -378,6 +587,14 @@ export default function MetaReportsPage() {
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedMessages.size === filteredMessages.length && filteredMessages.length > 0}
+                            onChange={toggleSelectAll}
+                            className="w-4 h-4 rounded border-gray-300"
+                          />
+                        </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -388,7 +605,15 @@ export default function MetaReportsPage() {
                     </thead>
                     <tbody className="divide-y">
                       {filteredMessages.map((msg) => (
-                        <tr key={msg._id} className="hover:bg-gray-50">
+                        <tr key={msg._id} className={`hover:bg-gray-50 ${selectedMessages.has(msg._id) ? 'bg-blue-50' : ''}`}>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedMessages.has(msg._id)}
+                              onChange={() => toggleMessageSelection(msg._id)}
+                              className="w-4 h-4 rounded border-gray-300"
+                            />
+                          </td>
                           <td className="px-4 py-3 font-mono text-sm">{msg.phoneNumber}</td>
                           <td className="px-4 py-3">{msg.lead?.name || '-'}</td>
                           <td className="px-4 py-3"><StatusBadge status={msg.status} /></td>
