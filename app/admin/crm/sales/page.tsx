@@ -48,12 +48,26 @@ interface SaleRecord {
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
+  customerEmail?: string;
+  customerAddress?: string;
   workshopName?: string;
   batchDate?: string;
   reportedByUserId?: string;
   status?: string;
   labels?: string[];
   saleAmount: number;
+  workshopFee?: number;
+  paidAmount?: number;
+  dueAmount?: number;
+  paymentType?: 'full' | 'part' | 'advance';
+  paymentHistory?: Array<{
+    amount: number;
+    date: string;
+    mode: string;
+    transactionId?: string;
+    note?: string;
+  }>;
+  transactionId?: string;
   paymentMode: string;
   saleDate?: string;
   createdAt?: string;

@@ -813,6 +813,8 @@ const SalesReportSchema = new mongoose.Schema(
     customerId: { type: String, trim: true, index: true },
     customerName: { type: String, trim: true },
     customerPhone: { type: String, trim: true, index: true },
+    customerEmail: { type: String, trim: true, lowercase: true },
+    customerAddress: { type: String, trim: true },
     workshopName: { type: String, trim: true, index: true },
     batchDate: { type: Date, index: true },
 
@@ -821,6 +823,25 @@ const SalesReportSchema = new mongoose.Schema(
     reportedByUserId: { type: String, trim: true, index: true },
 
     saleAmount: { type: Number, required: true },
+    // Payment breakdown fields
+    workshopFee: { type: Number }, // Total workshop fee
+    paidAmount: { type: Number }, // Amount paid so far
+    dueAmount: { type: Number }, // Remaining amount due
+    paymentType: {
+      type: String,
+      enum: ['full', 'part', 'advance'],
+      default: 'full',
+      index: true,
+    },
+    // Payment history for part payments
+    paymentHistory: [{
+      amount: { type: Number },
+      date: { type: Date },
+      mode: { type: String },
+      transactionId: { type: String },
+      note: { type: String },
+    }],
+    transactionId: { type: String, trim: true },
     currency: { type: String, default: 'INR' },
     // Business status of the sale record (not payment gateway status).
     status: {
@@ -833,7 +854,7 @@ const SalesReportSchema = new mongoose.Schema(
     labels: { type: [String], default: [], index: true },
     paymentMode: {
       type: String,
-      enum: ['payu', 'cashfree', 'card', 'bank_transfer', 'cash', 'other'],
+      enum: ['payu', 'cashfree', 'card', 'bank_transfer', 'cash', 'upi', 'other'],
       index: true,
     },
     saleDate: { type: Date, default: Date.now, index: true },

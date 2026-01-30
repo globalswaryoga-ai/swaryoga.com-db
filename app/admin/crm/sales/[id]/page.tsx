@@ -12,15 +12,29 @@ interface SaleRecord {
   customerName?: string;
   customerPhone?: string;
   customerEmail?: string;
+  customerAddress?: string;
   workshopName?: string;
   batchDate?: string;
   saleAmount?: number;
+  workshopFee?: number;
+  paidAmount?: number;
+  dueAmount?: number;
+  paymentType?: 'full' | 'part' | 'advance';
+  paymentHistory?: Array<{
+    amount: number;
+    date: string;
+    mode: string;
+    transactionId?: string;
+    note?: string;
+  }>;
+  transactionId?: string;
   paymentMode?: string;
   saleDate?: string;
   reportedByUserId?: string;
   leadId?: string;
   status?: string;
   labels?: string[];
+  currency?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -474,15 +488,15 @@ export default function SaleDetailPage() {
                     {/* Header Section */}
                     <div className="relative p-6 pb-4">
                       <div className="flex items-start justify-between">
-                        {/* Left - Photo/Logo */}
+                        {/* Left - Owner Photo */}
                         <div className="flex items-center gap-4">
                           <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-green-600 shadow-lg">
                             <img 
-                              src="/logo with mohan sir.png" 
-                              alt="Swar Yoga" 
+                              src="/images/invoice/owner.png" 
+                              alt="Mohan Kalburgi" 
                               className="w-full h-full object-cover"
                               onError={(e) => {
-                                e.currentTarget.src = '/logo-square.png';
+                                e.currentTarget.src = '/logo with mohan sir.png';
                               }}
                             />
                           </div>
@@ -495,11 +509,11 @@ export default function SaleDetailPage() {
                         <div className="text-right">
                           <div className="w-16 h-16 ml-auto">
                             <img 
-                              src="/logo-square.png" 
+                              src="/images/invoice/logo.png" 
                               alt="Swar Yoga Logo" 
                               className="w-full h-full object-contain"
                               onError={(e) => {
-                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.src = '/logo-square.png';
                               }}
                             />
                           </div>
@@ -526,7 +540,7 @@ export default function SaleDetailPage() {
                         <p className="text-xl font-bold text-green-700 mt-1">{receipt?.customerName || sale.customerName || 'N/A'}</p>
                         <p className="text-sm text-slate-600 mt-2">{receipt?.customerPhone || sale.customerPhone || ''}</p>
                         <p className="text-sm text-slate-600">{receipt?.customerEmail || sale.customerEmail || ''}</p>
-                        <p className="text-sm text-slate-600 max-w-xs">{receipt?.customerAddress || '—'}</p>
+                        <p className="text-sm text-slate-600 max-w-xs">{receipt?.customerAddress || sale.customerAddress || '—'}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-slate-600">
@@ -534,7 +548,7 @@ export default function SaleDetailPage() {
                         </p>
                         <div className="mt-3 h-px w-16 bg-slate-800 ml-auto" />
                         <p className="text-xs text-slate-500 uppercase font-semibold mt-3">Total Amount</p>
-                        <p className="text-3xl font-bold text-orange-500">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}</p>
+                        <p className="text-3xl font-bold text-orange-500">₹{Number(sale.workshopFee || sale.saleAmount || receipt?.payment?.amount || 0).toLocaleString()}</p>
                       </div>
                     </div>
 
@@ -553,17 +567,36 @@ export default function SaleDetailPage() {
                           <tr className="border-b border-slate-100">
                             <td className="px-4 py-3 text-slate-800 font-medium">{receipt?.workshopName || sale.workshopName || 'Swar Yoga Master Class'}</td>
                             <td className="text-center px-4 py-3 text-slate-600">1</td>
-                            <td className="text-center px-4 py-3 text-slate-600">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}/-</td>
-                            <td className="text-right px-4 py-3 text-slate-800 font-medium">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}</td>
+                            <td className="text-center px-4 py-3 text-slate-600">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-Rs</td>
+                            <td className="text-right px-4 py-3 text-slate-800 font-medium">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</td>
                           </tr>
-                          <tr className="border-b border-slate-100">
-                            <td className="px-4 py-3 text-slate-600 italic">Received on the date of - {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN')}</td>
-                            <td className="text-center px-4 py-3 text-slate-600"></td>
-                            <td className="text-center px-4 py-3 text-slate-600">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}/-</td>
-                            <td className="text-right px-4 py-3 text-slate-800">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}</td>
-                          </tr>
+                          {/* Payment history rows */}
+                          {sale.paymentHistory && sale.paymentHistory.length > 0 ? (
+                            sale.paymentHistory.map((payment, idx) => (
+                              <tr key={idx} className="border-b border-slate-100">
+                                <td className="px-4 py-3 text-slate-600 italic">
+                                  Received on the date of - {new Date(payment.date).toLocaleDateString('en-IN')}
+                                  {payment.note && <span className="text-slate-500 ml-2">({payment.note})</span>}
+                                </td>
+                                <td className="text-center px-4 py-3 text-slate-600"></td>
+                                <td className="text-center px-4 py-3 text-slate-600">₹{Number(payment.amount).toLocaleString()}/-</td>
+                                <td className="text-right px-4 py-3 text-slate-800">₹{Number(payment.amount).toLocaleString()}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr className="border-b border-slate-100">
+                              <td className="px-4 py-3 text-slate-600 italic">
+                                Received on the date of - {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN')}
+                              </td>
+                              <td className="text-center px-4 py-3 text-slate-600"></td>
+                              <td className="text-center px-4 py-3 text-slate-600">₹{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}/-</td>
+                              <td className="text-right px-4 py-3 text-slate-800">₹{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</td>
+                            </tr>
+                          )}
                           <tr>
-                            <td className="px-4 py-3 text-slate-700 font-medium">Amount Receivable: ₹0/-</td>
+                            <td className="px-4 py-3 text-slate-700 font-medium">
+                              Amount Receivable: ₹{Number(sale.dueAmount || 0).toLocaleString()}/-
+                            </td>
                             <td colSpan={3}></td>
                           </tr>
                         </tbody>
@@ -574,26 +607,43 @@ export default function SaleDetailPage() {
                     <div className="px-6 py-4 flex justify-between items-start">
                       <div>
                         <p className="text-lg font-bold text-slate-800">Payment Method :</p>
-                        <p className="text-slate-700 font-medium mt-1">{receipt?.payment?.method || sale.paymentMode || 'UPI/Bank/PayPal'}</p>
+                        <p className="text-slate-700 font-medium mt-1 capitalize">{receipt?.payment?.method || sale.paymentMode || 'UPI/Bank/Cash'}</p>
+                        {sale.paymentType && sale.paymentType !== 'full' && (
+                          <p className="text-sm text-orange-600 font-semibold mt-1">
+                            Payment Type: {sale.paymentType === 'part' ? 'Part Payment' : 'Advance Payment'}
+                          </p>
+                        )}
+                        {(receipt?.payment?.transactionId || sale.transactionId) && (
+                          <p className="text-sm text-slate-500 italic">Txn: {receipt?.payment?.transactionId || sale.transactionId}</p>
+                        )}
                         {receipt?.payment?.provider && (
                           <p className="text-sm text-slate-500 italic">Provider: {receipt.payment.provider}</p>
-                        )}
-                        {receipt?.payment?.transactionId && (
-                          <p className="text-sm text-slate-500 italic">Txn: {receipt.payment.transactionId}</p>
                         )}
                       </div>
                       <div className="text-right w-56">
                         <div className="flex justify-between py-1 border-b border-slate-200">
                           <span className="text-slate-600">Sub-total :</span>
-                          <span className="font-medium">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}/-</span>
+                          <span className="font-medium">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}/-</span>
                         </div>
                         <div className="flex justify-between py-1 border-b border-slate-200">
                           <span className="text-slate-600">Tax :</span>
                           <span className="font-medium">0</span>
                         </div>
+                        {sale.paymentType !== 'full' && (sale.paidAmount || sale.dueAmount) && (
+                          <>
+                            <div className="flex justify-between py-1 border-b border-slate-200 text-green-600">
+                              <span>Paid :</span>
+                              <span className="font-medium">₹{Number(sale.paidAmount || sale.saleAmount || 0).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between py-1 border-b border-slate-200 text-orange-600">
+                              <span>Due :</span>
+                              <span className="font-medium">₹{Number(sale.dueAmount || 0).toLocaleString()}</span>
+                            </div>
+                          </>
+                        )}
                         <div className="flex justify-between py-2 bg-gradient-to-r from-orange-500 to-orange-400 text-white px-3 rounded-lg mt-2">
                           <span className="font-bold">Total :</span>
-                          <span className="font-bold text-lg">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}</span>
+                          <span className="font-bold text-lg">₹{Number(sale.workshopFee || sale.saleAmount || 0).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
@@ -602,16 +652,28 @@ export default function SaleDetailPage() {
                     <div className="px-6 py-6 flex justify-between items-end relative">
                       {/* Company Seal */}
                       <div className="flex flex-col items-center">
-                        <div className="w-28 h-28 rounded-full border-4 border-blue-700 flex flex-col items-center justify-center text-center bg-blue-50/50 shadow-md relative overflow-hidden">
-                          {/* Seal rings */}
-                          <div className="absolute inset-1 rounded-full border-2 border-blue-600" />
-                          <div className="absolute inset-3 rounded-full border border-blue-500" />
-                          {/* Seal content */}
-                          <div className="text-[8px] text-blue-700 font-medium">Upamnyu International Education Pvt. Ltd.</div>
-                          <div className="text-[9px] text-red-600 font-bold mt-1">CIN No.</div>
-                          <div className="text-[8px] text-blue-800 font-bold">U92400PN2022</div>
-                          <div className="text-[8px] text-blue-800 font-bold">PTC213895</div>
-                          <div className="text-[8px] text-blue-700 font-medium mt-0.5">* Sangamner *</div>
+                        <div className="w-28 h-28">
+                          <img 
+                            src="/images/invoice/seal.png" 
+                            alt="Company Seal"
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              // Fallback to text-based seal
+                              e.currentTarget.style.display = 'none';
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) {
+                                parent.innerHTML = `
+                                  <div class="w-28 h-28 rounded-full border-4 border-blue-700 flex flex-col items-center justify-center text-center bg-blue-50/50 shadow-md">
+                                    <div class="text-[7px] text-blue-700 font-medium">Upamnyu International Education Pvt. Ltd.</div>
+                                    <div class="text-[9px] text-blue-800 font-bold mt-1">CIN No.</div>
+                                    <div class="text-[8px] text-blue-800 font-bold">U92400PN2022</div>
+                                    <div class="text-[8px] text-blue-800 font-bold">PTC212555</div>
+                                    <div class="text-[7px] text-blue-700 font-medium mt-0.5">• Sangammer •</div>
+                                  </div>
+                                `;
+                              }
+                            }}
+                          />
                         </div>
                         <div className="mt-4 text-center">
                           <p className="text-green-700 font-bold text-lg">&quot;Thank you!</p>
@@ -622,10 +684,22 @@ export default function SaleDetailPage() {
 
                       {/* Signature */}
                       <div className="text-center">
-                        <div className="h-16 w-40 border-b-2 border-slate-400 flex items-end justify-center pb-1">
-                          <span className="text-2xl font-script text-slate-600 italic">Mohan K.</span>
+                        <div className="h-20 w-44 flex items-center justify-center">
+                          <img 
+                            src="/images/invoice/signature.png" 
+                            alt="Signature"
+                            className="max-h-full max-w-full object-contain"
+                            onError={(e) => {
+                              // Fallback to text signature
+                              e.currentTarget.style.display = 'none';
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) {
+                                parent.innerHTML = `<span class="text-2xl font-script text-blue-700 italic">Mohan K.</span>`;
+                              }
+                            }}
+                          />
                         </div>
-                        <p className="text-lg font-bold text-slate-800 mt-2 italic">Mohan Kalburgi</p>
+                        <p className="text-lg font-bold text-slate-800 italic">Mohan Kalburgi</p>
                         <p className="text-sm text-slate-600">Yogacharya</p>
                       </div>
                     </div>
