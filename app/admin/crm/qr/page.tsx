@@ -180,6 +180,13 @@ function QRWhatsAppInboxPageContent() {
   const [showAssignDropdown, setShowAssignDropdown] = useState<string | null>(null);
   const [assigningChat, setAssigningChat] = useState(false);
   
+  // Bulk selection for chats
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(new Set());
+  const [showBulkActionMenu, setShowBulkActionMenu] = useState(false);
+  const [bulkAssignUserId, setBulkAssignUserId] = useState<string>('');
+  const [processingBulkAction, setProcessingBulkAction] = useState(false);
+  
   // Tools dropdown menu state
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const toolsDropdownRef = useRef<HTMLDivElement>(null);
@@ -2692,6 +2699,239 @@ function QRWhatsAppInboxPageContent() {
     }
   };
 
+  // Toggle bulk select for a chat
+  const toggleChatSelection = (chatId: string) => {
+    setSelectedChatIds(prev => {
+      const next = new Set(prev);
+      if (next.has(chatId)) {
+        next.delete(chatId);
+      } else {
+        next.add(chatId);
+      }
+      return next;
+    });
+  };
+
+  // Select/deselect all visible chats
+  const toggleSelectAll = () => {
+    const visibleChats = chats
+      .filter(chat => chat.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter(chat => isSuperAdmin || (chat.leadId && assignedLeadIds.has(String(chat.leadId))));
+    
+    const allSelected = visibleChats.every(chat => {
+      const chatId = typeof chat.id === 'string' ? chat.id : chat.id?._serialized;
+      return selectedChatIds.has(chatId);
+    });
+
+    if (allSelected) {
+      setSelectedChatIds(new Set());
+    } else {
+      const newSet = new Set<string>();
+      visibleChats.forEach(chat => {
+        const chatId = typeof chat.id === 'string' ? chat.id : chat.id?._serialized;
+        if (chatId) newSet.add(chatId);
+      });
+      setSelectedChatIds(newSet);
+    }
+  };
+
+  // Bulk assign selected chats to a user
+  const handleBulkAssign = async (assignToUserId: string) => {
+    if (selectedChatIds.size === 0 || processingBulkAction) return;
+    
+    setProcessingBulkAction(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const chatId of selectedChatIds) {
+        const chat = chats.find(c => {
+          const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+          return cId === chatId;
+        });
+        
+        if (!chat) continue;
+
+        try {
+          const phoneFromId = chatId.split('@')[0].replace(/\D/g, '');
+          
+          if (chat.leadId) {
+            const res = await fetch(`/api/admin/crm/leads/${chat.leadId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ assignedToUserId: assignToUserId || null })
+            });
+            
+            if (res.ok) {
+              successCount++;
+              setChats(prev => prev.map(c => {
+                const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+                if (cId === chatId) {
+                  return { ...c, assignedToUserId: assignToUserId };
+                }
+                return c;
+              }));
+            } else {
+              errorCount++;
+            }
+          } else {
+            // Create new lead and assign
+            const newLead = {
+              name: chat.name || chat.displayName || `WhatsApp ${phoneFromId}`,
+              phone: phoneFromId,
+              source: 'qr-whatsapp',
+              status: 'lead',
+              assignedToUserId: assignToUserId || undefined,
+            };
+            
+            const res = await fetch('/api/admin/crm/leads', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify(newLead)
+            });
+            
+            if (res.ok) {
+              const lead = await res.json();
+              successCount++;
+              setChats(prev => prev.map(c => {
+                const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+                if (cId === chatId) {
+                  return { ...c, leadId: lead._id, assignedToUserId: assignToUserId };
+                }
+                return c;
+              }));
+            } else {
+              errorCount++;
+            }
+          }
+        } catch (err) {
+          errorCount++;
+        }
+      }
+
+      showToast(`Assigned ${successCount} chat(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`, successCount > 0 ? 'success' : 'error');
+      setSelectedChatIds(new Set());
+      setBulkSelectMode(false);
+      setShowBulkActionMenu(false);
+    } finally {
+      setProcessingBulkAction(false);
+    }
+  };
+
+  // Bulk archive selected chats (update lead status to 'archived')
+  const handleBulkArchive = async () => {
+    if (selectedChatIds.size === 0 || processingBulkAction) return;
+    if (!confirm(`Archive ${selectedChatIds.size} selected chat(s)? They will be marked as archived.`)) return;
+    
+    setProcessingBulkAction(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const chatId of selectedChatIds) {
+        const chat = chats.find(c => {
+          const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+          return cId === chatId;
+        });
+        
+        if (!chat || !chat.leadId) {
+          errorCount++;
+          continue;
+        }
+
+        try {
+          const res = await fetch(`/api/admin/crm/leads/${chat.leadId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status: 'archived' })
+          });
+          
+          if (res.ok) {
+            successCount++;
+            // Remove from chats list (archived)
+            setChats(prev => prev.filter(c => {
+              const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+              return cId !== chatId;
+            }));
+          } else {
+            errorCount++;
+          }
+        } catch (err) {
+          errorCount++;
+        }
+      }
+
+      showToast(`Archived ${successCount} chat(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`, successCount > 0 ? 'success' : 'error');
+      setSelectedChatIds(new Set());
+      setBulkSelectMode(false);
+      setShowBulkActionMenu(false);
+    } finally {
+      setProcessingBulkAction(false);
+    }
+  };
+
+  // Bulk delete selected chats (soft delete - mark lead as deleted)
+  const handleBulkDelete = async () => {
+    if (selectedChatIds.size === 0 || processingBulkAction) return;
+    if (!confirm(`⚠️ Delete ${selectedChatIds.size} selected chat(s)? This will remove them from your CRM.`)) return;
+    
+    setProcessingBulkAction(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const chatId of selectedChatIds) {
+        const chat = chats.find(c => {
+          const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+          return cId === chatId;
+        });
+        
+        if (!chat || !chat.leadId) {
+          errorCount++;
+          continue;
+        }
+
+        try {
+          const res = await fetch(`/api/admin/crm/leads/${chat.leadId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (res.ok) {
+            successCount++;
+            // Remove from chats list
+            setChats(prev => prev.filter(c => {
+              const cId = typeof c.id === 'string' ? c.id : c.id?._serialized;
+              return cId !== chatId;
+            }));
+          } else {
+            errorCount++;
+          }
+        } catch (err) {
+          errorCount++;
+        }
+      }
+
+      showToast(`Deleted ${successCount} chat(s)${errorCount > 0 ? `, ${errorCount} failed` : ''}`, successCount > 0 ? 'success' : 'error');
+      setSelectedChatIds(new Set());
+      setBulkSelectMode(false);
+      setShowBulkActionMenu(false);
+    } finally {
+      setProcessingBulkAction(false);
+    }
+  };
+
   // Disconnect
   const handleDisconnect = async () => {
     try {
@@ -3236,6 +3476,101 @@ function QRWhatsAppInboxPageContent() {
               </button>
             )}
           </div>
+          
+          {/* Bulk Select Toggle - Admin Only */}
+          {isSuperAdmin && sidebarTab === 'chats' && (
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setBulkSelectMode(!bulkSelectMode);
+                  if (bulkSelectMode) {
+                    setSelectedChatIds(new Set());
+                    setShowBulkActionMenu(false);
+                  }
+                }}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                  bulkSelectMode
+                    ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                    : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                {bulkSelectMode ? '✕ Cancel Select' : '☑️ Bulk Select'}
+              </button>
+              
+              {bulkSelectMode && (
+                <button
+                  onClick={toggleSelectAll}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100"
+                >
+                  {selectedChatIds.size > 0 ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+            </div>
+          )}
+          
+          {/* Bulk Action Bar - Shows when chats are selected */}
+          {bulkSelectMode && selectedChatIds.size > 0 && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-purple-700">
+                  {selectedChatIds.size} selected
+                </span>
+                <button
+                  onClick={() => setShowBulkActionMenu(!showBulkActionMenu)}
+                  className="text-xs font-bold px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Actions ▼
+                </button>
+              </div>
+              
+              {showBulkActionMenu && (
+                <div className="bg-white border border-purple-200 rounded-lg shadow-lg overflow-hidden">
+                  {/* Bulk Assign */}
+                  <div className="p-2 border-b border-purple-100">
+                    <p className="text-xs font-bold text-purple-700 mb-2">👤 Assign to:</p>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {userOptions.map((user) => (
+                        <button
+                          key={user.userId}
+                          onClick={() => handleBulkAssign(user.userId)}
+                          disabled={processingBulkAction}
+                          className="w-full px-2 py-1.5 text-left text-xs hover:bg-purple-50 rounded flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <span className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-[10px] font-bold">
+                            {(user.name || 'U').charAt(0).toUpperCase()}
+                          </span>
+                          <span className="truncate">{user.name || user.email}</span>
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => handleBulkAssign('')}
+                        disabled={processingBulkAction}
+                        className="w-full px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 rounded disabled:opacity-50"
+                      >
+                        ✕ Unassign
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Other Actions */}
+                  <button
+                    onClick={handleBulkArchive}
+                    disabled={processingBulkAction}
+                    className="w-full px-3 py-2 text-left text-xs hover:bg-amber-50 text-amber-700 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    📦 Archive Selected
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={processingBulkAction}
+                    className="w-full px-3 py-2 text-left text-xs hover:bg-red-50 text-red-700 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    🗑️ Delete Selected
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Content based on tab */}
@@ -3278,10 +3613,20 @@ function QRWhatsAppInboxPageContent() {
                 const bTime = b.timestamp || 0;
                 return bTime - aTime;
               })
-              .map((chat) => (
+              .map((chat) => {
+                const chatId = typeof chat.id === 'string' ? chat.id : chat.id._serialized;
+                const isSelected = selectedChatIds.has(chatId);
+                
+                return (
                 <div
-                  key={typeof chat.id === 'string' ? chat.id : chat.id._serialized}
+                  key={chatId}
                   onClick={async () => {
+                    // If in bulk select mode, toggle selection instead of opening chat
+                    if (bulkSelectMode) {
+                      toggleChatSelection(chatId);
+                      return;
+                    }
+                    
                     setSelectedChat(chat);
                     // Extract phone number from chat id/name and set it for CRM message loading
                     const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
@@ -3315,14 +3660,31 @@ function QRWhatsAppInboxPageContent() {
                     markChatAsRead(chat);
                   }}
                   className={`p-4 border-b border-stone-100 cursor-pointer transition-all ${
-                    selectedChat &&
-                    (typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized) ===
-                      (typeof chat.id === 'string' ? chat.id : chat.id._serialized)
-                      ? 'bg-teal-50 border-l-4 border-l-teal-500'
-                      : 'hover:bg-stone-100'
+                    isSelected
+                      ? 'bg-purple-50 border-l-4 border-l-purple-500'
+                      : selectedChat &&
+                        (typeof selectedChat.id === 'string' ? selectedChat.id : selectedChat.id._serialized) === chatId
+                        ? 'bg-teal-50 border-l-4 border-l-teal-500'
+                        : 'hover:bg-stone-100'
                   }`}
                 >
                   <div className="flex items-start gap-3">
+                    {/* Bulk Select Checkbox */}
+                    {bulkSelectMode && (
+                      <div className="flex-shrink-0 mt-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleChatSelection(chatId);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                        />
+                      </div>
+                    )}
+                    
                     {/* Avatar with Unread Indicator Badge */}
                     <div className="relative flex-shrink-0 mt-0.5">
                       {chat.isGroup ? (
@@ -3524,7 +3886,8 @@ function QRWhatsAppInboxPageContent() {
                     </div>
                   </div>
                 </div>
-              ))
+              );
+              })
               )}
             </>
           )}
