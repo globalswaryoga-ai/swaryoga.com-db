@@ -3653,6 +3653,28 @@ function QRWhatsAppInboxPageContent() {
               <span className="text-[10px]">🤖</span>
               <span className="font-medium">AI OFFLINE</span>
             </div>
+
+            <div className="w-px h-4 bg-white/30"></div>
+
+            {/* Page Navigation Buttons */}
+            <button
+              onClick={() => window.location.href = '/admin/crm/leads'}
+              className="px-2 py-1 rounded text-xs font-semibold text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            >
+              Leads
+            </button>
+            <button
+              onClick={() => window.location.href = '/admin/crm/followup'}
+              className="px-2 py-1 rounded text-xs font-semibold text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            >
+              Followup
+            </button>
+            <button
+              onClick={() => window.location.href = '/admin/crm/sales'}
+              className="px-2 py-1 rounded text-xs font-semibold text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            >
+              Sales
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
