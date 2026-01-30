@@ -38,6 +38,8 @@ export default function BroadcastRunDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [run, setRun] = useState<RunRow | null>(null);
   const [messages, setMessages] = useState<RunMessageRow[]>([]);
+  const [triggerLoading, setTriggerLoading] = useState(false);
+  const [triggerResult, setTriggerResult] = useState<string | null>(null);
 
   const statusFilter = sp.get('status') || '';
 
@@ -67,6 +69,36 @@ export default function BroadcastRunDetailsPage() {
     void fetchData();
   }, [token, fetchData]);
 
+  // Trigger the broadcast run manually
+  const triggerRun = async () => {
+    if (!token || !id) return;
+    setTriggerLoading(true);
+    setTriggerResult(null);
+    try {
+      const res = await fetch('/api/admin/crm/broadcast-runs/run', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ runId: id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const stats = data.data || {};
+        setTriggerResult(`✅ Run triggered! Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Skipped: ${stats.skipped || 0}`);
+        // Refresh data after a short delay
+        setTimeout(() => fetchData(), 1500);
+      } else {
+        setTriggerResult(`❌ ${data.error || 'Failed to trigger run'}`);
+      }
+    } catch (err: any) {
+      setTriggerResult(`❌ ${err.message || 'Error triggering run'}`);
+    } finally {
+      setTriggerLoading(false);
+    }
+  };
+
   const stats = useMemo(() => {
     const s = run?.stats || {};
     return {
@@ -94,6 +126,18 @@ export default function BroadcastRunDetailsPage() {
           <div style={{ color: '#6B7280', fontSize: 13 }}>ID: {id}</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
+          {/* Show "Run Now" button for scheduled/pending runs */}
+          {run && (run.status === 'scheduled' || run.status === 'pending' || (stats.pending > 0 && run.status !== 'completed')) && (
+            <button
+              type="button"
+              className="wa-btn"
+              style={{ background: '#10B981', color: 'white', fontWeight: 700 }}
+              onClick={triggerRun}
+              disabled={triggerLoading}
+            >
+              {triggerLoading ? '⏳ Running...' : '▶️ Run Now'}
+            </button>
+          )}
           <Link href="/admin/crm/broadcast" className="wa-btn" style={{ textDecoration: 'none' }}>
             ← Back
           </Link>
@@ -101,6 +145,7 @@ export default function BroadcastRunDetailsPage() {
       </div>
 
   {error ? <AlertBox type="error" message={error} /> : null}
+      {triggerResult ? <AlertBox type={triggerResult.startsWith('✅') ? 'success' : 'error'} message={triggerResult} /> : null}
       {loading ? <LoadingSpinner /> : null}
 
       {run ? (

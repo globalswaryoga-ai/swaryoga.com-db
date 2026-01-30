@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleCrmError } from '@/lib/crm-handlers';
-import { processDueBroadcastRuns } from '@/lib/broadcastRuns';
+import { processDueBroadcastRuns, processSpecificBroadcastRun } from '@/lib/broadcastRuns';
 import { verifyToken } from '@/lib/auth';
 
 // Mark as dynamic since this route uses request.headers or request.url
@@ -27,6 +27,11 @@ function verifyAdmin(request: NextRequest): boolean {
  *
  * Call this from Vercel Cron / server cron / PM2 cron to process due broadcast runs.
  * Security: requires CRON_SECRET header OR admin JWT token.
+ * 
+ * Body options:
+ * - runId: (optional) specific run ID to process
+ * - runLimit: (optional) max runs to process (default 10)
+ * - perRunMessageLimit: (optional) max messages per run (default 200)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -42,12 +47,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
+    const runId = typeof body?.runId === 'string' ? body.runId : undefined;
     const runLimit = typeof body?.runLimit === 'number' ? body.runLimit : undefined;
     const perRunMessageLimit = typeof body?.perRunMessageLimit === 'number' ? body.perRunMessageLimit : undefined;
 
-    console.log('[Broadcast Run] Processing with limits:', { runLimit, perRunMessageLimit });
+    console.log('[Broadcast Run] Processing with params:', { runId, runLimit, perRunMessageLimit });
     
-    const data = await processDueBroadcastRuns({ runLimit, perRunMessageLimit });
+    let data;
+    if (runId) {
+      // Process a specific run by ID (for manual "Run Now" button)
+      data = await processSpecificBroadcastRun(runId, { perRunMessageLimit });
+    } else {
+      // Process all due runs (for cron)
+      data = await processDueBroadcastRuns({ runLimit, perRunMessageLimit });
+    }
     
     console.log('[Broadcast Run] Result:', JSON.stringify(data));
     

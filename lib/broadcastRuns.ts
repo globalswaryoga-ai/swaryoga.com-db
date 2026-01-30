@@ -457,3 +457,69 @@ export async function processDueBroadcastRuns(options?: {
 
   return result;
 }
+
+/**
+ * Process a specific broadcast run by ID.
+ * This bypasses the scheduledAt check and forces immediate processing.
+ * Useful for the "Run Now" button in the UI.
+ */
+export async function processSpecificBroadcastRun(
+  runId: string,
+  options?: { perRunMessageLimit?: number }
+): Promise<BroadcastRunsProcessResult> {
+  await connectDB();
+
+  const run = await BroadcastRun.findById(runId).lean();
+  
+  if (!run) {
+    return {
+      scannedRuns: 0,
+      executedRuns: 0,
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      runResults: [{ runId, status: 'error', attempted: 0, sent: 0, failed: 0, skipped: 0, error: 'Run not found' }],
+    };
+  }
+
+  // Check if run is in a processable state
+  const status = String((run as any).status || '');
+  if (!['draft', 'scheduled', 'running'].includes(status)) {
+    return {
+      scannedRuns: 1,
+      executedRuns: 0,
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      runResults: [{ runId, status: 'error', attempted: 0, sent: 0, failed: 0, skipped: 0, error: `Run is in '${status}' state, cannot process` }],
+    };
+  }
+
+  // Use the existing processor but with this specific run
+  // We fake the query to include only this run
+  const perRunMessageLimit = Math.min(Math.max(1, options?.perRunMessageLimit ?? 200), 1000);
+  
+  // Call the main processor with runLimit=1, but it will only find runs that are "due"
+  // Since we want to force this specific run, we'll process it directly
+  
+  console.log(`[Broadcast] Processing specific run ${runId} with perRunMessageLimit=${perRunMessageLimit}`);
+  
+  // Process by calling the main function but ensure this run is picked up
+  // We do this by temporarily setting scheduledAt to now-1sec
+  const now = new Date();
+  await BroadcastRun.updateOne(
+    { _id: runId },
+    { $set: { scheduledAt: new Date(now.getTime() - 1000), updatedAt: now } }
+  );
+
+  // Now call the regular processor - it will pick up this run
+  const result = await processDueBroadcastRuns({
+    now,
+    runLimit: 1,
+    perRunMessageLimit,
+  });
+
+  return result;
+}
