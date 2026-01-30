@@ -2379,6 +2379,24 @@ function LeadsFollowupPageContent() {
 
         {/* Right Sidebar - Activity Preview */}
         <div className="w-96 border-l border-slate-200 bg-gradient-to-b from-slate-50 to-white overflow-y-auto">
+          {/* Quick Navigation Buttons - Always Visible */}
+          <div className="p-4 border-b border-slate-200 bg-white sticky top-0 z-10">
+            <div className="flex gap-2">
+              <a
+                href="/admin/crm/qr"
+                className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors text-sm text-center flex items-center justify-center gap-2"
+              >
+                🔗 QR WhatsApp
+              </a>
+              <a
+                href="/admin/crm/meta"
+                className="flex-1 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-colors text-sm text-center flex items-center justify-center gap-2"
+              >
+                📱 Meta API
+              </a>
+            </div>
+          </div>
+
           {!selectedLead ? (
             <div className="h-full flex items-center justify-center p-4">
               <div className="text-center">
