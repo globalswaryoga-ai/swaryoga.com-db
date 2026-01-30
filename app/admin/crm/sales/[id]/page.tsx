@@ -465,102 +465,175 @@ export default function SaleDetailPage() {
                 {receiptBusy ? <LoadingSpinner /> : null}
 
                 <div ref={receiptPrintRef} className="mx-auto max-w-[820px]">
-                  {/* Receipt (printable) */}
-                  <div className="border border-slate-300 rounded-lg overflow-hidden">
-                    {/* Header section */}
-                    <div className="p-5">
-                      <div className="flex items-start justify-between gap-4">
-                        {/* Left logo/brand */}
-                        <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-full border border-slate-300 flex items-center justify-center font-black text-red-600">
-                            SY
+                  {/* Professional Invoice/Receipt */}
+                  <div className="bg-white border border-slate-300 rounded-lg overflow-hidden relative">
+                    {/* Decorative corner accents */}
+                    <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-green-600/20 to-transparent rounded-br-full" />
+                    <div className="absolute bottom-0 right-0 w-48 h-48 bg-gradient-to-tl from-green-600/20 to-transparent rounded-tl-full" />
+                    
+                    {/* Header Section */}
+                    <div className="relative p-6 pb-4">
+                      <div className="flex items-start justify-between">
+                        {/* Left - Photo/Logo */}
+                        <div className="flex items-center gap-4">
+                          <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-green-600 shadow-lg">
+                            <img 
+                              src="/logo with mohan sir.png" 
+                              alt="Swar Yoga" 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = '/logo-square.png';
+                              }}
+                            />
                           </div>
                           <div>
-                            <div className="font-extrabold text-slate-900 leading-tight">Swar Yoga</div>
-                            <div className="text-xs text-slate-600">Receipt</div>
+                            <h1 className="text-3xl font-bold text-slate-900 tracking-wide">SWAR YOGA</h1>
                           </div>
                         </div>
 
-                        {/* Center heading */}
-                        <div className="text-center flex-1">
-                          <div className="text-lg font-extrabold text-slate-900">Swar Yoga and Naturopathy</div>
-                          <div className="text-xs text-slate-700">Organised by: Upamnyu International Education P. Ltd.</div>
-                          <div className="text-xs text-slate-700">Address: {receiptAddressLine}</div>
-                        </div>
-
-                        {/* Right receipt meta */}
-                        <div className="text-right text-xs text-slate-700 min-w-[180px]">
-                          <div>
-                            <span className="font-bold">Receipt No:</span> {receipt?.receiptNumber || '—'}
-                          </div>
-                          <div>
-                            <span className="font-bold">Date:</span>{' '}
-                            {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 h-px bg-slate-300" />
-
-                      {/* Customer block */}
-                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <div className="text-xs font-bold text-slate-600 uppercase">ID No</div>
-                          <div className="font-mono text-slate-800">{receipt?.leadNumber || sale.customerId || '—'}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-600 uppercase">Sadhak Name (Customer)</div>
-                          <div className="font-semibold text-slate-900">{receipt?.customerName || sale.customerName || '—'}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-600 uppercase">Mobile No</div>
-                          <div className="font-mono text-slate-800">{receipt?.customerPhone || sale.customerPhone || '—'}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-600 uppercase">Address</div>
-                          <div className="text-slate-800">{receipt?.customerAddress || '—'}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Table section */}
-                    <div className="px-5 pb-5">
-                      <div className="overflow-hidden rounded-lg border border-slate-200">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="bg-slate-100 text-slate-700">
-                              <th className="text-left px-3 py-2 font-bold">Particular</th>
-                              <th className="text-left px-3 py-2 font-bold">Details</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {receiptTableRows.map((r) => (
-                              <tr key={r.label} className="border-t border-slate-200">
-                                <td className="px-3 py-2 font-semibold text-slate-800 align-top">{r.label}</td>
-                                <td className="px-3 py-2 text-slate-800">{r.value}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="px-5 pb-5">
-                      <div className="mt-2 text-sm text-slate-800">Thanks for enrollment.</div>
-                      <div className="mt-6 flex items-end justify-between">
-                        <div className="text-xs text-slate-600">
-                          <div className="font-bold">Note:</div>
-                          <div>Workshop fees will be not refundable or transferable.</div>
-                          <div className="mt-2 font-semibold">Thank you!</div>
-                        </div>
+                        {/* Right - Logo */}
                         <div className="text-right">
-                          <div className="h-12 w-24 border-2 border-slate-300 rounded-full inline-flex items-center justify-center text-xs font-bold text-slate-700">
-                            STAMP
+                          <div className="w-16 h-16 ml-auto">
+                            <img 
+                              src="/logo-square.png" 
+                              alt="Swar Yoga Logo" 
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
                           </div>
-                          <div className="mt-2 text-sm font-semibold text-slate-800">Sign</div>
+                          <div className="text-xs text-green-700 font-medium mt-1">Swar Yoga</div>
+                          <div className="text-[10px] text-slate-500">Organised by: Upamnyu International Education P. Ltd.</div>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Invoice Title Section */}
+                    <div className="px-6 flex items-center justify-between">
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
+                      <div className="px-6">
+                        <h2 className="text-4xl font-bold text-slate-800 tracking-widest">INVOICE</h2>
+                        <p className="text-sm text-slate-500 text-center mt-1">No: {receipt?.receiptNumber || `INV-${id?.slice(-10).toUpperCase()}`}</p>
+                      </div>
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
+                    </div>
+
+                    {/* Invoice Details Row */}
+                    <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-start">
+                      <div>
+                        <p className="text-xs text-slate-500 uppercase font-semibold">Invoice To :</p>
+                        <p className="text-xl font-bold text-green-700 mt-1">{receipt?.customerName || sale.customerName || 'N/A'}</p>
+                        <p className="text-sm text-slate-600 mt-2">{receipt?.customerPhone || sale.customerPhone || ''}</p>
+                        <p className="text-sm text-slate-600">{receipt?.customerEmail || sale.customerEmail || ''}</p>
+                        <p className="text-sm text-slate-600 max-w-xs">{receipt?.customerAddress || '—'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-slate-600">
+                          <span className="font-medium">Date:</span> {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN')}
+                        </p>
+                        <div className="mt-3 h-px w-16 bg-slate-800 ml-auto" />
+                        <p className="text-xs text-slate-500 uppercase font-semibold mt-3">Total Amount</p>
+                        <p className="text-3xl font-bold text-orange-500">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    {/* Workshop Table */}
+                    <div className="px-6 py-4">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-orange-500 to-orange-400 text-white">
+                            <th className="text-left px-4 py-3 font-semibold rounded-l-lg">WORKSHOPS</th>
+                            <th className="text-center px-4 py-3 font-semibold">PERSON</th>
+                            <th className="text-center px-4 py-3 font-semibold">FEES</th>
+                            <th className="text-right px-4 py-3 font-semibold rounded-r-lg">TOTAL</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-4 py-3 text-slate-800 font-medium">{receipt?.workshopName || sale.workshopName || 'Swar Yoga Master Class'}</td>
+                            <td className="text-center px-4 py-3 text-slate-600">1</td>
+                            <td className="text-center px-4 py-3 text-slate-600">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}/-</td>
+                            <td className="text-right px-4 py-3 text-slate-800 font-medium">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}</td>
+                          </tr>
+                          <tr className="border-b border-slate-100">
+                            <td className="px-4 py-3 text-slate-600 italic">Received on the date of - {new Date(receipt?.issuedAt || sale.saleDate || sale.createdAt || Date.now()).toLocaleDateString('en-IN')}</td>
+                            <td className="text-center px-4 py-3 text-slate-600"></td>
+                            <td className="text-center px-4 py-3 text-slate-600">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}/-</td>
+                            <td className="text-right px-4 py-3 text-slate-800">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}</td>
+                          </tr>
+                          <tr>
+                            <td className="px-4 py-3 text-slate-700 font-medium">Amount Receivable: ₹0/-</td>
+                            <td colSpan={3}></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Payment Method & Totals */}
+                    <div className="px-6 py-4 flex justify-between items-start">
+                      <div>
+                        <p className="text-lg font-bold text-slate-800">Payment Method :</p>
+                        <p className="text-slate-700 font-medium mt-1">{receipt?.payment?.method || sale.paymentMode || 'UPI/Bank/PayPal'}</p>
+                        {receipt?.payment?.provider && (
+                          <p className="text-sm text-slate-500 italic">Provider: {receipt.payment.provider}</p>
+                        )}
+                        {receipt?.payment?.transactionId && (
+                          <p className="text-sm text-slate-500 italic">Txn: {receipt.payment.transactionId}</p>
+                        )}
+                      </div>
+                      <div className="text-right w-56">
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-600">Sub-total :</span>
+                          <span className="font-medium">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}/-</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-600">Tax :</span>
+                          <span className="font-medium">0</span>
+                        </div>
+                        <div className="flex justify-between py-2 bg-gradient-to-r from-orange-500 to-orange-400 text-white px-3 rounded-lg mt-2">
+                          <span className="font-bold">Total :</span>
+                          <span className="font-bold text-lg">₹{Number(receipt?.payment?.paidAmount ?? receipt?.payment?.amount ?? sale.saleAmount ?? 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer with Seal and Signature */}
+                    <div className="px-6 py-6 flex justify-between items-end relative">
+                      {/* Company Seal */}
+                      <div className="flex flex-col items-center">
+                        <div className="w-28 h-28 rounded-full border-4 border-blue-700 flex flex-col items-center justify-center text-center bg-blue-50/50 shadow-md relative overflow-hidden">
+                          {/* Seal rings */}
+                          <div className="absolute inset-1 rounded-full border-2 border-blue-600" />
+                          <div className="absolute inset-3 rounded-full border border-blue-500" />
+                          {/* Seal content */}
+                          <div className="text-[8px] text-blue-700 font-medium">Upamnyu International Education Pvt. Ltd.</div>
+                          <div className="text-[9px] text-red-600 font-bold mt-1">CIN No.</div>
+                          <div className="text-[8px] text-blue-800 font-bold">U92400PN2022</div>
+                          <div className="text-[8px] text-blue-800 font-bold">PTC213895</div>
+                          <div className="text-[8px] text-blue-700 font-medium mt-0.5">* Sangamner *</div>
+                        </div>
+                        <div className="mt-4 text-center">
+                          <p className="text-green-700 font-bold text-lg">&quot;Thank you!</p>
+                          <p className="text-green-700 font-semibold text-sm">Your registration &amp; payment</p>
+                          <p className="text-green-700 font-semibold text-sm">are confirmed&quot;</p>
+                        </div>
+                      </div>
+
+                      {/* Signature */}
+                      <div className="text-center">
+                        <div className="h-16 w-40 border-b-2 border-slate-400 flex items-end justify-center pb-1">
+                          <span className="text-2xl font-script text-slate-600 italic">Mohan K.</span>
+                        </div>
+                        <p className="text-lg font-bold text-slate-800 mt-2 italic">Mohan Kalburgi</p>
+                        <p className="text-sm text-slate-600">Yogacharya</p>
+                      </div>
+                    </div>
+
+                    {/* Bottom note */}
+                    <div className="px-6 pb-4 text-xs text-slate-500 border-t border-slate-200 pt-3">
+                      <p><strong>Note:</strong> Workshop fees are non-refundable and non-transferable.</p>
+                      <p className="mt-1">Address: {receiptAddressLine}</p>
                     </div>
                   </div>
                 </div>
