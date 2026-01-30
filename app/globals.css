@@ -39,6 +39,39 @@ p {
   margin-bottom: 1rem;
 }
 
+/* ===== DARK THEME (Admin/CRM dark pages) ===== */
+/* Override global dark text colors for pages with dark backgrounds */
+.dark-theme,
+.dark-theme h1,
+.dark-theme h2,
+.dark-theme h3,
+.dark-theme h4,
+.dark-theme h5,
+.dark-theme h6,
+.dark-theme p,
+.dark-theme span,
+.dark-theme label,
+.dark-theme div {
+  color: inherit;
+}
+
+.dark-theme {
+  color: #f1f5f9; /* slate-100 */
+}
+
+.dark-theme input,
+.dark-theme textarea,
+.dark-theme select {
+  color: #ffffff;
+  background-color: #1e293b; /* slate-800 */
+  border-color: rgba(139, 92, 246, 0.2); /* purple-500/20 */
+}
+
+.dark-theme input::placeholder,
+.dark-theme textarea::placeholder {
+  color: #94a3b8; /* slate-400 */
+}
+
 a {
   color: #1E7F43;
   text-decoration: none;
