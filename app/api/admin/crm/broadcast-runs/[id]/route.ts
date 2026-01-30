@@ -73,3 +73,152 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     return handleCrmError(error, 'GET broadcast-runs/:id');
   }
 }
+
+/**
+ * PATCH /api/admin/crm/broadcast-runs/:id
+ * Actions: cancel, reset-pending, retry-failed
+ */
+export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    verifyAdmin(request);
+    const { id } = await ctx.params;
+
+    await connectDB();
+
+    const run = await BroadcastRun.findById(id);
+    if (!run) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    const body = await request.json().catch(() => ({}));
+    const action = String(body.action || '');
+
+    const now = new Date();
+    let result: any = { action };
+
+    switch (action) {
+      case 'cancel':
+        // Cancel the broadcast - mark as cancelled, don't process pending
+        await BroadcastRun.updateOne(
+          { _id: id },
+          { $set: { status: 'cancelled', updatedAt: now } }
+        );
+        result.message = 'Broadcast cancelled';
+        break;
+
+      case 'reset-pending':
+        // Reset all messages back to pending (for retry)
+        const resetResult = await BroadcastRunMessage.updateMany(
+          { runId: run._id, status: { $in: ['failed', 'skipped', 'sending'] } },
+          { $set: { status: 'pending', failureReason: null, updatedAt: now } }
+        );
+        // Update run status back to scheduled
+        await BroadcastRun.updateOne(
+          { _id: id },
+          { $set: { status: 'scheduled', updatedAt: now }, $unset: { lastError: 1 } }
+        );
+        result.message = `Reset ${resetResult.modifiedCount} messages to pending`;
+        result.modifiedCount = resetResult.modifiedCount;
+        break;
+
+      case 'retry-failed':
+        // Only reset failed messages back to pending
+        const retryResult = await BroadcastRunMessage.updateMany(
+          { runId: run._id, status: 'failed' },
+          { $set: { status: 'pending', failureReason: null, updatedAt: now } }
+        );
+        // Update run status back to scheduled if it was completed/failed
+        if (['completed', 'failed', 'cancelled'].includes(run.status)) {
+          await BroadcastRun.updateOne(
+            { _id: id },
+            { $set: { status: 'scheduled', updatedAt: now }, $unset: { lastError: 1, completedAt: 1 } }
+          );
+        }
+        result.message = `Reset ${retryResult.modifiedCount} failed messages to pending`;
+        result.modifiedCount = retryResult.modifiedCount;
+        break;
+
+      case 'reset-all':
+        // Reset ALL messages back to pending (full restart)
+        const resetAllResult = await BroadcastRunMessage.updateMany(
+          { runId: run._id },
+          { $set: { status: 'pending', failureReason: null, provider: null, waMessageId: null, updatedAt: now } }
+        );
+        await BroadcastRun.updateOne(
+          { _id: id },
+          { 
+            $set: { 
+              status: 'scheduled', 
+              'stats.pending': resetAllResult.modifiedCount,
+              'stats.sent': 0,
+              'stats.failed': 0,
+              'stats.skipped': 0,
+              updatedAt: now 
+            }, 
+            $unset: { lastError: 1, completedAt: 1, startedAt: 1 } 
+          }
+        );
+        result.message = `Reset all ${resetAllResult.modifiedCount} messages to pending`;
+        result.modifiedCount = resetAllResult.modifiedCount;
+        break;
+
+      default:
+        return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+    }
+
+    // Refresh stats
+    const counts = await BroadcastRunMessage.aggregate([
+      { $match: { runId: run._id } },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]);
+    const map = new Map<string, number>();
+    counts.forEach((c: any) => map.set(String(c._id).toLowerCase(), Number(c.count || 0)));
+    
+    await BroadcastRun.updateOne(
+      { _id: id },
+      {
+        $set: {
+          'stats.pending': (map.get('pending') || 0) + (map.get('sending') || 0),
+          'stats.sent': map.get('sent') || 0,
+          'stats.failed': map.get('failed') || 0,
+          'stats.skipped': map.get('skipped') || 0,
+          updatedAt: now,
+        },
+      }
+    );
+
+    return NextResponse.json({ success: true, data: result }, { status: 200 });
+  } catch (error) {
+    return handleCrmError(error, 'PATCH broadcast-runs/:id');
+  }
+}
+
+/**
+ * DELETE /api/admin/crm/broadcast-runs/:id
+ * Delete the broadcast run and all its messages.
+ */
+export async function DELETE(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    verifyAdmin(request);
+    const { id } = await ctx.params;
+
+    await connectDB();
+
+    const run = await BroadcastRun.findById(id);
+    if (!run) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // Delete all messages first
+    const msgResult = await BroadcastRunMessage.deleteMany({ runId: run._id });
+    
+    // Delete the run
+    await BroadcastRun.deleteOne({ _id: id });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        message: 'Broadcast run deleted',
+        deletedMessages: msgResult.deletedCount,
+      },
+    }, { status: 200 });
+  } catch (error) {
+    return handleCrmError(error, 'DELETE broadcast-runs/:id');
+  }
+}

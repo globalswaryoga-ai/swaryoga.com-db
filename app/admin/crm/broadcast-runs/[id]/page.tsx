@@ -38,8 +38,9 @@ export default function BroadcastRunDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [run, setRun] = useState<RunRow | null>(null);
   const [messages, setMessages] = useState<RunMessageRow[]>([]);
-  const [triggerLoading, setTriggerLoading] = useState(false);
-  const [triggerResult, setTriggerResult] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState<string | null>(null);
 
   const statusFilter = sp.get('status') || '';
 
@@ -72,8 +73,8 @@ export default function BroadcastRunDetailsPage() {
   // Trigger the broadcast run manually
   const triggerRun = async () => {
     if (!token || !id) return;
-    setTriggerLoading(true);
-    setTriggerResult(null);
+    setActionLoading('run');
+    setActionResult(null);
     try {
       const res = await fetch('/api/admin/crm/broadcast-runs/run', {
         method: 'POST',
@@ -85,17 +86,59 @@ export default function BroadcastRunDetailsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        const stats = data.data || {};
-        setTriggerResult(`✅ Run triggered! Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Skipped: ${stats.skipped || 0}`);
-        // Refresh data after a short delay
+        const stats = data.data?.runResults?.[0] || data.data || {};
+        setActionResult(`✅ Run triggered! Sent: ${stats.sent || 0}, Failed: ${stats.failed || 0}, Skipped: ${stats.skipped || 0}`);
         setTimeout(() => fetchData(), 1500);
       } else {
-        setTriggerResult(`❌ ${data.error || 'Failed to trigger run'}`);
+        setActionResult(`❌ ${data.error || 'Failed to trigger run'}`);
       }
     } catch (err: any) {
-      setTriggerResult(`❌ ${err.message || 'Error triggering run'}`);
+      setActionResult(`❌ ${err.message || 'Error triggering run'}`);
     } finally {
-      setTriggerLoading(false);
+      setActionLoading(null);
+    }
+  };
+
+  // Perform an action on the broadcast run
+  const performAction = async (action: string) => {
+    if (!token || !id) return;
+    setShowConfirm(null);
+    setActionLoading(action);
+    setActionResult(null);
+    try {
+      if (action === 'delete') {
+        const res = await fetch(`/api/admin/crm/broadcast-runs/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setActionResult(`✅ ${data.data?.message || 'Deleted'}`);
+          setTimeout(() => router.push('/admin/crm/broadcast'), 1500);
+        } else {
+          setActionResult(`❌ ${data.error || 'Failed'}`);
+        }
+      } else {
+        const res = await fetch(`/api/admin/crm/broadcast-runs/${id}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setActionResult(`✅ ${data.data?.message || 'Done'}`);
+          setTimeout(() => fetchData(), 1000);
+        } else {
+          setActionResult(`❌ ${data.error || 'Failed'}`);
+        }
+      }
+    } catch (err: any) {
+      setActionResult(`❌ ${err.message || 'Error'}`);
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -120,22 +163,72 @@ export default function BroadcastRunDetailsPage() {
 
   return (
     <div style={{ padding: 16, maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 900 }}>📡 Broadcast Run</div>
-          <div style={{ color: '#6B7280', fontSize: 13 }}>ID: {id}</div>
+          <div style={{ color: '#6B7280', fontSize: 13 }}>
+            ID: {id} • Status: <strong>{run?.status || '-'}</strong>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {/* Show "Run Now" button for scheduled/pending runs */}
-          {run && (run.status === 'scheduled' || run.status === 'pending' || (stats.pending > 0 && run.status !== 'completed')) && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Run Now - for scheduled/pending runs */}
+          {run && (run.status === 'scheduled' || run.status === 'pending' || run.status === 'draft' || (stats.pending > 0 && !['completed', 'cancelled'].includes(run.status))) && (
             <button
               type="button"
               className="wa-btn"
               style={{ background: '#10B981', color: 'white', fontWeight: 700 }}
               onClick={triggerRun}
-              disabled={triggerLoading}
+              disabled={!!actionLoading}
             >
-              {triggerLoading ? '⏳ Running...' : '▶️ Run Now'}
+              {actionLoading === 'run' ? '⏳...' : '▶️ Run Now'}
+            </button>
+          )}
+          {/* Cancel - for running/scheduled runs */}
+          {run && ['scheduled', 'running', 'draft'].includes(run.status) && (
+            <button
+              type="button"
+              className="wa-btn"
+              style={{ background: '#F59E0B', color: 'white' }}
+              onClick={() => setShowConfirm('cancel')}
+              disabled={!!actionLoading}
+            >
+              ⏹️ Cancel
+            </button>
+          )}
+          {/* Reset All - restart from scratch */}
+          {run && (
+            <button
+              type="button"
+              className="wa-btn"
+              style={{ background: '#6366F1', color: 'white' }}
+              onClick={() => setShowConfirm('reset-all')}
+              disabled={!!actionLoading}
+            >
+              🔄 Reset All
+            </button>
+          )}
+          {/* Retry Failed */}
+          {run && stats.failed > 0 && (
+            <button
+              type="button"
+              className="wa-btn"
+              style={{ background: '#EF4444', color: 'white' }}
+              onClick={() => performAction('retry-failed')}
+              disabled={!!actionLoading}
+            >
+              {actionLoading === 'retry-failed' ? '⏳...' : `🔁 Retry ${stats.failed} Failed`}
+            </button>
+          )}
+          {/* Delete */}
+          {run && (
+            <button
+              type="button"
+              className="wa-btn"
+              style={{ background: '#DC2626', color: 'white' }}
+              onClick={() => setShowConfirm('delete')}
+              disabled={!!actionLoading}
+            >
+              🗑️ Delete
             </button>
           )}
           <Link href="/admin/crm/broadcast" className="wa-btn" style={{ textDecoration: 'none' }}>
@@ -144,8 +237,39 @@ export default function BroadcastRunDetailsPage() {
         </div>
       </div>
 
+      {/* Confirmation Modal */}
+      {showConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', borderRadius: 12, padding: 24, maxWidth: 400, margin: 16 }}>
+            <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 12 }}>
+              {showConfirm === 'delete' && '🗑️ Delete Broadcast?'}
+              {showConfirm === 'cancel' && '⏹️ Cancel Broadcast?'}
+              {showConfirm === 'reset-all' && '🔄 Reset All Messages?'}
+            </div>
+            <div style={{ color: '#6B7280', marginBottom: 16 }}>
+              {showConfirm === 'delete' && 'This will permanently delete this broadcast and all its messages. This cannot be undone.'}
+              {showConfirm === 'cancel' && 'This will stop the broadcast from processing any more messages. You can reset and run again later.'}
+              {showConfirm === 'reset-all' && `This will reset all ${stats.total} messages back to pending so you can run the broadcast again.`}
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button type="button" className="wa-btn" onClick={() => setShowConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="wa-btn"
+                style={{ background: showConfirm === 'delete' ? '#DC2626' : '#4F46E5', color: 'white' }}
+                onClick={() => performAction(showConfirm)}
+              >
+                {showConfirm === 'delete' ? 'Delete' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
   {error ? <AlertBox type="error" message={error} /> : null}
-      {triggerResult ? <AlertBox type={triggerResult.startsWith('✅') ? 'success' : 'error'} message={triggerResult} /> : null}
+      {actionResult ? <AlertBox type={actionResult.startsWith('✅') ? 'success' : 'error'} message={actionResult} /> : null}
       {loading ? <LoadingSpinner /> : null}
 
       {run ? (
