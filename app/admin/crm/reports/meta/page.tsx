@@ -29,6 +29,7 @@ type BroadcastRun = {
     totalCost: number;
     currency: string;
   };
+  scheduledAt?: string;
   startedAt?: string;
   completedAt?: string;
 };
@@ -297,11 +298,41 @@ export default function MetaReportsPage() {
 
             {selectedRun && (
               <div className="bg-white rounded-xl border shadow-sm p-6 mb-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">{selectedRun.name}</h2>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-800">{selectedRun.name}</h2>
+                    <div className="text-sm text-gray-500 space-y-1 mt-1">
+                      <div>Status: <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${selectedRun.status === 'completed' ? 'bg-green-100 text-green-700' : selectedRun.status === 'running' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>{selectedRun.status}</span></div>
+                      {selectedRun.scheduledAt && (
+                        <div className="text-yellow-600 font-medium">
+                          📅 Scheduled: {new Date(selectedRun.scheduledAt).toLocaleString('en-IN', { 
+                            dateStyle: 'medium', 
+                            timeStyle: 'short',
+                            timeZone: 'Asia/Kolkata'
+                          })} IST
+                        </div>
+                      )}
+                      {selectedRun.startedAt && (
+                        <div className="text-blue-600">
+                          ▶️ Started: {new Date(selectedRun.startedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                        </div>
+                      )}
+                      {selectedRun.completedAt && (
+                        <div className="text-green-600">
+                          ✅ Completed: {new Date(selectedRun.completedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                   <div>
                     <div className="text-sm text-gray-500">Total</div>
                     <div className="text-xl font-bold">{selectedRun.stats?.total || 0}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Pending</div>
+                    <div className="text-xl font-bold text-yellow-600">{selectedRun.stats?.pending || 0}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">Sent</div>
