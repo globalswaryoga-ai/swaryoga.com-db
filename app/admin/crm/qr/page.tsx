@@ -4084,10 +4084,28 @@ function QRWhatsAppInboxPageContent() {
               Leads
             </button>
             <button
-              onClick={() => window.location.href = '/admin/crm/followup'}
+              onClick={() => window.location.href = '/admin/crm/leads-followup'}
               className="px-2 py-1 rounded text-xs font-semibold text-white/80 hover:text-white hover:bg-white/20 transition-colors"
             >
               Followup
+            </button>
+            <button
+              onClick={() => window.location.href = '/admin/crm/broadcast'}
+              className="px-2 py-1 rounded text-xs font-semibold text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            >
+              Broadcast
+            </button>
+            <button
+              onClick={() => window.location.href = '/admin/crm/meta'}
+              className="px-2 py-1 rounded text-xs font-semibold text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            >
+              Meta
+            </button>
+            <button
+              onClick={() => window.location.href = '/admin/crm/reports/qr'}
+              className="px-2 py-1 rounded text-xs font-semibold text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            >
+              Reports
             </button>
             <button
               onClick={() => window.location.href = '/admin/crm/sales'}
