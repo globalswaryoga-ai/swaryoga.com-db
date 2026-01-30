@@ -1526,3 +1526,248 @@ app.post('/group/:groupId/settings', authenticate, async (req, res) => {
   }
 });
 
+// Update group subject/name
+app.post('/group/:groupId/subject', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const { subject } = req.body;
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    await chat.setSubject(subject);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update group description
+app.post('/group/:groupId/description', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const { description } = req.body;
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    await chat.setDescription(description || '');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add participants to group
+app.post('/group/:groupId/add', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const { participants } = req.body;
+    
+    if (!participants || !Array.isArray(participants) || participants.length === 0) {
+      return res.status(400).json({ error: 'Participants array required' });
+    }
+    
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    // Format participants to include @c.us suffix
+    const formattedParticipants = participants.map(p => 
+      p.includes('@') ? p : `${p}@c.us`
+    );
+
+    const result = await chat.addParticipants(formattedParticipants);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Remove participant from group
+app.post('/group/:groupId/remove', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const { participant } = req.body;
+    
+    if (!participant) {
+      return res.status(400).json({ error: 'Participant ID required' });
+    }
+    
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    // Format participant to include @c.us suffix
+    const formattedParticipant = participant.includes('@') ? participant : `${participant}@c.us`;
+
+    const result = await chat.removeParticipants([formattedParticipant]);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get group invite link
+app.get('/group/:groupId/invite', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    const inviteCode = await chat.getInviteCode();
+    const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
+    
+    res.json({ success: true, inviteCode, inviteLink });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Revoke group invite link
+app.post('/group/:groupId/revoke-invite', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    const newInviteCode = await chat.revokeInvite();
+    const inviteLink = `https://chat.whatsapp.com/${newInviteCode}`;
+    
+    res.json({ success: true, inviteCode: newInviteCode, inviteLink });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Leave group
+app.post('/group/:groupId/leave', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    await chat.leave();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Promote participant to admin
+app.post('/group/:groupId/promote', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const { participant } = req.body;
+    
+    if (!participant) {
+      return res.status(400).json({ error: 'Participant ID required' });
+    }
+    
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    const formattedParticipant = participant.includes('@') ? participant : `${participant}@c.us`;
+    await chat.promoteParticipants([formattedParticipant]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Demote admin to participant
+app.post('/group/:groupId/demote', authenticate, async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const { participant } = req.body;
+    
+    if (!participant) {
+      return res.status(400).json({ error: 'Participant ID required' });
+    }
+    
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    const formattedParticipant = participant.includes('@') ? participant : `${participant}@c.us`;
+    await chat.demoteParticipants([formattedParticipant]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Set group profile picture
+app.post('/group/:groupId/picture', authenticate, upload.single('image'), async (req, res) => {
+  if (clientStatus !== 'connected') {
+    return res.status(400).json({ error: 'Client not connected' });
+  }
+  try {
+    const { groupId } = req.params;
+    const chat = await client.getChatById(groupId);
+
+    if (!chat.isGroup) {
+      return res.status(400).json({ error: 'Chat is not a group' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Image file required' });
+    }
+
+    const media = new MessageMedia(req.file.mimetype, req.file.buffer.toString('base64'));
+    await chat.setPicture(media);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+

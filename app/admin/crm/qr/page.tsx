@@ -2580,6 +2580,111 @@ function QRWhatsAppInboxPageContent() {
     }
   };
 
+  // Leave group
+  const handleLeaveGroup = async () => {
+    if (!groupDetails) return;
+    if (!confirm('Are you sure you want to leave this group? This action cannot be undone.')) return;
+    
+    try {
+      const res = await bridgeFetch(`/group/${encodeURIComponent(groupDetails.id)}/leave`, {
+        method: 'POST',
+      }, 10_000);
+      
+      if (res.ok) {
+        showToast('Left the group successfully!', 'success');
+        setShowGroupPanel(false);
+        setGroupDetails(null);
+        setSelectedChat(null);
+        // Refresh groups list
+        await loadGroupsList();
+      } else {
+        const err = await parseBridgeError(res);
+        showToast(`Failed to leave group: ${err}`, 'error');
+      }
+    } catch (err) {
+      console.error('Failed to leave group:', err);
+      showToast('Failed to leave group', 'error');
+    }
+  };
+
+  // Promote participant to admin
+  const handlePromoteParticipant = async (participantId: string) => {
+    if (!groupDetails) return;
+    if (!confirm('Make this member an admin?')) return;
+    
+    try {
+      const res = await bridgeFetch(`/group/${encodeURIComponent(groupDetails.id)}/promote`, {
+        method: 'POST',
+        body: JSON.stringify({ participant: participantId })
+      }, 10_000);
+      
+      if (res.ok) {
+        showToast('Participant promoted to admin!', 'success');
+        await loadGroupDetails(groupDetails.id);
+      } else {
+        const err = await parseBridgeError(res);
+        showToast(`Failed to promote: ${err}`, 'error');
+      }
+    } catch (err) {
+      console.error('Failed to promote participant:', err);
+      showToast('Failed to promote participant', 'error');
+    }
+  };
+
+  // Demote admin to participant
+  const handleDemoteParticipant = async (participantId: string) => {
+    if (!groupDetails) return;
+    if (!confirm('Remove admin privileges from this member?')) return;
+    
+    try {
+      const res = await bridgeFetch(`/group/${encodeURIComponent(groupDetails.id)}/demote`, {
+        method: 'POST',
+        body: JSON.stringify({ participant: participantId })
+      }, 10_000);
+      
+      if (res.ok) {
+        showToast('Admin privileges removed!', 'success');
+        await loadGroupDetails(groupDetails.id);
+      } else {
+        const err = await parseBridgeError(res);
+        showToast(`Failed to demote: ${err}`, 'error');
+      }
+    } catch (err) {
+      console.error('Failed to demote participant:', err);
+      showToast('Failed to demote participant', 'error');
+    }
+  };
+
+  // Revoke and regenerate group invite link
+  const handleRevokeInviteLink = async () => {
+    if (!groupDetails) return;
+    if (!confirm('Revoke current invite link? Anyone with the old link will no longer be able to join.')) return;
+    
+    setGettingInviteLink(true);
+    try {
+      const res = await bridgeFetch(`/group/${encodeURIComponent(groupDetails.id)}/revoke-invite`, {
+        method: 'POST',
+      }, 10_000);
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.inviteLink) {
+          setGroupDetails({ ...groupDetails, inviteCode: data.inviteCode, inviteLink: data.inviteLink });
+          navigator.clipboard.writeText(data.inviteLink);
+          showToast('New invite link generated and copied!', 'success');
+        }
+      } else {
+        const err = await parseBridgeError(res);
+        showToast(`Failed to revoke invite link: ${err}`, 'error');
+      }
+    } catch (err) {
+      console.error('Failed to revoke invite link:', err);
+      showToast('Failed to revoke invite link', 'error');
+    } finally {
+      setGettingInviteLink(false);
+    }
+  };
+
   // Mark chat as read
   const markChatAsRead = async (chat: any) => {
     try {
@@ -4261,8 +4366,19 @@ function QRWhatsAppInboxPageContent() {
                 </div>
               </div>
 
-              {/* Right: Sidebar Toggle + Close Button */}
+              {/* Right: Group Info Button + Sidebar Toggle + Close Button */}
               <div className="flex items-center gap-2">
+                {/* Group Info Button (only for groups) */}
+                {selectedChat.isGroup && (
+                  <button
+                    onClick={() => loadGroupDetails(selectedChat.id)}
+                    className="px-2 py-1 text-xs font-bold rounded bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors flex items-center gap-1"
+                    title="Group Settings"
+                  >
+                    👥 Group Info
+                  </button>
+                )}
+                
                 {/* Toggle Sidebar Button */}
                 <button
                   onClick={() => setShowRightSidebar(!showRightSidebar)}
@@ -5564,24 +5680,50 @@ function QRWhatsAppInboxPageContent() {
                 </button>
               </div>
               {groupDetails.participants && groupDetails.participants.length > 0 ? (
-                <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {groupDetails.participants.slice(0, 20).map((participant: any, idx: number) => (
+                <div className="space-y-1 max-h-64 overflow-y-auto">
+                  {groupDetails.participants.map((participant: any, idx: number) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[#F5EBE0] group"
+                      className="flex items-center justify-between px-2 py-2 rounded hover:bg-[#F5EBE0] group"
                     >
-                      <span className="text-sm text-[#0f3a4d] truncate">
-                        {participant.id.replace('@c.us', '')}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {(participant.isAdmin || participant.isSuperAdmin) && (
-                          <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
-                            Admin
-                          </span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                          {(participant.phoneNumber || participant.id?.split('@')[0] || '?').slice(-2)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-[#0f3a4d] truncate font-medium">
+                            {participant.phoneNumber || participant.id?.replace('@c.us', '')}
+                          </p>
+                          {(participant.isAdmin || participant.isSuperAdmin) && (
+                            <p className="text-[10px] text-purple-600 font-semibold">
+                              {participant.isSuperAdmin ? '👑 Super Admin' : '⭐ Admin'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Promote/Demote Admin */}
+                        {(participant.isAdmin || participant.isSuperAdmin) ? (
+                          <button
+                            onClick={() => handleDemoteParticipant(participant.id)}
+                            className="p-1.5 text-orange-500 hover:text-orange-700 hover:bg-orange-50 rounded"
+                            title="Remove admin"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="11" y2="11"/></svg>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handlePromoteParticipant(participant.id)}
+                            className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-50 rounded"
+                            title="Make admin"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+                          </button>
                         )}
+                        {/* Remove Member */}
                         <button
                           onClick={() => handleRemoveParticipant(participant.id)}
-                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
                           title="Remove member"
                         >
                           <X size={14} />
@@ -5589,11 +5731,6 @@ function QRWhatsAppInboxPageContent() {
                       </div>
                     </div>
                   ))}
-                  {groupDetails.participants.length > 20 && (
-                    <p className="text-xs text-[#0f3a4d]/60 text-center py-2">
-                      + {groupDetails.participants.length - 20} more
-                    </p>
-                  )}
                 </div>
               ) : (
                 <p className="text-xs text-[#0f3a4d]/50 italic">No participants loaded</p>
@@ -5602,7 +5739,8 @@ function QRWhatsAppInboxPageContent() {
 
             {/* Actions */}
             <div className="p-4 space-y-2">
-              {!groupDetails.inviteCode && !groupDetails.inviteLink && (
+              {/* Get/Copy Invite Link */}
+              {!groupDetails.inviteCode && !groupDetails.inviteLink ? (
                 <button 
                   onClick={handleGetInviteLink}
                   disabled={gettingInviteLink}
@@ -5610,11 +5748,50 @@ function QRWhatsAppInboxPageContent() {
                 >
                   {gettingInviteLink ? '⏳ Getting link...' : '🔗 Get Invite Link'}
                 </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      const link = groupDetails.inviteLink || `https://chat.whatsapp.com/${groupDetails.inviteCode}`;
+                      navigator.clipboard.writeText(link);
+                      showToast('Invite link copied!', 'success');
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors text-sm"
+                  >
+                    📋 Copy Link
+                  </button>
+                  <button 
+                    onClick={handleRevokeInviteLink}
+                    disabled={gettingInviteLink}
+                    className="px-4 py-3 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-medium transition-colors text-sm"
+                    title="Revoke and get new link"
+                  >
+                    🔄
+                  </button>
+                </div>
               )}
-              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] font-medium transition-colors text-sm">
+              
+              {/* Send Message to Group */}
+              <button 
+                onClick={() => {
+                  setShowGroupPanel(false);
+                  // Group is already selected, just focus on input
+                  const msgInput = document.querySelector('input[placeholder*="Type a message"]') as HTMLInputElement;
+                  if (msgInput) msgInput.focus();
+                }}
+                className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-medium transition-colors text-sm"
+              >
+                💬 Send Message to Group
+              </button>
+              
+              {/* Mute Group - placeholder */}
+              <button className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-[#F5EBE0]/60 hover:bg-[#E8DFD5] text-[#0f3a4d] font-medium transition-colors text-sm">
                 🔔 Mute Group
               </button>
-              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-900 font-medium transition-colors text-sm">
+              <button 
+                onClick={handleLeaveGroup}
+                className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-red-50 hover:bg-red-100 text-red-900 font-medium transition-colors text-sm"
+              >
                 🚪 Exit Group
               </button>
             </div>
