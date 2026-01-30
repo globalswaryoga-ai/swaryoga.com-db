@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
-import { getWhatsAppMessage, getLead } from '@/lib/schemas/enterpriseSchemas';
+import { getWhatsAppMessage, getLead, getBroadcastRunMessage } from '@/lib/schemas/enterpriseSchemas';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
 import { uploadToS3 } from '@/lib/aws-s3';
 
@@ -11,6 +11,53 @@ import { uploadToS3 } from '@/lib/aws-s3';
 
 const BRIDGE_SECRET = process.env.WHATSAPP_BRIDGE_SECRET || 'swar-bridge-secret-2024';
 const BRIDGE_URL = process.env.WHATSAPP_BRIDGE_URL || 'http://52.91.198.23:3333';
+
+/**
+ * Handle status updates (delivered/read receipts) from the bridge
+ */
+async function handleStatusUpdate(body: any): Promise<NextResponse> {
+  const { messageId, status, timestamp } = body;
+  
+  if (!messageId || !status) {
+    return NextResponse.json({ success: true, skipped: true, reason: 'missing_fields' });
+  }
+  
+  console.log(`[QR WEBHOOK] Status update: ${messageId} -> ${status}`);
+  
+  await connectDB();
+  const WhatsAppMessage = getWhatsAppMessage();
+  const BroadcastMessage = getBroadcastRunMessage();
+  
+  // Update fields based on status
+  const updateData: any = { status };
+  if (status === 'delivered') {
+    updateData.deliveredAt = timestamp ? new Date(timestamp) : new Date();
+  } else if (status === 'read') {
+    updateData.readAt = timestamp ? new Date(timestamp) : new Date();
+  }
+  
+  // Try updating in WhatsAppMessage collection (individual messages)
+  const waResult = await WhatsAppMessage.updateOne(
+    { waMessageId: messageId },
+    { $set: updateData }
+  );
+  
+  // Also try updating in BroadcastMessage collection (broadcast messages)
+  const bcResult = await BroadcastMessage.updateOne(
+    { waMessageId: messageId },
+    { $set: updateData }
+  );
+  
+  const updated = (waResult.modifiedCount || 0) + (bcResult.modifiedCount || 0);
+  
+  if (updated > 0) {
+    console.log(`[QR WEBHOOK] ✅ Status updated: ${messageId} -> ${status}`);
+    return NextResponse.json({ success: true, updated });
+  } else {
+    console.log(`[QR WEBHOOK] Message not found for status update: ${messageId}`);
+    return NextResponse.json({ success: true, skipped: true, reason: 'message_not_found' });
+  }
+}
 
 // Map WhatsApp message types to our schema types
 function mapMessageType(waType: string): 'text' | 'template' | 'media' {
@@ -102,6 +149,11 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     console.log('[QR WEBHOOK] Received:', JSON.stringify(body).substring(0, 300));
+
+    // Handle status updates (delivered/read receipts)
+    if (body.type === 'status_update') {
+      return handleStatusUpdate(body);
+    }
 
     // Support both old format (from/body) and new Baileys format (from/messageContent)
     const from = body.from;

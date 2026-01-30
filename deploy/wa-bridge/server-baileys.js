@@ -148,19 +148,59 @@ async function initializeClient() {
     }
   });
 
-  // Track message updates (delivered, read)
-  sock.ev.on("messages.update", (updates) => {
+  // Track message updates (delivered, read) and forward to CRM
+  sock.ev.on("messages.update", async (updates) => {
     for (const update of updates) {
       const msgId = update.key?.id;
-      if (msgId && messageTracking[msgId]) {
-        if (update.update?.status === 2) {
-          messageTracking[msgId].status = "delivered";
-          messageTracking[msgId].deliveredAt = Date.now();
-        } else if (update.update?.status === 3 || update.update?.status === 4) {
-          messageTracking[msgId].status = "read";
-          messageTracking[msgId].readAt = Date.now();
+      const statusCode = update.update?.status;
+      let newStatus = null;
+      
+      // Baileys status codes: 2=delivered, 3=read, 4=played (for voice notes)
+      if (statusCode === 2) {
+        newStatus = "delivered";
+      } else if (statusCode === 3 || statusCode === 4) {
+        newStatus = "read";
+      }
+      
+      if (msgId && newStatus) {
+        // Update local tracking if we have it
+        if (messageTracking[msgId]) {
+          messageTracking[msgId].status = newStatus;
+          if (newStatus === "delivered") {
+            messageTracking[msgId].deliveredAt = Date.now();
+          } else if (newStatus === "read") {
+            messageTracking[msgId].readAt = Date.now();
+          }
+          saveData();
         }
-        saveData();
+        
+        // Forward status update to CRM webhook
+        try {
+          const statusPayload = {
+            type: "status_update",
+            messageId: msgId,
+            status: newStatus,
+            timestamp: Date.now(),
+            remoteJid: update.key?.remoteJid,
+          };
+          
+          const res = await fetch(`${CRM_WEBHOOK_URL}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-bridge-secret": BRIDGE_SECRET,
+            },
+            body: JSON.stringify(statusPayload),
+          });
+          
+          if (res.ok) {
+            console.log(`📬 Status update forwarded to CRM: ${msgId} -> ${newStatus}`);
+          } else {
+            console.log(`⚠️ CRM status webhook returned ${res.status}`);
+          }
+        } catch (err) {
+          console.error("❌ Failed to forward status to CRM:", err.message);
+        }
       }
     }
   });
