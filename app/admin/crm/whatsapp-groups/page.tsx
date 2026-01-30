@@ -320,11 +320,21 @@ export default function WhatsAppGroupsManagement() {
                       </label>
                       <div className="max-h-48 overflow-y-auto space-y-1 bg-slate-50 p-3 rounded">
                         {selectedGroup.participants && selectedGroup.participants.length > 0 ? (
-                          selectedGroup.participants.map((p) => (
-                            <div key={p} className="text-sm text-slate-600 bg-white p-2 rounded">
-                              📱 {p}
-                            </div>
-                          ))
+                          selectedGroup.participants.map((p, idx) => {
+                            // Handle @lid format (hidden numbers) and @c.us/@s.whatsapp.net formats
+                            const isHiddenNumber = p.includes('@lid');
+                            const displayNumber = isHiddenNumber 
+                              ? `Member #${idx + 1}` 
+                              : p.replace(/@(c\.us|s\.whatsapp\.net|lid)/, '');
+                            return (
+                              <div key={p} className="text-sm text-slate-600 bg-white p-2 rounded">
+                                <span>📱 {displayNumber}</span>
+                                {isHiddenNumber && (
+                                  <span className="text-xs text-slate-400 ml-2">🔒 hidden</span>
+                                )}
+                              </div>
+                            );
+                          })
                         ) : (
                           <div className="text-sm text-slate-500">No members listed</div>
                         )}

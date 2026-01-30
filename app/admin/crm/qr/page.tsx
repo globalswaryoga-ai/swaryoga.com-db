@@ -5692,8 +5692,16 @@ function QRWhatsAppInboxPageContent() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-[#0f3a4d] truncate font-medium">
-                            {participant.phoneNumber || participant.id?.replace('@c.us', '')}
+                            {participant.phoneNumber 
+                              ? participant.phoneNumber 
+                              : participant.id?.includes('@lid')
+                                ? `Member #${idx + 1}` // Show "Member #X" for @lid (hidden numbers)
+                                : participant.id?.replace(/@(c\.us|s\.whatsapp\.net)/, '') || `Member #${idx + 1}`
+                            }
                           </p>
+                          {participant.id?.includes('@lid') && !participant.phoneNumber && (
+                            <p className="text-[10px] text-slate-400">🔒 Number hidden by WhatsApp</p>
+                          )}
                           {(participant.isAdmin || participant.isSuperAdmin) && (
                             <p className="text-[10px] text-purple-600 font-semibold">
                               {participant.isSuperAdmin ? '👑 Super Admin' : '⭐ Admin'}

@@ -34,6 +34,24 @@ app.get('/group/:groupId', authMiddleware, async (req, res) => {
     const { groupId } = req.params;
     const metadata = await sock.groupMetadata(groupId);
     
+    // Helper to extract phone number from JID
+    const extractPhone = (jid) => {
+      if (!jid) return null;
+      // Standard format: 91XXXXXXXXXX@s.whatsapp.net
+      if (jid.includes('@s.whatsapp.net')) {
+        return jid.split('@')[0];
+      }
+      // Linked ID format: XXXXXXX@lid (privacy protected, no real phone)
+      if (jid.includes('@lid')) {
+        return null; // Can't extract phone from @lid
+      }
+      // Contact format: 91XXXXXXXXXX@c.us  
+      if (jid.includes('@c.us')) {
+        return jid.split('@')[0];
+      }
+      return jid.split('@')[0];
+    };
+    
     res.json({ 
       success: true, 
       group: {
@@ -43,6 +61,7 @@ app.get('/group/:groupId', authMiddleware, async (req, res) => {
         description: metadata.desc,
         participants: metadata.participants?.map(p => ({
           id: p.id,
+          phoneNumber: extractPhone(p.id), // Will be null for @lid
           isAdmin: p.admin === 'admin' || p.admin === 'superadmin',
           isSuperAdmin: p.admin === 'superadmin'
         })) || [],
