@@ -6,10 +6,30 @@ import { verifyToken } from '@/lib/auth';
 // Mark as dynamic since this route uses request.headers or request.url
 export const dynamic = 'force-dynamic';
 
+function verifyVercelCron(request: NextRequest): boolean {
+  // Vercel Cron sends this header automatically
+  const authHeader = request.headers.get('authorization');
+  const vercelCronSecret = process.env.CRON_SECRET;
+  
+  // If CRON_SECRET is set and matches Authorization Bearer token
+  if (vercelCronSecret && authHeader === `Bearer ${vercelCronSecret}`) {
+    return true;
+  }
+  
+  // Also check for Vercel's internal cron header (present when called by Vercel Cron)
+  // Vercel sets this automatically for cron jobs
+  const userAgent = request.headers.get('user-agent') || '';
+  if (userAgent.includes('vercel-cron')) {
+    return true;
+  }
+  
+  return false;
+}
 
 function verifyCronSecret(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
-  if (!expected) return false;
+  // If no CRON_SECRET is set, allow the request (for development/Vercel cron)
+  if (!expected) return true;
   const provided =
     request.headers.get('x-cron-secret') ||
     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -36,12 +56,13 @@ function verifyAdmin(request: NextRequest): boolean {
 export async function POST(request: NextRequest) {
   try {
     const hasCronSecret = verifyCronSecret(request);
+    const hasVercelCron = verifyVercelCron(request);
     const hasAdminAuth = verifyAdmin(request);
     
-    console.log('[Broadcast Run] Auth check - cronSecret:', hasCronSecret, 'adminAuth:', hasAdminAuth);
+    console.log('[Broadcast Run] Auth check - cronSecret:', hasCronSecret, 'vercelCron:', hasVercelCron, 'adminAuth:', hasAdminAuth);
     
-    // Allow either CRON_SECRET or admin JWT authentication
-    if (!hasCronSecret && !hasAdminAuth) {
+    // Allow: CRON_SECRET, Vercel Cron, or admin JWT authentication
+    if (!hasCronSecret && !hasVercelCron && !hasAdminAuth) {
       console.log('[Broadcast Run] Unauthorized - no valid auth');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

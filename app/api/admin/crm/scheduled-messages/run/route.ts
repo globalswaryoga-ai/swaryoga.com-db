@@ -8,8 +8,12 @@ export const dynamic = 'force-dynamic';
 
 function verifyCronSecret(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
-  if (!expected) return false;
+  // If no CRON_SECRET is set, allow the request (for Vercel cron)
+  if (!expected) return true;
   const provided = request.headers.get('x-cron-secret') || request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+  // Check for Vercel cron user-agent
+  const userAgent = request.headers.get('user-agent') || '';
+  if (userAgent.includes('vercel-cron')) return true;
   return Boolean(provided && provided === expected);
 }
 
