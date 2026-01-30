@@ -4278,6 +4278,7 @@ function QRWhatsAppInboxPageContent() {
                 <div className="absolute bottom-20 left-0 right-0 mx-4 z-50 animate-in slide-in-from-bottom-2 duration-200">
                   <TemplateSelector
                     token={token}
+                    provider="all"
                     onSelect={(template: WhatsAppTemplate) => {
                       // Clean template content - remove [QUICK_REPLY] markers
                       const cleanContent = (template.templateContent || '')

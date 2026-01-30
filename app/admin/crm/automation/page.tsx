@@ -505,6 +505,7 @@ export default function AutomationPage() {
                         mode="inline"
                         maxHeight="300px"
                         className="rounded-lg bg-slate-800/50 border border-purple-500/20"
+                        provider="meta"
                       />
                     </div>
                   ) : (

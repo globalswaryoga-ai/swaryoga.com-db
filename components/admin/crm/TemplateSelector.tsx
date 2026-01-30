@@ -15,6 +15,7 @@ export type WhatsAppTemplate = {
   headerFormat?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
   headerContent?: string;
   footerText?: string;
+  provider?: 'meta' | 'qr';
   imageFile?: {
     url: string;
     fileName: string;
@@ -42,6 +43,7 @@ interface TemplateSelectorProps {
   mode?: 'dropdown' | 'modal' | 'inline';
   className?: string;
   maxHeight?: string;
+  provider?: 'meta' | 'qr' | 'all'; // Filter by provider - 'all' shows both
 }
 
 // WhatsApp text formatting function
@@ -348,6 +350,7 @@ export default function TemplateSelector({
   mode = 'inline',
   className = '',
   maxHeight = '500px',
+  provider = 'all',
 }: TemplateSelectorProps) {
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -365,7 +368,13 @@ export default function TemplateSelector({
     setError(null);
 
     try {
-      const res = await fetch('/api/admin/crm/templates?limit=200', {
+      // Build URL with provider filter
+      let url = '/api/admin/crm/templates?limit=200';
+      if (provider && provider !== 'all') {
+        url += `&provider=${provider}`;
+      }
+      
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -389,7 +398,7 @@ export default function TemplateSelector({
     } finally {
       setLoading(false);
     }
-  }, [token, selectedTemplateId]);
+  }, [token, selectedTemplateId, provider]);
 
   useEffect(() => {
     fetchTemplates();

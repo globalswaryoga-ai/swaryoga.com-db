@@ -2340,6 +2340,7 @@ export default function MetaInboxPage() {
                             showPreview={true}
                             mode="inline"
                             maxHeight="400px"
+                            provider="meta"
                           />
                         ) : (
                           <>

@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
     const status = url.searchParams.get('status'); // draft, pending_approval, approved, rejected, disabled
+    const provider = url.searchParams.get('provider'); // meta, qr, or null for all
     const limit = Math.min(Number(url.searchParams.get('limit') || 50) || 50, 200);
     const skip = Math.max(Number(url.searchParams.get('skip') || 0) || 0, 0);
 
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
     const filter: any = {};
     if (category) filter.category = category;
     if (status) filter.status = status;
+    if (provider) filter.provider = provider;
 
     const templates = await WhatsAppTemplate.find(filter)
       .sort({ createdAt: -1 })
@@ -84,6 +86,7 @@ export async function POST(request: NextRequest) {
       headerMedia,
       variables,
       status,
+      provider,
       imageFile,
       documents,
       videoUrl,
@@ -150,8 +153,13 @@ export async function POST(request: NextRequest) {
           .filter(Boolean)
       : undefined;
 
+    // QR templates are auto-approved (no Meta approval needed)
+    const safeProvider = provider === 'qr' ? 'qr' : 'meta';
+    const finalStatus = safeProvider === 'qr' ? 'approved' : safeStatus; // QR = auto-approved
+
     const template = await WhatsAppTemplate.create({
       templateName,
+      provider: safeProvider,
       category,
       language: language || 'en',
       templateContent: resolvedTemplateContent,
@@ -164,7 +172,7 @@ export async function POST(request: NextRequest) {
         derivedHeaderMedia ||
         undefined,
       variables: Array.isArray(variables) ? variables : [],
-      status: safeStatus,
+      status: finalStatus,
       createdBy,
       // New file fields
       imageFile: (imageFile && typeof imageFile === 'object') ? imageFile : undefined,

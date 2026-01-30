@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
@@ -132,9 +132,14 @@ function formatPreviewMessage(text: string): string {
 
 export default function CreateTemplatePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const token = useAuth();
   const crm = useCRM({ token });
   const crmFetch = crm.fetch;
+
+  // Provider: 'meta' (needs Meta approval) or 'qr' (no approval, QR only)
+  const providerParam = searchParams?.get('provider');
+  const [provider, setProvider] = useState<'meta' | 'qr'>(providerParam === 'qr' ? 'qr' : 'meta');
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -445,6 +450,7 @@ export default function CreateTemplatePage() {
         method: 'POST',
         body: {
           templateName: templateName.trim(),
+          provider, // 'meta' or 'qr'
           category,
           language,
           // We can construct a simple reliable string representation
@@ -466,7 +472,7 @@ export default function CreateTemplatePage() {
           variables: [],
         },
       });
-      router.push('/admin/crm/whatsapp/templates?success=created');
+      router.push(`/admin/crm/templates?success=created&provider=${provider}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create template');
     } finally {
@@ -613,6 +619,47 @@ export default function CreateTemplatePage() {
               <div className="px-5 py-4 border-b border-gray-200">
                 <div className="text-lg font-bold text-gray-900">Template Editor</div>
                 <div className="text-xs text-gray-500">Design your message structure (Header - Body - Footer)</div>
+              </div>
+
+              {/* Provider Selection */}
+              <div className="px-5 pt-5 pb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">Template Type *</label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setProvider('meta')}
+                    className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all ${
+                      provider === 'meta'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-lg">📘</span>
+                      <span className="font-bold">Meta Template</span>
+                    </div>
+                    <div className="text-xs mt-1 opacity-75">
+                      Requires approval • Works in both inboxes
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProvider('qr')}
+                    className={`flex-1 py-3 px-4 rounded-xl border-2 transition-all ${
+                      provider === 'qr'
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-lg">📱</span>
+                      <span className="font-bold">QR Template</span>
+                    </div>
+                    <div className="text-xs mt-1 opacity-75">
+                      Auto-approved • QR inbox only
+                    </div>
+                  </button>
+                </div>
               </div>
 
               <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">

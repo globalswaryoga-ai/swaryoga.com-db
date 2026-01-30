@@ -550,6 +550,14 @@ WhatsAppAccountSchema.index({ isDefault: 1, accountType: 1 });
 const WhatsAppTemplateSchema = new mongoose.Schema(
   {
     templateName: { type: String, required: true, index: true },
+    // Provider: 'meta' = Meta-approved templates (can use in both Meta & QR)
+    //           'qr' = QR-only templates (no Meta approval needed, only for QR WhatsApp)
+    provider: {
+      type: String,
+      enum: ['meta', 'qr'],
+      default: 'meta',
+      index: true,
+    },
     category: {
       type: String,
       enum: ['MARKETING', 'OTP', 'TRANSACTIONAL', 'ACCOUNT_UPDATE'],

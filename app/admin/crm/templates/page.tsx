@@ -13,6 +13,7 @@ import {
 interface Template {
   _id: string;
   templateName: string;
+  provider?: 'meta' | 'qr';
   category: 'MARKETING' | 'OTP' | 'TRANSACTIONAL' | 'ACCOUNT_UPDATE' | string;
   language?: string;
   templateContent: string;
@@ -70,6 +71,7 @@ export default function TemplatesPage() {
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [providerFilter, setProviderFilter] = useState<'all' | 'meta' | 'qr'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | Template['status']>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [page, setPage] = useState(1);
@@ -117,6 +119,7 @@ export default function TemplatesPage() {
           limit: pageSize,
           skip: (page - 1) * pageSize,
           status: statusFilter === 'all' ? undefined : statusFilter,
+          provider: providerFilter === 'all' ? undefined : providerFilter,
         },
       });
 
@@ -127,7 +130,7 @@ export default function TemplatesPage() {
     } finally {
       inFlightRef.current = false;
     }
-  }, [crmFetch, page, pageSize, statusFilter]);
+  }, [crmFetch, page, pageSize, statusFilter, providerFilter]);
 
   const initialFetchDoneRef = useRef(false);
 
@@ -247,13 +250,55 @@ export default function TemplatesPage() {
               )}
 
               <button
-                onClick={() => router.push('/admin/crm/templates/builder')}
+                onClick={() => router.push(`/admin/crm/templates/builder${providerFilter !== 'all' ? `?provider=${providerFilter}` : ''}`)}
                 className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <i className="ph-bold ph-plus-circle text-lg"></i>
-                Create Template
+                Create {providerFilter === 'qr' ? 'QR ' : providerFilter === 'meta' ? 'Meta ' : ''}Template
               </button>
             </div>
+        </div>
+
+        {/* Provider Tabs (Meta vs QR) */}
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+          <button
+            onClick={() => { setProviderFilter('all'); setPage(1); }}
+            className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all ${
+              providerFilter === 'all'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            All Templates
+          </button>
+          <button
+            onClick={() => { setProviderFilter('meta'); setPage(1); }}
+            className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
+              providerFilter === 'meta'
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'text-gray-600 hover:text-green-700'
+            }`}
+          >
+            <span>📱</span> Meta
+            <span className="text-[10px] opacity-80">(Approved)</span>
+          </button>
+          <button
+            onClick={() => { setProviderFilter('qr'); setPage(1); }}
+            className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
+              providerFilter === 'qr'
+                ? 'bg-teal-600 text-white shadow-sm'
+                : 'text-gray-600 hover:text-teal-700'
+            }`}
+          >
+            <span>📲</span> QR Only
+            <span className="text-[10px] opacity-80">(No approval)</span>
+          </button>
+        </div>
+
+        {/* Info Banner */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+          <strong>💡 Tip:</strong> Meta templates require WhatsApp approval and can be used in both Meta Inbox and QR WhatsApp. 
+          QR templates don&apos;t need approval and work only in QR WhatsApp.
         </div>
 
         {/* Status Filter */}
