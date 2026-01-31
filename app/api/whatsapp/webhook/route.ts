@@ -7,6 +7,7 @@ import { ConsentManager } from '@/lib/consentManager';
 // to avoid calling mongoose.model() before the connection is established
 import { handleInboundWhatsAppAutomations } from '@/lib/whatsappAutomation';
 import { addLeadToMainBroadcastList } from '@/lib/crm/broadcast-automation';
+import { assignLeadToNextAdmin } from '@/lib/crm/leadAssignment';
 
 import { normalizePhone as normalizePhoneDigits } from '@/lib/whatsapp';
 import { allocateNextLeadNumber } from '@/lib/crm/leadNumber';
@@ -493,6 +494,15 @@ async function handleWebhookPayload(payload: any) {
                 lastMessageAt: now,
               });
               wasFirstInbound = true;
+              
+              // Auto-assign to admin user via round-robin (if enabled)
+              try {
+                console.log(`[WEBHOOK DEBUG] Auto-assigning lead to admin user`);
+                await assignLeadToNextAdmin(lead);
+              } catch (assignErr) {
+                console.error('[WEBHOOK ERROR] Lead auto-assignment failed', assignErr);
+              }
+              
               // Auto-add to main broadcast list
               try {
                   console.log(`[WEBHOOK DEBUG] Adding to broadcast list`);

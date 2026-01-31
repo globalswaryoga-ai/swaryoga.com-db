@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe, Video, FileText, Send, Radio } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe, Video, FileText, Send, Radio, Settings } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -190,6 +190,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Broadcast',
       href: '/admin/crm/broadcast',
       color: 'text-pink-600',
+    },
+    {
+      icon: Settings,
+      label: 'Lead Assignment',
+      href: '/admin/crm/lead-assignment-settings',
+      color: 'text-gray-600',
     },
     {
       icon: MessageSquare,

@@ -1698,6 +1698,34 @@ FollowUpInstanceSchema.index({ nextExecutionAt: 1, status: 1 });
 // ============================================================================
 // ZOOM RECORDING SYNC SCHEMA
 // ============================================================================
+// LEAD ASSIGNMENT SETTINGS - Round-robin assignment for new WhatsApp leads
+// ============================================================================
+const LeadAssignmentSettingsSchema = new mongoose.Schema(
+  {
+    settingKey: { type: String, default: 'lead_assignment', unique: true }, // Singleton config
+    enabled: { type: Boolean, default: false },
+    batchSize: { type: Number, default: 5, min: 1, max: 100 }, // Leads per admin before rotating
+    adminUsers: [{ 
+      userId: { type: String, required: true },  // Admin userId like 'admincrm'
+      name: { type: String },                    // Display name
+      email: { type: String },
+      isActive: { type: Boolean, default: true }, // Can disable without removing
+    }],
+    // Track current position in round-robin
+    currentAdminIndex: { type: Number, default: 0 },
+    currentBatchCount: { type: Number, default: 0 }, // Leads assigned to current admin
+    totalAssigned: { type: Number, default: 0 },
+    lastAssignedAt: { type: Date },
+    // Audit
+    updatedBy: { type: String },
+  },
+  { timestamps: true, collection: 'lead_assignment_settings' }
+);
+
+LeadAssignmentSettingsSchema.index({ settingKey: 1 }, { unique: true });
+
+
+// ============================================================================
 // Tracks Zoom recordings synced to AWS S3
 
 const ZoomRecordingSyncSchema = new mongoose.Schema(
@@ -1829,6 +1857,7 @@ export function getEmailCampaign() { return getModel('EmailCampaign', EmailCampa
 export function getFollowUpSequence() { return getModel('FollowUpSequence', FollowUpSequenceSchema); }
 export function getFollowUpInstance() { return getModel('FollowUpInstance', FollowUpInstanceSchema); }
 export function getZoomRecordingSync() { return getModel('ZoomRecordingSync', ZoomRecordingSyncSchema); }
+export function getLeadAssignmentSettings() { return getModel('LeadAssignmentSettings', LeadAssignmentSettingsSchema); }
 
 // LEGACY PROXY EXPORTS - For backward compatibility with existing code
 // These use Proxies to defer initialization
@@ -1868,3 +1897,4 @@ export const EmailCampaign = createModelProxy('EmailCampaign', EmailCampaignSche
 export const FollowUpSequence = createModelProxy('FollowUpSequence', FollowUpSequenceSchema);
 export const FollowUpInstance = createModelProxy('FollowUpInstance', FollowUpInstanceSchema);
 export const ZoomRecordingSync = createModelProxy('ZoomRecordingSync', ZoomRecordingSyncSchema);
+export const LeadAssignmentSettings = createModelProxy('LeadAssignmentSettings', LeadAssignmentSettingsSchema);
