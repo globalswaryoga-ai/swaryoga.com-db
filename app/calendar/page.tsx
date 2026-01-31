@@ -112,8 +112,15 @@ const SwarCalendar: React.FC = () => {
   const [downloadStartDate, setDownloadStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [downloadEndDate, setDownloadEndDate] = useState<string>('');
   const [downloadLoading, setDownloadLoading] = useState<boolean>(false);
+  
+  // Custom location popup states (for "Other" option)
+  const [showCustomLocationPopup, setShowCustomLocationPopup] = useState<boolean>(false);
+  const [customLocationName, setCustomLocationName] = useState<string>('');
+  const [customLatitude, setCustomLatitude] = useState<string>('');
+  const [customLongitude, setCustomLongitude] = useState<string>('');
+  const [customTimezoneOffset, setCustomTimezoneOffset] = useState<string>('0');
 
-  const availableCountries = getCountryNames();
+  const availableCountries = [...getCountryNames(), 'Other'];
 
   const updateCoordinates = (country: string, state: string, city: string) => {
     const coords = getCityCoordinates(country, state, city);
@@ -149,6 +156,14 @@ const SwarCalendar: React.FC = () => {
     const country = e.target.value;
     setSelectedCountry(country);
 
+    // If "Other" is selected, show the custom location popup
+    if (country === 'Other') {
+      setShowCustomLocationPopup(true);
+      setSelectedState('');
+      setSelectedCapital('');
+      return;
+    }
+
     const states = getStatesForCountry(country);
     const nextState = states[0] ?? '';
     setSelectedState(nextState);
@@ -163,6 +178,41 @@ const SwarCalendar: React.FC = () => {
       setLatitude(0);
       setLongitude(0);
     }
+  };
+
+  // Handle custom location form submission
+  const handleCustomLocationSubmit = () => {
+    const lat = parseFloat(customLatitude);
+    const lng = parseFloat(customLongitude);
+    const offset = parseFloat(customTimezoneOffset);
+    
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      alert('Please enter a valid latitude between -90 and 90');
+      return;
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      alert('Please enter a valid longitude between -180 and 180');
+      return;
+    }
+    if (isNaN(offset) || offset < -12 || offset > 14) {
+      alert('Please enter a valid timezone offset between -12 and +14');
+      return;
+    }
+    
+    setLatitude(lat);
+    setLongitude(lng);
+    setSelectedState(customLocationName || 'Custom Location');
+    setSelectedCapital(customLocationName || 'Custom Location');
+    
+    // Format timezone string
+    const sign = offset >= 0 ? '+' : '';
+    const hours = Math.floor(Math.abs(offset));
+    const minutes = (Math.abs(offset) % 1) * 60;
+    const tzString = `Custom (${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')})`;
+    setTimezoneSelect(tzString);
+    
+    // Add custom timezone to TIMEZONE_DATA if not exists (for display purposes)
+    setShowCustomLocationPopup(false);
   };
 
   // Handle state change
@@ -381,6 +431,148 @@ const SwarCalendar: React.FC = () => {
   return (
     <>
       <Navigation />
+      
+      {/* Custom Location Popup Modal */}
+      {showCustomLocationPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+            <button
+              onClick={() => {
+                setShowCustomLocationPopup(false);
+                setSelectedCountry('India');
+                const states = getStatesForCountry('India');
+                setSelectedState(states[0] || '');
+                const cities = getCitiesForState('India', states[0] || '');
+                setSelectedCapital(cities[0] || '');
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MapPin className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-800">Custom Location</h3>
+              <p className="text-gray-600 mt-2">Enter your location coordinates manually</p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Location Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={customLocationName}
+                  onChange={(e) => setCustomLocationName(e.target.value)}
+                  placeholder="e.g., My City"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Latitude <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={customLatitude}
+                    onChange={(e) => setCustomLatitude(e.target.value)}
+                    placeholder="-90 to 90"
+                    step="0.0001"
+                    min="-90"
+                    max="90"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">North (+) / South (-)</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Longitude <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={customLongitude}
+                    onChange={(e) => setCustomLongitude(e.target.value)}
+                    placeholder="-180 to 180"
+                    step="0.0001"
+                    min="-180"
+                    max="180"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">East (+) / West (-)</p>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Timezone Offset (UTC) <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={customTimezoneOffset}
+                  onChange={(e) => setCustomTimezoneOffset(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="-12">UTC -12:00</option>
+                  <option value="-11">UTC -11:00</option>
+                  <option value="-10">UTC -10:00 (Hawaii)</option>
+                  <option value="-9">UTC -09:00 (Alaska)</option>
+                  <option value="-8">UTC -08:00 (Pacific Time)</option>
+                  <option value="-7">UTC -07:00 (Mountain Time)</option>
+                  <option value="-6">UTC -06:00 (Central Time)</option>
+                  <option value="-5">UTC -05:00 (Eastern Time)</option>
+                  <option value="-4">UTC -04:00 (Atlantic)</option>
+                  <option value="-3.5">UTC -03:30 (Newfoundland)</option>
+                  <option value="-3">UTC -03:00 (Brazil)</option>
+                  <option value="-2">UTC -02:00</option>
+                  <option value="-1">UTC -01:00</option>
+                  <option value="0">UTC +00:00 (London/GMT)</option>
+                  <option value="1">UTC +01:00 (Paris/Berlin)</option>
+                  <option value="2">UTC +02:00 (Cairo/Johannesburg)</option>
+                  <option value="3">UTC +03:00 (Moscow/Istanbul)</option>
+                  <option value="3.5">UTC +03:30 (Tehran)</option>
+                  <option value="4">UTC +04:00 (Dubai)</option>
+                  <option value="4.5">UTC +04:30 (Kabul)</option>
+                  <option value="5">UTC +05:00 (Pakistan)</option>
+                  <option value="5.5">UTC +05:30 (India/Sri Lanka)</option>
+                  <option value="5.75">UTC +05:45 (Nepal)</option>
+                  <option value="6">UTC +06:00 (Bangladesh)</option>
+                  <option value="6.5">UTC +06:30 (Myanmar)</option>
+                  <option value="7">UTC +07:00 (Bangkok/Jakarta)</option>
+                  <option value="8">UTC +08:00 (Singapore/China)</option>
+                  <option value="9">UTC +09:00 (Japan/Korea)</option>
+                  <option value="9.5">UTC +09:30 (Australia Central)</option>
+                  <option value="10">UTC +10:00 (Australia East)</option>
+                  <option value="11">UTC +11:00</option>
+                  <option value="12">UTC +12:00 (New Zealand)</option>
+                  <option value="13">UTC +13:00</option>
+                  <option value="14">UTC +14:00</option>
+                </select>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-2">
+                <p className="text-sm text-blue-800">
+                  💡 <strong>Tip:</strong> You can find your coordinates by searching your location on Google Maps and copying the lat/lng from the URL.
+                </p>
+              </div>
+              
+              <button
+                onClick={handleCustomLocationSubmit}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"
+              >
+                Set Location
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="container mx-auto px-4 py-8 space-y-8 min-h-screen">
         {/* Hero Section */}
         <section className="text-center py-20 bg-gradient-to-r from-swar-primary via-swar-accent to-swar-primary text-white rounded-3xl shadow-2xl overflow-hidden relative">
@@ -515,43 +707,65 @@ const SwarCalendar: React.FC = () => {
                 <label htmlFor="state" className="block text-sm font-medium text-swar-text mb-1">
                   State/Region
                 </label>
-                <select
-                  id="state"
-                  value={selectedState}
-                  onChange={handleStateChange}
-                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  required
-                  disabled={!selectedCountry}
-                >
-                  <option value="">Select State/Region</option>
-                  {selectedCountry && getStatesForCountry(selectedCountry).map((state) => (
-                    <option key={state} value={state}>
-                      {state}
-                    </option>
-                  ))}
-                </select>
+                {selectedCountry === 'Other' ? (
+                  <input
+                    type="text"
+                    id="state"
+                    value={selectedState}
+                    onChange={(e) => setSelectedState(e.target.value)}
+                    placeholder="Enter your state/region"
+                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                  />
+                ) : (
+                  <select
+                    id="state"
+                    value={selectedState}
+                    onChange={handleStateChange}
+                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    required
+                    disabled={!selectedCountry}
+                  >
+                    <option value="">Select State/Region</option>
+                    {selectedCountry && getStatesForCountry(selectedCountry).map((state) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               
               {/* Capital City */}
               <div>
                 <label htmlFor="capital" className="block text-sm font-medium text-swar-text mb-1">
-                  Capital City
+                  City
                 </label>
-                <select
-                  id="capital"
-                  value={selectedCapital}
-                  onChange={handleCapitalChange}
-                  className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
-                  required
-                  disabled={!selectedState}
-                >
-                  <option value="">Select Capital City</option>
-                  {selectedState && getCitiesForState(selectedCountry, selectedState).map((capital) => (
-                    <option key={capital} value={capital}>
-                      {capital}
-                    </option>
-                  ))}
-                </select>
+                {selectedCountry === 'Other' ? (
+                  <input
+                    type="text"
+                    id="capital"
+                    value={selectedCapital}
+                    onChange={(e) => setSelectedCapital(e.target.value)}
+                    placeholder="Enter your city"
+                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                  />
+                ) : (
+                  <select
+                    id="capital"
+                    value={selectedCapital}
+                    onChange={handleCapitalChange}
+                    className="w-full px-3 py-2 border border-swar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-swar-primary"
+                    required
+                    disabled={!selectedState}
+                  >
+                    <option value="">Select City</option>
+                    {selectedState && getCitiesForState(selectedCountry, selectedState).map((capital) => (
+                      <option key={capital} value={capital}>
+                        {capital}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               
               {/* Latitude */}
@@ -618,7 +832,7 @@ const SwarCalendar: React.FC = () => {
             
             <button
               type="submit"
-              disabled={loading || !selectedDate || !selectedCountry || !selectedState || !selectedCapital || !latitude || !longitude || !timezoneSelect}
+              disabled={loading || !selectedDate || !selectedCountry || !latitude || !longitude || !timezoneSelect}
               className="w-full bg-swar-primary hover:bg-swar-primary text-white py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

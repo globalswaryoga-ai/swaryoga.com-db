@@ -958,6 +958,13 @@ const BroadcastRunSchema = new mongoose.Schema(
     // Provider: 'meta' (Cloud API) or 'qr' (WhatsApp Web Bridge)
     provider: { type: String, enum: ['meta', 'qr'], default: 'meta', index: true },
 
+    // Message interval settings (random delay between messages in seconds)
+    // Following WhatsApp guidelines to avoid spam detection
+    messageInterval: {
+      minSeconds: { type: Number, default: 30 },  // Minimum delay between messages
+      maxSeconds: { type: Number, default: 60 },  // Maximum delay between messages
+    },
+
     status: {
       type: String,
       enum: ['draft', 'scheduled', 'running', 'completed', 'cancelled', 'failed'],

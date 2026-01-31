@@ -128,6 +128,16 @@ export async function POST(request: NextRequest) {
 
     const runStatus = mode === 'now' ? 'draft' : 'scheduled';
 
+    // Message interval settings (following WhatsApp guidelines)
+    const messageInterval = {
+      minSeconds: Math.max(5, Math.min(300, Number(body?.messageInterval?.minSeconds ?? 30))),
+      maxSeconds: Math.max(10, Math.min(300, Number(body?.messageInterval?.maxSeconds ?? 60))),
+    };
+    // Ensure max >= min
+    if (messageInterval.maxSeconds < messageInterval.minSeconds) {
+      messageInterval.maxSeconds = messageInterval.minSeconds;
+    }
+
     const run = await BroadcastRun.create({
       name,
       createdByUserId: String(decoded?.userId || 'admin'),
@@ -137,6 +147,7 @@ export async function POST(request: NextRequest) {
       scheduledAt,
       status: runStatus,
       templateId: toObjectId(templateId),
+      messageInterval,
       templateSnapshot: {
         templateName: (template as any).templateName,
         language: (template as any).language,

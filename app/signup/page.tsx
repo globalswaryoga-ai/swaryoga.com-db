@@ -144,21 +144,567 @@ function SignUpInner() {
     'Veneto'
   ];
 
-  const getStatesList = (country: string) => {
-    switch (country) {
-      case 'India':
-        return indianStates;
-      case 'United States':
-        return usStates;
-      case 'Canada':
-        return canadianProvinces;
-      case 'Australia':
-        return australianStates;
-      case 'Italy':
-        return italianRegions;
-      default:
-        return [];
-    }
+  // Nepal's 7 Provinces (Pradesh)
+  const nepalProvinces = [
+    'Koshi Pradesh',
+    'Madhesh Pradesh',
+    'Bagmati Pradesh',
+    'Gandaki Pradesh',
+    'Lumbini Pradesh',
+    'Karnali Pradesh',
+    'Sudurpashchim Pradesh'
+  ];
+
+  // UK Countries/Regions
+  const ukRegions = [
+    'England',
+    'Scotland',
+    'Wales',
+    'Northern Ireland'
+  ];
+
+  // UAE Emirates
+  const uaeEmirates = [
+    'Abu Dhabi',
+    'Ajman',
+    'Dubai',
+    'Fujairah',
+    'Ras Al Khaimah',
+    'Sharjah',
+    'Umm Al Quwain'
+  ];
+
+  // Singapore Regions
+  const singaporeRegions = [
+    'Central Region',
+    'East Region',
+    'North Region',
+    'North-East Region',
+    'West Region'
+  ];
+
+  // Germany States (Bundesländer)
+  const germanStates = [
+    'Baden-Württemberg',
+    'Bavaria',
+    'Berlin',
+    'Brandenburg',
+    'Bremen',
+    'Hamburg',
+    'Hesse',
+    'Lower Saxony',
+    'Mecklenburg-Vorpommern',
+    'North Rhine-Westphalia',
+    'Rhineland-Palatinate',
+    'Saarland',
+    'Saxony',
+    'Saxony-Anhalt',
+    'Schleswig-Holstein',
+    'Thuringia'
+  ];
+
+  // France Regions
+  const franceRegions = [
+    'Auvergne-Rhône-Alpes',
+    'Bourgogne-Franche-Comté',
+    'Brittany',
+    'Centre-Val de Loire',
+    'Corsica',
+    'Grand Est',
+    'Hauts-de-France',
+    'Île-de-France',
+    'Normandy',
+    'Nouvelle-Aquitaine',
+    'Occitanie',
+    'Pays de la Loire',
+    'Provence-Alpes-Côte d\'Azur'
+  ];
+
+  // South Africa Provinces
+  const southAfricaProvinces = [
+    'Eastern Cape',
+    'Free State',
+    'Gauteng',
+    'KwaZulu-Natal',
+    'Limpopo',
+    'Mpumalanga',
+    'North West',
+    'Northern Cape',
+    'Western Cape'
+  ];
+
+  // Brazil States
+  const brazilStates = [
+    'Acre', 'Alagoas', 'Amapá', 'Amazonas', 'Bahia', 'Ceará', 'Distrito Federal', 'Espírito Santo',
+    'Goiás', 'Maranhão', 'Mato Grosso', 'Mato Grosso do Sul', 'Minas Gerais', 'Pará', 'Paraíba',
+    'Paraná', 'Pernambuco', 'Piauí', 'Rio de Janeiro', 'Rio Grande do Norte', 'Rio Grande do Sul',
+    'Rondônia', 'Roraima', 'Santa Catarina', 'São Paulo', 'Sergipe', 'Tocantins'
+  ];
+
+  // Mexico States
+  const mexicoStates = [
+    'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas', 'Chihuahua',
+    'Coahuila', 'Colima', 'Durango', 'Guanajuato', 'Guerrero', 'Hidalgo', 'Jalisco', 'Mexico City',
+    'México', 'Michoacán', 'Morelos', 'Nayarit', 'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro',
+    'Quintana Roo', 'San Luis Potosí', 'Sinaloa', 'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala',
+    'Veracruz', 'Yucatán', 'Zacatecas'
+  ];
+
+  // Japan Prefectures (simplified - main regions)
+  const japanPrefectures = [
+    'Hokkaido', 'Aomori', 'Iwate', 'Miyagi', 'Akita', 'Yamagata', 'Fukushima',
+    'Ibaraki', 'Tochigi', 'Gunma', 'Saitama', 'Chiba', 'Tokyo', 'Kanagawa',
+    'Niigata', 'Toyama', 'Ishikawa', 'Fukui', 'Yamanashi', 'Nagano',
+    'Gifu', 'Shizuoka', 'Aichi', 'Mie', 'Shiga', 'Kyoto', 'Osaka', 'Hyogo',
+    'Nara', 'Wakayama', 'Tottori', 'Shimane', 'Okayama', 'Hiroshima', 'Yamaguchi',
+    'Tokushima', 'Kagawa', 'Ehime', 'Kochi', 'Fukuoka', 'Saga', 'Nagasaki',
+    'Kumamoto', 'Oita', 'Miyazaki', 'Kagoshima', 'Okinawa'
+  ];
+
+  // China Provinces/Regions (simplified)
+  const chinaProvinces = [
+    'Beijing', 'Shanghai', 'Tianjin', 'Chongqing', 'Hebei', 'Shanxi', 'Liaoning', 'Jilin',
+    'Heilongjiang', 'Jiangsu', 'Zhejiang', 'Anhui', 'Fujian', 'Jiangxi', 'Shandong',
+    'Henan', 'Hubei', 'Hunan', 'Guangdong', 'Hainan', 'Sichuan', 'Guizhou', 'Yunnan',
+    'Shaanxi', 'Gansu', 'Qinghai', 'Taiwan', 'Guangxi', 'Inner Mongolia', 'Tibet',
+    'Ningxia', 'Xinjiang', 'Hong Kong', 'Macau'
+  ];
+
+  // Spain Communities
+  const spainCommunities = [
+    'Andalusia', 'Aragon', 'Asturias', 'Balearic Islands', 'Basque Country', 'Canary Islands',
+    'Cantabria', 'Castile and León', 'Castile-La Mancha', 'Catalonia', 'Ceuta', 'Extremadura',
+    'Galicia', 'La Rioja', 'Madrid', 'Melilla', 'Murcia', 'Navarre', 'Valencian Community'
+  ];
+
+  // Russia Federal Districts
+  const russiaDistricts = [
+    'Central Federal District', 'Northwestern Federal District', 'Southern Federal District',
+    'North Caucasian Federal District', 'Volga Federal District', 'Ural Federal District',
+    'Siberian Federal District', 'Far Eastern Federal District'
+  ];
+
+  // Pakistan Provinces
+  const pakistanProvinces = [
+    'Azad Kashmir', 'Balochistan', 'Gilgit-Baltistan', 'Islamabad Capital Territory',
+    'Khyber Pakhtunkhwa', 'Punjab', 'Sindh'
+  ];
+
+  // Bangladesh Divisions
+  const bangladeshDivisions = [
+    'Barishal', 'Chattogram', 'Dhaka', 'Khulna', 'Mymensingh', 'Rajshahi', 'Rangpur', 'Sylhet'
+  ];
+
+  // Sri Lanka Provinces
+  const sriLankaProvinces = [
+    'Central Province', 'Eastern Province', 'North Central Province', 'Northern Province',
+    'North Western Province', 'Sabaragamuwa Province', 'Southern Province', 'Uva Province', 'Western Province'
+  ];
+
+  // Indonesia Provinces
+  const indonesiaProvinces = [
+    'Aceh', 'Bali', 'Banten', 'Bengkulu', 'Central Java', 'Central Kalimantan', 'Central Sulawesi',
+    'East Java', 'East Kalimantan', 'East Nusa Tenggara', 'Gorontalo', 'Jakarta', 'Jambi', 'Lampung',
+    'Maluku', 'North Kalimantan', 'North Maluku', 'North Sulawesi', 'North Sumatra', 'Papua',
+    'Riau', 'Riau Islands', 'South Kalimantan', 'South Sulawesi', 'South Sumatra', 'Southeast Sulawesi',
+    'West Java', 'West Kalimantan', 'West Nusa Tenggara', 'West Papua', 'West Sulawesi', 'West Sumatra', 'Yogyakarta'
+  ];
+
+  // Malaysia States
+  const malaysiaStates = [
+    'Johor', 'Kedah', 'Kelantan', 'Kuala Lumpur', 'Labuan', 'Melaka', 'Negeri Sembilan',
+    'Pahang', 'Penang', 'Perak', 'Perlis', 'Putrajaya', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu'
+  ];
+
+  // Thailand Provinces (grouped by regions)
+  const thailandProvinces = [
+    'Bangkok', 'Chiang Mai', 'Chiang Rai', 'Chonburi', 'Khon Kaen', 'Krabi', 'Nakhon Ratchasima',
+    'Nonthaburi', 'Pathum Thani', 'Phuket', 'Samut Prakan', 'Songkhla', 'Surat Thani', 'Udon Thani'
+  ];
+
+  // Vietnam Provinces
+  const vietnamProvinces = [
+    'An Giang', 'Ba Ria-Vung Tau', 'Bac Giang', 'Bac Kan', 'Bac Lieu', 'Bac Ninh', 'Ben Tre',
+    'Binh Dinh', 'Binh Duong', 'Binh Phuoc', 'Binh Thuan', 'Ca Mau', 'Can Tho', 'Cao Bang',
+    'Da Nang', 'Dak Lak', 'Dak Nong', 'Dien Bien', 'Dong Nai', 'Dong Thap', 'Gia Lai',
+    'Ha Giang', 'Ha Nam', 'Ha Noi', 'Ha Tinh', 'Hai Duong', 'Hai Phong', 'Hau Giang',
+    'Ho Chi Minh City', 'Hoa Binh', 'Hung Yen', 'Khanh Hoa', 'Kien Giang', 'Kon Tum',
+    'Lai Chau', 'Lam Dong', 'Lang Son', 'Lao Cai', 'Long An', 'Nam Dinh', 'Nghe An',
+    'Ninh Binh', 'Ninh Thuan', 'Phu Tho', 'Phu Yen', 'Quang Binh', 'Quang Nam', 'Quang Ngai',
+    'Quang Ninh', 'Quang Tri', 'Soc Trang', 'Son La', 'Tay Ninh', 'Thai Binh', 'Thai Nguyen',
+    'Thanh Hoa', 'Thua Thien Hue', 'Tien Giang', 'Tra Vinh', 'Tuyen Quang', 'Vinh Long', 'Vinh Phuc', 'Yen Bai'
+  ];
+
+  // Philippines Regions
+  const philippinesRegions = [
+    'Ilocos Region', 'Cagayan Valley', 'Central Luzon', 'CALABARZON', 'MIMAROPA', 'Bicol Region',
+    'Western Visayas', 'Central Visayas', 'Eastern Visayas', 'Zamboanga Peninsula', 'Northern Mindanao',
+    'Davao Region', 'SOCCSKSARGEN', 'Caraga', 'NCR (Metro Manila)', 'CAR', 'BARMM'
+  ];
+
+  // South Korea Provinces
+  const southKoreaProvinces = [
+    'Seoul', 'Busan', 'Daegu', 'Incheon', 'Gwangju', 'Daejeon', 'Ulsan', 'Sejong',
+    'Gyeonggi', 'Gangwon', 'North Chungcheong', 'South Chungcheong', 'North Jeolla',
+    'South Jeolla', 'North Gyeongsang', 'South Gyeongsang', 'Jeju'
+  ];
+
+  // Netherlands Provinces
+  const netherlandsProvinces = [
+    'Drenthe', 'Flevoland', 'Friesland', 'Gelderland', 'Groningen', 'Limburg',
+    'North Brabant', 'North Holland', 'Overijssel', 'South Holland', 'Utrecht', 'Zeeland'
+  ];
+
+  // Belgium Regions
+  const belgiumRegions = [
+    'Brussels-Capital Region', 'Flemish Region', 'Walloon Region',
+    'Antwerp', 'East Flanders', 'Flemish Brabant', 'Hainaut', 'Liège',
+    'Limburg', 'Luxembourg', 'Namur', 'Walloon Brabant', 'West Flanders'
+  ];
+
+  // Switzerland Cantons
+  const switzerlandCantons = [
+    'Aargau', 'Appenzell Ausserrhoden', 'Appenzell Innerrhoden', 'Basel-Landschaft', 'Basel-Stadt',
+    'Bern', 'Fribourg', 'Geneva', 'Glarus', 'Graubünden', 'Jura', 'Lucerne', 'Neuchâtel',
+    'Nidwalden', 'Obwalden', 'Schaffhausen', 'Schwyz', 'Solothurn', 'St. Gallen', 'Thurgau',
+    'Ticino', 'Uri', 'Valais', 'Vaud', 'Zug', 'Zürich'
+  ];
+
+  // Austria States
+  const austriaStates = [
+    'Burgenland', 'Carinthia', 'Lower Austria', 'Salzburg', 'Styria',
+    'Tyrol', 'Upper Austria', 'Vienna', 'Vorarlberg'
+  ];
+
+  // Poland Voivodeships
+  const polandVoivodeships = [
+    'Greater Poland', 'Kuyavian-Pomeranian', 'Lesser Poland', 'Łódź', 'Lower Silesian',
+    'Lublin', 'Lubusz', 'Masovian', 'Opole', 'Podkarpackie', 'Podlaskie', 'Pomeranian',
+    'Silesian', 'Świętokrzyskie', 'Warmian-Masurian', 'West Pomeranian'
+  ];
+
+  // Turkey Regions
+  const turkeyRegions = [
+    'Marmara Region', 'Central Anatolia Region', 'Aegean Region', 'Mediterranean Region',
+    'Black Sea Region', 'Eastern Anatolia Region', 'Southeastern Anatolia Region',
+    'Istanbul', 'Ankara', 'Izmir', 'Bursa', 'Antalya', 'Adana', 'Konya', 'Gaziantep'
+  ];
+
+  // Egypt Governorates
+  const egyptGovernorates = [
+    'Alexandria', 'Aswan', 'Asyut', 'Beheira', 'Beni Suef', 'Cairo', 'Dakahlia', 'Damietta',
+    'Faiyum', 'Gharbia', 'Giza', 'Ismailia', 'Kafr El Sheikh', 'Luxor', 'Matruh', 'Minya',
+    'Monufia', 'New Valley', 'North Sinai', 'Port Said', 'Qalyubia', 'Qena', 'Red Sea',
+    'Sharqia', 'Sohag', 'South Sinai', 'Suez'
+  ];
+
+  // Saudi Arabia Regions
+  const saudiRegions = [
+    'Riyadh', 'Makkah', 'Madinah', 'Eastern Province', 'Asir', 'Tabuk', 'Hail',
+    'Northern Borders', 'Jazan', 'Najran', 'Al-Bahah', 'Al-Jawf', 'Qassim'
+  ];
+
+  // Iran Provinces
+  const iranProvinces = [
+    'Tehran', 'Isfahan', 'Fars', 'Razavi Khorasan', 'East Azerbaijan', 'Khuzestan',
+    'Mazandaran', 'Kerman', 'Alborz', 'Gilan', 'West Azerbaijan', 'Sistan and Baluchestan',
+    'Hormozgan', 'Kurdistan', 'Hamadan', 'Lorestan', 'Kermanshah', 'Golestan', 'Markazi',
+    'Yazd', 'Ardabil', 'Bushehr', 'Zanjan', 'Qom', 'Qazvin', 'Chaharmahal and Bakhtiari',
+    'South Khorasan', 'North Khorasan', 'Semnan', 'Kohgiluyeh and Boyer-Ahmad', 'Ilam'
+  ];
+
+  // Iraq Governorates
+  const iraqGovernorates = [
+    'Baghdad', 'Basra', 'Nineveh', 'Erbil', 'Sulaymaniyah', 'Kirkuk', 'Dohuk',
+    'Anbar', 'Dhi Qar', 'Babylon', 'Diyala', 'Najaf', 'Karbala', 'Wasit',
+    'Maysan', 'Muthanna', 'Qadisiyyah', 'Saladin'
+  ];
+
+  // Kenya Counties
+  const kenyaCounties = [
+    'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Kiambu', 'Machakos',
+    'Kajiado', 'Nyeri', 'Meru', 'Kilifi', 'Uasin Gishu', 'Trans Nzoia', 'Kakamega',
+    'Bungoma', 'Kisii', 'Migori', 'Homa Bay', 'Siaya', 'Nandi'
+  ];
+
+  // Nigeria States
+  const nigeriaStates = [
+    'Abia', 'Adamawa', 'Akwa Ibom', 'Anambra', 'Bauchi', 'Bayelsa', 'Benue', 'Borno',
+    'Cross River', 'Delta', 'Ebonyi', 'Edo', 'Ekiti', 'Enugu', 'FCT Abuja', 'Gombe',
+    'Imo', 'Jigawa', 'Kaduna', 'Kano', 'Katsina', 'Kebbi', 'Kogi', 'Kwara', 'Lagos',
+    'Nasarawa', 'Niger', 'Ogun', 'Ondo', 'Osun', 'Oyo', 'Plateau', 'Rivers', 'Sokoto',
+    'Taraba', 'Yobe', 'Zamfara'
+  ];
+
+  // Ghana Regions
+  const ghanaRegions = [
+    'Greater Accra', 'Ashanti', 'Western', 'Central', 'Eastern', 'Volta', 'Northern',
+    'Upper East', 'Upper West', 'Brong-Ahafo', 'Bono East', 'Ahafo', 'Savannah',
+    'North East', 'Oti', 'Western North'
+  ];
+
+  // Tanzania Regions
+  const tanzaniaRegions = [
+    'Dar es Salaam', 'Arusha', 'Dodoma', 'Mwanza', 'Zanzibar', 'Kilimanjaro', 'Tanga',
+    'Morogoro', 'Mbeya', 'Iringa', 'Tabora', 'Kagera', 'Mara', 'Shinyanga', 'Kigoma'
+  ];
+
+  // Ethiopia Regions
+  const ethiopiaRegions = [
+    'Addis Ababa', 'Afar', 'Amhara', 'Benishangul-Gumuz', 'Dire Dawa', 'Gambela',
+    'Harari', 'Oromia', 'Sidama', 'SNNPR', 'Somali', 'Tigray'
+  ];
+
+  // Morocco Regions
+  const moroccoRegions = [
+    'Casablanca-Settat', 'Rabat-Salé-Kénitra', 'Tangier-Tétouan-Al Hoceima', 'Fès-Meknès',
+    'Marrakech-Safi', 'Souss-Massa', 'Béni Mellal-Khénifra', 'Drâa-Tafilalet',
+    'Oriental', 'Guelmim-Oued Noun', 'Laâyoune-Sakia El Hamra', 'Dakhla-Oued Ed-Dahab'
+  ];
+
+  // Argentina Provinces
+  const argentinaProvinces = [
+    'Buenos Aires', 'Buenos Aires City', 'Catamarca', 'Chaco', 'Chubut', 'Córdoba',
+    'Corrientes', 'Entre Ríos', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja', 'Mendoza',
+    'Misiones', 'Neuquén', 'Río Negro', 'Salta', 'San Juan', 'San Luis', 'Santa Cruz',
+    'Santa Fe', 'Santiago del Estero', 'Tierra del Fuego', 'Tucumán'
+  ];
+
+  // Colombia Departments
+  const colombiaDepartments = [
+    'Amazonas', 'Antioquia', 'Arauca', 'Atlántico', 'Bogotá D.C.', 'Bolívar', 'Boyacá',
+    'Caldas', 'Caquetá', 'Casanare', 'Cauca', 'Cesar', 'Chocó', 'Córdoba', 'Cundinamarca',
+    'Guainía', 'Guaviare', 'Huila', 'La Guajira', 'Magdalena', 'Meta', 'Nariño',
+    'Norte de Santander', 'Putumayo', 'Quindío', 'Risaralda', 'San Andrés', 'Santander',
+    'Sucre', 'Tolima', 'Valle del Cauca', 'Vaupés', 'Vichada'
+  ];
+
+  // Chile Regions
+  const chileRegions = [
+    'Arica y Parinacota', 'Tarapacá', 'Antofagasta', 'Atacama', 'Coquimbo', 'Valparaíso',
+    'Metropolitana de Santiago', "O'Higgins", 'Maule', 'Ñuble', 'Biobío', 'La Araucanía',
+    'Los Ríos', 'Los Lagos', 'Aysén', 'Magallanes'
+  ];
+
+  // Peru Regions
+  const peruRegions = [
+    'Amazonas', 'Áncash', 'Apurímac', 'Arequipa', 'Ayacucho', 'Cajamarca', 'Callao',
+    'Cusco', 'Huancavelica', 'Huánuco', 'Ica', 'Junín', 'La Libertad', 'Lambayeque',
+    'Lima', 'Loreto', 'Madre de Dios', 'Moquegua', 'Pasco', 'Piura', 'Puno',
+    'San Martín', 'Tacna', 'Tumbes', 'Ucayali'
+  ];
+
+  // Venezuela States
+  const venezuelaStates = [
+    'Amazonas', 'Anzoátegui', 'Apure', 'Aragua', 'Barinas', 'Bolívar', 'Carabobo',
+    'Caracas D.C.', 'Cojedes', 'Delta Amacuro', 'Falcón', 'Guárico', 'Lara', 'Mérida',
+    'Miranda', 'Monagas', 'Nueva Esparta', 'Portuguesa', 'Sucre', 'Táchira', 'Trujillo',
+    'Vargas', 'Yaracuy', 'Zulia'
+  ];
+
+  // New Zealand Regions
+  const newZealandRegions = [
+    'Auckland', 'Bay of Plenty', 'Canterbury', 'Gisborne', "Hawke's Bay", 'Manawatū-Whanganui',
+    'Marlborough', 'Nelson', 'Northland', 'Otago', 'Southland', 'Taranaki', 'Tasman',
+    'Waikato', 'Wellington', 'West Coast'
+  ];
+
+  // Ireland Counties
+  const irelandCounties = [
+    'Carlow', 'Cavan', 'Clare', 'Cork', 'Donegal', 'Dublin', 'Galway', 'Kerry',
+    'Kildare', 'Kilkenny', 'Laois', 'Leitrim', 'Limerick', 'Longford', 'Louth',
+    'Mayo', 'Meath', 'Monaghan', 'Offaly', 'Roscommon', 'Sligo', 'Tipperary',
+    'Waterford', 'Westmeath', 'Wexford', 'Wicklow'
+  ];
+
+  // Portugal Districts
+  const portugalDistricts = [
+    'Aveiro', 'Beja', 'Braga', 'Bragança', 'Castelo Branco', 'Coimbra', 'Évora',
+    'Faro', 'Guarda', 'Leiria', 'Lisbon', 'Portalegre', 'Porto', 'Santarém',
+    'Setúbal', 'Viana do Castelo', 'Vila Real', 'Viseu', 'Azores', 'Madeira'
+  ];
+
+  // Greece Regions
+  const greeceRegions = [
+    'Attica', 'Central Greece', 'Central Macedonia', 'Crete', 'Eastern Macedonia and Thrace',
+    'Epirus', 'Ionian Islands', 'North Aegean', 'Peloponnese', 'South Aegean',
+    'Thessaly', 'Western Greece', 'Western Macedonia'
+  ];
+
+  // Sweden Counties
+  const swedenCounties = [
+    'Blekinge', 'Dalarna', 'Gävleborg', 'Gotland', 'Halland', 'Jämtland', 'Jönköping',
+    'Kalmar', 'Kronoberg', 'Norrbotten', 'Örebro', 'Östergötland', 'Skåne', 'Södermanland',
+    'Stockholm', 'Uppsala', 'Värmland', 'Västerbotten', 'Västernorrland', 'Västmanland', 'Västra Götaland'
+  ];
+
+  // Norway Counties
+  const norwayCounties = [
+    'Agder', 'Innlandet', 'Møre og Romsdal', 'Nordland', 'Oslo', 'Rogaland',
+    'Troms og Finnmark', 'Trøndelag', 'Vestfold og Telemark', 'Vestland', 'Viken'
+  ];
+
+  // Denmark Regions
+  const denmarkRegions = [
+    'Capital Region', 'Central Denmark Region', 'North Denmark Region', 'Region Zealand', 'Region of Southern Denmark'
+  ];
+
+  // Finland Regions
+  const finlandRegions = [
+    'Uusimaa', 'Southwest Finland', 'Satakunta', 'Kanta-Häme', 'Pirkanmaa', 'Päijät-Häme',
+    'Kymenlaakso', 'South Karelia', 'South Savo', 'North Savo', 'North Karelia', 'Central Finland',
+    'South Ostrobothnia', 'Ostrobothnia', 'Central Ostrobothnia', 'North Ostrobothnia', 'Kainuu', 'Lapland', 'Åland'
+  ];
+
+  // Czech Republic Regions
+  const czechRegions = [
+    'Prague', 'Central Bohemian', 'South Bohemian', 'Plzeň', 'Karlovy Vary', 'Ústí nad Labem',
+    'Liberec', 'Hradec Králové', 'Pardubice', 'Vysočina', 'South Moravian', 'Olomouc', 'Zlín', 'Moravian-Silesian'
+  ];
+
+  // Hungary Counties
+  const hungaryCounties = [
+    'Budapest', 'Baranya', 'Bács-Kiskun', 'Békés', 'Borsod-Abaúj-Zemplén', 'Csongrád-Csanád',
+    'Fejér', 'Győr-Moson-Sopron', 'Hajdú-Bihar', 'Heves', 'Jász-Nagykun-Szolnok', 'Komárom-Esztergom',
+    'Nógrád', 'Pest', 'Somogy', 'Szabolcs-Szatmár-Bereg', 'Tolna', 'Vas', 'Veszprém', 'Zala'
+  ];
+
+  // Romania Counties
+  const romaniaCounties = [
+    'Bucharest', 'Alba', 'Arad', 'Argeș', 'Bacău', 'Bihor', 'Bistrița-Năsăud', 'Botoșani',
+    'Brăila', 'Brașov', 'Buzău', 'Călărași', 'Caraș-Severin', 'Cluj', 'Constanța', 'Covasna',
+    'Dâmbovița', 'Dolj', 'Galați', 'Giurgiu', 'Gorj', 'Harghita', 'Hunedoara', 'Ialomița',
+    'Iași', 'Ilfov', 'Maramureș', 'Mehedinți', 'Mureș', 'Neamț', 'Olt', 'Prahova', 'Sălaj',
+    'Satu Mare', 'Sibiu', 'Suceava', 'Teleorman', 'Timiș', 'Tulcea', 'Vâlcea', 'Vaslui', 'Vrancea'
+  ];
+
+  // Ukraine Oblasts
+  const ukraineOblasts = [
+    'Kyiv', 'Cherkasy', 'Chernihiv', 'Chernivtsi', 'Dnipropetrovsk', 'Donetsk', 'Ivano-Frankivsk',
+    'Kharkiv', 'Kherson', 'Khmelnytskyi', 'Kirovohrad', 'Luhansk', 'Lviv', 'Mykolaiv', 'Odessa',
+    'Poltava', 'Rivne', 'Sumy', 'Ternopil', 'Vinnytsia', 'Volyn', 'Zakarpattia', 'Zaporizhzhia', 'Zhytomyr'
+  ];
+
+  // Qatar Municipalities
+  const qatarMunicipalities = [
+    'Doha', 'Al Rayyan', 'Al Wakrah', 'Al Khor', 'Al Shamal', 'Al Daayen', 'Umm Salal', 'Al Shahaniya'
+  ];
+
+  // Kuwait Governorates
+  const kuwaitGovernorates = [
+    'Al Asimah', 'Hawalli', 'Al Farwaniyah', 'Al Ahmadi', 'Mubarak Al-Kabeer', 'Al Jahra'
+  ];
+
+  // Oman Governorates
+  const omanGovernorates = [
+    'Muscat', 'Dhofar', 'Musandam', 'Al Buraimi', 'Ad Dakhiliyah', 'Al Batinah North',
+    'Al Batinah South', 'Ash Sharqiyah South', 'Ash Sharqiyah North', 'Ad Dhahirah', 'Al Wusta'
+  ];
+
+  // Bahrain Governorates
+  const bahrainGovernorates = [
+    'Capital Governorate', 'Muharraq Governorate', 'Northern Governorate', 'Southern Governorate'
+  ];
+
+  // Jordan Governorates
+  const jordanGovernorates = [
+    'Amman', 'Irbid', 'Zarqa', 'Balqa', 'Mafraq', 'Karak', 'Tafilah', 'Maan', 'Aqaba', 'Jerash', 'Ajloun', 'Madaba'
+  ];
+
+  // Lebanon Governorates
+  const lebanonGovernorates = [
+    'Beirut', 'Mount Lebanon', 'North Lebanon', 'South Lebanon', 'Beqaa', 'Nabatieh', 'Akkar', 'Baalbek-Hermel'
+  ];
+
+  // Myanmar States/Regions
+  const myanmarStates = [
+    'Ayeyarwady', 'Bago', 'Chin', 'Kachin', 'Kayah', 'Kayin', 'Magway', 'Mandalay',
+    'Mon', 'Naypyidaw', 'Rakhine', 'Sagaing', 'Shan', 'Tanintharyi', 'Yangon'
+  ];
+
+  // Cambodia Provinces
+  const cambodiaProvinces = [
+    'Phnom Penh', 'Banteay Meanchey', 'Battambang', 'Kampong Cham', 'Kampong Chhnang',
+    'Kampong Speu', 'Kampong Thom', 'Kampot', 'Kandal', 'Kep', 'Koh Kong', 'Kratie',
+    'Mondulkiri', 'Oddar Meanchey', 'Pailin', 'Preah Sihanouk', 'Preah Vihear', 'Prey Veng',
+    'Pursat', 'Ratanakiri', 'Siem Reap', 'Stung Treng', 'Svay Rieng', 'Takeo', 'Tboung Khmum'
+  ];
+
+  const getStatesList = (country: string): string[] => {
+    const statesMap: Record<string, string[]> = {
+      'India': indianStates,
+      'United States': usStates,
+      'Canada': canadianProvinces,
+      'Australia': australianStates,
+      'Italy': italianRegions,
+      'Nepal': nepalProvinces,
+      'United Kingdom': ukRegions,
+      'United Arab Emirates': uaeEmirates,
+      'Singapore': singaporeRegions,
+      'Germany': germanStates,
+      'France': franceRegions,
+      'South Africa': southAfricaProvinces,
+      'Brazil': brazilStates,
+      'Mexico': mexicoStates,
+      'Japan': japanPrefectures,
+      'China': chinaProvinces,
+      'Spain': spainCommunities,
+      'Russia': russiaDistricts,
+      'Pakistan': pakistanProvinces,
+      'Bangladesh': bangladeshDivisions,
+      'Sri Lanka': sriLankaProvinces,
+      'Indonesia': indonesiaProvinces,
+      'Malaysia': malaysiaStates,
+      'Thailand': thailandProvinces,
+      'Vietnam': vietnamProvinces,
+      'Philippines': philippinesRegions,
+      'South Korea': southKoreaProvinces,
+      'Netherlands': netherlandsProvinces,
+      'Belgium': belgiumRegions,
+      'Switzerland': switzerlandCantons,
+      'Austria': austriaStates,
+      'Poland': polandVoivodeships,
+      'Turkey': turkeyRegions,
+      'Egypt': egyptGovernorates,
+      'Saudi Arabia': saudiRegions,
+      'Iran': iranProvinces,
+      'Iraq': iraqGovernorates,
+      'Kenya': kenyaCounties,
+      'Nigeria': nigeriaStates,
+      'Ghana': ghanaRegions,
+      'Tanzania': tanzaniaRegions,
+      'Ethiopia': ethiopiaRegions,
+      'Morocco': moroccoRegions,
+      'Argentina': argentinaProvinces,
+      'Colombia': colombiaDepartments,
+      'Chile': chileRegions,
+      'Peru': peruRegions,
+      'Venezuela': venezuelaStates,
+      'New Zealand': newZealandRegions,
+      'Ireland': irelandCounties,
+      'Portugal': portugalDistricts,
+      'Greece': greeceRegions,
+      'Sweden': swedenCounties,
+      'Norway': norwayCounties,
+      'Denmark': denmarkRegions,
+      'Finland': finlandRegions,
+      'Czech Republic': czechRegions,
+      'Hungary': hungaryCounties,
+      'Romania': romaniaCounties,
+      'Ukraine': ukraineOblasts,
+      'Qatar': qatarMunicipalities,
+      'Kuwait': kuwaitGovernorates,
+      'Oman': omanGovernorates,
+      'Bahrain': bahrainGovernorates,
+      'Jordan': jordanGovernorates,
+      'Lebanon': lebanonGovernorates,
+      'Myanmar': myanmarStates,
+      'Cambodia': cambodiaProvinces,
+    };
+    
+    const states = statesMap[country] || [];
+    // Always add "Other" option at the end
+    return [...states, 'Other'];
   };
 
   const countries = [

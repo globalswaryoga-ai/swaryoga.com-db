@@ -439,11 +439,13 @@ export async function processDueBroadcastRuns(options?: {
           stat.sent++;
           result.sent++;
           
-          // Add delay between messages to respect rate limits
-          const delayMs = runProvider === 'meta' 
-            ? BULK_CONFIG.MESSAGE_DELAY_MS 
-            : BULK_CONFIG.MESSAGE_DELAY_MS * 2; // QR is slower
-          await new Promise(resolve => setTimeout(resolve, delayMs));
+          // Add delay between messages using run's messageInterval or fallback to config
+          const minSec = (run as any).messageInterval?.minSeconds ?? 30;
+          const maxSec = (run as any).messageInterval?.maxSeconds ?? 60;
+          // Random delay between min and max seconds
+          const randomDelayMs = (Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec) * 1000;
+          console.log(`[Broadcast] Waiting ${randomDelayMs / 1000}s before next message (min: ${minSec}s, max: ${maxSec}s)`);
+          await new Promise(resolve => setTimeout(resolve, randomDelayMs));
           
         } catch (err) {
           const m = err instanceof Error ? err.message : 'WhatsApp send failed';

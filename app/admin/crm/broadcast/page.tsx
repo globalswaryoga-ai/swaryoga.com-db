@@ -146,6 +146,8 @@ export default function BroadcastPage() {
   const [scheduleTime, setScheduleTime] = useState('');
   const [delayMinutes, setDelayMinutes] = useState(5);
   const [delayBetweenSeconds, setDelayBetweenSeconds] = useState(2);
+  const [minIntervalSeconds, setMinIntervalSeconds] = useState(30);  // Min delay between messages
+  const [maxIntervalSeconds, setMaxIntervalSeconds] = useState(60);  // Max delay between messages
   const [provider, setProvider] = useState<Provider>('meta');
   const [broadcastName, setBroadcastName] = useState('');
   
@@ -366,6 +368,10 @@ export default function BroadcastPage() {
         provider,
         scheduleAt,
         delayMins,
+        messageInterval: {
+          minSeconds: minIntervalSeconds,
+          maxSeconds: maxIntervalSeconds,
+        },
         target: {
           type: 'leadIds',
           leadIds: Array.from(selectedLeads),
@@ -1128,6 +1134,65 @@ export default function BroadcastPage() {
                       <span className="text-gray-600 font-medium">minutes from now</span>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Message Interval Settings - Following WhatsApp Guidelines */}
+              <div className="bg-white rounded-2xl shadow-xl border p-6">
+                <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                  ⏱️ Message Interval (WhatsApp Safety)
+                </h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Random delay between messages to avoid WhatsApp spam detection. Higher values are safer.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Min Interval */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Minimum (seconds)
+                    </label>
+                    <select
+                      value={minIntervalSeconds}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setMinIntervalSeconds(val);
+                        if (val > maxIntervalSeconds) setMaxIntervalSeconds(val);
+                      }}
+                      className="w-full px-3 py-2.5 border-2 rounded-xl focus:border-blue-500 bg-white"
+                    >
+                      {[5, 10, 15, 20, 30, 45, 60, 90, 120].map(sec => (
+                        <option key={sec} value={sec}>{sec} seconds</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Max Interval */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Maximum (seconds)
+                    </label>
+                    <select
+                      value={maxIntervalSeconds}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setMaxIntervalSeconds(val);
+                        if (val < minIntervalSeconds) setMinIntervalSeconds(val);
+                      }}
+                      className="w-full px-3 py-2.5 border-2 rounded-xl focus:border-blue-500 bg-white"
+                    >
+                      {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map(sec => (
+                        <option key={sec} value={sec}>{sec} seconds</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                  <p className="text-sm text-amber-800 flex items-start gap-2">
+                    <span className="text-lg">⚠️</span>
+                    <span>
+                      <strong>WhatsApp Guideline:</strong> Keep minimum at 30+ seconds to avoid account restrictions. 
+                      Sending too fast may result in temporary bans.
+                    </span>
+                  </p>
                 </div>
               </div>
             </div>
