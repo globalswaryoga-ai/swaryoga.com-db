@@ -3494,7 +3494,7 @@ function QRWhatsAppInboxPageContent() {
 
           {/* Diagnostics banner (admin-only, show on error or when toggled) */}
           {(bridgeError || showDiagnostics) && isSuperAdmin && (
-            <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-[10px] leading-snug text-blue-900 font-mono">
+            <div className="rounded-lg bg-blue-50/90 backdrop-blur-sm border border-blue-200 px-3 py-2 text-[10px] leading-snug text-blue-900 font-mono">
               <div className="font-bold mb-1">🔧 Diagnostics (Super Admin)</div>
               <div className="space-y-0.5 opacity-90">
                 <div>Bridge URL: <span className="opacity-70">{bridgeUrl}</span></div>
@@ -4110,7 +4110,7 @@ function QRWhatsAppInboxPageContent() {
                 Status viewing is limited in WhatsApp Web API.
                 Use your phone to view and post status updates.
               </p>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+              <div className="bg-blue-50/90 backdrop-blur-sm border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
                 <p className="font-bold">💡 Tip</p>
                 <p>Open WhatsApp on your phone to:</p>
                 <ul className="mt-1 text-left list-disc list-inside">
@@ -5890,15 +5890,30 @@ function QRWhatsAppInboxPageContent() {
       {/* QR Modal - Super Admin Only */}
       {showQRModal && isSuperAdmin && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#FAFAF8] rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden">
-            <div className="bg-[#FAFAF8] p-4 border-b border-[#E8DFD5] flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-[#0f3a4d]">Login to WhatsApp</h3>
-                <p className="text-sm text-[#0f3a4d]/60">Scan the QR code with WhatsApp on your phone</p>
+          {/* WhatsApp-style doodle pattern background */}
+          <style jsx>{`
+            .whatsapp-doodle-bg {
+              background-color: #f0ebe3;
+              background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cg fill='none' stroke='%23d4cdc4' stroke-width='1' stroke-linecap='round'%3E%3Crect x='10' y='10' width='24' height='18' rx='3'/%3E%3Cpath d='M10 24 L6 30 L14 24'/%3E%3Crect x='60' y='8' width='14' height='24' rx='2'/%3E%3Ccircle cx='67' cy='28' r='2'/%3E%3Crect x='110' y='14' width='12' height='10' rx='1'/%3E%3Cpath d='M112 14 V10 A4 4 0 0 1 120 10 V14'/%3E%3Ccircle cx='160' cy='18' r='10'/%3E%3Cpath d='M160 12 V18 L165 21'/%3E%3Crect x='12' y='60' width='20' height='14' rx='2'/%3E%3Ccircle cx='22' cy='67' r='4'/%3E%3Crect x='14' y='58' width='6' height='3' rx='1'/%3E%3Cpath d='M67 58 C62 54 56 58 56 64 C56 72 67 78 67 78 C67 78 78 72 78 64 C78 58 72 54 67 58'/%3E%3Ccircle cx='114' cy='72' r='4'/%3E%3Cpath d='M118 72 V58 L126 55 V69'/%3E%3Ccircle cx='126' cy='69' r='3'/%3E%3Cpath d='M160 55 L163 65 L173 65 L165 72 L168 82 L160 76 L152 82 L155 72 L147 65 L157 65 Z'/%3E%3Ccircle cx='22' cy='120' r='12'/%3E%3Ccircle cx='18' cy='117' r='1.5' fill='%23d4cdc4'/%3E%3Ccircle cx='26' cy='117' r='1.5' fill='%23d4cdc4'/%3E%3Cpath d='M16 123 Q22 128 28 123'/%3E%3Crect x='56' y='108' width='16' height='22' rx='1'/%3E%3Cpath d='M60 114 H68 M60 118 H68 M60 122 H66'/%3E%3Cellipse cx='112' cy='115' rx='6' ry='10' transform='rotate(45 112 115)'/%3E%3Cellipse cx='122' cy='125' rx='6' ry='10' transform='rotate(45 122 125)'/%3E%3Crect x='152' y='115' width='16' height='14' rx='1'/%3E%3Crect x='150' y='112' width='20' height='4' rx='1'/%3E%3Cpath d='M160 112 V129 M152 122 H168'/%3E%3Ccircle cx='22' cy='175' r='12'/%3E%3Cellipse cx='22' cy='175' rx='5' ry='12'/%3E%3Cpath d='M10 175 H34 M12 168 H32 M12 182 H32'/%3E%3Cpath d='M56 180 A8 8 0 0 1 72 180 A6 6 0 0 1 78 175 A8 8 0 0 1 70 168 A10 10 0 0 1 52 172 A7 7 0 0 1 56 180 Z'/%3E%3Ccircle cx='108' cy='168' r='5'/%3E%3Ccircle cx='118' cy='168' r='5'/%3E%3Ccircle cx='128' cy='168' r='5'/%3E%3Cpath d='M152 185 A15 15 0 0 1 168 185'/%3E%3Cpath d='M155 182 A10 10 0 0 1 165 182'/%3E%3Cpath d='M158 179 A5 5 0 0 1 162 179'/%3E%3Ccircle cx='160' cy='185' r='2' fill='%23d4cdc4'/%3E%3C/g%3E%3C/svg%3E");
+              background-size: 180px 180px;
+            }
+          `}</style>
+          <div className="whatsapp-doodle-bg rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden">
+            <div className="bg-[#25D366] p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Login to WhatsApp</h3>
+                  <p className="text-sm text-white/80">Scan QR code with WhatsApp on your phone</p>
+                </div>
               </div>
               <button
                 onClick={() => setShowQRModal(false)}
-                className="text-[#0f3a4d]/60 hover:text-[#0f3a4d] text-2xl leading-none"
+                className="text-white/80 hover:text-white text-2xl leading-none p-2 hover:bg-white/10 rounded-full transition-all"
                 aria-label="Close"
               >
                 <X size={24} />
@@ -5907,16 +5922,18 @@ function QRWhatsAppInboxPageContent() {
 
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="order-2 md:order-1">
-                <ol className="space-y-3 text-sm text-[#0f3a4d] list-decimal list-inside">
-                  <li>Open WhatsApp on your phone.</li>
-                  <li>Tap <span className="font-bold">Menu</span> (⋮) or <span className="font-bold">Settings</span>.</li>
-                  <li>Tap <span className="font-bold">Linked devices</span>.</li>
-                  <li>Tap <span className="font-bold">Link a device</span>.</li>
-                  <li>Point your phone at this screen to capture the code.</li>
-                </ol>
+                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm">
+                  <ol className="space-y-3 text-sm text-[#0f3a4d] list-decimal list-inside">
+                    <li>Open <span className="font-bold text-[#25D366]">WhatsApp</span> on your phone.</li>
+                    <li>Tap <span className="font-bold">Menu</span> (⋮) or <span className="font-bold">Settings</span>.</li>
+                    <li>Tap <span className="font-bold">Linked devices</span>.</li>
+                    <li>Tap <span className="font-bold">Link a device</span>.</li>
+                    <li>Point your phone at this screen to capture the code.</li>
+                  </ol>
+                </div>
 
                 {/* Troubleshooting help for common issues */}
-                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="mt-4 p-3 bg-amber-50/90 backdrop-blur-sm border border-amber-200 rounded-lg shadow-sm">
                   <p className="text-xs font-bold text-amber-800 mb-1">⚠️ Getting "Try again later"?</p>
                   <ul className="text-xs text-amber-700 space-y-1">
                     <li>• Click <strong>Force Reset</strong> below to clear session</li>
@@ -5927,7 +5944,7 @@ function QRWhatsAppInboxPageContent() {
 
                 {/* Force Reset Instructions (shown after force reset) */}
                 {forceResetInstructions && forceResetInstructions.length > 0 && (
-                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="mt-4 p-3 bg-blue-50/90 backdrop-blur-sm border border-blue-200 rounded-lg">
                     <p className="text-xs font-bold text-blue-800 mb-2">📋 Follow these steps:</p>
                     <ul className="text-xs text-blue-700 space-y-1">
                       {forceResetInstructions.map((instruction, idx) => (
@@ -5942,17 +5959,17 @@ function QRWhatsAppInboxPageContent() {
                   <div className="flex gap-3">
                     <button
                       onClick={refreshQr}
-                      className="flex-1 bg-[#0f3a4d] hover:bg-[#1a4d66] text-white py-2.5 rounded-lg font-bold transition-all"
+                      className="flex-1 bg-[#25D366] hover:bg-[#1da851] text-white py-2.5 rounded-lg font-bold transition-all shadow-md hover:shadow-lg"
                     >
                       Refresh QR
                     </button>
                     <button
                       onClick={handleDisconnect}
                       disabled={disconnecting}
-                      className="flex-1 bg-[#0f3a4d] hover:bg-black disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all"
+                      className="flex-1 bg-[#0f3a4d] hover:bg-black disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all shadow-md"
                       title="Logout by disconnecting the current session"
                     >
-                      {disconnecting ? 'Logging out…' : 'Logout'}
+                      {disconnecting ? 'Logging out…' : '🚪 Logout'}
                     </button>
                   </div>
                   
@@ -5960,7 +5977,7 @@ function QRWhatsAppInboxPageContent() {
                   <button
                     onClick={handleForceReset}
                     disabled={forceResetting}
-                    className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-md"
                     title="Force reset session if getting 'Try again later' error"
                   >
                     {forceResetting ? (
@@ -5978,13 +5995,13 @@ function QRWhatsAppInboxPageContent() {
               </div>
 
               <div className="order-1 md:order-2">
-                <div className="bg-[#FAFAF8] rounded-xl border border-[#E8DFD5] p-4 flex items-center justify-center min-h-[320px]">
+                <div className="bg-white rounded-xl shadow-lg p-6 flex items-center justify-center min-h-[320px] border-2 border-[#25D366]/20">
                   {qr ? (
                     <img src={qr} alt="QR Code" className="w-72 h-72 object-contain" />
                   ) : (
                     <div className="w-72 h-72 flex flex-col items-center justify-center text-[#0f3a4d]/60">
-                      <div className="text-5xl mb-3">⏳</div>
-                      <div className="text-sm font-bold">Generating QR…</div>
+                      <div className="w-16 h-16 border-4 border-[#25D366] border-t-transparent rounded-full animate-spin mb-4"></div>
+                      <div className="text-sm font-bold text-[#25D366]">Generating QR…</div>
                       <div className="text-xs mt-1">Click “Refresh QR” if it takes too long</div>
                     </div>
                   )}
