@@ -58,11 +58,14 @@ export async function GET(request: NextRequest) {
     // - Super-admin: see ALL leads, optionally filter by specific user
     // - Manager (MR Admin): see leads assigned to themselves OR their team members
     // - Regular admin: ONLY see leads assigned to them
+    // Store access control conditions separately to combine with other filters
+    let accessControlConditions: any[] | null = null;
+
     if (visibleUserIds === null) {
       // Super admin: optionally filter by specific user, otherwise show ALL
       if (userIdParam && String(userIdParam).trim()) {
         const uid = String(userIdParam).trim();
-        filter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
+        accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
       }
       // Otherwise no filter - show ALL leads
     } else if (visibleUserIds.length > 1) {
@@ -70,31 +73,50 @@ export async function GET(request: NextRequest) {
       if (userIdParam && String(userIdParam).trim() && visibleUserIds.includes(userIdParam)) {
         // Filter to specific team member
         const uid = String(userIdParam).trim();
-        filter.$or = [{ assignedToUserId: uid }, { createdByUserId: uid }];
+        accessControlConditions = [{ assignedToUserId: uid }, { createdByUserId: uid }];
       } else {
         // Show all team leads
-        filter.$or = [
+        accessControlConditions = [
           { assignedToUserId: { $in: visibleUserIds } }, 
           { createdByUserId: { $in: visibleUserIds } }
         ];
       }
     } else {
       // Regular admin: STRICT filtering - only their own assigned leads
-      filter.$or = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
+      accessControlConditions = [{ assignedToUserId: viewerUserId }, { createdByUserId: viewerUserId }];
     }
 
     if (status) filter.status = status;
     if (workshop) filter.workshopName = workshop;
+    
+    // Build search conditions
+    let searchConditions: any[] | null = null;
     if (q) {
       const query = String(q).trim();
       if (query) {
         const safe = escapeRegexLiteral(query);
-        filter.$or = [
+        searchConditions = [
           { name: { $regex: safe, $options: 'i' } },
           { phoneNumber: { $regex: safe, $options: 'i' } },
           { email: { $regex: safe, $options: 'i' } },
         ];
       }
+    }
+
+    // Combine access control and search using $and
+    // This ensures both conditions are respected
+    if (accessControlConditions && searchConditions) {
+      // Both access control AND search: must match one access control condition AND one search condition
+      filter.$and = [
+        { $or: accessControlConditions },
+        { $or: searchConditions }
+      ];
+    } else if (accessControlConditions) {
+      // Only access control
+      filter.$or = accessControlConditions;
+    } else if (searchConditions) {
+      // Only search (super admin with no user filter)
+      filter.$or = searchConditions;
     }
 
     // Ensure leads and filter are valid before querying

@@ -64,7 +64,7 @@ export default function LeadsPage() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [total, setTotal] = useState(0);
-  const [limit] = useState(20);
+  const [limit, setLimit] = useState(20);
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('');
@@ -1010,11 +1010,29 @@ export default function LeadsPage() {
 
             {/* Pagination - Professional */}
             {leads.length > 0 && (
-              <div className="bg-[#FAFAF8] border border-[#E8DFD5] rounded-xl p-6 flex items-center justify-between">
-                <div className="text-[#0f3a4d]/70 font-medium">
-                  Showing <span className="font-bold text-[#0f3a4d]">{skip + 1}</span> to{' '}
-                  <span className="font-bold text-[#0f3a4d]">{Math.min(skip + limit, total)}</span> of{' '}
-                  <span className="font-bold text-[#0f3a4d]">{total}</span> leads
+              <div className="bg-[#FAFAF8] border border-[#E8DFD5] rounded-xl p-6 flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="text-[#0f3a4d]/70 font-medium">
+                    Showing <span className="font-bold text-[#0f3a4d]">{skip + 1}</span> to{' '}
+                    <span className="font-bold text-[#0f3a4d]">{Math.min(skip + limit, total)}</span> of{' '}
+                    <span className="font-bold text-[#0f3a4d]">{total}</span> leads
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#0f3a4d]/70 text-sm">Show:</span>
+                    <select
+                      value={limit}
+                      onChange={(e) => {
+                        const newLimit = Number(e.target.value);
+                        setLimit(newLimit);
+                        setSkip(0);
+                      }}
+                      className="bg-white border border-[#E8DFD5] rounded-lg px-2 py-1 text-sm text-[#0f3a4d] focus:outline-none focus:border-[#E8A645]"
+                    >
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="flex gap-3">
                   <button
@@ -1025,7 +1043,7 @@ export default function LeadsPage() {
                     ← Previous
                   </button>
                   <div className="flex items-center px-4 text-[#0f3a4d]/70 font-medium">
-                    Page {Math.floor(skip / limit) + 1} of {Math.ceil(total / limit)}
+                    Page {Math.floor(skip / limit) + 1} of {Math.max(1, Math.ceil(total / limit))}
                   </div>
                   <button
                     onClick={() => {
