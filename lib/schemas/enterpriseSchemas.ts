@@ -618,8 +618,8 @@ const WhatsAppTemplateSchema = new mongoose.Schema(
     },
     approvalReason: String,
     rejectionReason: String,
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdBy: { type: String, required: true }, // Admin userId string like 'admincrm'
+    approvedBy: { type: String }, // Admin userId string who approved
     approvalDate: Date,
     rejectionDate: Date,
     version: { type: Number, default: 1 },
