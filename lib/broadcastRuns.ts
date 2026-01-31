@@ -60,6 +60,22 @@ async function markRunStats(runId: any) {
   return { total, pending, sent, delivered, read, failed, skipped, blocked };
 }
 
+// Helper function to fetch with timeout
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 15000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function processDueBroadcastRuns(options?: {
   now?: Date;
   runLimit?: number;
@@ -68,8 +84,11 @@ export async function processDueBroadcastRuns(options?: {
   await connectDB();
 
   const now = options?.now || new Date();
-  const runLimit = Math.min(Math.max(1, options?.runLimit ?? 10), 50);
-  const perRunMessageLimit = Math.min(Math.max(1, options?.perRunMessageLimit ?? 200), 1000);
+  const runLimit = Math.min(Math.max(1, options?.runLimit ?? 5), 50);
+  // Reduced default batch to 30 messages per cron run for reliability
+  const perRunMessageLimit = Math.min(Math.max(1, options?.perRunMessageLimit ?? 30), 1000);
+
+  console.log('[Broadcast] Processing with runLimit:', runLimit, 'perRunMessageLimit:', perRunMessageLimit);
 
   const due = await BroadcastRun.find({
     status: { $in: ['draft', 'scheduled', 'running'] },
@@ -78,6 +97,8 @@ export async function processDueBroadcastRuns(options?: {
     .sort({ scheduledAt: 1, createdAt: 1 })
     .limit(runLimit)
     .lean();
+
+  console.log('[Broadcast] Found', due.length, 'due runs');
 
   const result: BroadcastRunsProcessResult = {
     scannedRuns: due.length,
@@ -91,6 +112,7 @@ export async function processDueBroadcastRuns(options?: {
 
   for (const run of due) {
     const runId = String((run as any)._id);
+    console.log('[Broadcast] Processing run:', runId, 'provider:', (run as any).provider);
     const stat: BroadcastRunsProcessResult['runResults'][number] = {
       runId,
       status: 'ok',
@@ -277,7 +299,7 @@ export async function processDueBroadcastRuns(options?: {
             // Use /send-template endpoint for templates with image + buttons (proper formatting)
             if (hasImage && buttonTitles.length > 0) {
               console.log('[Broadcast QR] Using /send-template for image + buttons');
-              bridgeResponse = await fetch(`${bridgeUrl}/send-template`, {
+              bridgeResponse = await fetchWithTimeout(`${bridgeUrl}/send-template`, {
                 method: 'POST',
                 headers: { 
                   'Content-Type': 'application/json',
@@ -291,7 +313,7 @@ export async function processDueBroadcastRuns(options?: {
                   footerText: footerText || 'Swar Yoga'
                 }),
                 cache: 'no-store',
-              });
+              }, 20000);
             } else {
               // Build payload for regular /send endpoint
               let bridgePayload: any = {
@@ -317,7 +339,7 @@ export async function processDueBroadcastRuns(options?: {
               
               console.log('[Broadcast QR] Payload:', JSON.stringify(bridgePayload, null, 2).substring(0, 500));
               
-              bridgeResponse = await fetch(`${bridgeUrl}/send`, {
+              bridgeResponse = await fetchWithTimeout(`${bridgeUrl}/send`, {
                 method: 'POST',
                 headers: { 
                   'Content-Type': 'application/json',
@@ -325,7 +347,7 @@ export async function processDueBroadcastRuns(options?: {
                 },
                 body: JSON.stringify(bridgePayload),
                 cache: 'no-store',
-              });
+              }, 20000);
               
               // If native buttons failed, fallback to text format
               if (!bridgeResponse.ok && bridgePayload.type === 'buttons') {
@@ -335,7 +357,7 @@ export async function processDueBroadcastRuns(options?: {
                   type: 'text',
                   message: fullMessageWithButtonText,
                 };
-                bridgeResponse = await fetch(`${bridgeUrl}/send`, {
+                bridgeResponse = await fetchWithTimeout(`${bridgeUrl}/send`, {
                   method: 'POST',
                   headers: { 
                     'Content-Type': 'application/json',
@@ -343,7 +365,7 @@ export async function processDueBroadcastRuns(options?: {
                   },
                   body: JSON.stringify(bridgePayload),
                   cache: 'no-store',
-                });
+                }, 20000);
               }
             }
             

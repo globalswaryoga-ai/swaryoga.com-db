@@ -11,6 +11,8 @@ type BroadcastRun = {
   createdAt: string;
   status: string;
   provider: 'meta' | 'qr';
+  createdByLabel?: string;
+  createdByUserId?: string;
   templateSnapshot?: {
     templateName?: string;
     language?: string;
@@ -338,6 +340,7 @@ export default function MetaReportsPage() {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Sent</th>
@@ -355,6 +358,9 @@ export default function MetaReportsPage() {
                             <div className="text-xs text-gray-500">
                               {run.templateSnapshot?.templateName || 'N/A'} • {new Date(run.createdAt).toLocaleString()}
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-sm text-gray-700">{run.createdByLabel || '—'}</div>
                           </td>
                           <td className="px-4 py-3">
                             <StatusBadge status={run.status} />
@@ -402,6 +408,11 @@ export default function MetaReportsPage() {
                     <h2 className="text-xl font-bold text-gray-800">{selectedRun.name}</h2>
                     <div className="text-sm text-gray-500 space-y-1 mt-1">
                       <div>Status: <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${selectedRun.status === 'completed' ? 'bg-green-100 text-green-700' : selectedRun.status === 'running' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>{selectedRun.status}</span></div>
+                      {selectedRun.createdByLabel && (
+                        <div className="text-purple-600 font-medium">
+                          👤 Sent by: {selectedRun.createdByLabel}
+                        </div>
+                      )}
                       {selectedRun.scheduledAt && (
                         <div className="text-yellow-600 font-medium">
                           📅 Scheduled: {new Date(selectedRun.scheduledAt).toLocaleString('en-IN', { 

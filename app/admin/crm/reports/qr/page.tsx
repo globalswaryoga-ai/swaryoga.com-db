@@ -11,6 +11,8 @@ type BroadcastRun = {
   createdAt: string;
   status: string;
   provider: 'meta' | 'qr';
+  createdByLabel?: string;
+  createdByUserId?: string;
   templateSnapshot?: {
     templateName?: string;
     language?: string;
@@ -310,6 +312,7 @@ export default function QRReportsPage() {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sender</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Sent</th>
@@ -326,6 +329,9 @@ export default function QRReportsPage() {
                             <div className="text-xs text-gray-500">
                               {run.templateSnapshot?.templateName || 'N/A'} • {new Date(run.createdAt).toLocaleString()}
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-sm text-gray-700">{run.createdByLabel || '—'}</div>
                           </td>
                           <td className="px-4 py-3">
                             <StatusBadge status={run.status} />
@@ -372,6 +378,11 @@ export default function QRReportsPage() {
                     <h2 className="text-xl font-bold text-gray-800">{selectedRun.name}</h2>
                     <div className="text-sm text-gray-500 space-y-1">
                       <div>Status: <StatusBadge status={selectedRun.status} /></div>
+                      {selectedRun.createdByLabel && (
+                        <div className="text-purple-600 font-medium">
+                          👤 Sent by: {selectedRun.createdByLabel}
+                        </div>
+                      )}
                       {selectedRun.scheduledAt && (
                         <div className="text-yellow-600 font-medium">
                           📅 Scheduled: {new Date(selectedRun.scheduledAt).toLocaleString('en-IN', { 

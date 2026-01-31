@@ -19,6 +19,15 @@
     },
     "app/api/admin/workshops/videos/upload/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/admin/crm/broadcast-runs/run/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/crm/scheduled-messages/run/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/admin/crm/chatbot-actions/run/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
