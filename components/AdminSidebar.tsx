@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCRM } from '@/hooks/useCRM';
-import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe, Video } from 'lucide-react';
+import { LayoutDashboard, Users, LogIn, MessageSquare, Gift, X, Calculator, Mail, Home, Calendar, Share2, ArrowLeft, MessageCircle, TrendingUp, Globe, Video, FileText, Send, Radio } from 'lucide-react';
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -172,6 +172,24 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
       label: 'Meta Setup',
       href: '/admin/crm/whatsapp-meta',
       color: 'text-indigo-600',
+    },
+    {
+      icon: FileText,
+      label: 'Templates',
+      href: '/admin/crm/templates',
+      color: 'text-orange-600',
+    },
+    {
+      icon: Send,
+      label: 'Send Template',
+      href: '/admin/crm/send-template',
+      color: 'text-blue-600',
+    },
+    {
+      icon: Radio,
+      label: 'Broadcast',
+      href: '/admin/crm/broadcast',
+      color: 'text-pink-600',
     },
     {
       icon: MessageSquare,
