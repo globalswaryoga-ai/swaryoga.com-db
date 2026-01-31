@@ -1674,7 +1674,7 @@ export default function MetaInboxPage() {
                         key={msg._id} 
                         className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
                       >
-                        <div className={`max-w-[72%] px-4 py-2.5 rounded-xl text-[15px] relative group transition-all duration-200 ${
+                        <div className={`max-w-[330px] sm:max-w-[360px] px-3 py-2 rounded-lg text-[14px] relative group transition-all duration-200 ${
                           msg.direction === 'outbound'
                             ? 'bg-[#d9fdd3] text-gray-900 rounded-tr-sm shadow-sm border border-[#c5e1a5]'
                             : 'bg-[#075E54] text-white rounded-tl-sm shadow-sm'
@@ -1711,11 +1711,11 @@ export default function MetaInboxPage() {
                             
                             if (mediaUrl) {
                               return (
-                                <div className="mb-2 -mx-4 -mt-2.5">
+                                <div className="mb-2 -mx-3 -mt-2">
                                   <InlineMediaPreview 
                                     url={mediaUrl} 
                                     type={mediaKind === 'sticker' ? 'image' : mediaKind}
-                                    className="rounded-t-xl rounded-b-none w-full"
+                                    className="rounded-t-lg rounded-b-none w-full max-h-[200px] object-cover"
                                   />
                                 </div>
                               );
@@ -1813,11 +1813,11 @@ export default function MetaInboxPage() {
                             if (!Array.isArray(templateButtons) || templateButtons.length === 0) return null;
                             
                             return (
-                              <div className="mt-2 -mx-4 -mb-2.5 border-t border-gray-200/50">
+                              <div className="mt-2 -mx-3 -mb-2 border-t border-gray-200/50">
                                 {templateButtons.map((btn: any, idx: number) => (
                                   <div 
                                     key={idx} 
-                                    className="px-4 py-2.5 text-center text-[#00a884] font-medium text-sm border-b border-gray-200/50 last:border-b-0 hover:bg-gray-50/50"
+                                    className="px-3 py-2 text-center text-[#00a884] font-medium text-[13px] border-b border-gray-200/50 last:border-b-0 hover:bg-gray-50/50"
                                   >
                                     {btn.title || btn.text || 'Button'}
                                   </div>
@@ -1826,7 +1826,7 @@ export default function MetaInboxPage() {
                             );
                           })()}
                           
-                          <div className={`text-[10px] mt-2 flex items-center gap-1.5 ${msg.direction === 'outbound' ? 'justify-end text-gray-500' : 'justify-start text-white/70'}`}>
+                          <div className={`text-[10px] mt-1.5 flex items-center gap-1 ${msg.direction === 'outbound' ? 'justify-end text-gray-500' : 'justify-start text-white/70'}`}>
                             {/* Show "Swar Yoga" in bold black for outbound messages with admin tag */}
                             {msg.direction === 'outbound' && (msg.messageContent || '').match(/\[(admincrm|admin|crm)\]\s*$/i) && (
                               <>
