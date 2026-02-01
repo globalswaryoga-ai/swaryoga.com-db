@@ -469,18 +469,27 @@ const SwarCalendar: React.FC = () => {
         // Determine if Shukla or Krishna Paksha
         const isShukla = row.paksha.includes('Shukla');
         
-        // Row background based on Paksha
-        if (isShukla) {
+        // Check for bad yogas FIRST - these override paksha coloring
+        const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat' || 
+                          row.yoga.includes('Vaidhriti') || row.yoga.includes('Vyatipat');
+        
+        // Row background - RED for bad yogas, otherwise paksha-based
+        if (isBadYoga) {
+          // BAD YOGA - Light red background for entire row
+          doc.setFillColor(255, 220, 220);
+        } else if (isShukla) {
           // Shukla Paksha - light green tint
           doc.setFillColor(240, 255, 240);
         } else {
-          // Krishna Paksha - light orange/red tint
+          // Krishna Paksha - light orange tint
           doc.setFillColor(255, 248, 245);
         }
         doc.rect(margin, currentY - 1, tableWidth, 6, 'F');
         
-        // Paksha indicator bar on left
-        if (isShukla) {
+        // Paksha indicator bar on left (red bar for bad yoga)
+        if (isBadYoga) {
+          doc.setFillColor(200, 0, 0); // Red bar for bad yoga
+        } else if (isShukla) {
           doc.setFillColor(0, 150, 0);
         } else {
           doc.setFillColor(200, 100, 50);
@@ -502,8 +511,7 @@ const SwarCalendar: React.FC = () => {
         }
         doc.text(`${row.dayShort} (${dayEnergySym})`, colX[1], currentY + 3);
         
-        // Yoga - Red for Vaidhriti and Vyatipat
-        const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat';
+        // Yoga - Red and bold for Vaidhriti and Vyatipat
         if (isBadYoga) {
           doc.setTextColor(200, 0, 0);
           doc.setFont('helvetica', 'bold');
@@ -511,7 +519,7 @@ const SwarCalendar: React.FC = () => {
           doc.setTextColor(50, 50, 50);
           doc.setFont('helvetica', 'normal');
         }
-        doc.text(row.yoga.substring(0, 10), colX[2], currentY + 3);
+        doc.text(row.yoga.substring(0, 12), colX[2], currentY + 3);
         doc.setFont('helvetica', 'normal');
         
         // Nakshatra with M/S indicator
@@ -563,16 +571,23 @@ const SwarCalendar: React.FC = () => {
       // Shukla indicator
       doc.setFillColor(0, 150, 0);
       doc.rect(margin + 18, currentY + 2, 4, 4, 'F');
-      doc.text('Shukla Paksha (Waxing)', margin + 24, currentY + 5);
+      doc.text('Shukla', margin + 24, currentY + 5);
       // Krishna indicator
       doc.setFillColor(200, 100, 50);
-      doc.rect(margin + 68, currentY + 2, 4, 4, 'F');
-      doc.text('Krishna Paksha (Waning)', margin + 74, currentY + 5);
+      doc.rect(margin + 40, currentY + 2, 4, 4, 'F');
+      doc.text('Krishna', margin + 46, currentY + 5);
+      // Bad Yoga indicator
+      doc.setFillColor(255, 220, 220);
+      doc.rect(margin + 65, currentY + 2, 4, 4, 'F');
+      doc.setFillColor(200, 0, 0);
+      doc.rect(margin + 65, currentY + 2, 1, 4, 'F');
+      doc.setTextColor(200, 0, 0);
+      doc.text('Vyatipat/Vaidhriti (Avoid)', margin + 71, currentY + 5);
       // M/S Legend
       doc.setTextColor(0, 100, 0);
-      doc.text('M = Moon/Prakruti', margin + 120, currentY + 5);
+      doc.text('M = Moon', margin + 125, currentY + 5);
       doc.setTextColor(180, 0, 0);
-      doc.text('S = Sun/Purusha', margin + 155, currentY + 5);
+      doc.text('S = Sun', margin + 150, currentY + 5);
       
       // === FOOTER WITH PRAKRUTI & PURUSHA NOTES ===
       doc.setFillColor(70, 130, 180);
