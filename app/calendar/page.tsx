@@ -535,10 +535,9 @@ const SwarCalendar: React.FC = () => {
         }
         doc.text(`${row.nakshatra.substring(0, 10)} (${nakEnergySym})`, colX[3], currentY + 3);
         
-        // Tithi as number with Paksha symbol
-        const pakshaSymbol = isShukla ? '☽' : '☉';
+        // Tithi as number only
         doc.setTextColor(50, 50, 50);
-        doc.text(`${row.tithi} ${pakshaSymbol}`, colX[4], currentY + 3);
+        doc.text(`${row.tithi}`, colX[4], currentY + 3);
         
         // Tithi energy (M/S)
         const tithiEnergySym = row.tithiEnergy === '☽' ? 'Moon' : 'Sun';
