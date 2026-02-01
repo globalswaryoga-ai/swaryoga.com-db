@@ -919,21 +919,24 @@ export const calculateYoga = (date: Date): typeof YOGAS[0] & { number: number } 
  * e.g., "Aindra+Vaidhriti" if it starts with Aindra and changes to Vaidhriti
  */
 export const calculateDayYoga = (date: Date, latitude: number = 28.6139, longitude: number = 77.2090): string => {
-  // Get sunrise time for this day
-  const { sunrise } = calculateSunrise(date, latitude, longitude);
+  // Get sunrise time string and convert to Date
+  const sunriseTimeStr = calculateSunriseTime(date, latitude, longitude);
+  const [sunriseHour, sunriseMin] = sunriseTimeStr.split(':').map(Number);
+  
+  const sunrise = new Date(date);
+  sunrise.setHours(sunriseHour, sunriseMin, 0, 0);
   
   // Calculate yoga at sunrise
   const sunriseYoga = calculateYoga(sunrise);
   
-  // Calculate yoga at end of day (next sunrise - 1 hour to be safe)
-  const nextDay = new Date(date);
-  nextDay.setDate(nextDay.getDate() + 1);
-  const { sunrise: nextSunrise } = calculateSunrise(nextDay, latitude, longitude);
-  const endOfDay = new Date(nextSunrise.getTime() - 60 * 60 * 1000); // 1 hour before next sunrise
+  // Calculate yoga at end of day (around 11 PM same day)
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 0, 0, 0);
   const endYoga = calculateYoga(endOfDay);
   
-  // Also check mid-day
-  const midDay = new Date(sunrise.getTime() + (nextSunrise.getTime() - sunrise.getTime()) / 2);
+  // Also check mid-day (around 2 PM)
+  const midDay = new Date(date);
+  midDay.setHours(14, 0, 0, 0);
   const midYoga = calculateYoga(midDay);
   
   // If yogas are different, return combined name
