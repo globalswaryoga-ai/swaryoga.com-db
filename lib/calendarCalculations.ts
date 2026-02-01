@@ -1028,15 +1028,15 @@ export const calculateSwarYogaDominance = (
   tithi: number,
   nakshatra: { name: string; planet: string }
 ): {
-  dominant: 'Moon' | 'Sun';
+  dominant: '☽ Moon' | '☉ Sun';
   moonCount: number;
   sunCount: number;
   factors: {
-    ayana: { value: string; energy: 'Moon' | 'Sun' };
-    paksha: { value: string; energy: 'Moon' | 'Sun' };
-    tithi: { value: number; energy: 'Moon' | 'Sun' };
-    day: { value: string; energy: 'Moon' | 'Sun' };
-    nakshatra: { value: string; planet: string; energy: 'Moon' | 'Sun' };
+    ayana: { value: string; energy: '☽ Moon' | '☉ Sun' };
+    paksha: { value: string; energy: '☽ Moon' | '☉ Sun' };
+    tithi: { value: number; energy: '☽ Moon' | '☉ Sun' };
+    day: { value: string; energy: '☽ Moon' | '☉ Sun' };
+    nakshatra: { value: string; planet: string; energy: '☽ Moon' | '☉ Sun' };
   };
   recommendation: {
     type: 'Prakruti' | 'Purusha' | 'Mixed';
@@ -1071,36 +1071,36 @@ export const calculateSwarYogaDominance = (
   const factors = {
     ayana: {
       value: ayana.name,
-      energy: isUttarayana ? 'Moon' as const : 'Sun' as const
+      energy: isUttarayana ? '☽ Moon' as const : '☉ Sun' as const
     },
     paksha: {
       value: paksha,
-      energy: paksha === 'Shukla Paksha' ? 'Moon' as const : 'Sun' as const
+      energy: paksha === 'Shukla Paksha' ? '☽ Moon' as const : '☉ Sun' as const
     },
     tithi: {
       value: normalizedTithi,
       // In Uttarayana: Moon tithi group = Moon, else Sun
       // In Dakshinayana: Moon tithi group = Sun, else Moon (reversed)
       energy: isUttarayana 
-        ? (isInMoonTithiGroup ? 'Moon' as const : 'Sun' as const)
-        : (isInMoonTithiGroup ? 'Sun' as const : 'Moon' as const)
+        ? (isInMoonTithiGroup ? '☽ Moon' as const : '☉ Sun' as const)
+        : (isInMoonTithiGroup ? '☉ Sun' as const : '☽ Moon' as const)
     },
     day: {
       value: dayName,
-      energy: moonDays.includes(dayOfWeek) ? 'Moon' as const : 'Sun' as const
+      energy: moonDays.includes(dayOfWeek) ? '☽ Moon' as const : '☉ Sun' as const
     },
     nakshatra: {
       value: nakshatra.name,
       planet: nakshatra.planet,
-      energy: moonPlanets.includes(nakshatra.planet) ? 'Moon' as const : 'Sun' as const
+      energy: moonPlanets.includes(nakshatra.planet) ? '☽ Moon' as const : '☉ Sun' as const
     }
   };
   
   // Count Moon vs Sun factors
-  const moonCount = Object.values(factors).filter(f => f.energy === 'Moon').length;
-  const sunCount = Object.values(factors).filter(f => f.energy === 'Sun').length;
+  const moonCount = Object.values(factors).filter(f => f.energy === '☽ Moon').length;
+  const sunCount = Object.values(factors).filter(f => f.energy === '☉ Sun').length;
   
-  const dominant = moonCount > sunCount ? 'Moon' : moonCount < sunCount ? 'Sun' : 'Moon'; // Tie goes to Moon
+  const dominant = moonCount > sunCount ? '☽ Moon' : moonCount < sunCount ? '☉ Sun' : '☽ Moon'; // Tie goes to Moon
   
   // Generate recommendation
   let recommendation: {
