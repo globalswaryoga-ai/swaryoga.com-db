@@ -70,17 +70,17 @@ interface MonthlyCalendarData {
 
 const getCountryByName = (name: string) => locationData.find((country) => country.name === name);
 
-const getCountryNames = () => locationData.map((country) => country.name);
+const getCountryNames = () => locationData.map((country) => country.name).sort((a, b) => a.localeCompare(b));
 
 const getStatesForCountry = (countryName: string): string[] => {
   const country = getCountryByName(countryName);
-  return country ? country.states.map((state) => state.name) : [];
+  return country ? country.states.map((state) => state.name).sort((a, b) => a.localeCompare(b)) : [];
 };
 
 const getCitiesForState = (countryName: string, stateName: string): string[] => {
   const country = getCountryByName(countryName);
   const state = country?.states.find((stateItem) => stateItem.name === stateName);
-  return state ? state.cities.map((city) => city.name) : [];
+  return state ? state.cities.map((city) => city.name).sort((a, b) => a.localeCompare(b)) : [];
 };
 
 const getCityCoordinates = (
