@@ -386,9 +386,6 @@ const SwarCalendar: React.FC = () => {
       
       const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude);
       
-      const shuklaData = monthlyData.filter((item: MonthlyCalendarData) => item.paksha === 'Shukla Paksha');
-      const krishnaData = monthlyData.filter((item: MonthlyCalendarData) => item.paksha === 'Krishna Paksha');
-      
       // Get month-year and ayana from first data point
       const monthYear = new Date(downloadStartDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       const ayana = monthlyData[0]?.ayana || 'Uttarayana';
@@ -429,210 +426,173 @@ const SwarCalendar: React.FC = () => {
       doc.setFont('helvetica', 'normal');
       doc.text('Created by Mohan Kalburgi - Upamnyu International Education | Web: swaryoga.com | WhatsApp: +91 9779006820', pageWidth / 2, 25, { align: 'center' });
       
-      // Column positions for full-width table (7 columns now with Yoga)
-      const colX = [margin + 2, margin + 14, margin + 38, margin + 68, margin + 105, margin + 130, margin + 160];
+      // Location info (small text)
+      doc.setFontSize(6);
+      doc.setTextColor(100, 100, 100);
+      const locationLine = `${selectedCapital}, ${selectedState}, ${selectedCountry} | Lat: ${latitude.toFixed(4)}° | Long: ${longitude.toFixed(4)}° | Timezone: ${timezoneSelect}`;
+      doc.text(locationLine, pageWidth / 2, 30, { align: 'center' });
       
-      // === TOP SECTION: KRISHNA PAKSHA ===
-      let currentY = 35;
-      
-      // Krishna Paksha Header
-      doc.setFillColor(255, 200, 180); // Light red/orange
-      doc.rect(margin, currentY, tableWidth, 8, 'F');
-      doc.setTextColor(180, 0, 0);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('KRISHNA PAKSHA (Waning Moon) ☉', pageWidth / 2, currentY + 5.5, { align: 'center' });
-      currentY += 10;
-      
-      // Column headers for Krishna
-      doc.setFillColor(255, 235, 230);
-      doc.rect(margin, currentY, tableWidth, 7, 'F');
-      doc.setTextColor(50, 50, 50);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Tithi', colX[0], currentY + 5);
-      doc.text('Date', colX[1], currentY + 5);
-      doc.text('Day (M/S)', colX[2], currentY + 5);
-      doc.text('Nakshatra (M/S)', colX[3], currentY + 5);
-      doc.text('Yoga', colX[4], currentY + 5);
-      doc.text('Tithi (M/S)', colX[5], currentY + 5);
-      doc.text('Result', colX[6], currentY + 5);
-      currentY += 8;
-      
-      // Krishna data rows
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      krishnaData.forEach((row, idx) => {
-        // Alternating row background
-        if (idx % 2 === 0) {
-          doc.setFillColor(255, 250, 248);
-          doc.rect(margin, currentY - 1, tableWidth, 6, 'F');
-        }
-        
-        doc.setTextColor(50, 50, 50);
-        doc.text(row.tithi.toString(), colX[0], currentY + 3);
-        
-        // Date format: "2 Feb"
-        const dateObj = new Date(row.date);
-        const dateStr = `${dateObj.getDate()} ${dateObj.toLocaleDateString('en-US', { month: 'short' })}`;
-        doc.text(dateStr, colX[1], currentY + 3);
-        
-        // Day with M/S indicator
-        const dayEnergySym = row.dayEnergy === '☽' ? 'M' : 'S';
-        if (row.dayEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
-        doc.text(`${row.dayShort} (${dayEnergySym})`, colX[2], currentY + 3);
-        
-        // Nakshatra with M/S indicator
-        const nakEnergySym = row.nakshatraEnergy === '☽' ? 'M' : 'S';
-        if (row.nakshatraEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
-        doc.text(`${row.nakshatra.substring(0, 8)} (${nakEnergySym})`, colX[3], currentY + 3);
-        
-        // Yoga - Red for Vaidhriti and Vyatipat
-        const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat';
-        if (isBadYoga) {
-          doc.setTextColor(200, 0, 0);
-          doc.setFont('helvetica', 'bold');
-        } else {
-          doc.setTextColor(50, 50, 50);
-          doc.setFont('helvetica', 'normal');
-        }
-        doc.text(row.yoga.substring(0, 10), colX[4], currentY + 3);
-        doc.setFont('helvetica', 'normal');
-        
-        // Tithi energy (M/S)
-        const tithiEnergySym = row.tithiEnergy === '☽' ? 'Moon' : 'Sun';
-        if (row.tithiEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
-        doc.text(tithiEnergySym, colX[5], currentY + 3);
-        
-        // Dominant result
-        if (row.dominant === 'Prakruti') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
-        doc.text(row.dominant, colX[6], currentY + 3);
-        
-        currentY += 6;
+      // === SINGLE TABLE SORTED BY DATE ===
+      // Sort data by date (1st to end of month)
+      const sortedData = [...monthlyData].sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateA.getTime() - dateB.getTime();
       });
       
-      // Add spacing between tables
-      currentY += 8;
+      // Column positions: Date, Day, Yog, Nakshatra, Tithi, Tithi(M/S), Result
+      const colX = [margin + 2, margin + 22, margin + 50, margin + 85, margin + 125, margin + 150, margin + 175];
       
-      // === BOTTOM SECTION: SHUKLA PAKSHA ===
-      // Shukla Paksha Header
-      doc.setFillColor(200, 230, 200); // Light green
+      let currentY = 38;
+      
+      // Table Header
+      doc.setFillColor(70, 130, 180); // Steel blue
       doc.rect(margin, currentY, tableWidth, 8, 'F');
-      doc.setTextColor(0, 100, 0);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('SHUKLA PAKSHA (Waxing Moon) ☽', pageWidth / 2, currentY + 5.5, { align: 'center' });
-      currentY += 10;
-      
-      // Column headers for Shukla
-      doc.setFillColor(230, 245, 230);
-      doc.rect(margin, currentY, tableWidth, 7, 'F');
-      doc.setTextColor(50, 50, 50);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Tithi', colX[0], currentY + 5);
-      doc.text('Date', colX[1], currentY + 5);
-      doc.text('Day (M/S)', colX[2], currentY + 5);
-      doc.text('Nakshatra (M/S)', colX[3], currentY + 5);
-      doc.text('Yoga', colX[4], currentY + 5);
-      doc.text('Tithi (M/S)', colX[5], currentY + 5);
-      doc.text('Result', colX[6], currentY + 5);
-      currentY += 8;
-      
-      // Shukla data rows
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      shuklaData.forEach((row, idx) => {
-        if (currentY > pageHeight - 20) return; // Stop if page full
-        
-        // Alternating row background
-        if (idx % 2 === 0) {
-          doc.setFillColor(248, 255, 248);
-          doc.rect(margin, currentY - 1, tableWidth, 6, 'F');
-        }
-        
-        doc.setTextColor(50, 50, 50);
-        doc.text(row.tithi.toString(), colX[0], currentY + 3);
-        
-        // Date format: "17 Feb"
-        const dateObj = new Date(row.date);
-        const dateStr = `${dateObj.getDate()} ${dateObj.toLocaleDateString('en-US', { month: 'short' })}`;
-        doc.text(dateStr, colX[1], currentY + 3);
-        
-        // Day with M/S indicator
-        const dayEnergySym = row.dayEnergy === '☽' ? 'M' : 'S';
-        if (row.dayEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
-        doc.text(`${row.dayShort} (${dayEnergySym})`, colX[2], currentY + 3);
-        
-        // Nakshatra with M/S indicator
-        const nakEnergySym = row.nakshatraEnergy === '☽' ? 'M' : 'S';
-        if (row.nakshatraEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
-        doc.text(`${row.nakshatra.substring(0, 8)} (${nakEnergySym})`, colX[3], currentY + 3);
-        
-        // Yoga - Red for Vaidhriti and Vyatipat
-        const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat';
-        if (isBadYoga) {
-          doc.setTextColor(200, 0, 0);
-          doc.setFont('helvetica', 'bold');
-        } else {
-          doc.setTextColor(50, 50, 50);
-          doc.setFont('helvetica', 'normal');
-        }
-        doc.text(row.yoga.substring(0, 10), colX[4], currentY + 3);
-        doc.setFont('helvetica', 'normal');
-        
-        // Tithi energy (M/S)
-        const tithiEnergySym = row.tithiEnergy === '☽' ? 'Moon' : 'Sun';
-        if (row.tithiEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
-        doc.text(tithiEnergySym, colX[5], currentY + 3);
-        
-        // Dominant result
-        if (row.dominant === 'Prakruti') {
-          doc.setTextColor(0, 100, 0);
-        } else {
-          doc.setTextColor(180, 0, 0);
-        }
-        doc.text(row.dominant, colX[6], currentY + 3);
-        
-        currentY += 6;
-      });
-      
-      // === FOOTER ===
-      doc.setFillColor(70, 130, 180);
-      doc.rect(0, pageHeight - 12, pageWidth, 12, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(7);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Date', colX[0], currentY + 5.5);
+      doc.text('Day', colX[1], currentY + 5.5);
+      doc.text('Yog', colX[2], currentY + 5.5);
+      doc.text('Nakshatra', colX[3], currentY + 5.5);
+      doc.text('Tithi', colX[4], currentY + 5.5);
+      doc.text('Tithi(M/S)', colX[5], currentY + 5.5);
+      doc.text('Result', colX[6], currentY + 5.5);
+      currentY += 9;
+      
+      // Data rows sorted by date
       doc.setFont('helvetica', 'normal');
-      doc.text(`M = Moon (☽ Prakruti) | S = Sun (☉ Purusha)`, pageWidth / 2, pageHeight - 7, { align: 'center' });
-      doc.text(`Location: ${selectedCapital}, ${selectedCountry} | Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 3, { align: 'center' });
+      doc.setFontSize(7);
+      sortedData.forEach((row, idx) => {
+        if (currentY > pageHeight - 45) return; // Leave space for footer
+        
+        // Determine if Shukla or Krishna Paksha
+        const isShukla = row.paksha.includes('Shukla');
+        
+        // Row background based on Paksha
+        if (isShukla) {
+          // Shukla Paksha - light green tint
+          doc.setFillColor(240, 255, 240);
+        } else {
+          // Krishna Paksha - light orange/red tint
+          doc.setFillColor(255, 248, 245);
+        }
+        doc.rect(margin, currentY - 1, tableWidth, 6, 'F');
+        
+        // Paksha indicator bar on left
+        if (isShukla) {
+          doc.setFillColor(0, 150, 0);
+        } else {
+          doc.setFillColor(200, 100, 50);
+        }
+        doc.rect(margin, currentY - 1, 1.5, 6, 'F');
+        
+        // Date format: "1 Feb"
+        const dateObj = new Date(row.date);
+        const dateStr = `${dateObj.getDate()} ${dateObj.toLocaleDateString('en-US', { month: 'short' })}`;
+        doc.setTextColor(50, 50, 50);
+        doc.text(dateStr, colX[0], currentY + 3);
+        
+        // Day with M/S indicator
+        const dayEnergySym = row.dayEnergy === '☽' ? 'M' : 'S';
+        if (row.dayEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+        } else {
+          doc.setTextColor(180, 0, 0);
+        }
+        doc.text(`${row.dayShort} (${dayEnergySym})`, colX[1], currentY + 3);
+        
+        // Yoga - Red for Vaidhriti and Vyatipat
+        const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat';
+        if (isBadYoga) {
+          doc.setTextColor(200, 0, 0);
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setTextColor(50, 50, 50);
+          doc.setFont('helvetica', 'normal');
+        }
+        doc.text(row.yoga.substring(0, 10), colX[2], currentY + 3);
+        doc.setFont('helvetica', 'normal');
+        
+        // Nakshatra with M/S indicator
+        const nakEnergySym = row.nakshatraEnergy === '☽' ? 'M' : 'S';
+        if (row.nakshatraEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+        } else {
+          doc.setTextColor(180, 0, 0);
+        }
+        doc.text(`${row.nakshatra.substring(0, 10)} (${nakEnergySym})`, colX[3], currentY + 3);
+        
+        // Tithi with Paksha symbol
+        const pakshaSymbol = isShukla ? '☽' : '☉';
+        doc.setTextColor(50, 50, 50);
+        doc.text(`${row.tithiName} ${pakshaSymbol}`, colX[4], currentY + 3);
+        
+        // Tithi energy (M/S)
+        const tithiEnergySym = row.tithiEnergy === '☽' ? 'Moon' : 'Sun';
+        if (row.tithiEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+        } else {
+          doc.setTextColor(180, 0, 0);
+        }
+        doc.text(tithiEnergySym, colX[5], currentY + 3);
+        
+        // Dominant result
+        if (row.dominant === 'Prakruti') {
+          doc.setTextColor(0, 100, 0);
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setTextColor(180, 0, 0);
+          doc.setFont('helvetica', 'bold');
+        }
+        doc.text(row.dominant, colX[6], currentY + 3);
+        doc.setFont('helvetica', 'normal');
+        
+        currentY += 6;
+      });
+      
+      // === LEGEND BAR ===
+      currentY = Math.max(currentY + 4, pageHeight - 42);
+      doc.setFillColor(240, 240, 240);
+      doc.rect(margin, currentY, tableWidth, 8, 'F');
+      doc.setFontSize(6);
+      doc.setTextColor(50, 50, 50);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Legend:', margin + 3, currentY + 5);
+      doc.setFont('helvetica', 'normal');
+      // Shukla indicator
+      doc.setFillColor(0, 150, 0);
+      doc.rect(margin + 18, currentY + 2, 4, 4, 'F');
+      doc.text('Shukla Paksha (Waxing)', margin + 24, currentY + 5);
+      // Krishna indicator
+      doc.setFillColor(200, 100, 50);
+      doc.rect(margin + 68, currentY + 2, 4, 4, 'F');
+      doc.text('Krishna Paksha (Waning)', margin + 74, currentY + 5);
+      // M/S Legend
+      doc.setTextColor(0, 100, 0);
+      doc.text('M = Moon/Prakruti', margin + 120, currentY + 5);
+      doc.setTextColor(180, 0, 0);
+      doc.text('S = Sun/Purusha', margin + 155, currentY + 5);
+      
+      // === FOOTER WITH PRAKRUTI & PURUSHA NOTES ===
+      doc.setFillColor(70, 130, 180);
+      doc.rect(0, pageHeight - 32, pageWidth, 32, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      
+      // Prakruti explanation
+      doc.text('PRAKRUTI (☽ Moon Energy):', margin, pageHeight - 27);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Associated with Left Nostril (Ida Nadi). Best for: Learning, creativity, healing, meditation, spiritual practices.', margin, pageHeight - 23);
+      doc.text('Moon-dominant days support receptive, calming, and nurturing activities. Ideal for starting new education, arts, and healing work.', margin, pageHeight - 19);
+      
+      // Purusha explanation
+      doc.setFont('helvetica', 'bold');
+      doc.text('PURUSHA (☉ Sun Energy):', margin, pageHeight - 13);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Associated with Right Nostril (Pingala Nadi). Best for: Physical activity, business, travel, competitions, assertive actions.', margin, pageHeight - 9);
+      doc.text('Sun-dominant days support active, dynamic, and outward-focused activities. Ideal for exercise, negotiations, and adventures.', margin, pageHeight - 5);
       
       // Save PDF
       doc.save(`Swar-Calendar-${monthYear.replace(' ', '-')}.pdf`);
