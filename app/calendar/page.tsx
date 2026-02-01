@@ -411,6 +411,12 @@ const SwarCalendar: React.FC = () => {
           element: jsPanchang.sunRashi.planet, // Ruling planet instead of element
           english: jsPanchang.sunRashi.english,
         },
+        sunNakshatra: {
+          name: jsPanchang.sunNakshatra.name,
+          symbol: jsPanchang.sunNakshatra.symbol,
+          planet: jsPanchang.sunNakshatra.planet,
+          pada: jsPanchang.sunNakshatra.pada,
+        },
         dayQuality: jsPanchang.dayQuality,
         vaidhriti: jsPanchang.yoga.name === 'Vaidhriti',
         vatiapat: jsPanchang.yoga.name === 'Vyatipata',
@@ -1088,6 +1094,18 @@ const SwarCalendar: React.FC = () => {
                     <div className="text-2xl font-bold text-yellow-800">{calendarData.panchang.sunRashi.symbol}</div>
                     <div className="text-xs font-medium text-yellow-700">{calendarData.panchang.sunRashi.name}</div>
                     <div className="text-xs text-yellow-600 mt-0.5">☀️ {calendarData.panchang.sunRashi.element}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sun Nakshatra Card */}
+              {calendarData.panchang?.sunNakshatra && (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg border border-amber-200 p-3 hover:shadow-md transition-shadow">
+                  <div className="text-xs font-semibold text-amber-700 mb-2 uppercase tracking-wider">Sun Nakshatra</div>
+                  <div className="mb-2">
+                    <div className="text-2xl font-bold text-amber-800">{calendarData.panchang.sunNakshatra.symbol}</div>
+                    <div className="text-xs font-medium text-amber-700">{calendarData.panchang.sunNakshatra.name}</div>
+                    <div className="text-xs text-amber-600 mt-0.5">☀️ {calendarData.panchang.sunNakshatra.planet}</div>
                   </div>
                 </div>
               )}

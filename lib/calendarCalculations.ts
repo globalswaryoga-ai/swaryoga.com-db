@@ -874,6 +874,28 @@ export const calculateNakshatra = (date: Date): typeof NAKSHATRAS[0] & { number:
 };
 
 /**
+ * Calculate Sun's Nakshatra from Sun's longitude
+ */
+export const calculateSunNakshatra = (date: Date): typeof NAKSHATRAS[0] & { number: number; pada: number } => {
+  const sunLongitude = calculateSunLongitude(date);
+  
+  // Each nakshatra spans 13°20' (13.333°)
+  const nakshatraSpan = 360 / 27;
+  const nakshatraIndex = Math.floor(sunLongitude / nakshatraSpan);
+  const nakshatra = NAKSHATRAS[nakshatraIndex % 27];
+  
+  // Calculate pada (quarter) - each nakshatra has 4 padas of 3°20'
+  const positionInNakshatra = sunLongitude % nakshatraSpan;
+  const pada = Math.floor(positionInNakshatra / (nakshatraSpan / 4)) + 1;
+  
+  return {
+    ...nakshatra,
+    number: nakshatraIndex + 1,
+    pada,
+  };
+};
+
+/**
  * Calculate Yoga from Sun and Moon longitudes
  * Yoga = (Sun longitude + Moon longitude) / 13.333°
  */
@@ -1197,6 +1219,7 @@ export const calculateCompletePanchang = (date: Date): {
 } => {
   const tithiData = calculateTithiAccurate(date);
   const nakshatra = calculateNakshatra(date);
+  const sunNakshatra = calculateSunNakshatra(date);
   const yoga = calculateYoga(date);
   const karana = calculateKarana(tithiData.tithi1to30);
   const moonRashi = calculateMoonRashi(date);
@@ -1226,6 +1249,7 @@ export const calculateCompletePanchang = (date: Date): {
   
   return {
     nakshatra,
+    sunNakshatra,
     yoga,
     karana,
     moonRashi,
