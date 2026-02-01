@@ -682,40 +682,75 @@ const RASHIS = [
 ];
 
 /**
- * Calculate Moon's longitude based on date
- * Uses simplified calculation (accurate to ~1-2 degrees)
+ * Calculate Ayanamsha (precession correction for sidereal zodiac)
+ * Using Lahiri Ayanamsha - most widely used in India
+ * Ayanamsha increases by ~50.3" per year from the epoch
  */
-export const calculateMoonLongitude = (date: Date): number => {
-  // Reference: Jan 1, 2000 12:00 UTC, Moon at ~132° longitude
-  const J2000 = new Date('2000-01-01T12:00:00Z');
-  const daysSinceJ2000 = (date.getTime() - J2000.getTime()) / (1000 * 60 * 60 * 24);
-  
-  // Moon's mean motion: ~13.176° per day
-  const moonMeanMotion = 13.176358;
-  const moonAtJ2000 = 132.0; // approximate
-  
-  let moonLongitude = (moonAtJ2000 + daysSinceJ2000 * moonMeanMotion) % 360;
-  if (moonLongitude < 0) moonLongitude += 360;
-  
-  return moonLongitude;
+export const calculateAyanamsha = (date: Date): number => {
+  // Lahiri Ayanamsha: 23.85° on Jan 1, 2000
+  // Rate: ~50.29" per year = 0.01397° per year
+  const J2000 = new Date('2000-01-01T00:00:00Z');
+  const yearsSinceJ2000 = (date.getTime() - J2000.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+  const ayanamsha = 23.85 + (yearsSinceJ2000 * 0.01397);
+  return ayanamsha;
 };
 
 /**
- * Calculate Sun's longitude based on date
+ * Calculate Moon's Nirayana (Sidereal) longitude
+ * Used for Vedic astrology calculations (Nakshatra, Rashi, Yoga)
+ */
+export const calculateMoonLongitude = (date: Date): number => {
+  // More accurate Moon longitude calculation
+  const J2000 = new Date('2000-01-01T12:00:00Z');
+  const daysSinceJ2000 = (date.getTime() - J2000.getTime()) / (1000 * 60 * 60 * 24);
+  
+  // Moon's mean longitude at J2000: 218.32°
+  // Mean daily motion: 13.176358°
+  const moonMeanLongJ2000 = 218.32;
+  const moonMeanMotion = 13.176358;
+  
+  // Calculate tropical (Sayana) longitude
+  let moonTropical = (moonMeanLongJ2000 + daysSinceJ2000 * moonMeanMotion) % 360;
+  if (moonTropical < 0) moonTropical += 360;
+  
+  // Convert to sidereal (Nirayana) by subtracting Ayanamsha
+  const ayanamsha = calculateAyanamsha(date);
+  let moonNirayana = (moonTropical - ayanamsha) % 360;
+  if (moonNirayana < 0) moonNirayana += 360;
+  
+  return moonNirayana;
+};
+
+/**
+ * Calculate Sun's Nirayana (Sidereal) longitude
+ * Used for Vedic astrology calculations
  */
 export const calculateSunLongitude = (date: Date): number => {
-  // Reference: March 21 (Spring Equinox) Sun at 0° (Aries)
-  const year = date.getFullYear();
-  const springEquinox = new Date(year, 2, 21); // March 21
-  const daysSinceEquinox = (date.getTime() - springEquinox.getTime()) / (1000 * 60 * 60 * 24);
+  const J2000 = new Date('2000-01-01T12:00:00Z');
+  const daysSinceJ2000 = (date.getTime() - J2000.getTime()) / (1000 * 60 * 60 * 24);
   
-  // Sun's mean motion: ~0.9856° per day
-  const sunMeanMotion = 0.9856;
+  // Sun's mean longitude at J2000: 280.46°
+  // Mean daily motion: 0.9856474°
+  const sunMeanLongJ2000 = 280.46;
+  const sunMeanMotion = 0.9856474;
   
-  let sunLongitude = (daysSinceEquinox * sunMeanMotion) % 360;
-  if (sunLongitude < 0) sunLongitude += 360;
+  // Mean anomaly for equation of center
+  const M = (357.528 + 0.9856003 * daysSinceJ2000) % 360;
+  const Mrad = M * Math.PI / 180;
   
-  return sunLongitude;
+  // Equation of center (simplified)
+  const C = 1.9148 * Math.sin(Mrad) + 0.02 * Math.sin(2 * Mrad);
+  
+  // Calculate tropical (Sayana) longitude
+  let sunTropical = (sunMeanLongJ2000 + daysSinceJ2000 * sunMeanMotion + C) % 360;
+  if (sunTropical < 0) sunTropical += 360;
+  
+  // Convert to sidereal (Nirayana) by subtracting Ayanamsha
+  const ayanamsha = calculateAyanamsha(date);
+  let sunNirayana = (sunTropical - ayanamsha) % 360;
+  if (sunNirayana < 0) sunNirayana += 360;
+  
+  return sunNirayana;
 };
 
 /**
