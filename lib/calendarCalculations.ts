@@ -1056,10 +1056,22 @@ export const calculateSwarYogaDominance = (
   // Sun days: Sunday(0), Tuesday(2), Saturday(6)
   const moonDays = [1, 3, 4, 5];
   
-  // Tithi groups
-  const moonTithiGroup = [1, 2, 3, 7, 8, 9, 13, 14, 15];
+  // Tithi groups - different for each Paksha
+  // Shukla Paksha: 1,2,3,7,8,9,13,14,15 = Moon; 4,5,6,10,11,12 = Sun
+  // Krishna Paksha: 1,2,3,7,8,9,13,14,15(Amavasya/30) = Sun; 4,5,6,10,11,12 = Moon
   const normalizedTithi = ((tithi - 1) % 15) + 1;
-  const isInMoonTithiGroup = moonTithiGroup.includes(normalizedTithi);
+  const shuklaGroup1 = [1, 2, 3, 7, 8, 9, 13, 14, 15]; // Moon in Shukla
+  const krishnaGroupMoon = [4, 5, 6, 10, 11, 12]; // Moon in Krishna
+  
+  // Determine tithi energy based on Paksha
+  let tithiEnergy: '☽ Moon' | '☉ Sun';
+  if (paksha === 'Shukla Paksha') {
+    // Shukla: 1,2,3,7,8,9,13,14,15 = Moon
+    tithiEnergy = shuklaGroup1.includes(normalizedTithi) ? '☽ Moon' : '☉ Sun';
+  } else {
+    // Krishna: 4,5,6,10,11,12 = Moon; rest (1,2,3,7,8,9,13,14,15/30) = Sun
+    tithiEnergy = krishnaGroupMoon.includes(normalizedTithi) ? '☽ Moon' : '☉ Sun';
+  }
   
   // Nakshatra ruling planet mapping to Moon/Sun energy
   // Moon energy: Chandra, Shukra, Budh, Guru, Ketu
@@ -1079,11 +1091,7 @@ export const calculateSwarYogaDominance = (
     },
     tithi: {
       value: normalizedTithi,
-      // In Uttarayana: Moon tithi group = Moon, else Sun
-      // In Dakshinayana: Moon tithi group = Sun, else Moon (reversed)
-      energy: isUttarayana 
-        ? (isInMoonTithiGroup ? '☽ Moon' as const : '☉ Sun' as const)
-        : (isInMoonTithiGroup ? '☉ Sun' as const : '☽ Moon' as const)
+      energy: tithiEnergy
     },
     day: {
       value: dayName,
