@@ -422,6 +422,8 @@ const SwarCalendar: React.FC = () => {
             ? ['New beginnings', 'Important meetings', 'Spiritual practices', 'Business deals']
             : ['Meditation', 'Yoga', 'Self-reflection', 'Completing pending work'],
         },
+        swarYoga: jsPanchang.swarYoga,
+        ayana: jsPanchang.ayana,
       };
       
       // Optionally try the API for more detailed data (but don't fail if it errors)
@@ -1091,28 +1093,65 @@ const SwarCalendar: React.FC = () => {
               )}
             </div>
 
-            {/* Recommendations Card */}
-            {calendarData.panchang?.recommendations && (
+            {/* Swar Yoga Dominance Card */}
+            {calendarData.panchang?.swarYoga && (
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200 p-6">
-                <h3 className="text-lg font-bold text-indigo-900 mb-4">📋 Today's Recommendations</h3>
+                <h3 className="text-lg font-bold text-indigo-900 mb-4">🔮 Today's Swar Yoga Analysis</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Side - 5 Factors */}
                   <div>
-                    <h4 className="font-semibold text-red-700 mb-3">❌ Avoid Today</h4>
-                    <ul className="space-y-2">
-                      {calendarData.panchang.recommendations.avoid.map((item, idx) => (
+                    <h4 className="font-semibold text-indigo-700 mb-3">📊 Today's 5 Factors</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
+                        <span className="text-gray-700">1. Ayana</span>
+                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.ayana.value} → <span className={calendarData.panchang.swarYoga.factors.ayana.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.ayana.energy}</span></span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
+                        <span className="text-gray-700">2. Paksha</span>
+                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.paksha.value.replace(' Paksha', '')} → <span className={calendarData.panchang.swarYoga.factors.paksha.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.paksha.energy}</span></span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
+                        <span className="text-gray-700">3. Tithi</span>
+                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.tithi.value} → <span className={calendarData.panchang.swarYoga.factors.tithi.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.tithi.energy}</span></span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
+                        <span className="text-gray-700">4. Nakshatra</span>
+                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.nakshatra.value} ({calendarData.panchang.swarYoga.factors.nakshatra.planet}) → <span className={calendarData.panchang.swarYoga.factors.nakshatra.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.nakshatra.energy}</span></span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm bg-white/50 rounded-lg px-3 py-2">
+                        <span className="text-gray-700">5. Day</span>
+                        <span className="font-medium">{calendarData.panchang.swarYoga.factors.day.value} → <span className={calendarData.panchang.swarYoga.factors.day.energy.includes('Moon') ? 'text-blue-600' : 'text-orange-600'}>{calendarData.panchang.swarYoga.factors.day.energy}</span></span>
+                      </div>
+                    </div>
+                    {/* Summary */}
+                    <div className="mt-4 p-3 bg-white rounded-lg border border-indigo-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-blue-600 font-medium">☽ Moon: {calendarData.panchang.swarYoga.moonCount}</span>
+                        <span className="text-orange-600 font-medium">☉ Sun: {calendarData.panchang.swarYoga.sunCount}</span>
+                      </div>
+                      <div className="text-center mt-2">
+                        <span className={`text-lg font-bold ${calendarData.panchang.swarYoga.dominant.includes('Moon') ? 'text-blue-700' : 'text-orange-700'}`}>
+                          Dominant: {calendarData.panchang.swarYoga.dominant} ({calendarData.panchang.swarYoga.recommendation.type})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Right Side - Recommendations */}
+                  <div>
+                    <h4 className="font-semibold text-green-700 mb-3">✅ Good For Today ({calendarData.panchang.swarYoga.recommendation.type})</h4>
+                    <ul className="space-y-2 mb-4">
+                      {calendarData.panchang.swarYoga.recommendation.bestFor.map((item: string, idx: number) => (
                         <li key={idx} className="text-sm text-gray-700 flex items-start">
-                          <span className="mr-2">•</span>
+                          <span className="mr-2 text-green-500">•</span>
                           <span>{item}</span>
                         </li>
                       ))}
                     </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-green-700 mb-3">✅ Good For Today</h4>
+                    <h4 className="font-semibold text-red-700 mb-3">❌ Not Suitable For</h4>
                     <ul className="space-y-2">
-                      {calendarData.panchang.recommendations.goodFor.map((item, idx) => (
+                      {calendarData.panchang.swarYoga.recommendation.avoid.map((item: string, idx: number) => (
                         <li key={idx} className="text-sm text-gray-700 flex items-start">
-                          <span className="mr-2">•</span>
+                          <span className="mr-2 text-red-500">•</span>
                           <span>{item}</span>
                         </li>
                       ))}
