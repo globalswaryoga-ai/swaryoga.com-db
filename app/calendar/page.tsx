@@ -1675,8 +1675,10 @@ const SwarCalendar: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {previewData.filter(d => d.paksha === 'Krishna Paksha').map((row, idx) => (
-                          <tr key={idx} className={idx % 2 === 0 ? 'bg-red-50' : 'bg-white'}>
+                        {previewData.filter(d => d.paksha === 'Krishna Paksha').map((row, idx) => {
+                          const isBadYoga = row.yoga.includes('Vaidhriti') || row.yoga.includes('Vyatipat');
+                          return (
+                          <tr key={idx} className={isBadYoga ? 'bg-red-200' : (idx % 2 === 0 ? 'bg-red-50' : 'bg-white')}>
                             <td className="border border-red-200 px-2 py-1 font-medium">{row.tithi}</td>
                             <td className="border border-red-200 px-2 py-1">{new Date(row.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</td>
                             <td className={`border border-red-200 px-2 py-1 font-medium ${row.dayEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
@@ -1685,7 +1687,7 @@ const SwarCalendar: React.FC = () => {
                             <td className={`border border-red-200 px-2 py-1 font-medium ${row.nakshatraEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
                               {row.nakshatra} ({row.nakshatraEnergy === '☽' ? 'M' : 'S'})
                             </td>
-                            <td className={`border border-red-200 px-2 py-1 font-medium ${(row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat') ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
+                            <td className={`border border-red-200 px-2 py-1 font-medium ${isBadYoga ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
                               {row.yoga}
                             </td>
                             <td className={`border border-red-200 px-2 py-1 text-center font-bold ${row.tithiEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
@@ -1695,7 +1697,7 @@ const SwarCalendar: React.FC = () => {
                               {row.dominant}
                             </td>
                           </tr>
-                        ))}
+                        );})}
                       </tbody>
                     </table>
                   </div>
@@ -1721,8 +1723,10 @@ const SwarCalendar: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {previewData.filter(d => d.paksha === 'Shukla Paksha').map((row, idx) => (
-                          <tr key={idx} className={idx % 2 === 0 ? 'bg-green-50' : 'bg-white'}>
+                        {previewData.filter(d => d.paksha === 'Shukla Paksha').map((row, idx) => {
+                          const isBadYoga = row.yoga.includes('Vaidhriti') || row.yoga.includes('Vyatipat');
+                          return (
+                          <tr key={idx} className={isBadYoga ? 'bg-red-200' : (idx % 2 === 0 ? 'bg-green-50' : 'bg-white')}>
                             <td className="border border-green-200 px-2 py-1 font-medium">{row.tithi}</td>
                             <td className="border border-green-200 px-2 py-1">{new Date(row.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</td>
                             <td className={`border border-green-200 px-2 py-1 font-medium ${row.dayEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
@@ -1731,7 +1735,7 @@ const SwarCalendar: React.FC = () => {
                             <td className={`border border-green-200 px-2 py-1 font-medium ${row.nakshatraEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
                               {row.nakshatra} ({row.nakshatraEnergy === '☽' ? 'M' : 'S'})
                             </td>
-                            <td className={`border border-green-200 px-2 py-1 font-medium ${(row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat') ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
+                            <td className={`border border-green-200 px-2 py-1 font-medium ${isBadYoga ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
                               {row.yoga}
                             </td>
                             <td className={`border border-green-200 px-2 py-1 text-center font-bold ${row.tithiEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
@@ -1741,7 +1745,7 @@ const SwarCalendar: React.FC = () => {
                               {row.dominant}
                             </td>
                           </tr>
-                        ))}
+                        );})}
                       </tbody>
                     </table>
                   </div>
