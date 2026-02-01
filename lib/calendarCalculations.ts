@@ -1,6 +1,104 @@
 /**
  * Hindu Calendar Calculation Logic with Accurate Tithi & Paksha
- * Based on: github.com/Turya-Kalburgi/swar-yoga-latest
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}  require('fs').unlinkSync('test-swar-yoga.ts');  // Clean up} finally {  execSync('npx tsx test-swar-yoga.ts', { stdio: 'inherit' });  console.log('Running Swar Yoga test...\n');try {require('fs').writeFileSync('test-swar-yoga.ts', testCode);`;});  );    p.swarYoga.recommendation.type    dominant,    'S:', p.swarYoga.sunCount,    '| M:', p.swarYoga.moonCount,    '(' + n.planet.padEnd(7) + ')',    '| N:', n.name.padEnd(18),    '| T:', t.tithi1to15.toString().padStart(2),    dateStr, '(' + dayName + ')',  console.log(    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });  const dominant = p.swarYoga.dominant === 'Moon' ? '🌙' : '☀️';    const n = calculateNakshatra(d);  const t = calculateTithiAccurate(d);  const p = calculateCompletePanchang(d);  const d = new Date(dateStr + 'T07:10:00+05:30');testDates.forEach(dateStr => {];  '2026-08-01', // Aug 1 - Dakshinayana  '2026-02-10', // Feb 10  '2026-02-05', // Feb 5 - Thursday  '2026-02-03', // Feb 3 - Tuesday  '2026-02-02', // Feb 2 - Monday    '2026-02-01', // Feb 1 - Purnima, Sundayconst testDates = [console.log('='.repeat(50));console.log('📅 TESTING MULTIPLE DATES:');console.log('\\n' + '='.repeat(50));// Test multiple datesconsole.log('  SUN energy: Surya, Mangal, Shani, Rahu');console.log('  MOON energy: Chandra, Shukra, Budh, Guru, Ketu');console.log('\\n📜 NAKSHATRA PLANET → ENERGY MAPPING:');// Nakshatra ruling planet mapping referencepanchang.swarYoga.recommendation.avoid.forEach(item => console.log('   •', item));console.log('\\n❌ AVOID:');panchang.swarYoga.recommendation.bestFor.forEach(item => console.log('   •', item));console.log('\\n✅ BEST FOR:');console.log('  Type:', panchang.swarYoga.recommendation.type);console.log('  DOMINANT:', panchang.swarYoga.dominant === 'Moon' ? '🌙 MOON (Prakruti)' : '☀️ SUN (Purusha)');console.log('  Sun factors:', panchang.swarYoga.sunCount);console.log('  Moon factors:', panchang.swarYoga.moonCount);console.log('\\n📈 RESULT:');console.log('  5. Nakshatra:', factors.nakshatra.value, '(' + factors.nakshatra.planet + ') →', factors.nakshatra.energy);console.log('  4. Day:', factors.day.value, '→', factors.day.energy);console.log('  3. Tithi:', factors.tithi.value, '→', factors.tithi.energy);console.log('  2. Paksha:', factors.paksha.value, '→', factors.paksha.energy);console.log('  1. Ayana:', factors.ayana.value, '→', factors.ayana.energy);const factors = panchang.swarYoga.factors;console.log('\\n🌙☀️ SWAR YOGA FACTORS:');console.log('  Ayana:', ayana.name);console.log('  Nakshatra:', nakshatra.name, '(Planet:', nakshatra.planet + ')');console.log('  Paksha:', tithi.paksha);console.log('  Tithi:', tithi.tithi1to15, '(' + tithi.tithiName + ')');console.log('  Day:', testDate.toLocaleDateString('en-US', { weekday: 'long' }));console.log('  Date:', testDate.toDateString());console.log('\\n📊 INPUT DATA:');const ayana = calculateAyana(testDate);const nakshatra = calculateNakshatra(testDate);const tithi = calculateTithiAccurate(testDate);const panchang = calculateCompletePanchang(testDate);// Get complete Panchangconsole.log('='.repeat(50));console.log('\\n🔮 SWAR YOGA DOMINANCE TEST - Feb 1, 2026');const testDate = new Date('2026-02-01T07:10:00+05:30');// Test date: Feb 1, 2026 (Purnima)import { calculateCompletePanchang, calculateTithiAccurate, calculateNakshatra, calculateAyana } from './lib/calendarCalculations';const testCode = `// Create a temporary TypeScript test fileconst { execSync } = require('child_process'); * Based on: github.com/Turya-Kalburgi/swar-yoga-latest
  * 
  * Flow: Date → Location (Lat/Lng) → Sunrise Time → Tithi (via NOAA) → Paksha → Nadi
  * 
@@ -891,6 +989,192 @@ export const calculateAyana = (date: Date): {
 };
 
 /**
+ * Calculate Swar Yoga Dominance (Moon vs Sun energy)
+ * 
+ * This determines whether Prakruti (Moon/Creation) or Purusha (Sun/Transformation) 
+ * energy dominates for the given date.
+ * 
+ * Factors and their Moon/Sun assignment:
+ * 
+ * 1. AYANA:
+ *    - Uttarayana = Moon
+ *    - Dakshinayana = Sun
+ * 
+ * 2. PAKSHA:
+ *    - Shukla Paksha = Moon
+ *    - Krishna Paksha = Sun
+ * 
+ * 3. TITHI (depends on Ayana):
+ *    Uttarayana: Tithi 1,2,3,7,8,9,13,14,15 = Moon; Tithi 4,5,6,10,11,12 = Sun
+ *    Dakshinayana: Tithi 1,2,3,7,8,9,13,14,15 = Sun; Tithi 4,5,6,10,11,12 = Moon
+ * 
+ * 4. DAY (Weekday):
+ *    - Mon, Wed, Thu, Fri = Moon
+ *    - Sun, Tue, Sat = Sun
+ * 
+ * 5. NAKSHATRA (Ruling Planet):
+ *    Moon planets: Chandra, Shukra, Budh, Guru, Ketu = Moon energy
+ *    Sun planets: Surya, Mangal, Shani, Rahu = Sun energy
+ * 
+ * @param date - Date to calculate for
+ * @param paksha - Current paksha
+ * @param tithi - Current tithi (1-15)
+ * @param nakshatra - Current nakshatra with planet info
+ * @returns Dominance details with factors breakdown
+ */
+export const calculateSwarYogaDominance = (
+  date: Date,
+  paksha: 'Shukla Paksha' | 'Krishna Paksha',
+  tithi: number,
+  nakshatra: { name: string; planet: string }
+): {
+  dominant: 'Moon' | 'Sun';
+  moonCount: number;
+  sunCount: number;
+  factors: {
+    ayana: { value: string; energy: 'Moon' | 'Sun' };
+    paksha: { value: string; energy: 'Moon' | 'Sun' };
+    tithi: { value: number; energy: 'Moon' | 'Sun' };
+    day: { value: string; energy: 'Moon' | 'Sun' };
+    nakshatra: { value: string; planet: string; energy: 'Moon' | 'Sun' };
+  };
+  recommendation: {
+    type: 'Prakruti' | 'Purusha' | 'Mixed';
+    bestFor: string[];
+    avoid: string[];
+  };
+} => {
+  const ayana = calculateAyana(date);
+  const isUttarayana = ayana.name === 'Uttarayana';
+  
+  // Day of week (0 = Sunday, 1 = Monday, ...)
+  const dayOfWeek = date.getDay();
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayName = dayNames[dayOfWeek];
+  
+  // Moon days: Monday(1), Wednesday(3), Thursday(4), Friday(5)
+  // Sun days: Sunday(0), Tuesday(2), Saturday(6)
+  const moonDays = [1, 3, 4, 5];
+  
+  // Tithi groups
+  const moonTithiGroup = [1, 2, 3, 7, 8, 9, 13, 14, 15];
+  const normalizedTithi = ((tithi - 1) % 15) + 1;
+  const isInMoonTithiGroup = moonTithiGroup.includes(normalizedTithi);
+  
+  // Nakshatra ruling planet mapping to Moon/Sun energy
+  // Moon energy: Chandra, Shukra, Budh, Guru, Ketu
+  // Sun energy: Surya, Mangal, Shani, Rahu
+  const moonPlanets = ['Chandra', 'Shukra', 'Budh', 'Guru', 'Ketu'];
+  const sunPlanets = ['Surya', 'Mangal', 'Shani', 'Rahu'];
+  
+  // Calculate each factor's energy
+  const factors = {
+    ayana: {
+      value: ayana.name,
+      energy: isUttarayana ? 'Moon' as const : 'Sun' as const
+    },
+    paksha: {
+      value: paksha,
+      energy: paksha === 'Shukla Paksha' ? 'Moon' as const : 'Sun' as const
+    },
+    tithi: {
+      value: normalizedTithi,
+      // In Uttarayana: Moon tithi group = Moon, else Sun
+      // In Dakshinayana: Moon tithi group = Sun, else Moon (reversed)
+      energy: isUttarayana 
+        ? (isInMoonTithiGroup ? 'Moon' as const : 'Sun' as const)
+        : (isInMoonTithiGroup ? 'Sun' as const : 'Moon' as const)
+    },
+    day: {
+      value: dayName,
+      energy: moonDays.includes(dayOfWeek) ? 'Moon' as const : 'Sun' as const
+    },
+    nakshatra: {
+      value: nakshatra.name,
+      planet: nakshatra.planet,
+      energy: moonPlanets.includes(nakshatra.planet) ? 'Moon' as const : 'Sun' as const
+    }
+  };
+  
+  // Count Moon vs Sun factors
+  const moonCount = Object.values(factors).filter(f => f.energy === 'Moon').length;
+  const sunCount = Object.values(factors).filter(f => f.energy === 'Sun').length;
+  
+  const dominant = moonCount > sunCount ? 'Moon' : moonCount < sunCount ? 'Sun' : 'Moon'; // Tie goes to Moon
+  
+  // Generate recommendation
+  let recommendation: {
+    type: 'Prakruti' | 'Purusha' | 'Mixed';
+    bestFor: string[];
+    avoid: string[];
+  };
+  
+  if (moonCount >= 4) {
+    // Strong Moon dominance - best for Prakruti work
+    recommendation = {
+      type: 'Prakruti',
+      bestFor: [
+        'Creative activities',
+        'Starting new projects',
+        'Mental work & learning',
+        'Important decisions',
+        'Long-term planning',
+        'Relationship matters',
+        'Nurturing activities'
+      ],
+      avoid: [
+        'Destruction/removal tasks',
+        'Aggressive actions',
+        'Physical confrontations'
+      ]
+    };
+  } else if (sunCount >= 4) {
+    // Strong Sun dominance - best for Purusha work
+    recommendation = {
+      type: 'Purusha',
+      bestFor: [
+        'Completing pending tasks',
+        'Physical activities',
+        'Logical analysis',
+        'Short-term quick wins',
+        'Removing obstacles',
+        'Transformation work',
+        'Breaking old patterns'
+      ],
+      avoid: [
+        'Starting new ventures',
+        'Making major decisions',
+        'Long-term commitments'
+      ]
+    };
+  } else {
+    // Mixed energy - balance both
+    recommendation = {
+      type: 'Mixed',
+      bestFor: [
+        'Balanced activities',
+        'Routine maintenance',
+        'Flexible planning',
+        'Review and assessment'
+      ],
+      avoid: [
+        'Extreme actions',
+        'Major new starts',
+        'Complete transformations'
+      ]
+    };
+  }
+  
+  return {
+    dominant,
+    moonCount,
+    sunCount,
+    factors,
+    recommendation
+  };
+};
+
+/**
  * Calculate complete Panchang data
  */
 export const calculateCompletePanchang = (date: Date): {
@@ -900,6 +1184,7 @@ export const calculateCompletePanchang = (date: Date): {
   moonRashi: ReturnType<typeof calculateMoonRashi>;
   sunRashi: ReturnType<typeof calculateSunRashi>;
   ayana: ReturnType<typeof calculateAyana>;
+  swarYoga: ReturnType<typeof calculateSwarYogaDominance>;
   dayQuality: 'Auspicious' | 'Neutral' | 'Inauspicious';
 } => {
   const tithiData = calculateTithiAccurate(date);
@@ -909,6 +1194,14 @@ export const calculateCompletePanchang = (date: Date): {
   const moonRashi = calculateMoonRashi(date);
   const sunRashi = calculateSunRashi(date);
   const ayana = calculateAyana(date);
+  
+  // Calculate Swar Yoga dominance (Moon vs Sun energy)
+  const swarYoga = calculateSwarYogaDominance(
+    date,
+    tithiData.paksha,
+    tithiData.tithi1to15,
+    nakshatra
+  );
   
   // Determine day quality based on yoga
   let dayQuality: 'Auspicious' | 'Neutral' | 'Inauspicious' = 'Neutral';
@@ -930,6 +1223,7 @@ export const calculateCompletePanchang = (date: Date): {
     moonRashi,
     sunRashi,
     ayana,
+    swarYoga,
     dayQuality,
   };
 };
