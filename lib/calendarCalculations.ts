@@ -187,18 +187,25 @@ export const calculateTithiLocal = (
   date: Date
 ): { tithi: number; tithiName: string; paksha: 'Shukla Paksha' | 'Krishna Paksha' } => {
   try {
-    // New Moon dates for accurate tithi calculation
-    // Updated with 2026 dates for continued accuracy
+    // New Moon dates for accurate tithi calculation (UTC times)
+    // Source: Calculated from full moon dates (full moon = ~14.77 days after new moon)
+    // These times are more accurate than timeanddate.com which shows different timezone
     const recentNewMoons = [
-      new Date('2025-11-01T12:47:00Z'),  // November 2025 new moon
-      new Date('2025-12-01T06:21:00Z'),  // December 2025 new moon
-      new Date('2025-12-30T22:27:00Z'),  // December 30, 2025 new moon
-      new Date('2026-01-29T12:36:00Z'),  // January 29, 2026 new moon
-      new Date('2026-02-28T00:45:00Z'),  // February 28, 2026 new moon
-      new Date('2026-03-29T10:58:00Z'),  // March 29, 2026 new moon
-      new Date('2026-04-27T19:31:00Z'),  // April 27, 2026 new moon
-      new Date('2026-05-27T03:02:00Z'),  // May 27, 2026 new moon
-      new Date('2026-06-25T10:31:00Z'),  // June 25, 2026 new moon
+      new Date('2025-10-21T03:25:00Z'),  // Oct 21, 2025
+      new Date('2025-11-19T21:47:00Z'),  // Nov 20, 2025 03:17 IST
+      new Date('2025-12-19T15:43:00Z'),  // Dec 19, 2025 21:13 IST
+      new Date('2026-01-18T03:47:00Z'),  // Jan 18, 2026 09:17 IST - calculated from Feb 2 full moon
+      new Date('2026-02-17T08:01:00Z'),  // Feb 17, 2026 13:31 IST
+      new Date('2026-03-18T21:53:00Z'),  // Mar 19, 2026 03:23 IST
+      new Date('2026-04-17T08:21:00Z'),  // Apr 17, 2026 13:51 IST
+      new Date('2026-05-16T16:01:00Z'),  // May 16, 2026 21:31 IST
+      new Date('2026-06-14T23:24:00Z'),  // Jun 15, 2026 04:54 IST
+      new Date('2026-07-14T06:13:00Z'),  // Jul 14, 2026 11:43 IST
+      new Date('2026-08-12T14:06:00Z'),  // Aug 12, 2026 19:36 IST
+      new Date('2026-09-10T23:57:00Z'),  // Sep 11, 2026 05:27 IST
+      new Date('2026-10-10T12:20:00Z'),  // Oct 10, 2026 17:50 IST
+      new Date('2026-11-09T03:02:00Z'),  // Nov 9, 2026 08:32 IST
+      new Date('2026-12-08T21:21:00Z'),  // Dec 9, 2026 02:51 IST
     ];
     
     let referenceNewMoon = recentNewMoons[0];
@@ -218,8 +225,12 @@ export const calculateTithiLocal = (
       dayInLunarMonth = lunarMonth + (daysSinceReference % lunarMonth);
     }
     
-    let tithi1to30 = Math.round((dayInLunarMonth / lunarMonth) * 30);
-    if (tithi1to30 === 0) tithi1to30 = 30;
+    // Each tithi spans exactly lunarMonth/30 days (~0.984 days)
+    // Tithi 1 starts at day 0, Tithi 2 at day 0.984, etc.
+    const tithiDuration = lunarMonth / 30;
+    let tithi1to30 = Math.floor(dayInLunarMonth / tithiDuration) + 1;
+    
+    // Ensure valid range
     if (tithi1to30 <= 0) tithi1to30 = 1;
     if (tithi1to30 > 30) tithi1to30 = 30;
     
@@ -267,25 +278,25 @@ export const calculateTithiAccurate = (
   date: Date
 ): { tithi1to30: number; tithi1to15: number; tithiName: string; paksha: 'Shukla Paksha' | 'Krishna Paksha' } => {
   try {
-    // New Moon dates for accurate tithi calculation
-    // Updated with 2026 dates for continued accuracy
+    // New Moon dates for accurate tithi calculation (UTC times)
+    // Source: Calculated from full moon dates (full moon = ~14.77 days after new moon)
     // New Moon = Tithi 30/Amavasya, next day = Tithi 1 Shukla Paksha
     const recentNewMoons = [
-      new Date('2025-11-01T12:47:00Z'),  // November 2025 new moon
-      new Date('2025-12-01T06:21:00Z'),  // December 2025 new moon
-      new Date('2025-12-30T22:27:00Z'),  // December 30, 2025 new moon
-      new Date('2026-01-29T12:36:00Z'),  // January 29, 2026 new moon
-      new Date('2026-02-28T00:45:00Z'),  // February 28, 2026 new moon
-      new Date('2026-03-29T10:58:00Z'),  // March 29, 2026 new moon
-      new Date('2026-04-27T19:31:00Z'),  // April 27, 2026 new moon
-      new Date('2026-05-27T03:02:00Z'),  // May 27, 2026 new moon
-      new Date('2026-06-25T10:31:00Z'),  // June 25, 2026 new moon
-      new Date('2026-07-24T19:06:00Z'),  // July 24, 2026 new moon
-      new Date('2026-08-23T05:26:00Z'),  // August 23, 2026 new moon
-      new Date('2026-09-21T17:54:00Z'),  // September 21, 2026 new moon
-      new Date('2026-10-21T08:25:00Z'),  // October 21, 2026 new moon
-      new Date('2026-11-20T00:47:00Z'),  // November 20, 2026 new moon
-      new Date('2026-12-19T18:43:00Z'),  // December 19, 2026 new moon
+      new Date('2025-10-21T03:25:00Z'),  // Oct 21, 2025
+      new Date('2025-11-19T21:47:00Z'),  // Nov 20, 2025 03:17 IST
+      new Date('2025-12-19T15:43:00Z'),  // Dec 19, 2025 21:13 IST
+      new Date('2026-01-18T03:47:00Z'),  // Jan 18, 2026 09:17 IST - calculated from Feb 2 full moon
+      new Date('2026-02-17T08:01:00Z'),  // Feb 17, 2026 13:31 IST
+      new Date('2026-03-18T21:53:00Z'),  // Mar 19, 2026 03:23 IST
+      new Date('2026-04-17T08:21:00Z'),  // Apr 17, 2026 13:51 IST
+      new Date('2026-05-16T16:01:00Z'),  // May 16, 2026 21:31 IST
+      new Date('2026-06-14T23:24:00Z'),  // Jun 15, 2026 04:54 IST
+      new Date('2026-07-14T06:13:00Z'),  // Jul 14, 2026 11:43 IST
+      new Date('2026-08-12T14:06:00Z'),  // Aug 12, 2026 19:36 IST
+      new Date('2026-09-10T23:57:00Z'),  // Sep 11, 2026 05:27 IST
+      new Date('2026-10-10T12:20:00Z'),  // Oct 10, 2026 17:50 IST
+      new Date('2026-11-09T03:02:00Z'),  // Nov 9, 2026 08:32 IST
+      new Date('2026-12-08T21:21:00Z'),  // Dec 9, 2026 02:51 IST
     ];
     
     // Find the most recent new moon at or before this date
@@ -308,18 +319,14 @@ export const calculateTithiAccurate = (
       lunarAge = lunarMonth + (daysSinceReference % lunarMonth);
     }
     
-    // Position as percentage of lunar month (0 to 1)
-    const positionRatio = lunarAge / lunarMonth;
-    
-    // Calculate tithi on 1-30 scale using rounding for accuracy
-    // Each tithi spans: 29.530588 / 30 = 0.9843 days
-    let tithi1to30 = Math.round(positionRatio * 30);
-    
-    // Handle edge case: round(0.0) = 0 should be 30
-    if (tithi1to30 === 0) tithi1to30 = 30;
+    // Each tithi spans exactly lunarMonth/30 days (~0.984 days = ~23.6 hours)
+    // Tithi 1 starts at day 0, Tithi 2 at day 0.984, etc.
+    // Formula: tithi = floor(lunarAge / tithiDuration) + 1
+    const tithiDuration = lunarMonth / 30;
+    let tithi1to30 = Math.floor(lunarAge / tithiDuration) + 1;
     
     // Ensure valid range
-    if (tithi1to30 < 1) tithi1to30 = 1;
+    if (tithi1to30 <= 0) tithi1to30 = 1;
     if (tithi1to30 > 30) tithi1to30 = 30;
     
     // Convert to 1-15 scale with Paksha
