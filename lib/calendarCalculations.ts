@@ -514,8 +514,16 @@ export const calculateHinduCalendar = async (
   const sunriseTime24 = calculateSunriseTime(date, latitude, longitude, timezoneOffset);
   const sunriseTime12 = convertTo12Hour(sunriseTime24);
   
+  // Create date at sunrise time for Panchang calculations (Hindu day starts at sunrise)
+  const [sunriseHours, sunriseMinutes] = sunriseTime24.split(':').map(Number);
+  const dateAtSunrise = new Date(dateString + 'T00:00:00');
+  // Convert sunrise IST to UTC: subtract timezone offset
+  const sunriseUTCHours = sunriseHours - timezoneOffset;
+  const sunriseUTCMinutes = sunriseMinutes;
+  dateAtSunrise.setUTCHours(Math.floor(sunriseUTCHours), sunriseUTCMinutes + (sunriseUTCHours % 1) * 60, 0, 0);
+  
   // Fetch from API first, fallback to local calculation
-  const apiData = await fetchHinduCalendarFromAPI(date, latitude, longitude, timezoneOffset);
+  const apiData = await fetchHinduCalendarFromAPI(dateAtSunrise, latitude, longitude, timezoneOffset);
   let source: 'api' | 'local' = 'api';
   
   let paksha: 'Shukla Paksha' | 'Krishna Paksha';
@@ -528,8 +536,9 @@ export const calculateHinduCalendar = async (
     tithiName = apiData.tithiName;
   } else {
     source = 'local';
-    // Use more accurate tithi calculation method
-    const tithiData = calculateTithiAccurate(date);
+    // Use more accurate tithi calculation method at sunrise time
+    // (Hindu day starts at sunrise, not midnight)
+    const tithiData = calculateTithiAccurate(dateAtSunrise);
     paksha = tithiData.paksha;
     tithi = tithiData.tithi1to15; // Use 1-15 scale for display
     tithiName = tithiData.tithiName;
@@ -565,35 +574,36 @@ export const validateCoordinates = (latitude: number, longitude: number): boolea
 /**
  * 27 Nakshatras (Lunar Mansions)
  * Each nakshatra spans 13°20' (13.333°) of the zodiac
+ * Ruling planet based on Vimshottari Dasha system
  */
 const NAKSHATRAS = [
-  { name: 'Ashwini', symbol: '🐴', deity: 'Ashwini Kumaras', nature: 'Light' },
-  { name: 'Bharani', symbol: '🪔', deity: 'Yama', nature: 'Fierce' },
-  { name: 'Kritika', symbol: '🔥', deity: 'Agni', nature: 'Mixed' },
-  { name: 'Rohini', symbol: '🐂', deity: 'Brahma', nature: 'Fixed' },
-  { name: 'Mrigashirsha', symbol: '🦌', deity: 'Soma', nature: 'Soft' },
-  { name: 'Ardra', symbol: '💧', deity: 'Rudra', nature: 'Fierce' },
-  { name: 'Punarvasu', symbol: '🏹', deity: 'Aditi', nature: 'Movable' },
-  { name: 'Pushya', symbol: '🌸', deity: 'Brihaspati', nature: 'Light' },
-  { name: 'Ashlesha', symbol: '🐍', deity: 'Nagas', nature: 'Fierce' },
-  { name: 'Magha', symbol: '👑', deity: 'Pitrs', nature: 'Fierce' },
-  { name: 'Purva Phalguni', symbol: '🛋️', deity: 'Bhaga', nature: 'Fierce' },
-  { name: 'Uttara Phalguni', symbol: '☀️', deity: 'Aryaman', nature: 'Fixed' },
-  { name: 'Hasta', symbol: '✋', deity: 'Savitar', nature: 'Light' },
-  { name: 'Chitra', symbol: '💎', deity: 'Vishvakarma', nature: 'Soft' },
-  { name: 'Swati', symbol: '🍃', deity: 'Vayu', nature: 'Movable' },
-  { name: 'Vishakha', symbol: '⚖️', deity: 'Indra-Agni', nature: 'Mixed' },
-  { name: 'Anuradha', symbol: '🪷', deity: 'Mitra', nature: 'Soft' },
-  { name: 'Jyeshtha', symbol: '🌟', deity: 'Indra', nature: 'Fierce' },
-  { name: 'Mula', symbol: '🌱', deity: 'Nritti', nature: 'Fierce' },
-  { name: 'Purva Ashadha', symbol: '🌊', deity: 'Apas', nature: 'Fierce' },
-  { name: 'Uttara Ashadha', symbol: '🐘', deity: 'Vishvedevas', nature: 'Fixed' },
-  { name: 'Shravana', symbol: '👂', deity: 'Vishnu', nature: 'Movable' },
-  { name: 'Dhanishtha', symbol: '🥁', deity: 'Vasus', nature: 'Movable' },
-  { name: 'Shatabhisha', symbol: '💫', deity: 'Varuna', nature: 'Movable' },
-  { name: 'Purva Bhadrapada', symbol: '🔱', deity: 'Aja Ekapada', nature: 'Fierce' },
-  { name: 'Uttara Bhadrapada', symbol: '🌙', deity: 'Ahir Budhnya', nature: 'Fixed' },
-  { name: 'Revati', symbol: '🐟', deity: 'Pushan', nature: 'Soft' },
+  { name: 'Ashwini', symbol: '🐴', deity: 'Ashwini Kumaras', nature: 'Light', planet: 'Ketu' },
+  { name: 'Bharani', symbol: '🪔', deity: 'Yama', nature: 'Fierce', planet: 'Shukra' },
+  { name: 'Kritika', symbol: '🔥', deity: 'Agni', nature: 'Mixed', planet: 'Surya' },
+  { name: 'Rohini', symbol: '🐂', deity: 'Brahma', nature: 'Fixed', planet: 'Chandra' },
+  { name: 'Mrigashirsha', symbol: '🦌', deity: 'Soma', nature: 'Soft', planet: 'Mangal' },
+  { name: 'Ardra', symbol: '💧', deity: 'Rudra', nature: 'Fierce', planet: 'Rahu' },
+  { name: 'Punarvasu', symbol: '🏹', deity: 'Aditi', nature: 'Movable', planet: 'Guru' },
+  { name: 'Pushya', symbol: '🌸', deity: 'Brihaspati', nature: 'Light', planet: 'Shani' },
+  { name: 'Ashlesha', symbol: '🐍', deity: 'Nagas', nature: 'Fierce', planet: 'Budh' },
+  { name: 'Magha', symbol: '👑', deity: 'Pitrs', nature: 'Fierce', planet: 'Ketu' },
+  { name: 'Purva Phalguni', symbol: '🛋️', deity: 'Bhaga', nature: 'Fierce', planet: 'Shukra' },
+  { name: 'Uttara Phalguni', symbol: '☀️', deity: 'Aryaman', nature: 'Fixed', planet: 'Surya' },
+  { name: 'Hasta', symbol: '✋', deity: 'Savitar', nature: 'Light', planet: 'Chandra' },
+  { name: 'Chitra', symbol: '💎', deity: 'Vishvakarma', nature: 'Soft', planet: 'Mangal' },
+  { name: 'Swati', symbol: '🍃', deity: 'Vayu', nature: 'Movable', planet: 'Rahu' },
+  { name: 'Vishakha', symbol: '⚖️', deity: 'Indra-Agni', nature: 'Mixed', planet: 'Guru' },
+  { name: 'Anuradha', symbol: '🪷', deity: 'Mitra', nature: 'Soft', planet: 'Shani' },
+  { name: 'Jyeshtha', symbol: '🌟', deity: 'Indra', nature: 'Fierce', planet: 'Budh' },
+  { name: 'Mula', symbol: '🌱', deity: 'Nritti', nature: 'Fierce', planet: 'Ketu' },
+  { name: 'Purva Ashadha', symbol: '🌊', deity: 'Apas', nature: 'Fierce', planet: 'Shukra' },
+  { name: 'Uttara Ashadha', symbol: '🐘', deity: 'Vishvedevas', nature: 'Fixed', planet: 'Surya' },
+  { name: 'Shravana', symbol: '👂', deity: 'Vishnu', nature: 'Movable', planet: 'Chandra' },
+  { name: 'Dhanishtha', symbol: '🥁', deity: 'Vasus', nature: 'Movable', planet: 'Mangal' },
+  { name: 'Shatabhisha', symbol: '💫', deity: 'Varuna', nature: 'Movable', planet: 'Rahu' },
+  { name: 'Purva Bhadrapada', symbol: '🔱', deity: 'Aja Ekapada', nature: 'Fierce', planet: 'Guru' },
+  { name: 'Uttara Bhadrapada', symbol: '🌙', deity: 'Ahir Budhnya', nature: 'Fixed', planet: 'Shani' },
+  { name: 'Revati', symbol: '🐟', deity: 'Pushan', nature: 'Soft', planet: 'Budh' },
 ];
 
 /**
@@ -652,21 +662,21 @@ const KARANAS = {
 };
 
 /**
- * 12 Rashis (Zodiac Signs)
+ * 12 Rashis (Zodiac Signs) with ruling planets
  */
 const RASHIS = [
-  { name: 'Mesha', english: 'Aries', symbol: '♈', element: 'Fire' },
-  { name: 'Vrishabha', english: 'Taurus', symbol: '♉', element: 'Earth' },
-  { name: 'Mithuna', english: 'Gemini', symbol: '♊', element: 'Air' },
-  { name: 'Karka', english: 'Cancer', symbol: '♋', element: 'Water' },
-  { name: 'Simha', english: 'Leo', symbol: '♌', element: 'Fire' },
-  { name: 'Kanya', english: 'Virgo', symbol: '♍', element: 'Earth' },
-  { name: 'Tula', english: 'Libra', symbol: '♎', element: 'Air' },
-  { name: 'Vrishchika', english: 'Scorpio', symbol: '♏', element: 'Water' },
-  { name: 'Dhanu', english: 'Sagittarius', symbol: '♐', element: 'Fire' },
-  { name: 'Makara', english: 'Capricorn', symbol: '♑', element: 'Earth' },
-  { name: 'Kumbha', english: 'Aquarius', symbol: '♒', element: 'Air' },
-  { name: 'Meena', english: 'Pisces', symbol: '♓', element: 'Water' },
+  { name: 'Mesha', english: 'Aries', symbol: '♈', element: 'Fire', planet: 'Mangal' },
+  { name: 'Vrishabha', english: 'Taurus', symbol: '♉', element: 'Earth', planet: 'Shukra' },
+  { name: 'Mithuna', english: 'Gemini', symbol: '♊', element: 'Air', planet: 'Budh' },
+  { name: 'Karka', english: 'Cancer', symbol: '♋', element: 'Water', planet: 'Chandra' },
+  { name: 'Simha', english: 'Leo', symbol: '♌', element: 'Fire', planet: 'Surya' },
+  { name: 'Kanya', english: 'Virgo', symbol: '♍', element: 'Earth', planet: 'Budh' },
+  { name: 'Tula', english: 'Libra', symbol: '♎', element: 'Air', planet: 'Shukra' },
+  { name: 'Vrishchika', english: 'Scorpio', symbol: '♏', element: 'Water', planet: 'Mangal' },
+  { name: 'Dhanu', english: 'Sagittarius', symbol: '♐', element: 'Fire', planet: 'Guru' },
+  { name: 'Makara', english: 'Capricorn', symbol: '♑', element: 'Earth', planet: 'Shani' },
+  { name: 'Kumbha', english: 'Aquarius', symbol: '♒', element: 'Air', planet: 'Shani' },
+  { name: 'Meena', english: 'Pisces', symbol: '♓', element: 'Water', planet: 'Guru' },
 ];
 
 /**

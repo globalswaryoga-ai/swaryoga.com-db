@@ -387,7 +387,7 @@ const SwarCalendar: React.FC = () => {
         nakshatra: {
           name: jsPanchang.nakshatra.name,
           symbol: jsPanchang.nakshatra.symbol,
-          symbolText: `${jsPanchang.nakshatra.deity} • ${jsPanchang.nakshatra.nature}`,
+          symbolText: jsPanchang.nakshatra.planet, // Ruling planet for Swar Yoga
           pada: jsPanchang.nakshatra.pada,
         },
         yoga: {
@@ -402,13 +402,13 @@ const SwarCalendar: React.FC = () => {
         moonRashi: {
           name: jsPanchang.moonRashi.name,
           symbol: jsPanchang.moonRashi.symbol,
-          element: jsPanchang.moonRashi.element,
+          element: jsPanchang.moonRashi.planet, // Ruling planet instead of element
           english: jsPanchang.moonRashi.english,
         },
         sunRashi: {
           name: jsPanchang.sunRashi.name,
           symbol: jsPanchang.sunRashi.symbol,
-          element: jsPanchang.sunRashi.element,
+          element: jsPanchang.sunRashi.planet, // Ruling planet instead of element
           english: jsPanchang.sunRashi.english,
         },
         dayQuality: jsPanchang.dayQuality,
