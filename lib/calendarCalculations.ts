@@ -813,6 +813,49 @@ export const calculateSunRashi = (date: Date): typeof RASHIS[0] & { number: numb
 };
 
 /**
+ * Calculate Ayana (Uttarayana or Dakshinayana)
+ * Based on Sun's position in the zodiac
+ * 
+ * Uttarayana: Sun moves northward (Makara to Mithuna) - ~Jan 14 to ~July 14
+ * Dakshinayana: Sun moves southward (Karka to Dhanu) - ~July 14 to ~Jan 14
+ * 
+ * This is universal - same for all countries worldwide!
+ */
+export const calculateAyana = (date: Date): {
+  name: 'Uttarayana' | 'Dakshinayana';
+  meaning: string;
+  period: string;
+  isAuspicious: boolean;
+  symbol: string;
+} => {
+  const sunRashi = calculateSunRashi(date);
+  
+  // Uttarayana: Sun in Makara (10) to Mithuna (3) - rashis 10, 11, 12, 1, 2, 3
+  // Dakshinayana: Sun in Karka (4) to Dhanu (9) - rashis 4, 5, 6, 7, 8, 9
+  const uttarayanaRashis = [10, 11, 12, 1, 2, 3]; // Makara, Kumbha, Meena, Mesha, Vrishabha, Mithuna
+  
+  const isUttarayana = uttarayanaRashis.includes(sunRashi.number);
+  
+  if (isUttarayana) {
+    return {
+      name: 'Uttarayana',
+      meaning: 'Northward journey of Sun',
+      period: 'Makar Sankranti (~Jan 14) to Karka Sankranti (~July 14)',
+      isAuspicious: true,
+      symbol: '☀️⬆️',
+    };
+  } else {
+    return {
+      name: 'Dakshinayana',
+      meaning: 'Southward journey of Sun',
+      period: 'Karka Sankranti (~July 14) to Makar Sankranti (~Jan 14)',
+      isAuspicious: false, // Considered less auspicious for new beginnings
+      symbol: '☀️⬇️',
+    };
+  }
+};
+
+/**
  * Calculate complete Panchang data
  */
 export const calculateCompletePanchang = (date: Date): {
@@ -821,6 +864,7 @@ export const calculateCompletePanchang = (date: Date): {
   karana: ReturnType<typeof calculateKarana>;
   moonRashi: ReturnType<typeof calculateMoonRashi>;
   sunRashi: ReturnType<typeof calculateSunRashi>;
+  ayana: ReturnType<typeof calculateAyana>;
   dayQuality: 'Auspicious' | 'Neutral' | 'Inauspicious';
 } => {
   const tithiData = calculateTithiAccurate(date);
@@ -829,6 +873,7 @@ export const calculateCompletePanchang = (date: Date): {
   const karana = calculateKarana(tithiData.tithi1to30);
   const moonRashi = calculateMoonRashi(date);
   const sunRashi = calculateSunRashi(date);
+  const ayana = calculateAyana(date);
   
   // Determine day quality based on yoga
   let dayQuality: 'Auspicious' | 'Neutral' | 'Inauspicious' = 'Neutral';
@@ -849,6 +894,7 @@ export const calculateCompletePanchang = (date: Date): {
     karana,
     moonRashi,
     sunRashi,
+    ayana,
     dayQuality,
   };
 };
