@@ -128,6 +128,15 @@ const SwarCalendar: React.FC = () => {
   const [customLatitude, setCustomLatitude] = useState<string>('');
   const [customLongitude, setCustomLongitude] = useState<string>('');
   const [customTimezoneOffset, setCustomTimezoneOffset] = useState<string>('0');
+  
+  // Tomorrow's Swar Yoga data
+  const [tomorrowData, setTomorrowData] = useState<{
+    date: string;
+    tithi: number;
+    dominant: 'Prakruti' | 'Purusha';
+    sunriseTime: string;
+    sleepSwitchTime: string;
+  } | null>(null);
 
   const availableCountries = [...getCountryNames(), 'Other'];
 
@@ -676,6 +685,42 @@ const SwarCalendar: React.FC = () => {
         },
         // Use API data if available, otherwise use JS-calculated panchang
         panchang: apiPanchang || formattedPanchang
+      });
+      
+      // Calculate tomorrow's data for sleep guidance
+      const tomorrowDate = new Date(selectedDate);
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrowDateString = tomorrowDate.toISOString().split('T')[0];
+      const tomorrowHinduData = await calculateHinduCalendar(tomorrowDateString, latitude, longitude);
+      const tomorrowPanchang = calculateCompletePanchang(tomorrowDate);
+      
+      // Determine tomorrow's dominant energy
+      const tomorrowDominant = tomorrowPanchang.swarYoga.dominant.includes('Moon') ? 'Prakruti' as const : 'Purusha' as const;
+      
+      // Calculate sleep switch time (sunrise - 3 hours)
+      const sunriseTime = tomorrowHinduData.sunriseTime12 || '07:00 AM';
+      const sunriseMatch = sunriseTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      let sleepSwitchTime = '04:00 AM';
+      if (sunriseMatch) {
+        let hours = parseInt(sunriseMatch[1]);
+        const minutes = parseInt(sunriseMatch[2]);
+        const ampm = sunriseMatch[3].toUpperCase();
+        if (ampm === 'PM' && hours !== 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+        // Subtract 3 hours
+        let switchHours = hours - 3;
+        if (switchHours < 0) switchHours += 24;
+        const switchAmPm = switchHours >= 12 ? 'AM' : 'AM';
+        const displayHours = switchHours > 12 ? switchHours - 12 : (switchHours === 0 ? 12 : switchHours);
+        sleepSwitchTime = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} AM`;
+      }
+      
+      setTomorrowData({
+        date: tomorrowDateString,
+        tithi: tomorrowHinduData.tithi,
+        dominant: tomorrowDominant,
+        sunriseTime: sunriseTime,
+        sleepSwitchTime: sleepSwitchTime
       });
       
       setShowResults(true);
@@ -1382,6 +1427,51 @@ const SwarCalendar: React.FC = () => {
                     </ul>
                   </div>
                 </div>
+                
+                {/* Tomorrow's Sleep Guidance Note */}
+                {tomorrowData && (
+                  <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200 hover:shadow-lg hover:border-green-400 transition-all duration-300 cursor-default">
+                    <h4 className="font-bold text-green-800 mb-3 flex items-center">
+                      <span className="mr-2">🌙</span>
+                      Tomorrow's Preparation - {new Date(tomorrowData.date).toLocaleDateString('en-GB')} | Tithi {tomorrowData.tithi} ({tomorrowData.dominant === 'Prakruti' ? '☽ Moon' : '☉ Sun'})
+                    </h4>
+                    
+                    {tomorrowData.dominant === 'Prakruti' ? (
+                      // Moon dominant tomorrow
+                      <div className="text-green-800 space-y-2">
+                        <p className="text-sm leading-relaxed">
+                          <span className="font-semibold">🛏️ Tonight's Sleep Position:</span> Sleep on your <strong>LEFT side</strong> the entire night.
+                        </p>
+                        <p className="text-sm leading-relaxed">
+                          <span className="font-semibold">🛋️ Use proper pillow</span> to maintain comfortable left-side position.
+                        </p>
+                        <p className="text-sm leading-relaxed">
+                          <span className="font-semibold">🌅 Result:</span> At sunrise ({tomorrowData.sunriseTime}), your <strong>☽ Moon Swar (Ida Nadi)</strong> will be automatically active.
+                        </p>
+                      </div>
+                    ) : (
+                      // Sun dominant tomorrow
+                      <div className="text-green-800 space-y-2">
+                        <p className="text-sm leading-relaxed">
+                          <span className="font-semibold">🛏️ Tonight's Sleep Position:</span> Sleep on your <strong>LEFT side</strong> until <strong>{tomorrowData.sleepSwitchTime}</strong> (sunrise {tomorrowData.sunriseTime} - 3 hours).
+                        </p>
+                        <p className="text-sm leading-relaxed">
+                          <span className="font-semibold">↪️ Then switch:</span> Sleep on your <strong>RIGHT side</strong> for the last 2.5-3 hours before sunrise.
+                        </p>
+                        <p className="text-sm leading-relaxed">
+                          <span className="font-semibold">🌅 Result:</span> At sunrise ({tomorrowData.sunriseTime}), your <strong>☉ Sun Swar (Pingala Nadi)</strong> will be automatically active.
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="mt-4 pt-3 border-t border-green-200">
+                      <p className="text-xs text-green-700 italic flex items-center">
+                        <span className="mr-2">✨</span>
+                        <strong>Note:</strong> Swar Yoga gives best results with consistent practice. Regularity is the key to success!
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
