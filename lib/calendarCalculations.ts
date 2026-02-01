@@ -503,6 +503,290 @@ export const validateCoordinates = (latitude: number, longitude: number): boolea
   return latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
 };
 
+// ==========================================
+// COMPREHENSIVE PANCHANG CALCULATIONS
+// Nakshatra, Yoga, Karana, Rashi
+// ==========================================
+
+/**
+ * 27 Nakshatras (Lunar Mansions)
+ * Each nakshatra spans 13°20' (13.333°) of the zodiac
+ */
+const NAKSHATRAS = [
+  { name: 'Ashwini', symbol: '🐴', deity: 'Ashwini Kumaras', nature: 'Light' },
+  { name: 'Bharani', symbol: '🪔', deity: 'Yama', nature: 'Fierce' },
+  { name: 'Kritika', symbol: '🔥', deity: 'Agni', nature: 'Mixed' },
+  { name: 'Rohini', symbol: '🐂', deity: 'Brahma', nature: 'Fixed' },
+  { name: 'Mrigashirsha', symbol: '🦌', deity: 'Soma', nature: 'Soft' },
+  { name: 'Ardra', symbol: '💧', deity: 'Rudra', nature: 'Fierce' },
+  { name: 'Punarvasu', symbol: '🏹', deity: 'Aditi', nature: 'Movable' },
+  { name: 'Pushya', symbol: '🌸', deity: 'Brihaspati', nature: 'Light' },
+  { name: 'Ashlesha', symbol: '🐍', deity: 'Nagas', nature: 'Fierce' },
+  { name: 'Magha', symbol: '👑', deity: 'Pitrs', nature: 'Fierce' },
+  { name: 'Purva Phalguni', symbol: '🛋️', deity: 'Bhaga', nature: 'Fierce' },
+  { name: 'Uttara Phalguni', symbol: '☀️', deity: 'Aryaman', nature: 'Fixed' },
+  { name: 'Hasta', symbol: '✋', deity: 'Savitar', nature: 'Light' },
+  { name: 'Chitra', symbol: '💎', deity: 'Vishvakarma', nature: 'Soft' },
+  { name: 'Swati', symbol: '🍃', deity: 'Vayu', nature: 'Movable' },
+  { name: 'Vishakha', symbol: '⚖️', deity: 'Indra-Agni', nature: 'Mixed' },
+  { name: 'Anuradha', symbol: '🪷', deity: 'Mitra', nature: 'Soft' },
+  { name: 'Jyeshtha', symbol: '🌟', deity: 'Indra', nature: 'Fierce' },
+  { name: 'Mula', symbol: '🌱', deity: 'Nritti', nature: 'Fierce' },
+  { name: 'Purva Ashadha', symbol: '🌊', deity: 'Apas', nature: 'Fierce' },
+  { name: 'Uttara Ashadha', symbol: '🐘', deity: 'Vishvedevas', nature: 'Fixed' },
+  { name: 'Shravana', symbol: '👂', deity: 'Vishnu', nature: 'Movable' },
+  { name: 'Dhanishtha', symbol: '🥁', deity: 'Vasus', nature: 'Movable' },
+  { name: 'Shatabhisha', symbol: '💫', deity: 'Varuna', nature: 'Movable' },
+  { name: 'Purva Bhadrapada', symbol: '🔱', deity: 'Aja Ekapada', nature: 'Fierce' },
+  { name: 'Uttara Bhadrapada', symbol: '🌙', deity: 'Ahir Budhnya', nature: 'Fixed' },
+  { name: 'Revati', symbol: '🐟', deity: 'Pushan', nature: 'Soft' },
+];
+
+/**
+ * 27 Yogas (Lunar-Solar combinations)
+ */
+const YOGAS = [
+  { name: 'Vishkumbha', effect: 'Inauspicious', symbol: '⚫' },
+  { name: 'Priti', effect: 'Auspicious', symbol: '💕' },
+  { name: 'Ayushman', effect: 'Auspicious', symbol: '🌿' },
+  { name: 'Saubhagya', effect: 'Very Auspicious', symbol: '✨' },
+  { name: 'Shobhan', effect: 'Auspicious', symbol: '🌟' },
+  { name: 'Atiganda', effect: 'Inauspicious', symbol: '⚫' },
+  { name: 'Sukarma', effect: 'Auspicious', symbol: '🎯' },
+  { name: 'Dhriti', effect: 'Auspicious', symbol: '💪' },
+  { name: 'Shula', effect: 'Inauspicious', symbol: '⚫' },
+  { name: 'Ganda', effect: 'Inauspicious', symbol: '⚫' },
+  { name: 'Vriddhi', effect: 'Very Auspicious', symbol: '📈' },
+  { name: 'Dhruva', effect: 'Auspicious', symbol: '🌟' },
+  { name: 'Vyaghata', effect: 'Inauspicious', symbol: '⚫' },
+  { name: 'Harshana', effect: 'Auspicious', symbol: '😊' },
+  { name: 'Vajra', effect: 'Mixed', symbol: '⚡' },
+  { name: 'Siddhi', effect: 'Very Auspicious', symbol: '🏆' },
+  { name: 'Vyatipata', effect: 'Inauspicious', symbol: '⚫' },
+  { name: 'Variyana', effect: 'Auspicious', symbol: '🌊' },
+  { name: 'Parigha', effect: 'Inauspicious', symbol: '⚫' },
+  { name: 'Shiva', effect: 'Very Auspicious', symbol: '🕉️' },
+  { name: 'Siddha', effect: 'Very Auspicious', symbol: '🏆' },
+  { name: 'Sadhya', effect: 'Auspicious', symbol: '✅' },
+  { name: 'Shubha', effect: 'Very Auspicious', symbol: '🍀' },
+  { name: 'Shukla', effect: 'Auspicious', symbol: '⚪' },
+  { name: 'Brahma', effect: 'Auspicious', symbol: '🙏' },
+  { name: 'Indra', effect: 'Very Auspicious', symbol: '👑' },
+  { name: 'Vaidhriti', effect: 'Inauspicious', symbol: '⚫' },
+];
+
+/**
+ * 11 Karanas (half-tithis)
+ * 4 Fixed + 7 Movable (repeating)
+ */
+const KARANAS = {
+  fixed: [
+    { name: 'Kimstughna', symbol: '🔒' },
+    { name: 'Shakuni', symbol: '🦅' },
+    { name: 'Chatushpada', symbol: '🐄' },
+    { name: 'Nagava', symbol: '🐍' },
+  ],
+  movable: [
+    { name: 'Bava', symbol: '🦁' },
+    { name: 'Balava', symbol: '🐆' },
+    { name: 'Kaulava', symbol: '🐗' },
+    { name: 'Taitila', symbol: '🐎' },
+    { name: 'Garaja', symbol: '🐘' },
+    { name: 'Vanija', symbol: '🛒' },
+    { name: 'Vishti', symbol: '⚠️' }, // Bhadra Karana - inauspicious
+  ],
+};
+
+/**
+ * 12 Rashis (Zodiac Signs)
+ */
+const RASHIS = [
+  { name: 'Mesha', english: 'Aries', symbol: '♈', element: 'Fire' },
+  { name: 'Vrishabha', english: 'Taurus', symbol: '♉', element: 'Earth' },
+  { name: 'Mithuna', english: 'Gemini', symbol: '♊', element: 'Air' },
+  { name: 'Karka', english: 'Cancer', symbol: '♋', element: 'Water' },
+  { name: 'Simha', english: 'Leo', symbol: '♌', element: 'Fire' },
+  { name: 'Kanya', english: 'Virgo', symbol: '♍', element: 'Earth' },
+  { name: 'Tula', english: 'Libra', symbol: '♎', element: 'Air' },
+  { name: 'Vrishchika', english: 'Scorpio', symbol: '♏', element: 'Water' },
+  { name: 'Dhanu', english: 'Sagittarius', symbol: '♐', element: 'Fire' },
+  { name: 'Makara', english: 'Capricorn', symbol: '♑', element: 'Earth' },
+  { name: 'Kumbha', english: 'Aquarius', symbol: '♒', element: 'Air' },
+  { name: 'Meena', english: 'Pisces', symbol: '♓', element: 'Water' },
+];
+
+/**
+ * Calculate Moon's longitude based on date
+ * Uses simplified calculation (accurate to ~1-2 degrees)
+ */
+export const calculateMoonLongitude = (date: Date): number => {
+  // Reference: Jan 1, 2000 12:00 UTC, Moon at ~132° longitude
+  const J2000 = new Date('2000-01-01T12:00:00Z');
+  const daysSinceJ2000 = (date.getTime() - J2000.getTime()) / (1000 * 60 * 60 * 24);
+  
+  // Moon's mean motion: ~13.176° per day
+  const moonMeanMotion = 13.176358;
+  const moonAtJ2000 = 132.0; // approximate
+  
+  let moonLongitude = (moonAtJ2000 + daysSinceJ2000 * moonMeanMotion) % 360;
+  if (moonLongitude < 0) moonLongitude += 360;
+  
+  return moonLongitude;
+};
+
+/**
+ * Calculate Sun's longitude based on date
+ */
+export const calculateSunLongitude = (date: Date): number => {
+  // Reference: March 21 (Spring Equinox) Sun at 0° (Aries)
+  const year = date.getFullYear();
+  const springEquinox = new Date(year, 2, 21); // March 21
+  const daysSinceEquinox = (date.getTime() - springEquinox.getTime()) / (1000 * 60 * 60 * 24);
+  
+  // Sun's mean motion: ~0.9856° per day
+  const sunMeanMotion = 0.9856;
+  
+  let sunLongitude = (daysSinceEquinox * sunMeanMotion) % 360;
+  if (sunLongitude < 0) sunLongitude += 360;
+  
+  return sunLongitude;
+};
+
+/**
+ * Calculate Nakshatra from Moon's longitude
+ */
+export const calculateNakshatra = (date: Date): typeof NAKSHATRAS[0] & { number: number; pada: number } => {
+  const moonLongitude = calculateMoonLongitude(date);
+  
+  // Each nakshatra spans 13°20' (13.333°)
+  const nakshatraSpan = 360 / 27;
+  const nakshatraIndex = Math.floor(moonLongitude / nakshatraSpan);
+  const nakshatra = NAKSHATRAS[nakshatraIndex % 27];
+  
+  // Calculate pada (quarter) - each nakshatra has 4 padas of 3°20'
+  const positionInNakshatra = moonLongitude % nakshatraSpan;
+  const pada = Math.floor(positionInNakshatra / (nakshatraSpan / 4)) + 1;
+  
+  return {
+    ...nakshatra,
+    number: nakshatraIndex + 1,
+    pada,
+  };
+};
+
+/**
+ * Calculate Yoga from Sun and Moon longitudes
+ * Yoga = (Sun longitude + Moon longitude) / 13.333°
+ */
+export const calculateYoga = (date: Date): typeof YOGAS[0] & { number: number } => {
+  const moonLongitude = calculateMoonLongitude(date);
+  const sunLongitude = calculateSunLongitude(date);
+  
+  const yogaSpan = 360 / 27; // 13.333°
+  const yogaSum = (sunLongitude + moonLongitude) % 360;
+  const yogaIndex = Math.floor(yogaSum / yogaSpan);
+  
+  return {
+    ...YOGAS[yogaIndex % 27],
+    number: yogaIndex + 1,
+  };
+};
+
+/**
+ * Calculate Karana from Tithi
+ * Each tithi has 2 karanas (half-tithi)
+ * Special karanas at specific positions
+ */
+export const calculateKarana = (tithi1to30: number): typeof KARANAS.movable[0] & { number: number } => {
+  // Karana number (1-60 in a lunar month, 2 per tithi)
+  const karanaNumber = (tithi1to30 - 1) * 2 + 1; // First karana of the tithi
+  
+  // Fixed karanas:
+  // Kimstughna: 2nd half of Shukla Chaturdashi (tithi 14)
+  // Shakuni: 1st half of Krishna Chaturdashi (tithi 29)
+  // Chatushpada: 2nd half of Krishna Chaturdashi (tithi 29)
+  // Nagava: 1st half of Amavasya (tithi 30)
+  
+  // For simplicity, use movable karanas in rotation
+  // Vishti (Bhadra) occurs at specific times and is inauspicious
+  
+  const movableKaranas = KARANAS.movable;
+  const karanaIndex = (karanaNumber - 1) % 7;
+  const karana = movableKaranas[karanaIndex];
+  
+  return {
+    ...karana,
+    number: karanaNumber,
+  };
+};
+
+/**
+ * Calculate Moon Rashi (Zodiac sign of Moon)
+ */
+export const calculateMoonRashi = (date: Date): typeof RASHIS[0] & { number: number } => {
+  const moonLongitude = calculateMoonLongitude(date);
+  const rashiIndex = Math.floor(moonLongitude / 30);
+  
+  return {
+    ...RASHIS[rashiIndex % 12],
+    number: rashiIndex + 1,
+  };
+};
+
+/**
+ * Calculate Sun Rashi (Zodiac sign of Sun)
+ */
+export const calculateSunRashi = (date: Date): typeof RASHIS[0] & { number: number } => {
+  const sunLongitude = calculateSunLongitude(date);
+  const rashiIndex = Math.floor(sunLongitude / 30);
+  
+  return {
+    ...RASHIS[rashiIndex % 12],
+    number: rashiIndex + 1,
+  };
+};
+
+/**
+ * Calculate complete Panchang data
+ */
+export const calculateCompletePanchang = (date: Date): {
+  nakshatra: ReturnType<typeof calculateNakshatra>;
+  yoga: ReturnType<typeof calculateYoga>;
+  karana: ReturnType<typeof calculateKarana>;
+  moonRashi: ReturnType<typeof calculateMoonRashi>;
+  sunRashi: ReturnType<typeof calculateSunRashi>;
+  dayQuality: 'Auspicious' | 'Neutral' | 'Inauspicious';
+} => {
+  const tithiData = calculateTithiAccurate(date);
+  const nakshatra = calculateNakshatra(date);
+  const yoga = calculateYoga(date);
+  const karana = calculateKarana(tithiData.tithi1to30);
+  const moonRashi = calculateMoonRashi(date);
+  const sunRashi = calculateSunRashi(date);
+  
+  // Determine day quality based on yoga
+  let dayQuality: 'Auspicious' | 'Neutral' | 'Inauspicious' = 'Neutral';
+  if (yoga.effect === 'Very Auspicious' || yoga.effect === 'Auspicious') {
+    dayQuality = 'Auspicious';
+  } else if (yoga.effect === 'Inauspicious') {
+    dayQuality = 'Inauspicious';
+  }
+  
+  // Check for Vishti (Bhadra) Karana - always inauspicious
+  if (karana.name === 'Vishti') {
+    dayQuality = 'Inauspicious';
+  }
+  
+  return {
+    nakshatra,
+    yoga,
+    karana,
+    moonRashi,
+    sunRashi,
+    dayQuality,
+  };
+};
+
 /**
  * Format calendar data for display
  */

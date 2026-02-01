@@ -5,7 +5,8 @@ import { Calendar, MapPin, Search, Sun, Loader, Download, CalendarDays } from 'l
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { 
-  calculateHinduCalendar
+  calculateHinduCalendar,
+  calculateCompletePanchang
 } from '@/lib/calendarCalculations';
 import { locationData } from '@/lib/locationData';
 
@@ -377,20 +378,73 @@ const SwarCalendar: React.FC = () => {
         throw new Error('Failed to calculate Hindu calendar data');
       }
       
-      // Then call the comprehensive Panchang API with timezone
-      const panchangResponse = await fetch('/api/panchang/calculate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: selectedDate,
-          latitude,
-          longitude,
-          timezone,
-          locationName: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
-        })
-      });
-
-      const panchangData = await panchangResponse.json();
+      // Calculate JavaScript-based Panchang data as primary source
+      const dateObj = new Date(selectedDate);
+      const jsPanchang = calculateCompletePanchang(dateObj);
+      
+      // Format the JS panchang data to match expected structure
+      const formattedPanchang = {
+        nakshatra: {
+          name: jsPanchang.nakshatra.name,
+          symbol: jsPanchang.nakshatra.symbol,
+          symbolText: `${jsPanchang.nakshatra.deity} • ${jsPanchang.nakshatra.nature}`,
+          pada: jsPanchang.nakshatra.pada,
+        },
+        yoga: {
+          name: jsPanchang.yoga.name,
+          symbol: jsPanchang.yoga.symbol,
+          effect: jsPanchang.yoga.effect.includes('Auspicious') ? 'Auspicious' : 'Inauspicious',
+        },
+        karana: {
+          name: jsPanchang.karana.name,
+          symbol: jsPanchang.karana.symbol,
+        },
+        moonRashi: {
+          name: jsPanchang.moonRashi.name,
+          symbol: jsPanchang.moonRashi.symbol,
+          element: jsPanchang.moonRashi.element,
+          english: jsPanchang.moonRashi.english,
+        },
+        sunRashi: {
+          name: jsPanchang.sunRashi.name,
+          symbol: jsPanchang.sunRashi.symbol,
+          element: jsPanchang.sunRashi.element,
+          english: jsPanchang.sunRashi.english,
+        },
+        dayQuality: jsPanchang.dayQuality,
+        vaidhriti: jsPanchang.yoga.name === 'Vaidhriti',
+        vatiapat: jsPanchang.yoga.name === 'Vyatipata',
+        recommendations: {
+          avoid: jsPanchang.dayQuality === 'Inauspicious' 
+            ? ['Starting new ventures', 'Long journeys', 'Important decisions']
+            : ['Avoid conflicts', 'Unnecessary risks'],
+          goodFor: jsPanchang.dayQuality === 'Auspicious'
+            ? ['New beginnings', 'Important meetings', 'Spiritual practices', 'Business deals']
+            : ['Meditation', 'Yoga', 'Self-reflection', 'Completing pending work'],
+        },
+      };
+      
+      // Optionally try the API for more detailed data (but don't fail if it errors)
+      let apiPanchang = null;
+      try {
+        const panchangResponse = await fetch('/api/panchang/calculate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: selectedDate,
+            latitude,
+            longitude,
+            timezone,
+            locationName: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
+          })
+        });
+        const panchangData = await panchangResponse.json();
+        if (panchangData.data) {
+          apiPanchang = panchangData.data;
+        }
+      } catch (apiError) {
+        console.log('API panchang unavailable, using JS calculations');
+      }
       
       setCalendarData({
         date: selectedDate,
@@ -398,7 +452,7 @@ const SwarCalendar: React.FC = () => {
         paksha: hinduData.paksha,
         tithi: hinduData.tithi,
         tithiName: hinduData.tithiName,
-        sunriseTime: panchangData.data?.sunrise || hinduData.sunriseTime12,
+        sunriseTime: apiPanchang?.sunrise || hinduData.sunriseTime12,
         nadi: hinduData.nadi,
         location: `${selectedCapital}, ${selectedState}, ${selectedCountry}`,
         timezone: timezoneSelect,
@@ -406,8 +460,8 @@ const SwarCalendar: React.FC = () => {
           latitude,
           longitude
         },
-        // Add comprehensive Panchang data
-        panchang: panchangData.data
+        // Use API data if available, otherwise use JS-calculated panchang
+        panchang: apiPanchang || formattedPanchang
       });
       
       setShowResults(true);
