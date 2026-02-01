@@ -914,6 +914,43 @@ export const calculateYoga = (date: Date): typeof YOGAS[0] & { number: number } 
 };
 
 /**
+ * Calculate Yoga for full day (sunrise to next sunrise)
+ * Returns combined yoga name if yoga changes during the day
+ * e.g., "Aindra+Vaidhriti" if it starts with Aindra and changes to Vaidhriti
+ */
+export const calculateDayYoga = (date: Date, latitude: number = 28.6139, longitude: number = 77.2090): string => {
+  // Get sunrise time for this day
+  const { sunrise } = calculateSunrise(date, latitude, longitude);
+  
+  // Calculate yoga at sunrise
+  const sunriseYoga = calculateYoga(sunrise);
+  
+  // Calculate yoga at end of day (next sunrise - 1 hour to be safe)
+  const nextDay = new Date(date);
+  nextDay.setDate(nextDay.getDate() + 1);
+  const { sunrise: nextSunrise } = calculateSunrise(nextDay, latitude, longitude);
+  const endOfDay = new Date(nextSunrise.getTime() - 60 * 60 * 1000); // 1 hour before next sunrise
+  const endYoga = calculateYoga(endOfDay);
+  
+  // Also check mid-day
+  const midDay = new Date(sunrise.getTime() + (nextSunrise.getTime() - sunrise.getTime()) / 2);
+  const midYoga = calculateYoga(midDay);
+  
+  // If yogas are different, return combined name
+  const yogas: string[] = [sunriseYoga.name];
+  
+  if (midYoga.name !== sunriseYoga.name && !yogas.includes(midYoga.name)) {
+    yogas.push(midYoga.name);
+  }
+  
+  if (endYoga.name !== sunriseYoga.name && !yogas.includes(endYoga.name)) {
+    yogas.push(endYoga.name);
+  }
+  
+  return yogas.join('+');
+};
+
+/**
  * Calculate Karana from Tithi
  * Each tithi has 2 karanas (half-tithi)
  * Special karanas at specific positions

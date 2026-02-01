@@ -6,7 +6,8 @@ import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { 
   calculateHinduCalendar,
-  calculateCompletePanchang
+  calculateCompletePanchang,
+  calculateDayYoga
 } from '@/lib/calendarCalculations';
 import { locationData } from '@/lib/locationData';
 
@@ -304,6 +305,9 @@ const SwarCalendar: React.FC = () => {
       const moonCount = [dayEnergy, nakshatraEnergy, tithiEnergy].filter(e => e === '☽').length;
       const dominant = moonCount >= 2 ? 'Prakruti' as const : 'Purusha' as const;
       
+      // Calculate yoga for full day (may show combined yoga if it changes during the day)
+      const dayYoga = calculateDayYoga(currentDate, lat, lng);
+      
       data.push({
         date: dateString,
         day: hinduData.day,
@@ -315,7 +319,7 @@ const SwarCalendar: React.FC = () => {
         nadi: hinduData.nadi.name,
         nakshatra: panchang.nakshatra.name,
         nakshatraPlanet: panchang.nakshatra.planet,
-        yoga: panchang.yoga.name,
+        yoga: dayYoga,
         dayEnergy,
         nakshatraEnergy,
         tithiEnergy,
