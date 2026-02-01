@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Search, Sun, Loader, Download, CalendarDays } from 'lucide-react';
+import { Calendar, MapPin, Search, Sun, Loader, Download, CalendarDays, Eye } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { 
@@ -69,6 +69,7 @@ interface MonthlyCalendarData {
   nadi: string;
   nakshatra: string;
   nakshatraPlanet: string;
+  yoga: string;
   dayEnergy: '☽' | '☉';
   nakshatraEnergy: '☽' | '☉';
   tithiEnergy: '☽' | '☉';
@@ -121,6 +122,8 @@ const SwarCalendar: React.FC = () => {
   const [downloadStartDate, setDownloadStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [downloadEndDate, setDownloadEndDate] = useState<string>('');
   const [downloadLoading, setDownloadLoading] = useState<boolean>(false);
+  const [previewData, setPreviewData] = useState<MonthlyCalendarData[] | null>(null);
+  const [showPreview, setShowPreview] = useState<boolean>(false);
   
   // Custom location popup states (for "Other" option)
   const [showCustomLocationPopup, setShowCustomLocationPopup] = useState<boolean>(false);
@@ -312,6 +315,7 @@ const SwarCalendar: React.FC = () => {
         nadi: hinduData.nadi.name,
         nakshatra: panchang.nakshatra.name,
         nakshatraPlanet: panchang.nakshatra.planet,
+        yoga: panchang.yoga.name,
         dayEnergy,
         nakshatraEnergy,
         tithiEnergy,
@@ -323,6 +327,38 @@ const SwarCalendar: React.FC = () => {
     }
     
     return data;
+  };
+
+  // Preview monthly calendar data
+  const handlePreviewCalendar = async () => {
+    if (!downloadStartDate || !downloadEndDate || !latitude || !longitude) {
+      alert('Please fill in all required fields first');
+      return;
+    }
+    
+    const start = new Date(downloadStartDate);
+    const end = new Date(downloadEndDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 31) {
+      alert('Date range cannot exceed one month (31 days)');
+      return;
+    }
+    
+    setDownloadLoading(true);
+    
+    try {
+      const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude);
+      setPreviewData(monthlyData);
+      setShowPreview(true);
+      setShowDownloadForm(false);
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      alert('Error generating preview. Please try again.');
+    } finally {
+      setDownloadLoading(false);
+    }
   };
 
   // Download monthly calendar as PDF
@@ -359,24 +395,17 @@ const SwarCalendar: React.FC = () => {
       
       // Create A4 PDF (210mm x 297mm)
       const doc = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
       
-      const pageWidth = 297;
-      const pageHeight = 210;
+      const pageWidth = 210;
+      const pageHeight = 297;
       const margin = 10;
-      const halfWidth = (pageWidth - margin * 3) / 2;
-      
-      // Colors
-      const moonGreen = [0, 100, 0]; // Dark green for Moon
-      const sunRed = [180, 0, 0]; // Red for Sun
-      const headerBg = [70, 130, 180]; // Steel blue
-      const lightBg = [245, 245, 250]; // Light lavender
+      const tableWidth = pageWidth - margin * 2;
       
       // === HEADER SECTION ===
-      // Header background
       doc.setFillColor(70, 130, 180);
       doc.rect(0, 0, pageWidth, 28, 'F');
       
@@ -400,167 +429,210 @@ const SwarCalendar: React.FC = () => {
       doc.setFont('helvetica', 'normal');
       doc.text('Created by Mohan Kalburgi - Upamnyu International Education | Web: swaryoga.com | WhatsApp: +91 9779006820', pageWidth / 2, 25, { align: 'center' });
       
-      // === LEFT SIDE: SHUKLA PAKSHA ===
-      const leftX = margin;
-      let leftY = 35;
+      // Column positions for full-width table (7 columns now with Yoga)
+      const colX = [margin + 2, margin + 14, margin + 38, margin + 68, margin + 105, margin + 130, margin + 160];
       
-      // Shukla Paksha Header
-      doc.setFillColor(200, 230, 200); // Light green
-      doc.rect(leftX, leftY, halfWidth, 8, 'F');
-      doc.setTextColor(0, 100, 0);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text('SHUKLA PAKSHA (Waxing Moon) ☽', leftX + halfWidth / 2, leftY + 5.5, { align: 'center' });
-      leftY += 10;
-      
-      // Column headers for Shukla
-      doc.setFillColor(230, 240, 230);
-      doc.rect(leftX, leftY, halfWidth, 6, 'F');
-      doc.setTextColor(50, 50, 50);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      const cols = [leftX + 2, leftX + 14, leftX + 30, leftX + 45, leftX + 75, leftX + 95, leftX + 115];
-      doc.text('Tithi', cols[0], leftY + 4);
-      doc.text('Date', cols[1], leftY + 4);
-      doc.text('Day', cols[2], leftY + 4);
-      doc.text('Nakshatra', cols[3], leftY + 4);
-      doc.text('Day(M/S)', cols[4], leftY + 4);
-      doc.text('Nak(M/S)', cols[5], leftY + 4);
-      doc.text('Result', cols[6], leftY + 4);
-      leftY += 7;
-      
-      // Shukla data rows
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
-      shuklaData.forEach((row, idx) => {
-        if (leftY > pageHeight - 15) return; // Stop if page full
-        
-        // Alternating row background
-        if (idx % 2 === 0) {
-          doc.setFillColor(250, 255, 250);
-          doc.rect(leftX, leftY - 1, halfWidth, 5, 'F');
-        }
-        
-        doc.setTextColor(50, 50, 50);
-        doc.text(row.tithi.toString(), cols[0], leftY + 2);
-        doc.text(new Date(row.date).getDate().toString(), cols[1], leftY + 2);
-        doc.text(row.dayShort, cols[2], leftY + 2);
-        doc.text(row.nakshatra.substring(0, 12), cols[3], leftY + 2);
-        
-        // Day energy with color
-        if (row.dayEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-          doc.text('M', cols[4], leftY + 2);
-        } else {
-          doc.setTextColor(180, 0, 0);
-          doc.text('S', cols[4], leftY + 2);
-        }
-        
-        // Nakshatra energy with color
-        if (row.nakshatraEnergy === '☽') {
-          doc.setTextColor(0, 100, 0);
-          doc.text('M', cols[5], leftY + 2);
-        } else {
-          doc.setTextColor(180, 0, 0);
-          doc.text('S', cols[5], leftY + 2);
-        }
-        
-        // Dominant result
-        if (row.dominant === 'Prakruti') {
-          doc.setTextColor(0, 100, 0);
-          doc.text('Prakruti', cols[6], leftY + 2);
-        } else {
-          doc.setTextColor(180, 0, 0);
-          doc.text('Purusha', cols[6], leftY + 2);
-        }
-        
-        leftY += 5;
-      });
-      
-      // === RIGHT SIDE: KRISHNA PAKSHA ===
-      const rightX = margin * 2 + halfWidth;
-      let rightY = 35;
+      // === TOP SECTION: KRISHNA PAKSHA ===
+      let currentY = 35;
       
       // Krishna Paksha Header
-      doc.setFillColor(255, 220, 200); // Light orange/red
-      doc.rect(rightX, rightY, halfWidth, 8, 'F');
+      doc.setFillColor(255, 200, 180); // Light red/orange
+      doc.rect(margin, currentY, tableWidth, 8, 'F');
       doc.setTextColor(180, 0, 0);
-      doc.setFontSize(11);
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text('KRISHNA PAKSHA (Waning Moon) ☉', rightX + halfWidth / 2, rightY + 5.5, { align: 'center' });
-      rightY += 10;
+      doc.text('KRISHNA PAKSHA (Waning Moon) ☉', pageWidth / 2, currentY + 5.5, { align: 'center' });
+      currentY += 10;
       
       // Column headers for Krishna
-      doc.setFillColor(255, 240, 235);
-      doc.rect(rightX, rightY, halfWidth, 6, 'F');
+      doc.setFillColor(255, 235, 230);
+      doc.rect(margin, currentY, tableWidth, 7, 'F');
       doc.setTextColor(50, 50, 50);
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
-      const colsR = [rightX + 2, rightX + 14, rightX + 30, rightX + 45, rightX + 75, rightX + 95, rightX + 115];
-      doc.text('Tithi', colsR[0], rightY + 4);
-      doc.text('Date', colsR[1], rightY + 4);
-      doc.text('Day', colsR[2], rightY + 4);
-      doc.text('Nakshatra', colsR[3], rightY + 4);
-      doc.text('Day(M/S)', colsR[4], rightY + 4);
-      doc.text('Nak(M/S)', colsR[5], rightY + 4);
-      doc.text('Result', colsR[6], rightY + 4);
-      rightY += 7;
+      doc.text('Tithi', colX[0], currentY + 5);
+      doc.text('Date', colX[1], currentY + 5);
+      doc.text('Day (M/S)', colX[2], currentY + 5);
+      doc.text('Nakshatra (M/S)', colX[3], currentY + 5);
+      doc.text('Yoga', colX[4], currentY + 5);
+      doc.text('Tithi (M/S)', colX[5], currentY + 5);
+      doc.text('Result', colX[6], currentY + 5);
+      currentY += 8;
       
       // Krishna data rows
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       krishnaData.forEach((row, idx) => {
-        if (rightY > pageHeight - 15) return; // Stop if page full
-        
         // Alternating row background
         if (idx % 2 === 0) {
-          doc.setFillColor(255, 252, 250);
-          doc.rect(rightX, rightY - 1, halfWidth, 5, 'F');
+          doc.setFillColor(255, 250, 248);
+          doc.rect(margin, currentY - 1, tableWidth, 6, 'F');
         }
         
         doc.setTextColor(50, 50, 50);
-        doc.text(row.tithi.toString(), colsR[0], rightY + 2);
-        doc.text(new Date(row.date).getDate().toString(), colsR[1], rightY + 2);
-        doc.text(row.dayShort, colsR[2], rightY + 2);
-        doc.text(row.nakshatra.substring(0, 12), colsR[3], rightY + 2);
+        doc.text(row.tithi.toString(), colX[0], currentY + 3);
         
-        // Day energy with color
+        // Date format: "2 Feb"
+        const dateObj = new Date(row.date);
+        const dateStr = `${dateObj.getDate()} ${dateObj.toLocaleDateString('en-US', { month: 'short' })}`;
+        doc.text(dateStr, colX[1], currentY + 3);
+        
+        // Day with M/S indicator
+        const dayEnergySym = row.dayEnergy === '☽' ? 'M' : 'S';
         if (row.dayEnergy === '☽') {
           doc.setTextColor(0, 100, 0);
-          doc.text('M', colsR[4], rightY + 2);
         } else {
           doc.setTextColor(180, 0, 0);
-          doc.text('S', colsR[4], rightY + 2);
         }
+        doc.text(`${row.dayShort} (${dayEnergySym})`, colX[2], currentY + 3);
         
-        // Nakshatra energy with color
+        // Nakshatra with M/S indicator
+        const nakEnergySym = row.nakshatraEnergy === '☽' ? 'M' : 'S';
         if (row.nakshatraEnergy === '☽') {
           doc.setTextColor(0, 100, 0);
-          doc.text('M', colsR[5], rightY + 2);
         } else {
           doc.setTextColor(180, 0, 0);
-          doc.text('S', colsR[5], rightY + 2);
         }
+        doc.text(`${row.nakshatra.substring(0, 8)} (${nakEnergySym})`, colX[3], currentY + 3);
+        
+        // Yoga - Red for Vaidhriti and Vyatipat
+        const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat';
+        if (isBadYoga) {
+          doc.setTextColor(200, 0, 0);
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setTextColor(50, 50, 50);
+          doc.setFont('helvetica', 'normal');
+        }
+        doc.text(row.yoga.substring(0, 10), colX[4], currentY + 3);
+        doc.setFont('helvetica', 'normal');
+        
+        // Tithi energy (M/S)
+        const tithiEnergySym = row.tithiEnergy === '☽' ? 'Moon' : 'Sun';
+        if (row.tithiEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+        } else {
+          doc.setTextColor(180, 0, 0);
+        }
+        doc.text(tithiEnergySym, colX[5], currentY + 3);
         
         // Dominant result
         if (row.dominant === 'Prakruti') {
           doc.setTextColor(0, 100, 0);
-          doc.text('Prakruti', colsR[6], rightY + 2);
         } else {
           doc.setTextColor(180, 0, 0);
-          doc.text('Purusha', colsR[6], rightY + 2);
+        }
+        doc.text(row.dominant, colX[6], currentY + 3);
+        
+        currentY += 6;
+      });
+      
+      // Add spacing between tables
+      currentY += 8;
+      
+      // === BOTTOM SECTION: SHUKLA PAKSHA ===
+      // Shukla Paksha Header
+      doc.setFillColor(200, 230, 200); // Light green
+      doc.rect(margin, currentY, tableWidth, 8, 'F');
+      doc.setTextColor(0, 100, 0);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SHUKLA PAKSHA (Waxing Moon) ☽', pageWidth / 2, currentY + 5.5, { align: 'center' });
+      currentY += 10;
+      
+      // Column headers for Shukla
+      doc.setFillColor(230, 245, 230);
+      doc.rect(margin, currentY, tableWidth, 7, 'F');
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Tithi', colX[0], currentY + 5);
+      doc.text('Date', colX[1], currentY + 5);
+      doc.text('Day (M/S)', colX[2], currentY + 5);
+      doc.text('Nakshatra (M/S)', colX[3], currentY + 5);
+      doc.text('Yoga', colX[4], currentY + 5);
+      doc.text('Tithi (M/S)', colX[5], currentY + 5);
+      doc.text('Result', colX[6], currentY + 5);
+      currentY += 8;
+      
+      // Shukla data rows
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      shuklaData.forEach((row, idx) => {
+        if (currentY > pageHeight - 20) return; // Stop if page full
+        
+        // Alternating row background
+        if (idx % 2 === 0) {
+          doc.setFillColor(248, 255, 248);
+          doc.rect(margin, currentY - 1, tableWidth, 6, 'F');
         }
         
-        rightY += 5;
+        doc.setTextColor(50, 50, 50);
+        doc.text(row.tithi.toString(), colX[0], currentY + 3);
+        
+        // Date format: "17 Feb"
+        const dateObj = new Date(row.date);
+        const dateStr = `${dateObj.getDate()} ${dateObj.toLocaleDateString('en-US', { month: 'short' })}`;
+        doc.text(dateStr, colX[1], currentY + 3);
+        
+        // Day with M/S indicator
+        const dayEnergySym = row.dayEnergy === '☽' ? 'M' : 'S';
+        if (row.dayEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+        } else {
+          doc.setTextColor(180, 0, 0);
+        }
+        doc.text(`${row.dayShort} (${dayEnergySym})`, colX[2], currentY + 3);
+        
+        // Nakshatra with M/S indicator
+        const nakEnergySym = row.nakshatraEnergy === '☽' ? 'M' : 'S';
+        if (row.nakshatraEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+        } else {
+          doc.setTextColor(180, 0, 0);
+        }
+        doc.text(`${row.nakshatra.substring(0, 8)} (${nakEnergySym})`, colX[3], currentY + 3);
+        
+        // Yoga - Red for Vaidhriti and Vyatipat
+        const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat';
+        if (isBadYoga) {
+          doc.setTextColor(200, 0, 0);
+          doc.setFont('helvetica', 'bold');
+        } else {
+          doc.setTextColor(50, 50, 50);
+          doc.setFont('helvetica', 'normal');
+        }
+        doc.text(row.yoga.substring(0, 10), colX[4], currentY + 3);
+        doc.setFont('helvetica', 'normal');
+        
+        // Tithi energy (M/S)
+        const tithiEnergySym = row.tithiEnergy === '☽' ? 'Moon' : 'Sun';
+        if (row.tithiEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+        } else {
+          doc.setTextColor(180, 0, 0);
+        }
+        doc.text(tithiEnergySym, colX[5], currentY + 3);
+        
+        // Dominant result
+        if (row.dominant === 'Prakruti') {
+          doc.setTextColor(0, 100, 0);
+        } else {
+          doc.setTextColor(180, 0, 0);
+        }
+        doc.text(row.dominant, colX[6], currentY + 3);
+        
+        currentY += 6;
       });
       
       // === FOOTER ===
       doc.setFillColor(70, 130, 180);
-      doc.rect(0, pageHeight - 10, pageWidth, 10, 'F');
+      doc.rect(0, pageHeight - 12, pageWidth, 12, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
-      doc.text(`M = Moon (☽ Prakruti) | S = Sun (☉ Purusha) | Location: ${selectedCapital}, ${selectedCountry} | Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 4, { align: 'center' });
+      doc.text(`M = Moon (☽ Prakruti) | S = Sun (☉ Purusha)`, pageWidth / 2, pageHeight - 7, { align: 'center' });
+      doc.text(`Location: ${selectedCapital}, ${selectedCountry} | Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 3, { align: 'center' });
       
       // Save PDF
       doc.save(`Swar-Calendar-${monthYear.replace(' ', '-')}.pdf`);
@@ -634,7 +706,7 @@ const SwarCalendar: React.FC = () => {
         },
         dayQuality: jsPanchang.dayQuality,
         vaidhriti: jsPanchang.yoga.name === 'Vaidhriti',
-        vatiapat: jsPanchang.yoga.name === 'Vyatipata',
+        vyatipat: jsPanchang.yoga.name === 'Vyatipat',
         recommendations: {
           avoid: jsPanchang.dayQuality === 'Inauspicious' 
             ? ['Starting new ventures', 'Long journeys', 'Important decisions']
@@ -1535,7 +1607,7 @@ const SwarCalendar: React.FC = () => {
                     <li>• Separate sections for Shukla Paksha and Krishna Paksha</li>
                     <li>• Same table format as today's results</li>
                     <li>• Complete Nadi calculation logic included</li>
-                    <li>• CSV format for easy viewing in Excel</li>
+                    <li>• A4 PDF format for printing</li>
                     <li>• Maximum one month period allowed</li>
                   </ul>
                 </div>
@@ -1543,9 +1615,26 @@ const SwarCalendar: React.FC = () => {
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setShowDownloadForm(false)}
-                    className="flex-1 px-4 py-2 border border-swar-border text-swar-text rounded-lg hover:bg-swar-bg transition-colors"
+                    className="px-4 py-2 border border-swar-border text-swar-text rounded-lg hover:bg-swar-bg transition-colors"
                   >
                     Cancel
+                  </button>
+                  <button
+                    onClick={handlePreviewCalendar}
+                    disabled={downloadLoading || !downloadStartDate || !downloadEndDate}
+                    className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {downloadLoading ? (
+                      <>
+                        <Loader className="w-4 h-4 animate-spin mr-2" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-4 h-4 mr-2" />
+                        View
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={handleDownloadMonthlyCalendar}
@@ -1560,11 +1649,144 @@ const SwarCalendar: React.FC = () => {
                     ) : (
                       <>
                         <Download className="w-4 h-4 mr-2" />
-                        Download CSV
+                        Download
                       </>
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Preview Modal */}
+        {showPreview && previewData && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-swar-card rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="flex justify-between items-center p-4 border-b border-swar-border bg-gradient-to-r from-blue-500 to-purple-600">
+                <h3 className="text-xl font-bold text-white">
+                  Calendar Preview: {new Date(downloadStartDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </h3>
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="text-white hover:text-gray-200 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="overflow-auto flex-1 p-4">
+                {/* Krishna Paksha Table - TOP */}
+                <div className="mb-6">
+                  <h4 className="text-lg font-bold text-red-700 mb-2 flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-red-500 mr-2"></span>
+                    KRISHNA PAKSHA (Waning Moon) ☉
+                  </h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-red-100">
+                          <th className="border border-red-300 px-2 py-2 text-left">Tithi</th>
+                          <th className="border border-red-300 px-2 py-2 text-left">Date</th>
+                          <th className="border border-red-300 px-2 py-2 text-left">Day (M/S)</th>
+                          <th className="border border-red-300 px-2 py-2 text-left">Nakshatra (M/S)</th>
+                          <th className="border border-red-300 px-2 py-2 text-left">Yoga</th>
+                          <th className="border border-red-300 px-2 py-2 text-center">Tithi (M/S)</th>
+                          <th className="border border-red-300 px-2 py-2 text-center">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewData.filter(d => d.paksha === 'Krishna Paksha').map((row, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-red-50' : 'bg-white'}>
+                            <td className="border border-red-200 px-2 py-1 font-medium">{row.tithi}</td>
+                            <td className="border border-red-200 px-2 py-1">{new Date(row.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</td>
+                            <td className={`border border-red-200 px-2 py-1 font-medium ${row.dayEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
+                              {row.dayShort} ({row.dayEnergy === '☽' ? 'M' : 'S'})
+                            </td>
+                            <td className={`border border-red-200 px-2 py-1 font-medium ${row.nakshatraEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
+                              {row.nakshatra} ({row.nakshatraEnergy === '☽' ? 'M' : 'S'})
+                            </td>
+                            <td className={`border border-red-200 px-2 py-1 font-medium ${(row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat') ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
+                              {row.yoga}
+                            </td>
+                            <td className={`border border-red-200 px-2 py-1 text-center font-bold ${row.tithiEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
+                              {row.tithiEnergy === '☽' ? 'Moon' : 'Sun'}
+                            </td>
+                            <td className={`border border-red-200 px-2 py-1 text-center font-bold ${row.dominant === 'Prakruti' ? 'text-green-700' : 'text-red-600'}`}>
+                              {row.dominant}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                {/* Shukla Paksha Table - BOTTOM */}
+                <div>
+                  <h4 className="text-lg font-bold text-green-700 mb-2 flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+                    SHUKLA PAKSHA (Waxing Moon) ☽
+                  </h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-green-100">
+                          <th className="border border-green-300 px-2 py-2 text-left">Tithi</th>
+                          <th className="border border-green-300 px-2 py-2 text-left">Date</th>
+                          <th className="border border-green-300 px-2 py-2 text-left">Day (M/S)</th>
+                          <th className="border border-green-300 px-2 py-2 text-left">Nakshatra (M/S)</th>
+                          <th className="border border-green-300 px-2 py-2 text-left">Yoga</th>
+                          <th className="border border-green-300 px-2 py-2 text-center">Tithi (M/S)</th>
+                          <th className="border border-green-300 px-2 py-2 text-center">Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewData.filter(d => d.paksha === 'Shukla Paksha').map((row, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-green-50' : 'bg-white'}>
+                            <td className="border border-green-200 px-2 py-1 font-medium">{row.tithi}</td>
+                            <td className="border border-green-200 px-2 py-1">{new Date(row.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</td>
+                            <td className={`border border-green-200 px-2 py-1 font-medium ${row.dayEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
+                              {row.dayShort} ({row.dayEnergy === '☽' ? 'M' : 'S'})
+                            </td>
+                            <td className={`border border-green-200 px-2 py-1 font-medium ${row.nakshatraEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
+                              {row.nakshatra} ({row.nakshatraEnergy === '☽' ? 'M' : 'S'})
+                            </td>
+                            <td className={`border border-green-200 px-2 py-1 font-medium ${(row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat') ? 'text-red-600 font-bold' : 'text-gray-700'}`}>
+                              {row.yoga}
+                            </td>
+                            <td className={`border border-green-200 px-2 py-1 text-center font-bold ${row.tithiEnergy === '☽' ? 'text-green-700' : 'text-red-600'}`}>
+                              {row.tithiEnergy === '☽' ? 'Moon' : 'Sun'}
+                            </td>
+                            <td className={`border border-green-200 px-2 py-1 text-center font-bold ${row.dominant === 'Prakruti' ? 'text-green-700' : 'text-red-600'}`}>
+                              {row.dominant}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Preview Footer Actions */}
+              <div className="flex justify-end space-x-3 p-4 border-t border-swar-border bg-gray-50">
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="px-4 py-2 border border-swar-border text-swar-text rounded-lg hover:bg-swar-bg transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPreview(false);
+                    handleDownloadMonthlyCalendar();
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download PDF
+                </button>
               </div>
             </div>
           </div>
