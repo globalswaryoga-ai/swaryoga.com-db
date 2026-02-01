@@ -61,11 +61,19 @@ interface CalendarData {
 interface MonthlyCalendarData {
   date: string;
   day: string;
+  dayShort: string;
   paksha: 'Shukla Paksha' | 'Krishna Paksha';
   tithi: number;
   tithiName: string;
   sunriseTime: string;
   nadi: string;
+  nakshatra: string;
+  nakshatraPlanet: string;
+  dayEnergy: '☽' | '☉';
+  nakshatraEnergy: '☽' | '☉';
+  tithiEnergy: '☽' | '☉';
+  dominant: 'Prakruti' | 'Purusha';
+  ayana: string;
 }
 
 const getCountryByName = (name: string) => locationData.find((country) => country.name === name);
@@ -254,18 +262,52 @@ const SwarCalendar: React.FC = () => {
     
     let currentDate = new Date(start);
     
+    // Day energy mapping: Mon, Wed, Thu, Fri = Moon; Sun, Tue, Sat = Sun
+    const moonDays = [1, 3, 4, 5]; // Monday, Wednesday, Thursday, Friday
+    
+    // Moon planets for nakshatra
+    const moonPlanets = ['Chandra', 'Shukra', 'Budh', 'Guru', 'Ketu'];
+    
     while (currentDate <= actualEndDate) {
       const dateString = currentDate.toISOString().split('T')[0];
       const hinduData = await calculateHinduCalendar(dateString, lat, lng);
+      const panchang = calculateCompletePanchang(currentDate);
+      
+      const dayOfWeek = currentDate.getDay();
+      const dayEnergy = moonDays.includes(dayOfWeek) ? '☽' as const : '☉' as const;
+      const nakshatraEnergy = moonPlanets.includes(panchang.nakshatra.planet) ? '☽' as const : '☉' as const;
+      
+      // Tithi energy based on Paksha
+      const normalizedTithi = ((hinduData.tithi - 1) % 15) + 1;
+      const shuklaGroup1 = [1, 2, 3, 7, 8, 9, 13, 14, 15];
+      const krishnaGroupMoon = [4, 5, 6, 10, 11, 12];
+      let tithiEnergy: '☽' | '☉';
+      if (hinduData.paksha === 'Shukla Paksha') {
+        tithiEnergy = shuklaGroup1.includes(normalizedTithi) ? '☽' : '☉';
+      } else {
+        tithiEnergy = krishnaGroupMoon.includes(normalizedTithi) ? '☽' : '☉';
+      }
+      
+      // Determine dominant energy (simplified: count Moon vs Sun)
+      const moonCount = [dayEnergy, nakshatraEnergy, tithiEnergy].filter(e => e === '☽').length;
+      const dominant = moonCount >= 2 ? 'Prakruti' as const : 'Purusha' as const;
       
       data.push({
         date: dateString,
         day: hinduData.day,
+        dayShort: hinduData.day.substring(0, 3),
         paksha: hinduData.paksha,
         tithi: hinduData.tithi,
         tithiName: hinduData.tithiName,
         sunriseTime: hinduData.sunriseTime12,
-        nadi: hinduData.nadi.name
+        nadi: hinduData.nadi.name,
+        nakshatra: panchang.nakshatra.name,
+        nakshatraPlanet: panchang.nakshatra.planet,
+        dayEnergy,
+        nakshatraEnergy,
+        tithiEnergy,
+        dominant,
+        ayana: panchang.ayana.name
       });
       
       currentDate.setDate(currentDate.getDate() + 1);
@@ -274,7 +316,7 @@ const SwarCalendar: React.FC = () => {
     return data;
   };
 
-  // Download monthly calendar
+  // Download monthly calendar as PDF
   const handleDownloadMonthlyCalendar = async () => {
     if (!downloadStartDate || !downloadEndDate || !latitude || !longitude) {
       alert('Please fill in all required fields first');
@@ -294,61 +336,225 @@ const SwarCalendar: React.FC = () => {
     setDownloadLoading(true);
     
     try {
+      // Dynamic import of jspdf
+      const { jsPDF } = await import('jspdf');
+      
       const monthlyData = await generateMonthlyCalendarData(downloadStartDate, downloadEndDate, latitude, longitude);
       
       const shuklaData = monthlyData.filter((item: MonthlyCalendarData) => item.paksha === 'Shukla Paksha');
       const krishnaData = monthlyData.filter((item: MonthlyCalendarData) => item.paksha === 'Krishna Paksha');
       
-      const headers = 'Date,Day,Paksha,Tithi,Tithi Name,Sunrise Time,Nadi';
+      // Get month-year and ayana from first data point
+      const monthYear = new Date(downloadStartDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const ayana = monthlyData[0]?.ayana || 'Uttarayana';
       
-      const shuklaCSV = [
-        '=== SHUKLA PAKSHA (Waxing Moon) ===',
-        headers,
-        ...shuklaData.map((row: MonthlyCalendarData) => 
-          `${formatDate(row.date)},${row.day},${row.paksha},${row.tithi},${row.tithiName},${row.sunriseTime},${row.nadi}`
-        )
-      ];
+      // Create A4 PDF (210mm x 297mm)
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
       
-      const krishnaCSV = [
-        '',
-        '=== KRISHNA PAKSHA (Waning Moon) ===',
-        headers,
-        ...krishnaData.map((row: MonthlyCalendarData) => 
-          `${formatDate(row.date)},${row.day},${row.paksha},${row.tithi},${row.tithiName},${row.sunriseTime},${row.nadi}`
-        )
-      ];
+      const pageWidth = 297;
+      const pageHeight = 210;
+      const margin = 10;
+      const halfWidth = (pageWidth - margin * 3) / 2;
       
-      const csvContent = [
-        `Hindu Calendar - ${selectedCapital}, ${selectedState}, ${selectedCountry}`,
-        `Period: ${formatDate(downloadStartDate)} to ${formatDate(downloadEndDate)}`,
-        `Location: Lat ${latitude.toFixed(6)}, Lng ${longitude.toFixed(6)}`,
-        `Generated on: ${new Date().toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })}`,
-        '',
-        ...shuklaCSV,
-        ...krishnaCSV,
-        '',
-        '=== NADI CALCULATION LOGIC ===',
-        'Shukla Paksha: Tithi 1,2,3,7,8,9,13,14,15 = Chandra Nadi | Tithi 4,5,6,10,11,12 = Surya Nadi',
-        'Krishna Paksha: Tithi 1,2,3,7,8,9,13,14,15 = Surya Nadi | Tithi 4,5,6,10,11,12 = Chandra Nadi',
-        '',
-        'Powered by Swar Yoga Science - Authentic Hindu Calendar Calculations'
-      ].join('\n');
+      // Colors
+      const moonGreen = [0, 100, 0]; // Dark green for Moon
+      const sunRed = [180, 0, 0]; // Red for Sun
+      const headerBg = [70, 130, 180]; // Steel blue
+      const lightBg = [245, 245, 250]; // Light lavender
       
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Hindu-Calendar-${downloadStartDate}-to-${downloadEndDate}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // === HEADER SECTION ===
+      // Header background
+      doc.setFillColor(70, 130, 180);
+      doc.rect(0, 0, pageWidth, 28, 'F');
+      
+      // Border
+      doc.setDrawColor(100, 149, 237);
+      doc.setLineWidth(1);
+      doc.rect(2, 2, pageWidth - 4, pageHeight - 4, 'S');
+      
+      // Title
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SWAR YOGA CALENDAR', pageWidth / 2, 10, { align: 'center' });
+      
+      // Month-Year and Ayana
+      doc.setFontSize(14);
+      doc.text(`${monthYear} | ${ayana}`, pageWidth / 2, 18, { align: 'center' });
+      
+      // Creator info
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Created by Mohan Kalburgi - Upamnyu International Education | Web: swaryoga.com | WhatsApp: +91 9779006820', pageWidth / 2, 25, { align: 'center' });
+      
+      // === LEFT SIDE: SHUKLA PAKSHA ===
+      const leftX = margin;
+      let leftY = 35;
+      
+      // Shukla Paksha Header
+      doc.setFillColor(200, 230, 200); // Light green
+      doc.rect(leftX, leftY, halfWidth, 8, 'F');
+      doc.setTextColor(0, 100, 0);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SHUKLA PAKSHA (Waxing Moon) ☽', leftX + halfWidth / 2, leftY + 5.5, { align: 'center' });
+      leftY += 10;
+      
+      // Column headers for Shukla
+      doc.setFillColor(230, 240, 230);
+      doc.rect(leftX, leftY, halfWidth, 6, 'F');
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      const cols = [leftX + 2, leftX + 14, leftX + 30, leftX + 45, leftX + 75, leftX + 95, leftX + 115];
+      doc.text('Tithi', cols[0], leftY + 4);
+      doc.text('Date', cols[1], leftY + 4);
+      doc.text('Day', cols[2], leftY + 4);
+      doc.text('Nakshatra', cols[3], leftY + 4);
+      doc.text('Day(M/S)', cols[4], leftY + 4);
+      doc.text('Nak(M/S)', cols[5], leftY + 4);
+      doc.text('Result', cols[6], leftY + 4);
+      leftY += 7;
+      
+      // Shukla data rows
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      shuklaData.forEach((row, idx) => {
+        if (leftY > pageHeight - 15) return; // Stop if page full
+        
+        // Alternating row background
+        if (idx % 2 === 0) {
+          doc.setFillColor(250, 255, 250);
+          doc.rect(leftX, leftY - 1, halfWidth, 5, 'F');
+        }
+        
+        doc.setTextColor(50, 50, 50);
+        doc.text(row.tithi.toString(), cols[0], leftY + 2);
+        doc.text(new Date(row.date).getDate().toString(), cols[1], leftY + 2);
+        doc.text(row.dayShort, cols[2], leftY + 2);
+        doc.text(row.nakshatra.substring(0, 12), cols[3], leftY + 2);
+        
+        // Day energy with color
+        if (row.dayEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+          doc.text('M', cols[4], leftY + 2);
+        } else {
+          doc.setTextColor(180, 0, 0);
+          doc.text('S', cols[4], leftY + 2);
+        }
+        
+        // Nakshatra energy with color
+        if (row.nakshatraEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+          doc.text('M', cols[5], leftY + 2);
+        } else {
+          doc.setTextColor(180, 0, 0);
+          doc.text('S', cols[5], leftY + 2);
+        }
+        
+        // Dominant result
+        if (row.dominant === 'Prakruti') {
+          doc.setTextColor(0, 100, 0);
+          doc.text('Prakruti', cols[6], leftY + 2);
+        } else {
+          doc.setTextColor(180, 0, 0);
+          doc.text('Purusha', cols[6], leftY + 2);
+        }
+        
+        leftY += 5;
+      });
+      
+      // === RIGHT SIDE: KRISHNA PAKSHA ===
+      const rightX = margin * 2 + halfWidth;
+      let rightY = 35;
+      
+      // Krishna Paksha Header
+      doc.setFillColor(255, 220, 200); // Light orange/red
+      doc.rect(rightX, rightY, halfWidth, 8, 'F');
+      doc.setTextColor(180, 0, 0);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('KRISHNA PAKSHA (Waning Moon) ☉', rightX + halfWidth / 2, rightY + 5.5, { align: 'center' });
+      rightY += 10;
+      
+      // Column headers for Krishna
+      doc.setFillColor(255, 240, 235);
+      doc.rect(rightX, rightY, halfWidth, 6, 'F');
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      const colsR = [rightX + 2, rightX + 14, rightX + 30, rightX + 45, rightX + 75, rightX + 95, rightX + 115];
+      doc.text('Tithi', colsR[0], rightY + 4);
+      doc.text('Date', colsR[1], rightY + 4);
+      doc.text('Day', colsR[2], rightY + 4);
+      doc.text('Nakshatra', colsR[3], rightY + 4);
+      doc.text('Day(M/S)', colsR[4], rightY + 4);
+      doc.text('Nak(M/S)', colsR[5], rightY + 4);
+      doc.text('Result', colsR[6], rightY + 4);
+      rightY += 7;
+      
+      // Krishna data rows
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      krishnaData.forEach((row, idx) => {
+        if (rightY > pageHeight - 15) return; // Stop if page full
+        
+        // Alternating row background
+        if (idx % 2 === 0) {
+          doc.setFillColor(255, 252, 250);
+          doc.rect(rightX, rightY - 1, halfWidth, 5, 'F');
+        }
+        
+        doc.setTextColor(50, 50, 50);
+        doc.text(row.tithi.toString(), colsR[0], rightY + 2);
+        doc.text(new Date(row.date).getDate().toString(), colsR[1], rightY + 2);
+        doc.text(row.dayShort, colsR[2], rightY + 2);
+        doc.text(row.nakshatra.substring(0, 12), colsR[3], rightY + 2);
+        
+        // Day energy with color
+        if (row.dayEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+          doc.text('M', colsR[4], rightY + 2);
+        } else {
+          doc.setTextColor(180, 0, 0);
+          doc.text('S', colsR[4], rightY + 2);
+        }
+        
+        // Nakshatra energy with color
+        if (row.nakshatraEnergy === '☽') {
+          doc.setTextColor(0, 100, 0);
+          doc.text('M', colsR[5], rightY + 2);
+        } else {
+          doc.setTextColor(180, 0, 0);
+          doc.text('S', colsR[5], rightY + 2);
+        }
+        
+        // Dominant result
+        if (row.dominant === 'Prakruti') {
+          doc.setTextColor(0, 100, 0);
+          doc.text('Prakruti', colsR[6], rightY + 2);
+        } else {
+          doc.setTextColor(180, 0, 0);
+          doc.text('Purusha', colsR[6], rightY + 2);
+        }
+        
+        rightY += 5;
+      });
+      
+      // === FOOTER ===
+      doc.setFillColor(70, 130, 180);
+      doc.rect(0, pageHeight - 10, pageWidth, 10, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`M = Moon (☽ Prakruti) | S = Sun (☉ Purusha) | Location: ${selectedCapital}, ${selectedCountry} | Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 4, { align: 'center' });
+      
+      // Save PDF
+      doc.save(`Swar-Calendar-${monthYear.replace(' ', '-')}.pdf`);
       
       setShowDownloadForm(false);
     } catch (error) {
