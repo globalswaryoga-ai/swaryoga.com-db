@@ -436,7 +436,7 @@ const SwarCalendar: React.FC = () => {
       const locationLine = `${selectedCapital}, ${selectedState}, ${selectedCountry} | Lat: ${latitude.toFixed(4)}° | Long: ${longitude.toFixed(4)}° | Timezone: ${timezoneSelect}`;
       doc.text(locationLine, pageWidth / 2, 30, { align: 'center' });
       
-      // === SINGLE TABLE SORTED BY DATE ===
+      // === TABLE SORTED BY DATE WITH PAKSHA HEADERS ===
       // Sort data by date (1st to end of month)
       const sortedData = [...monthlyData].sort((a, b) => {
         const dateA = new Date(a.date);
@@ -448,23 +448,41 @@ const SwarCalendar: React.FC = () => {
       const colX = [margin + 2, margin + 22, margin + 50, margin + 85, margin + 125, margin + 150, margin + 175];
       
       let currentY = 38;
+      let lastPaksha = '';
       
-      // Table Header
-      doc.setFillColor(70, 130, 180); // Steel blue
-      doc.rect(margin, currentY, tableWidth, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Date', colX[0], currentY + 5.5);
-      doc.text('Day', colX[1], currentY + 5.5);
-      doc.text('Yog', colX[2], currentY + 5.5);
-      doc.text('Nakshatra', colX[3], currentY + 5.5);
-      doc.text('Tithi', colX[4], currentY + 5.5);
-      doc.text('Tithi(M/S)', colX[5], currentY + 5.5);
-      doc.text('Result', colX[6], currentY + 5.5);
-      currentY += 9;
+      // Helper function to draw table header
+      const drawTableHeader = (isShukla: boolean) => {
+        const bgColor = isShukla ? [200, 230, 200] : [255, 200, 180];
+        const textColor = isShukla ? [0, 100, 0] : [180, 0, 0];
+        const headerBgColor = isShukla ? [230, 245, 230] : [255, 235, 230];
+        const pakshaTitle = isShukla ? 'SHUKLA PAKSHA (Waxing Moon) ☽' : 'KRISHNA PAKSHA (Waning Moon) ☉';
+        
+        // Paksha Section Header
+        doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+        doc.rect(margin, currentY, tableWidth, 7, 'F');
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(pakshaTitle, pageWidth / 2, currentY + 5, { align: 'center' });
+        currentY += 8;
+        
+        // Column Headers
+        doc.setFillColor(headerBgColor[0], headerBgColor[1], headerBgColor[2]);
+        doc.rect(margin, currentY, tableWidth, 6, 'F');
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Date', colX[0], currentY + 4);
+        doc.text('Day', colX[1], currentY + 4);
+        doc.text('Yog', colX[2], currentY + 4);
+        doc.text('Nakshatra', colX[3], currentY + 4);
+        doc.text('Tithi', colX[4], currentY + 4);
+        doc.text('Tithi(M/S)', colX[5], currentY + 4);
+        doc.text('Result', colX[6], currentY + 4);
+        currentY += 7;
+      };
       
-      // Data rows sorted by date
+      // Data rows sorted by date with Paksha headers
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       sortedData.forEach((row, idx) => {
@@ -472,6 +490,13 @@ const SwarCalendar: React.FC = () => {
         
         // Determine if Shukla or Krishna Paksha
         const isShukla = row.paksha.includes('Shukla');
+        
+        // Draw Paksha header when Paksha changes
+        if (row.paksha !== lastPaksha) {
+          lastPaksha = row.paksha;
+          if (currentY > 50) currentY += 4; // Add spacing if not first
+          drawTableHeader(isShukla);
+        }
         
         // Check for bad yogas FIRST - these override paksha coloring
         const isBadYoga = row.yoga === 'Vaidhriti' || row.yoga === 'Vyatipat' || 
