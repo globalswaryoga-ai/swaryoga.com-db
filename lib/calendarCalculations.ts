@@ -515,12 +515,14 @@ export const calculateHinduCalendar = async (
   const sunriseTime12 = convertTo12Hour(sunriseTime24);
   
   // Create date at sunrise time for Panchang calculations (Hindu day starts at sunrise)
+  // Sunrise is in local time (IST), convert to UTC for Date object
   const [sunriseHours, sunriseMinutes] = sunriseTime24.split(':').map(Number);
-  const dateAtSunrise = new Date(dateString + 'T00:00:00');
-  // Convert sunrise IST to UTC: subtract timezone offset
-  const sunriseUTCHours = sunriseHours - timezoneOffset;
-  const sunriseUTCMinutes = sunriseMinutes;
-  dateAtSunrise.setUTCHours(Math.floor(sunriseUTCHours), sunriseUTCMinutes + (sunriseUTCHours % 1) * 60, 0, 0);
+  const dateAtSunrise = new Date(dateString + 'T00:00:00Z'); // Start with UTC midnight
+  // Add sunrise hours and minutes, then subtract timezone offset to get UTC
+  const sunriseMinutesTotal = sunriseHours * 60 + sunriseMinutes;
+  const timezoneMinutes = timezoneOffset * 60;
+  const sunriseUTCMinutes = sunriseMinutesTotal - timezoneMinutes;
+  dateAtSunrise.setUTCMinutes(dateAtSunrise.getUTCMinutes() + sunriseUTCMinutes);
   
   // Fetch from API first, fallback to local calculation
   const apiData = await fetchHinduCalendarFromAPI(dateAtSunrise, latitude, longitude, timezoneOffset);
