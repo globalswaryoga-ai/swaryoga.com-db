@@ -42,13 +42,13 @@ export const calculateSolarDeclination = (dayOfYear: number): number => {
 };
 
 /**
- * Calculate sunrise time using proper solar equations
- * Based on NOAA algorithms (very accurate)
+ * Calculate sunrise time using NOAA Solar Calculator algorithm
+ * Includes atmospheric refraction for accurate results
  * 
  * @param date - Date to calculate sunrise for
  * @param latitude - Location latitude (in degrees)
  * @param longitude - Location longitude (in degrees, negative for West)
- * @param timezone - Optional timezone offset from UTC (default: calculated from longitude)
+ * @param timezone - Timezone offset from UTC (e.g., 5.5 for IST)
  * @returns Sunrise time in HH:MM format (24-hour)
  */
 export const calculateSunriseTime = (
@@ -59,52 +59,96 @@ export const calculateSunriseTime = (
 ): string => {
   try {
     const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
     
     // Calculate day of year
     const dayOfYear = Math.floor((date.getTime() - new Date(year, 0, 0).getTime()) / 86400000);
     
-    // If timezone not provided, calculate from longitude (15 degrees = 1 hour)
-    const tz = timezone !== undefined ? timezone : Math.round(longitude / 15);
+    // Use provided timezone or default to 5.5 for India
+    // Note: For India, always use 5.5 (IST = UTC+5:30)
+    const tz = timezone !== undefined ? timezone : 5.5;
     
-    // Calculate solar declination
-    const solarDeclination = calculateSolarDeclination(dayOfYear);
-    const latRad = (latitude * Math.PI) / 180;
-    const declRad = solarDeclination;
+    // Julian Day calculation
+    const JD = 367 * year - Math.floor(7 * (year + Math.floor((month + 9) / 12)) / 4) +
+               Math.floor(275 * month / 9) + day + 1721013.5;
     
-    // Calculate hour angle
-    const cosH = -Math.tan(latRad) * Math.tan(declRad);
+    // Julian Century
+    const T = (JD - 2451545) / 36525;
     
-    // Check for polar night/day
-    if (cosH > 1) return '00:00'; // Polar night
-    if (cosH < -1) return '23:59'; // Polar day
+    // Mean longitude of sun (degrees)
+    let L0 = (280.46646 + 36000.76983 * T + 0.0003032 * T * T) % 360;
+    if (L0 < 0) L0 += 360;
     
-    const h = Math.acos(cosH);
+    // Mean anomaly of sun (degrees)
+    let M = (357.52911 + 35999.05029 * T - 0.0001537 * T * T) % 360;
+    if (M < 0) M += 360;
+    const Mrad = M * Math.PI / 180;
     
-    // Calculate equation of time (minutes)
-    const b = (2 * Math.PI * (dayOfYear - 1)) / 365;
-    const eot =
-      229.18 *
-      (0.000075 +
-        0.001868 * Math.cos(b) -
-        0.032077 * Math.sin(b) -
-        0.014615 * Math.cos(2 * b) -
-        0.040849 * Math.sin(2 * b));
+    // Eccentricity of Earth's orbit
+    const e = 0.016708634 - 0.000042037 * T - 0.0000001267 * T * T;
     
-    // Calculate sunrise (in decimal hours)
-    const sunrise =
-      12 -
-      (h * 180) / (Math.PI * 15) -
-      (eot / 60 +
-        longitude / 15 -
-        tz); // Adjust for location and timezone
+    // Equation of center
+    const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(Mrad) +
+              (0.019993 - 0.000101 * T) * Math.sin(2 * Mrad) +
+              0.000289 * Math.sin(3 * Mrad);
     
-    // Normalize to 24 hours
-    let sunriseHour = sunrise % 24;
-    if (sunriseHour < 0) sunriseHour += 24;
+    // Sun's true longitude
+    let sunLong = (L0 + C) % 360;
+    if (sunLong < 0) sunLong += 360;
     
-    // Convert to HH:MM format (24-hour)
-    const hours = Math.floor(sunriseHour);
-    const minutes = Math.floor((sunriseHour - hours) * 60);
+    // Obliquity of ecliptic (corrected)
+    const obliq = 23.439291 - 0.0130042 * T - 0.00000016 * T * T + 0.000000504 * T * T * T;
+    const obliqRad = obliq * Math.PI / 180;
+    
+    // Sun's declination
+    const sinDecl = Math.sin(obliqRad) * Math.sin(sunLong * Math.PI / 180);
+    const decl = Math.asin(sinDecl);
+    
+    // Equation of time (minutes)
+    const y = Math.tan(obliqRad / 2) ** 2;
+    const L0rad = L0 * Math.PI / 180;
+    let eot = 4 * (180 / Math.PI) * (
+      y * Math.sin(2 * L0rad) - 
+      2 * e * Math.sin(Mrad) + 
+      4 * e * y * Math.sin(Mrad) * Math.cos(2 * L0rad) -
+      0.5 * y * y * Math.sin(4 * L0rad) -
+      1.25 * e * e * Math.sin(2 * Mrad)
+    );
+    
+    // Hour angle for sunrise
+    // Zenith = 90.833° (includes atmospheric refraction of 0.833°)
+    const latRad = latitude * Math.PI / 180;
+    const zenith = 90.833 * Math.PI / 180;
+    
+    const cosHA = (Math.cos(zenith) / (Math.cos(latRad) * Math.cos(decl))) - 
+                  Math.tan(latRad) * Math.tan(decl);
+    
+    // Check for polar conditions
+    if (cosHA > 1) return '00:00'; // Polar night - no sunrise
+    if (cosHA < -1) return '23:59'; // Polar day - sun never sets
+    
+    const HA = Math.acos(cosHA) * 180 / Math.PI;
+    
+    // Sunrise time in minutes from midnight UTC
+    const sunriseUTC = 720 - 4 * (longitude + HA) - eot;
+    
+    // Convert to local time
+    const sunriseLocal = sunriseUTC + tz * 60;
+    
+    // Convert to hours and minutes
+    let hours = Math.floor(sunriseLocal / 60);
+    let minutes = Math.round(sunriseLocal % 60);
+    
+    // Handle minute overflow
+    if (minutes >= 60) {
+      minutes -= 60;
+      hours += 1;
+    }
+    
+    // Normalize hours
+    if (hours < 0) hours += 24;
+    if (hours >= 24) hours -= 24;
     
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   } catch (error) {
@@ -461,7 +505,10 @@ export const calculateHinduCalendar = async (
   const date = new Date(dateString + 'T00:00:00');
   const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
   
-  const timezoneOffset = timezone ?? Math.round(longitude / 15);
+  // For India (longitude ~73-93), always use IST = 5.5
+  // Other regions use standard timezone calculation
+  const isIndianLongitude = longitude >= 68 && longitude <= 97;
+  const timezoneOffset = timezone ?? (isIndianLongitude ? 5.5 : Math.round(longitude / 15));
 
   // Calculate sunrise time
   const sunriseTime24 = calculateSunriseTime(date, latitude, longitude, timezoneOffset);
