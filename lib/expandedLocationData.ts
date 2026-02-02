@@ -74,6 +74,46 @@ export const locationData: LocationCountry[] = [
           { name: 'Brisbane', latitude: -27.4698, longitude: 153.0251 },
           { name: 'Gold Coast', latitude: -28.0167, longitude: 153.4 }
         ]
+      },
+      {
+        name: 'Western Australia',
+        cities: [
+          { name: 'Perth', latitude: -31.9505, longitude: 115.8605 },
+          { name: 'Fremantle', latitude: -32.0569, longitude: 115.7439 },
+          { name: 'Mandurah', latitude: -32.5269, longitude: 115.7217 }
+        ]
+      },
+      {
+        name: 'Northern Territory',
+        cities: [
+          { name: 'Darwin', latitude: -12.4634, longitude: 130.8456 },
+          { name: 'Alice Springs', latitude: -23.6980, longitude: 133.8807 },
+          { name: 'Katherine', latitude: -14.4651, longitude: 132.2635 }
+        ]
+      },
+      {
+        name: 'Tasmania',
+        cities: [
+          { name: 'Hobart', latitude: -42.8821, longitude: 147.3272 },
+          { name: 'Launceston', latitude: -41.4332, longitude: 147.1441 },
+          { name: 'Devonport', latitude: -41.1804, longitude: 146.3486 }
+        ]
+      },
+      {
+        name: 'Australian Capital Territory',
+        cities: [
+          { name: 'Canberra', latitude: -35.2809, longitude: 149.1300 },
+          { name: 'Belconnen', latitude: -35.2378, longitude: 149.0660 },
+          { name: 'Tuggeranong', latitude: -35.4244, longitude: 149.0888 }
+        ]
+      },
+      {
+        name: 'South Australia',
+        cities: [
+          { name: 'Adelaide', latitude: -34.9285, longitude: 138.6007 },
+          { name: 'Mount Gambier', latitude: -37.8294, longitude: 140.7825 },
+          { name: 'Whyalla', latitude: -33.0333, longitude: 137.5167 }
+        ]
       }
     ]
   },
