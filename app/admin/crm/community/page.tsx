@@ -1638,78 +1638,26 @@ export default function AdminCommunityPage() {
           </div>
         )}
 
-        {/* Recordings Tab - Folder/Playlist/Video Structure */}
+        {/* Recordings Tab - Hero + Playlist Cards Design */}
         {activeTab === 'recordings' && (
-          <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">🎥 Workshop Recordings</h3>
-                  <p className="text-sm text-slate-500">Organized by Workshop (Folder) → Batch (Playlist) → Videos</p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={fetchRecordings}
-                    className="px-4 py-2 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all flex items-center gap-2"
-                  >
-                    <Loader size={16} className={loadingRecordings ? 'animate-spin' : ''} />
-                    Refresh
-                  </button>
-                  <button
-                    onClick={() => setShowUploadRecordingModal(true)}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-2"
-                  >
-                    <Upload size={16} />
-                    Upload Recording
-                  </button>
-                </div>
-              </div>
-              
-              {/* Breadcrumb navigation */}
-              {(selectedFolder || selectedPlaylist) && (
-                <div className="flex items-center gap-2 text-sm mb-4 bg-slate-50 p-3 rounded-xl">
-                  <button 
-                    onClick={() => { setSelectedFolder(null); setSelectedPlaylist(null); }}
-                    className="text-emerald-600 hover:underline font-bold"
-                  >
-                    All Workshops
-                  </button>
-                  {selectedFolder && (
-                    <>
-                      <span className="text-slate-400">›</span>
-                      <button 
-                        onClick={() => setSelectedPlaylist(null)}
-                        className={`font-bold ${selectedPlaylist ? 'text-emerald-600 hover:underline' : 'text-slate-900'}`}
-                      >
-                        {selectedFolder}
-                      </button>
-                    </>
-                  )}
-                  {selectedPlaylist && (
-                    <>
-                      <span className="text-slate-400">›</span>
-                      <span className="font-bold text-slate-900">{selectedPlaylist}</span>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
+          <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
             {loadingRecordings ? (
-              <div className="flex flex-col items-center justify-center h-80 space-y-4">
-                <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-                <p className="text-sm text-slate-500">Loading recordings...</p>
+              <div className="flex flex-col items-center justify-center h-full space-y-4">
+                <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                <p className="text-sm text-slate-400">Loading recordings...</p>
               </div>
             ) : recordings.length === 0 ? (
-              <div className="bg-white rounded-[2.5rem] border border-slate-200/60 h-[400px] flex flex-col items-center justify-center text-center p-20 shadow-sm">
-                <VideoIcon size={48} className="text-slate-200 mb-6" />
-                <h3 className="text-xl font-bold text-slate-900 mb-2">No Recordings Yet</h3>
-                <p className="text-slate-500 text-sm mb-6">Upload workshop recordings organized by Folder → Playlist → Video.</p>
+              <div className="flex flex-col items-center justify-center h-full text-center p-20">
+                <div className="w-24 h-24 bg-slate-700/50 rounded-full flex items-center justify-center mb-8">
+                  <VideoIcon size={48} className="text-slate-500" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-3">No Workshop Recordings Yet</h3>
+                <p className="text-slate-400 text-sm mb-8 max-w-md">Upload your workshop recordings organized by Workshop → Batch → Video for easy access.</p>
                 <button
                   onClick={() => setShowUploadRecordingModal(true)}
-                  className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-2"
+                  className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl font-bold text-sm hover:from-emerald-600 hover:to-teal-600 transition-all flex items-center gap-3 shadow-xl shadow-emerald-500/20"
                 >
-                  <Upload size={18} />
+                  <Upload size={20} />
                   Upload First Recording
                 </button>
               </div>
@@ -1717,7 +1665,6 @@ export default function AdminCommunityPage() {
               // Parse recordings into folder/playlist structure
               const folders: Record<string, Record<string, any[]>> = {};
               recordings.forEach(rec => {
-                // Parse title format: "FolderName > PlaylistName > Video X"
                 const parts = rec.title?.split(' > ') || [];
                 const folder = parts[0] || 'Uncategorized';
                 const playlist = parts[1] || 'Default Batch';
@@ -1727,112 +1674,252 @@ export default function AdminCommunityPage() {
                 folders[folder][playlist].push(rec);
               });
               
-              // Show folders view
-              if (!selectedFolder) {
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Object.entries(folders).map(([folderName, playlists]) => {
-                      const totalVideos = Object.values(playlists).flat().length;
-                      const totalPlaylists = Object.keys(playlists).length;
-                      return (
-                        <button
-                          key={folderName}
-                          onClick={() => setSelectedFolder(folderName)}
-                          className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 text-left hover:shadow-lg hover:border-emerald-300 transition-all group"
-                        >
-                          <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-emerald-200 transition-all">
-                            <FileText size={28} className="text-emerald-600" />
-                          </div>
-                          <h4 className="font-bold text-slate-900 text-lg mb-1">{folderName}</h4>
-                          <p className="text-sm text-slate-500">{totalPlaylists} batches • {totalVideos} videos</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              }
+              const folderNames = Object.keys(folders);
+              const currentFolder = selectedFolder || folderNames[0];
+              const playlists = folders[currentFolder] || {};
+              const playlistNames = Object.keys(playlists);
               
-              // Show playlists in selected folder
-              if (selectedFolder && !selectedPlaylist) {
-                const playlists = folders[selectedFolder] || {};
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Object.entries(playlists).map(([playlistName, videos]) => (
-                      <button
-                        key={playlistName}
-                        onClick={() => setSelectedPlaylist(playlistName)}
-                        className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 text-left hover:shadow-lg hover:border-emerald-300 transition-all group"
-                      >
-                        <div className="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-all">
-                          <VideoIcon size={28} className="text-purple-600" />
-                        </div>
-                        <h4 className="font-bold text-slate-900 text-lg mb-1">{playlistName}</h4>
-                        <p className="text-sm text-slate-500">{videos.length} videos</p>
-                      </button>
-                    ))}
-                  </div>
-                );
-              }
+              // Get first video thumbnail for hero
+              const firstPlaylist = playlistNames[0];
+              const heroVideo = firstPlaylist ? playlists[firstPlaylist]?.[0] : null;
               
-              // Show videos in selected playlist
-              const playlistVideos = folders[selectedFolder]?.[selectedPlaylist] || [];
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {playlistVideos.sort((a, b) => {
-                    // Sort by video number
-                    const numA = parseInt(a.title?.match(/Video (\d+)/)?.[1] || '0');
-                    const numB = parseInt(b.title?.match(/Video (\d+)/)?.[1] || '0');
-                    return numA - numB;
-                  }).map(recording => (
-                    <div key={recording._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden hover:shadow-lg transition-all group">
-                      <div className="aspect-video bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center relative">
-                        {recording.thumbnailUrl ? (
-                          <img src={getProxiedMediaUrl(recording.thumbnailUrl, token)} alt={recording.title} className="w-full h-full object-cover" />
-                        ) : (
-                          <VideoIcon size={48} className="text-emerald-300" />
-                        )}
-                        {recording.duration && (
-                          <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-lg font-bold">
-                            {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')}
-                          </span>
-                        )}
+                <div className="min-h-full">
+                  {/* Hero Section with Folder Name */}
+                  <div className="relative h-[400px] overflow-hidden">
+                    {/* Background Image/Gradient */}
+                    <div className="absolute inset-0">
+                      {heroVideo?.thumbnailUrl ? (
+                        <img 
+                          src={getProxiedMediaUrl(heroVideo.thumbnailUrl, token)} 
+                          alt={currentFolder}
+                          className="w-full h-full object-cover opacity-40"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700" />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/80 to-transparent" />
+                    </div>
+                    
+                    {/* Hero Content */}
+                    <div className="relative z-10 h-full flex flex-col justify-end p-8 lg:p-12">
+                      {/* Top bar with actions */}
+                      <div className="absolute top-6 right-6 flex gap-3">
+                        <button
+                          onClick={fetchRecordings}
+                          className="px-4 py-2 bg-white/10 backdrop-blur-md text-white rounded-xl font-bold text-sm hover:bg-white/20 transition-all flex items-center gap-2 border border-white/20"
+                        >
+                          <Loader size={16} className={loadingRecordings ? 'animate-spin' : ''} />
+                          Refresh
+                        </button>
+                        <button
+                          onClick={() => setShowUploadRecordingModal(true)}
+                          className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-all flex items-center gap-2"
+                        >
+                          <Upload size={16} />
+                          Upload
+                        </button>
                       </div>
-                      <div className="p-5">
-                        <h4 className="font-bold text-slate-900 mb-1">
-                          {recording.title?.split(' > ').pop() || recording.title}
-                        </h4>
-                        {recording.description && (
-                          <p className="text-xs text-slate-500 mb-2 line-clamp-2">{recording.description}</p>
-                        )}
-                        <p className="text-xs text-slate-400 mb-3">
-                          {recording.recordedAt ? new Date(recording.recordedAt).toLocaleDateString() : new Date(recording.createdAt).toLocaleDateString()}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                            📊 {recording.views || 0} views
-                          </span>
-                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                            {recording.s3Url && (
-                              <a 
-                                href={getProxiedMediaUrl(recording.s3Url, token)} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-500 border border-emerald-100"
-                              >
-                                <ArrowRight size={16} />
-                              </a>
-                            )}
+                      
+                      {/* Folder tabs */}
+                      {folderNames.length > 1 && (
+                        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+                          {folderNames.map(folder => (
                             <button
-                              onClick={() => deleteVideo(recording._id)}
-                              className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
+                              key={folder}
+                              onClick={() => { setSelectedFolder(folder); setSelectedPlaylist(null); }}
+                              className={`px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
+                                currentFolder === folder
+                                  ? 'bg-white text-slate-900'
+                                  : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
+                              }`}
                             >
-                              <Trash2 size={16} />
+                              {folder}
                             </button>
-                          </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Folder title */}
+                      <div className="flex items-center gap-4 mb-2">
+                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-bold uppercase tracking-wider">
+                          Workshop
+                        </span>
+                      </div>
+                      <h1 className="text-4xl lg:text-5xl font-black text-white mb-3 tracking-tight">
+                        {currentFolder}
+                      </h1>
+                      <p className="text-slate-300 text-lg">
+                        {playlistNames.length} Batches • {Object.values(playlists).flat().length} Videos
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Playlist Cards Section */}
+                  <div className="p-8 lg:p-12 -mt-16 relative z-20">
+                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                      <span className="w-1 h-6 bg-emerald-500 rounded-full"></span>
+                      Batches / Playlists
+                    </h2>
+                    
+                    {!selectedPlaylist ? (
+                      /* Playlist Grid */
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {playlistNames.map((playlistName, index) => {
+                          const playlistVideos = playlists[playlistName];
+                          const firstVideo = playlistVideos[0];
+                          const colors = [
+                            'from-purple-500 to-pink-500',
+                            'from-blue-500 to-cyan-500',
+                            'from-orange-500 to-red-500',
+                            'from-emerald-500 to-teal-500',
+                            'from-indigo-500 to-purple-500',
+                            'from-rose-500 to-orange-500',
+                          ];
+                          
+                          return (
+                            <div 
+                              key={playlistName}
+                              className="group bg-slate-800/50 backdrop-blur-sm rounded-3xl overflow-hidden border border-slate-700/50 hover:border-emerald-500/50 transition-all hover:shadow-2xl hover:shadow-emerald-500/10 cursor-pointer"
+                              onClick={() => setSelectedPlaylist(playlistName)}
+                            >
+                              {/* Thumbnail */}
+                              <div className="aspect-video relative overflow-hidden">
+                                {firstVideo?.thumbnailUrl ? (
+                                  <img 
+                                    src={getProxiedMediaUrl(firstVideo.thumbnailUrl, token)} 
+                                    alt={playlistName}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  />
+                                ) : (
+                                  <div className={`w-full h-full bg-gradient-to-br ${colors[index % colors.length]} flex items-center justify-center`}>
+                                    <VideoIcon size={48} className="text-white/50" />
+                                  </div>
+                                )}
+                                
+                                {/* Overlay with play button */}
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                                  <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
+                                    <ArrowRight size={28} className="text-slate-900 ml-1" />
+                                  </div>
+                                </div>
+                                
+                                {/* Video count badge */}
+                                <div className="absolute bottom-3 right-3 px-3 py-1 bg-black/70 backdrop-blur-sm rounded-lg text-white text-xs font-bold">
+                                  {playlistVideos.length} videos
+                                </div>
+                              </div>
+                              
+                              {/* Card content */}
+                              <div className="p-5">
+                                <h3 className="font-bold text-white text-lg mb-2 group-hover:text-emerald-400 transition-colors">
+                                  {playlistName}
+                                </h3>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-400 text-sm">
+                                    {playlistVideos.length} recordings
+                                  </span>
+                                  <button className="px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-xl text-sm font-bold group-hover:bg-emerald-500 group-hover:text-white transition-all flex items-center gap-2">
+                                    Play Now <ArrowRight size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Video List View when playlist selected */
+                      <div>
+                        {/* Back button */}
+                        <button 
+                          onClick={() => setSelectedPlaylist(null)}
+                          className="mb-6 px-4 py-2 bg-slate-700/50 text-white rounded-xl font-bold text-sm hover:bg-slate-700 transition-all flex items-center gap-2"
+                        >
+                          ← Back to Batches
+                        </button>
+                        
+                        {/* Playlist header */}
+                        <div className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-2xl p-6 mb-8 border border-emerald-500/30">
+                          <h3 className="text-2xl font-bold text-white mb-2">{selectedPlaylist}</h3>
+                          <p className="text-slate-300">{playlists[selectedPlaylist]?.length || 0} videos in this batch</p>
+                        </div>
+                        
+                        {/* Videos grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {(playlists[selectedPlaylist] || []).sort((a, b) => {
+                            const numA = parseInt(a.title?.match(/Video (\d+)/)?.[1] || '0');
+                            const numB = parseInt(b.title?.match(/Video (\d+)/)?.[1] || '0');
+                            return numA - numB;
+                          }).map((recording, index) => (
+                            <div key={recording._id} className="group bg-slate-800/50 backdrop-blur-sm rounded-2xl overflow-hidden border border-slate-700/50 hover:border-emerald-500/50 transition-all">
+                              {/* Video thumbnail */}
+                              <div className="aspect-video relative overflow-hidden">
+                                {recording.thumbnailUrl ? (
+                                  <img 
+                                    src={getProxiedMediaUrl(recording.thumbnailUrl, token)} 
+                                    alt={recording.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-600 flex items-center justify-center">
+                                    <VideoIcon size={40} className="text-slate-500" />
+                                  </div>
+                                )}
+                                
+                                {/* Play overlay */}
+                                {recording.s3Url && (
+                                  <a 
+                                    href={getProxiedMediaUrl(recording.s3Url, token)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+                                  >
+                                    <div className="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
+                                      <ArrowRight size={24} className="text-white ml-0.5" />
+                                    </div>
+                                  </a>
+                                )}
+                                
+                                {/* Video number badge */}
+                                <div className="absolute top-3 left-3 w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                                  {index + 1}
+                                </div>
+                                
+                                {/* Duration */}
+                                {recording.duration && (
+                                  <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/70 rounded-lg text-white text-xs font-bold">
+                                    {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Video info */}
+                              <div className="p-4">
+                                <h4 className="font-bold text-white mb-1">
+                                  {recording.title?.split(' > ').pop() || `Video ${index + 1}`}
+                                </h4>
+                                {recording.description && (
+                                  <p className="text-slate-400 text-sm mb-3 line-clamp-2">{recording.description}</p>
+                                )}
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-500 text-xs">
+                                    {new Date(recording.createdAt).toLocaleDateString()}
+                                  </span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); deleteVideo(recording._id); }}
+                                    className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )}
+                  </div>
                 </div>
               );
             })()}
