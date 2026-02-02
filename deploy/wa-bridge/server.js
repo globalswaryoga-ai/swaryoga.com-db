@@ -337,6 +337,139 @@ app.get('/qr', authMiddleware, async (req, res) => {
   else res.send('<h1>Initializing... Refresh in 10s</h1>');
 });
 
+/**
+ * SEND TEMPLATE - Image + Text + Blue Buttons (Native WhatsApp Buttons)
+ * Sends a bundled template message with optional image, body text, buttons, and footer
+ * 
+ * POST /send-template
+ * Body: {
+ *   to: "919876543210" or "919876543210@c.us",
+ *   imageUrl: "https://...",  // Optional header image URL
+ *   bodyText: "Your message here",  // Body text
+ *   buttons: ["Button 1", "Button 2", "Button 3"],  // Max 3 buttons
+ *   footerText: "Swar Yoga"  // Optional footer
+ * }
+ * 
+ * NOTE: WhatsApp Web deprecated native button support in 2022.
+ * This sends as: 1) Image with caption, 2) Text with button options as numbered list
+ * For true native buttons, use Meta Cloud API templates.
+ */
+app.post('/send-template', authMiddleware, async (req, res) => {
+  if (!sessionReady || !client) {
+    return res.status(503).json({ error: 'WhatsApp not connected', status: clientStatus });
+  }
+
+  const { to, imageUrl, bodyText, buttons, footerText } = req.body;
+  
+  if (!to) {
+    return res.status(400).json({ error: 'Missing recipient (to)' });
+  }
+
+  try {
+    const formattedTo = to.includes('@') ? to : \`\${to}@c.us\`;
+    const results = [];
+    let lastMessageId = null;
+
+    // 1. Send image first (if provided)
+    if (imageUrl) {
+      try {
+        console.log(\`[send-template] Fetching image: \${imageUrl.substring(0, 80)}...\`);
+        const media = await getMediaFromUrl(imageUrl);
+        if (media) {
+          // Caption goes with the image
+          const imageResult = await client.sendMessage(formattedTo, media, { 
+            caption: bodyText || '' 
+          });
+          lastMessageId = imageResult?.id?._serialized;
+          results.push({ type: 'image', success: true, messageId: lastMessageId });
+          console.log('[send-template] Image sent:', lastMessageId);
+        } else {
+          console.warn('[send-template] Failed to fetch image, sending as text');
+          results.push({ type: 'image', success: false, error: 'Failed to fetch image' });
+        }
+      } catch (imgErr) {
+        console.error('[send-template] Image send error:', imgErr.message);
+        results.push({ type: 'image', success: false, error: imgErr.message });
+      }
+    }
+
+    // 2. Try native buttons first (may not work on most WhatsApp versions)
+    if (buttons && Array.isArray(buttons) && buttons.length > 0) {
+      const validButtons = buttons.slice(0, 3).filter(b => b);
+      
+      if (validButtons.length > 0) {
+        // Try native buttons
+        let buttonsSent = false;
+        
+        try {
+          const buttonList = validButtons.map((btn, idx) => ({
+            id: \`btn_\${idx}_\${Date.now()}\`,
+            body: typeof btn === 'string' ? btn : (btn.text || btn.body || btn.title || \`Option \${idx + 1}\`)
+          }));
+
+          // If no image was sent, include body text in buttons message
+          const buttonBody = imageUrl ? '' : (bodyText || 'Please select an option:');
+          
+          const buttonMessage = new Buttons(
+            buttonBody,
+            buttonList,
+            '',  // title
+            footerText || 'Swar Yoga'
+          );
+
+          const buttonResult = await client.sendMessage(formattedTo, buttonMessage);
+          lastMessageId = buttonResult?.id?._serialized;
+          results.push({ type: 'buttons', success: true, messageId: lastMessageId, native: true });
+          buttonsSent = true;
+          console.log('[send-template] Native buttons sent:', lastMessageId);
+        } catch (btnErr) {
+          console.warn('[send-template] Native buttons failed (expected on modern WhatsApp):', btnErr.message);
+        }
+
+        // If native buttons failed, send as text with numbered options
+        if (!buttonsSent) {
+          const buttonTexts = validButtons.map((b, i) => \`\${i + 1}. \${typeof b === 'string' ? b : b.text || b.body}\`).join('\\n');
+          
+          // Build the message
+          let textMessage = '';
+          
+          // Only include body if no image was sent (image already has caption)
+          if (!imageUrl && bodyText) {
+            textMessage = bodyText + '\\n\\n';
+          }
+          
+          textMessage += '📲 *Reply with number:*\\n' + buttonTexts;
+          
+          if (footerText) {
+            textMessage += '\\n\\n_' + footerText + '_';
+          }
+
+          const textResult = await client.sendMessage(formattedTo, textMessage);
+          lastMessageId = textResult?.id?._serialized;
+          results.push({ type: 'buttons', success: true, messageId: lastMessageId, native: false, fallback: 'text' });
+          console.log('[send-template] Buttons sent as text fallback:', lastMessageId);
+        }
+      }
+    } else if (!imageUrl && bodyText) {
+      // No image and no buttons - just send text
+      const textResult = await client.sendMessage(formattedTo, bodyText);
+      lastMessageId = textResult?.id?._serialized;
+      results.push({ type: 'text', success: true, messageId: lastMessageId });
+    }
+
+    // Return success with all results
+    res.json({ 
+      success: true, 
+      messageId: lastMessageId,
+      results,
+      warning: results.some(r => r.fallback) ? 'Native buttons not supported, sent as text' : undefined
+    });
+  } catch (err) {
+    console.error('[send-template] Error:', err.message);
+    res.status(500).json({ error: 'Failed to send template', details: err.message });
+  }
+});
+
 app.post('/send', authMiddleware, async (req, res) => {
   const { to, chatId, message, url, media, type, buttons, footer } = req.body;
   const target = chatId || to;
