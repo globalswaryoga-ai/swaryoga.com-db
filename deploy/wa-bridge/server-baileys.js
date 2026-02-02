@@ -735,15 +735,18 @@ app.post("/send-template", authMiddleware, async (req, res) => {
       const validButtons = buttons.slice(0, 3).filter(b => b);
       
       if (validButtons.length > 0) {
-        // Try native interactive buttons (nativeFlowMessage format for 2024+)
+        const bodyContent = imageUrl ? "" : (bodyText || "Please select an option");
+        const footerContent = effectiveFooter || "Swar Yoga";
+        
+        // METHOD 1: nativeFlowMessage with viewOnceMessage wrapper (experimental 2024+)
         try {
-          console.log("🔵 Trying native blue buttons...");
+          console.log("🔵 [1/4] Trying nativeFlowMessage (viewOnce wrapper)...");
           
           const nativeButtons = validButtons.map((btn, idx) => ({
             name: "quick_reply",
             buttonParamsJson: JSON.stringify({
               display_text: typeof btn === "string" ? btn : (btn.text || btn.title || btn),
-              id: "btn_" + idx
+              id: `btn_${idx}`
             })
           }));
 
@@ -751,8 +754,8 @@ app.post("/send-template", authMiddleware, async (req, res) => {
             viewOnceMessage: {
               message: {
                 interactiveMessage: {
-                  body: { text: imageUrl ? "" : (bodyText || "Please select an option") },
-                  footer: { text: effectiveFooter || "Swar Yoga" },
+                  body: { text: bodyContent },
+                  footer: { text: footerContent },
                   nativeFlowMessage: {
                     buttons: nativeButtons,
                     messageParamsJson: ""
@@ -765,73 +768,147 @@ app.post("/send-template", authMiddleware, async (req, res) => {
           const btnResult = await sock.sendMessage(jid, interactiveMsg);
           if (btnResult?.key?.id) {
             messageIds.push(btnResult.key.id);
-            console.log("✅ Native blue buttons sent!");
+            console.log("✅ nativeFlowMessage (viewOnce) sent!");
             return res.json({ 
               success: true, 
               messageIds,
-              method: "native_buttons",
-              note: "Blue buttons sent successfully"
+              method: "native_flow_viewonce",
+              note: "Interactive buttons sent successfully"
             });
           }
-        } catch (nativeErr) {
-          console.log("⚠️ Native buttons failed:", nativeErr.message);
-          
-          // Fallback: Try buttonsMessage format
-          try {
-            console.log("🔄 Trying buttonsMessage format...");
-            const buttonRows = validButtons.map((btn, idx) => ({
-              buttonId: "btn_" + idx,
-              buttonText: { displayText: typeof btn === "string" ? btn : (btn.text || btn.title || btn) },
-              type: 1
-            }));
-
-            const buttonsMsg = {
-              text: imageUrl ? "" : (bodyText || "Please select an option"),
-              footer: effectiveFooter || "Swar Yoga",
-              buttons: buttonRows,
-              headerType: 1
-            };
-
-            const btnResult2 = await sock.sendMessage(jid, buttonsMsg);
-            if (btnResult2?.key?.id) {
-              messageIds.push(btnResult2.key.id);
-              console.log("✅ Buttons message sent!");
-              return res.json({ 
-                success: true, 
-                messageIds,
-                method: "buttons_message",
-                note: "Buttons sent"
-              });
-            }
-          } catch (btnErr) {
-            console.log("⚠️ buttonsMessage also failed:", btnErr.message);
-          }
-          
-          // Final fallback: numbered text
-          console.log("📝 Falling back to numbered text...");
-          const buttonList = validButtons.map((b, i) => {
-            const text = typeof b === 'string' ? b : (b.text || b.title || b);
-            return `${i + 1}️⃣ *${text}*`;
-          }).join("\n");
-          
-          let fallbackText = imageUrl ? "" : (bodyText ? bodyText + "\n\n" : "");
-          fallbackText += buttonList;
-          if (effectiveFooter) {
-            fallbackText += "\n\n_" + effectiveFooter + "_";
-          }
-          
-          const textResult = await sock.sendMessage(jid, { text: fallbackText });
-          if (textResult?.key?.id) {
-            messageIds.push(textResult.key.id);
-          }
-          
-          return res.json({ 
-            success: true, 
-            messageIds,
-            method: "text_fallback",
-            warning: "Native buttons not supported on this WhatsApp version, sent as numbered text"
-          });
+        } catch (err1) {
+          console.log("⚠️ Method 1 failed:", err1.message);
         }
+
+        // METHOD 2: Direct interactiveMessage without viewOnce wrapper
+        try {
+          console.log("🔵 [2/4] Trying direct interactiveMessage...");
+          
+          const nativeButtons = validButtons.map((btn, idx) => ({
+            name: "quick_reply",
+            buttonParamsJson: JSON.stringify({
+              display_text: typeof btn === "string" ? btn : (btn.text || btn.title || btn),
+              id: `btn_${idx}`
+            })
+          }));
+
+          const directInteractive = {
+            interactiveMessage: {
+              body: { text: bodyContent },
+              footer: { text: footerContent },
+              nativeFlowMessage: {
+                buttons: nativeButtons,
+                messageParamsJson: ""
+              }
+            }
+          };
+
+          const btnResult2 = await sock.sendMessage(jid, directInteractive);
+          if (btnResult2?.key?.id) {
+            messageIds.push(btnResult2.key.id);
+            console.log("✅ Direct interactiveMessage sent!");
+            return res.json({ 
+              success: true, 
+              messageIds,
+              method: "direct_interactive",
+              note: "Interactive buttons sent"
+            });
+          }
+        } catch (err2) {
+          console.log("⚠️ Method 2 failed:", err2.message);
+        }
+
+        // METHOD 3: Legacy buttonsMessage (deprecated but try anyway)
+        try {
+          console.log("🔵 [3/4] Trying legacy buttonsMessage...");
+          const buttonRows = validButtons.map((btn, idx) => ({
+            buttonId: `btn_${idx}`,
+            buttonText: { displayText: typeof btn === "string" ? btn : (btn.text || btn.title || btn) },
+            type: 1
+          }));
+
+          const buttonsMsg = {
+            text: bodyContent,
+            footer: footerContent,
+            buttons: buttonRows,
+            headerType: 1
+          };
+
+          const btnResult3 = await sock.sendMessage(jid, buttonsMsg);
+          if (btnResult3?.key?.id) {
+            messageIds.push(btnResult3.key.id);
+            console.log("✅ Legacy buttonsMessage sent!");
+            return res.json({ 
+              success: true, 
+              messageIds,
+              method: "legacy_buttons",
+              note: "Buttons sent via legacy format"
+            });
+          }
+        } catch (err3) {
+          console.log("⚠️ Method 3 failed:", err3.message);
+        }
+
+        // METHOD 4: templateMessage with quick reply buttons (another experimental format)
+        try {
+          console.log("🔵 [4/4] Trying templateMessage format...");
+          const templateButtons = validButtons.map((btn, idx) => ({
+            index: idx + 1,
+            quickReplyButton: {
+              displayText: typeof btn === "string" ? btn : (btn.text || btn.title || btn),
+              id: `btn_${idx}`
+            }
+          }));
+
+          const templateMsg = {
+            templateMessage: {
+              hydratedTemplate: {
+                hydratedContentText: bodyContent,
+                hydratedFooterText: footerContent,
+                hydratedButtons: templateButtons
+              }
+            }
+          };
+
+          const btnResult4 = await sock.sendMessage(jid, templateMsg);
+          if (btnResult4?.key?.id) {
+            messageIds.push(btnResult4.key.id);
+            console.log("✅ templateMessage sent!");
+            return res.json({ 
+              success: true, 
+              messageIds,
+              method: "template_message",
+              note: "Buttons sent via template format"
+            });
+          }
+        } catch (err4) {
+          console.log("⚠️ Method 4 failed:", err4.message);
+        }
+
+        // FINAL FALLBACK: Numbered text list (always works)
+        console.log("📝 All button methods failed. Falling back to numbered text...");
+        const buttonList = validButtons.map((b, i) => {
+          const text = typeof b === 'string' ? b : (b.text || b.title || b);
+          return `${i + 1}️⃣ *${text}*`;
+        }).join("\n");
+        
+        let fallbackText = imageUrl ? "" : (bodyText ? bodyText + "\n\n" : "");
+        fallbackText += buttonList;
+        if (effectiveFooter) {
+          fallbackText += "\n\n_" + effectiveFooter + "_";
+        }
+        
+        const textResult = await sock.sendMessage(jid, { text: fallbackText });
+        if (textResult?.key?.id) {
+          messageIds.push(textResult.key.id);
+        }
+        
+        return res.json({ 
+          success: true, 
+          messageIds,
+          method: "text_fallback",
+          warning: "Native buttons deprecated by WhatsApp for unofficial APIs. Sent as numbered text list."
+        });
       }
     } else if (!imageUrl) {
       // No buttons and no image - just send text
@@ -874,7 +951,7 @@ app.post("/send-image", authMiddleware, async (req, res) => {
   }
 });
 
-// Send buttons message (blue interactive buttons)
+// Send buttons message (blue interactive buttons) - Multiple experimental formats
 app.post("/send-buttons", authMiddleware, async (req, res) => {
   if (!sock || !sessionReady) return res.status(503).json({ success: false, error: "WhatsApp not connected" });
   
@@ -885,55 +962,164 @@ app.post("/send-buttons", authMiddleware, async (req, res) => {
 
   try {
     const jid = toJid(to);
-    
-    // Create button structure
-    const buttonRows = buttons.slice(0, 3).map((btn, idx) => ({
-      buttonId: `btn_${idx}`,
-      buttonText: { displayText: typeof btn === 'string' ? btn : btn.text || btn },
-      type: 1
-    }));
+    const validButtons = buttons.slice(0, 3).filter(b => b);
+    const bodyContent = text || "Please select an option";
+    const footerContent = footer || "Swar Yoga";
 
-    let msg;
-    if (imageUrl) {
-      msg = {
-        image: { url: imageUrl },
-        caption: text || "",
-        footer: footer || "Swar Yoga",
-        buttons: buttonRows,
-        headerType: 4
+    // METHOD 1: nativeFlowMessage with viewOnceMessage wrapper
+    try {
+      console.log("🔵 [1/4] send-buttons: nativeFlowMessage...");
+      const nativeButtons = validButtons.map((btn, idx) => ({
+        name: "quick_reply",
+        buttonParamsJson: JSON.stringify({
+          display_text: typeof btn === 'string' ? btn : (btn.text || btn),
+          id: `btn_${idx}`
+        })
+      }));
+
+      const interactiveMsg = {
+        viewOnceMessage: {
+          message: {
+            interactiveMessage: {
+              body: { text: bodyContent },
+              footer: { text: footerContent },
+              nativeFlowMessage: {
+                buttons: nativeButtons,
+                messageParamsJson: ""
+              }
+            }
+          }
+        }
       };
-    } else {
-      msg = {
-        text: text || "",
-        footer: footer || "Swar Yoga",
-        buttons: buttonRows,
-        headerType: 1
-      };
+
+      const result = await sock.sendMessage(jid, interactiveMsg);
+      if (result?.key?.id) {
+        console.log("✅ nativeFlowMessage buttons sent");
+        return res.json({ success: true, id: result.key.id, method: "native_flow" });
+      }
+    } catch (e1) {
+      console.log("⚠️ Method 1 failed:", e1.message);
     }
 
-    const result = await sock.sendMessage(jid, msg);
-    console.log("Buttons message sent to", jid);
-    res.json({ success: true, id: result?.key?.id });
+    // METHOD 2: Direct interactiveMessage
+    try {
+      console.log("🔵 [2/4] send-buttons: direct interactive...");
+      const nativeButtons = validButtons.map((btn, idx) => ({
+        name: "quick_reply",
+        buttonParamsJson: JSON.stringify({
+          display_text: typeof btn === 'string' ? btn : (btn.text || btn),
+          id: `btn_${idx}`
+        })
+      }));
+
+      const directMsg = {
+        interactiveMessage: {
+          body: { text: bodyContent },
+          footer: { text: footerContent },
+          nativeFlowMessage: {
+            buttons: nativeButtons,
+            messageParamsJson: ""
+          }
+        }
+      };
+
+      const result = await sock.sendMessage(jid, directMsg);
+      if (result?.key?.id) {
+        console.log("✅ Direct interactive sent");
+        return res.json({ success: true, id: result.key.id, method: "direct_interactive" });
+      }
+    } catch (e2) {
+      console.log("⚠️ Method 2 failed:", e2.message);
+    }
+
+    // METHOD 3: Legacy buttonsMessage
+    try {
+      console.log("🔵 [3/4] send-buttons: legacy buttons...");
+      const buttonRows = validButtons.map((btn, idx) => ({
+        buttonId: `btn_${idx}`,
+        buttonText: { displayText: typeof btn === 'string' ? btn : (btn.text || btn) },
+        type: 1
+      }));
+
+      let msg;
+      if (imageUrl) {
+        msg = {
+          image: { url: imageUrl },
+          caption: bodyContent,
+          footer: footerContent,
+          buttons: buttonRows,
+          headerType: 4
+        };
+      } else {
+        msg = {
+          text: bodyContent,
+          footer: footerContent,
+          buttons: buttonRows,
+          headerType: 1
+        };
+      }
+
+      const result = await sock.sendMessage(jid, msg);
+      if (result?.key?.id) {
+        console.log("✅ Legacy buttons sent");
+        return res.json({ success: true, id: result.key.id, method: "legacy_buttons" });
+      }
+    } catch (e3) {
+      console.log("⚠️ Method 3 failed:", e3.message);
+    }
+
+    // METHOD 4: templateMessage with hydratedButtons
+    try {
+      console.log("🔵 [4/4] send-buttons: templateMessage...");
+      const templateButtons = validButtons.map((btn, idx) => ({
+        index: idx + 1,
+        quickReplyButton: {
+          displayText: typeof btn === 'string' ? btn : (btn.text || btn),
+          id: `btn_${idx}`
+        }
+      }));
+
+      const templateMsg = {
+        templateMessage: {
+          hydratedTemplate: {
+            hydratedContentText: bodyContent,
+            hydratedFooterText: footerContent,
+            hydratedButtons: templateButtons
+          }
+        }
+      };
+
+      const result = await sock.sendMessage(jid, templateMsg);
+      if (result?.key?.id) {
+        console.log("✅ Template message sent");
+        return res.json({ success: true, id: result.key.id, method: "template_message" });
+      }
+    } catch (e4) {
+      console.log("⚠️ Method 4 failed:", e4.message);
+    }
+
+    // FINAL FALLBACK: Text-based buttons
+    console.log("📝 All button formats failed, sending as text...");
+    const btnText = validButtons.map((b, i) => `${i + 1}️⃣ *${typeof b === 'string' ? b : (b.text || b)}*`).join("\n");
+    const fullText = `${bodyContent}\n\n${btnText}\n\n_${footerContent}_`;
+    
+    let result;
+    if (imageUrl) {
+      result = await sock.sendMessage(jid, { image: { url: imageUrl }, caption: fullText });
+    } else {
+      result = await sock.sendMessage(jid, { text: fullText });
+    }
+    
+    return res.json({ 
+      success: true, 
+      id: result?.key?.id, 
+      method: "text_fallback",
+      warning: "WhatsApp deprecated buttons for unofficial APIs. Sent as numbered text."
+    });
+
   } catch (err) {
     console.error("Send buttons error:", err.message);
-    
-    // Fallback to text-based buttons
-    try {
-      const jid = toJid(to);
-      const btnText = buttons.map(b => `▸ ${typeof b === 'string' ? b : b.text || b}`).join("\n");
-      const fullText = `${text || ""}\n\n${btnText}\n\n_${footer || "Swar Yoga"}_`;
-      
-      let result;
-      if (imageUrl) {
-        result = await sock.sendMessage(jid, { image: { url: imageUrl }, caption: fullText });
-      } else {
-        result = await sock.sendMessage(jid, { text: fullText });
-      }
-      
-      res.json({ success: true, id: result?.key?.id, fallback: true });
-    } catch (fallbackErr) {
-      res.status(500).json({ success: false, error: err.message });
-    }
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

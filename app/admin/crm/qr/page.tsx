@@ -130,6 +130,10 @@ function QRWhatsAppInboxPageContent() {
     position: { x: number; y: number } 
   } | null>(null);
   
+  // Manual refresh state
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const lastRefreshRef = useRef<number>(0);
+  
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ type, message });
@@ -1019,7 +1023,8 @@ function QRWhatsAppInboxPageContent() {
       };
 
       loadChats();
-      const interval = setInterval(loadChats, 45000); // 45s polling
+      // Poll every 15s for new chats - faster refresh for better real-time feel
+      const interval = setInterval(loadChats, 15000);
       return () => clearInterval(interval);
     }
   }, [status, token]);
@@ -1275,8 +1280,8 @@ function QRWhatsAppInboxPageContent() {
       };
 
       loadMessages();
-      // Poll for new messages every 8 seconds
-      const interval = setInterval(loadMessages, 8000);
+      // Poll for new messages every 5 seconds for faster inbox updates
+      const interval = setInterval(loadMessages, 5000);
       return () => clearInterval(interval);
     } else {
       setLast404Chat(null);
@@ -3390,6 +3395,89 @@ function QRWhatsAppInboxPageContent() {
     loading: 'Loading...'
   }[status];
 
+  // Manual refresh function for chats and messages
+  const handleRefreshInbox = async () => {
+    // Prevent rapid refresh clicks
+    const now = Date.now();
+    if (now - lastRefreshRef.current < 2000) return;
+    lastRefreshRef.current = now;
+    
+    setIsRefreshing(true);
+    try {
+      // Refresh chat list
+      const res = await fetch('/api/admin/crm/conversations?limit=100&provider=qr', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+      });
+      
+      if (res.ok) {
+        const payload = await res.json();
+        const conversations = payload?.data?.conversations || [];
+        
+        // Deduplicate by phone number
+        const seenPhones = new Set<string>();
+        const crmChats = conversations
+          .map((conv: any) => {
+            const phone = String(conv.phoneNumber || '').replace(/\D/g, '');
+            return {
+              id: { _serialized: `${conv.phoneNumber}@c.us` },
+              name: conv.name || conv.phoneNumber,
+              displayName: conv.name !== conv.phoneNumber ? conv.name : null,
+              leadId: conv.leadId,
+              leadNumber: conv.leadNumber,
+              leadStatus: conv.status,
+              leadLabel: conv.labels?.[0] || null,
+              assignedToUserId: conv.assignedToUserId || null,
+              status: conv.status,
+              labels: conv.labels || [],
+              unreadCount: conv.unreadCount || 0,
+              lastMessage: {
+                body: conv.lastMessageContent || '',
+                timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() / 1000 : 0,
+                fromMe: conv.lastDirection === 'outbound',
+              },
+              timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).getTime() / 1000 : 0,
+              isLeadOnly: false,
+              _fromCRM: true,
+              _phone: phone,
+            };
+          })
+          .filter((chat: any) => {
+            if (seenPhones.has(chat._phone)) return false;
+            seenPhones.add(chat._phone);
+            return true;
+          });
+
+        if (crmChats.length > 0) {
+          setChats(crmChats);
+          // Update cache
+          try {
+            localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(crmChats));
+          } catch (e) { /* ignore */ }
+        }
+        
+        // Also refresh messages for selected chat
+        if (selectedChat) {
+          const crmMessages = await loadMessagesFromCRM();
+          if (crmMessages.length > 0) {
+            setMessages(crmMessages);
+          }
+        }
+        
+        showToast('Inbox refreshed', 'success');
+      }
+    } catch (err) {
+      console.error('[Refresh] Error:', err);
+      showToast('Failed to refresh', 'error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleClearOfflineCache = () => {
     if (typeof window === 'undefined') return;
     try {
@@ -3459,6 +3547,16 @@ function QRWhatsAppInboxPageContent() {
 
             {/* Right: Action Buttons */}
             <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Refresh Button - Always visible */}
+              <button
+                onClick={handleRefreshInbox}
+                disabled={isRefreshing}
+                className="p-1.5 rounded-lg text-xs font-bold bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:opacity-60 transition-colors"
+                title="Refresh inbox"
+              >
+                <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+              </button>
+
               {/* New Button - Add Contact */}
               <button
                 onClick={() => setShowNewContactModal(true)}
