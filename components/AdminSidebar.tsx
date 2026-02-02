@@ -146,6 +146,12 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
           color: 'text-purple-600',
         },
         {
+          icon: Video,
+          label: '🎬 Video Library',
+          href: '/admin/videos',
+          color: 'text-indigo-600',
+        },
+        {
           icon: Users,
           label: 'Users',
           href: '/admin/users',

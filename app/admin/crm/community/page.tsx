@@ -196,6 +196,15 @@ export default function AdminCommunityPage() {
   // User Blocking State
   const [blockingMemberId, setBlockingMemberId] = useState<string | null>(null);
 
+  // Bulk Invite State
+  const [showBulkInviteModal, setShowBulkInviteModal] = useState(false);
+  const [bulkInviteLoading, setBulkInviteLoading] = useState(false);
+  const [bulkInviteStats, setBulkInviteStats] = useState<any>(null);
+  const [bulkInviteSource, setBulkInviteSource] = useState<'leads' | 'community'>('leads');
+  const [bulkInviteWorkshop, setBulkInviteWorkshop] = useState('all');
+  const [bulkInviteMessage, setBulkInviteMessage] = useState('');
+  const [bulkInvitePreview, setBulkInvitePreview] = useState<any>(null);
+
   // Filtered posts based on search and category
   const filteredPosts = communityPosts.filter(post => {
     // Search filter
@@ -1241,6 +1250,40 @@ export default function AdminCommunityPage() {
                 <option value="active">Verified members</option>
                 <option value="inactive">Waitlist</option>
               </select>
+              {/* Export Members Button */}
+              <button 
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/admin/community/export?communityId=${selectedCommunity}&format=csv`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (!res.ok) throw new Error('Export failed');
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `community-members-${selectedCommunity}-${Date.now()}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch (e: any) {
+                    alert('❌ Export failed: ' + e.message);
+                  }
+                }}
+                className="h-14 px-5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-2xl border border-emerald-200 font-bold text-xs uppercase flex items-center gap-2 transition-all"
+                title="Export members to CSV"
+              >
+                <Download size={16} /> Export CSV
+              </button>
+              {/* Bulk Invite Button */}
+              <button 
+                onClick={() => setShowBulkInviteModal(true)}
+                className="h-14 px-5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-2xl border border-purple-200 font-bold text-xs uppercase flex items-center gap-2 transition-all"
+                title="Send bulk invite to old participants"
+              >
+                <Mail size={16} /> Bulk Invite
+              </button>
             </div>
           )}
         </div>
@@ -2556,6 +2599,205 @@ export default function AdminCommunityPage() {
                </div>
             </div>
          </div>
+      )}
+
+      {/* Bulk Invite Modal */}
+      {showBulkInviteModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">📨 Bulk Community Invite</h2>
+                <p className="text-sm text-slate-500 mt-1">Invite old participants to join {currentCommunity?.name || 'community'}</p>
+              </div>
+              <button onClick={() => setShowBulkInviteModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <Plus className="rotate-45" size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-8 space-y-6 overflow-y-auto flex-1">
+              {/* Target Community */}
+              <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                <p className="text-xs font-bold text-indigo-600 uppercase mb-1">Inviting to Community</p>
+                <p className="text-lg font-bold text-indigo-900">{currentCommunity?.icon} {currentCommunity?.name}</p>
+                <p className="text-xs text-indigo-600 mt-1">{currentCommunity?.joinLink}</p>
+              </div>
+
+              {/* Source Selection */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-3">Select Source</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setBulkInviteSource('leads')}
+                    className={`p-4 rounded-xl border-2 transition-all text-left ${
+                      bulkInviteSource === 'leads'
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="font-bold text-slate-800">📋 CRM Leads</p>
+                    <p className="text-xs text-slate-500 mt-1">Past workshop participants from CRM</p>
+                  </button>
+                  <button
+                    onClick={() => setBulkInviteSource('community')}
+                    className={`p-4 rounded-xl border-2 transition-all text-left ${
+                      bulkInviteSource === 'community'
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className="font-bold text-slate-800">👥 Other Community</p>
+                    <p className="text-xs text-slate-500 mt-1">Members from another community</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Workshop Filter (for leads) */}
+              {bulkInviteSource === 'leads' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Filter by Workshop (Optional)</label>
+                  <select 
+                    value={bulkInviteWorkshop}
+                    onChange={(e) => setBulkInviteWorkshop(e.target.value)}
+                    className="w-full h-12 px-4 border border-slate-200 rounded-xl font-medium bg-white"
+                  >
+                    <option value="all">All Workshops</option>
+                    <option value="Swar Yoga">Swar Yoga</option>
+                    <option value="Aham Bramhasmi">Aham Bramhasmi</option>
+                    <option value="Astavakra">Astavakra</option>
+                    <option value="Shivoham">Shivoham</option>
+                    <option value="I am Fit">I am Fit</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Custom Message */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Custom Message (Optional)</label>
+                <textarea
+                  value={bulkInviteMessage}
+                  onChange={(e) => setBulkInviteMessage(e.target.value)}
+                  className="w-full p-4 border border-slate-200 rounded-xl font-medium resize-none"
+                  rows={4}
+                  placeholder="Leave empty to use default invite message..."
+                />
+              </div>
+
+              {/* Preview Button */}
+              <button
+                onClick={async () => {
+                  setBulkInviteLoading(true);
+                  try {
+                    const res = await fetch('/api/admin/community/bulk-invite', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({
+                        targetCommunityId: selectedCommunity,
+                        useLeads: bulkInviteSource === 'leads',
+                        workshopFilter: bulkInviteWorkshop !== 'all' ? bulkInviteWorkshop : undefined,
+                        customMessage: bulkInviteMessage || undefined,
+                      }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setBulkInvitePreview(data.data);
+                    } else {
+                      alert('❌ ' + data.error);
+                    }
+                  } catch (e: any) {
+                    alert('❌ Error: ' + e.message);
+                  } finally {
+                    setBulkInviteLoading(false);
+                  }
+                }}
+                disabled={bulkInviteLoading}
+                className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+              >
+                {bulkInviteLoading ? (
+                  <>
+                    <Loader size={18} className="animate-spin" /> Loading Preview...
+                  </>
+                ) : (
+                  <>
+                    <Eye size={18} /> Preview Recipients
+                  </>
+                )}
+              </button>
+
+              {/* Preview Results */}
+              {bulkInvitePreview && (
+                <div className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-emerald-800">✅ Ready to Send</p>
+                      <p className="text-2xl font-black text-emerald-900">{bulkInvitePreview.phoneCount} Recipients</p>
+                    </div>
+                    <div className="text-right text-xs text-emerald-700">
+                      <p>Target: {bulkInvitePreview.targetCommunity}</p>
+                      <p className="font-mono text-[10px]">{bulkInvitePreview.joinLink}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Sample phones */}
+                  <div className="max-h-32 overflow-y-auto bg-white p-3 rounded-lg border border-emerald-100">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Sample Recipients:</p>
+                    <div className="space-y-1">
+                      {bulkInvitePreview.phones?.slice(0, 10).map((p: any, i: number) => (
+                        <div key={i} className="flex justify-between text-xs">
+                          <span className="text-slate-700">{p.name}</span>
+                          <span className="font-mono text-slate-500">{p.fullPhone}</span>
+                        </div>
+                      ))}
+                      {bulkInvitePreview.phoneCount > 10 && (
+                        <p className="text-xs text-slate-400 italic">...and {bulkInvitePreview.phoneCount - 10} more</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Message Preview */}
+                  <div className="bg-white p-3 rounded-lg border border-emerald-100">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Message Preview:</p>
+                    <p className="text-xs text-slate-600 whitespace-pre-wrap">{bulkInvitePreview.messagePreview}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-100 flex gap-4 shrink-0">
+              <button 
+                onClick={() => {
+                  setShowBulkInviteModal(false);
+                  setBulkInvitePreview(null);
+                }}
+                className="flex-1 py-4 border border-slate-200 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (!bulkInvitePreview) {
+                    alert('Please preview recipients first');
+                    return;
+                  }
+                  // Copy phones to clipboard for use in broadcast page
+                  const phones = bulkInvitePreview.phones?.map((p: any) => p.fullPhone).join('\n');
+                  navigator.clipboard.writeText(phones);
+                  alert(`✅ ${bulkInvitePreview.phoneCount} phone numbers copied to clipboard!\n\nGo to CRM > Broadcast page to send the invite using a template.`);
+                }}
+                disabled={!bulkInvitePreview || bulkInviteLoading}
+                className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2"
+              >
+                <Copy size={18} /> Copy Phones & Go to Broadcast
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

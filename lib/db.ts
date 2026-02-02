@@ -1438,5 +1438,108 @@ mediaPostSchema.index({ category: 1, publishedAt: -1 });
 mediaPostSchema.index({ featured: 1, publishedAt: -1 });
 
 export const MediaPost = mongoose.models.MediaPost || mongoose.model('MediaPost', mediaPostSchema);
+
+// ==================== VIDEO PLAYLIST SCHEMA ====================
+// For organizing videos into playlists (batch-wise: batch-1, batch-2... and post videos: month-wise)
+
+const videoPlaylistSchema = new mongoose.Schema({
+  // Basic Info
+  name: { type: String, required: true, trim: true }, // "Batch 1", "January 2026 Updates", etc.
+  description: { type: String, default: '', trim: true },
+  thumbnailUrl: { type: String, trim: true },
+  
+  // Type: 'batch' for workshop batch videos, 'post' for monthly post videos
+  type: { type: String, enum: ['batch', 'post'], required: true, index: true },
+  
+  // For batch playlists
+  batchNumber: { type: Number }, // 1, 2, 3... for batch type
+  workshopSlug: { type: String, trim: true }, // swar-yoga, aham-bramhasmi, etc.
+  workshopName: { type: String, trim: true },
+  
+  // For post/update videos (month-wise)
+  year: { type: Number }, // 2026
+  month: { type: Number }, // 1-12
+  
+  // Community association
+  communityId: { type: String, index: true }, // Can be linked to specific community
+  
+  // Visibility
+  isPublic: { type: Boolean, default: false },
+  status: { type: String, enum: ['active', 'draft', 'archived'], default: 'active', index: true },
+  
+  // Ordering
+  sortOrder: { type: Number, default: 0 },
+  
+  // Stats
+  videoCount: { type: Number, default: 0 },
+  totalDuration: { type: Number, default: 0 }, // Total seconds
+  totalViews: { type: Number, default: 0 },
+  
+  // Metadata
+  createdBy: { type: String, trim: true },
+  updatedBy: { type: String, trim: true },
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+videoPlaylistSchema.index({ type: 1, status: 1, sortOrder: 1 });
+videoPlaylistSchema.index({ type: 1, workshopSlug: 1, batchNumber: 1 });
+videoPlaylistSchema.index({ type: 1, year: -1, month: -1 });
+
+export const VideoPlaylist = mongoose.models.VideoPlaylist || mongoose.model('VideoPlaylist', videoPlaylistSchema);
+
+// ==================== PLAYLIST VIDEO SCHEMA ====================
+// Videos inside playlists
+
+const playlistVideoSchema = new mongoose.Schema({
+  // Playlist reference
+  playlistId: { type: mongoose.Schema.Types.ObjectId, ref: 'VideoPlaylist', required: true, index: true },
+  
+  // Video info
+  title: { type: String, required: true, trim: true },
+  description: { type: String, default: '', trim: true },
+  
+  // Video source
+  videoUrl: { type: String, required: true }, // S3 URL or external URL
+  s3Key: { type: String, trim: true }, // If uploaded to S3
+  thumbnailUrl: { type: String, trim: true },
+  
+  // Video details
+  duration: { type: Number, default: 0 }, // Seconds
+  quality: { type: String, enum: ['480p', '720p', '1080p', '4k'], default: '720p' },
+  fileSize: { type: Number }, // Bytes
+  mimeType: { type: String, default: 'video/mp4' },
+  
+  // For batch videos: day/session number
+  sessionNumber: { type: Number }, // Day 1, Day 2, etc.
+  sessionTitle: { type: String, trim: true }, // "Introduction", "Breathwork Basics", etc.
+  
+  // Ordering within playlist
+  sortOrder: { type: Number, default: 0 },
+  
+  // Stats
+  views: { type: Number, default: 0 },
+  likes: { type: Number, default: 0 },
+  watchTime: { type: Number, default: 0 }, // Total watch time in seconds
+  
+  // Status
+  status: { type: String, enum: ['active', 'processing', 'failed', 'archived'], default: 'active', index: true },
+  processingError: { type: String },
+  
+  // Tags for search
+  tags: [{ type: String, trim: true }],
+  
+  // Metadata
+  uploadedBy: { type: String, trim: true },
+  uploadedAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+
+playlistVideoSchema.index({ playlistId: 1, sortOrder: 1 });
+playlistVideoSchema.index({ playlistId: 1, status: 1 });
+playlistVideoSchema.index({ tags: 1 });
+
+export const PlaylistVideo = mongoose.models.PlaylistVideo || mongoose.model('PlaylistVideo', playlistVideoSchema);
+
 // Default export for backward compatibility
 export default connectDB;
