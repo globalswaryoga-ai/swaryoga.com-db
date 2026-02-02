@@ -53,6 +53,38 @@ let messageTracking = {};
 let blockedNumbers = new Set();
 let scheduledBroadcasts = [];
 
+// ============ LID TO PHONE MAPPING ============
+// Maps WhatsApp LID (internal ID) to real phone numbers
+// LIDs look like: 1606351380725@lid
+// This is populated by contacts.upsert and contacts.update events
+let lidToPhoneMap = {};
+let phoneToLidMap = {};
+
+// Helper to resolve LID to phone number
+function resolvePhoneFromLid(lid) {
+  // Remove @lid suffix if present
+  const cleanLid = lid.replace("@lid", "");
+  // Check cache
+  if (lidToPhoneMap[cleanLid]) {
+    return lidToPhoneMap[cleanLid];
+  }
+  return null;
+}
+
+// Helper to update LID mapping
+function updateLidMapping(lid, phone) {
+  if (!lid || !phone) return;
+  const cleanLid = lid.replace("@lid", "").replace("@s.whatsapp.net", "").replace("@c.us", "");
+  const cleanPhone = phone.replace("@s.whatsapp.net", "").replace("@c.us", "").replace(/\D/g, "");
+  
+  // Only store if phone looks valid (10+ digits)
+  if (cleanPhone.length >= 10 && cleanPhone.length <= 15) {
+    lidToPhoneMap[cleanLid] = cleanPhone;
+    phoneToLidMap[cleanPhone] = cleanLid;
+    console.log(`📇 Updated LID mapping: ${cleanLid} -> ${cleanPhone}`);
+  }
+}
+
 // Load saved data
 function loadData() {
   try {
@@ -60,11 +92,18 @@ function loadData() {
     const trackingFile = path.join(DATA_DIR, "tracking.json");
     const blockedFile = path.join(DATA_DIR, "blocked.json");
     const scheduledFile = path.join(DATA_DIR, "scheduled.json");
+    const lidMapFile = path.join(DATA_DIR, "lid-map.json");
     
     if (fs.existsSync(settingsFile)) broadcastSettings = JSON.parse(fs.readFileSync(settingsFile));
     if (fs.existsSync(trackingFile)) messageTracking = JSON.parse(fs.readFileSync(trackingFile));
     if (fs.existsSync(blockedFile)) blockedNumbers = new Set(JSON.parse(fs.readFileSync(blockedFile)));
     if (fs.existsSync(scheduledFile)) scheduledBroadcasts = JSON.parse(fs.readFileSync(scheduledFile));
+    if (fs.existsSync(lidMapFile)) {
+      const lidData = JSON.parse(fs.readFileSync(lidMapFile));
+      lidToPhoneMap = lidData.lidToPhone || {};
+      phoneToLidMap = lidData.phoneToLid || {};
+      console.log(`📇 Loaded ${Object.keys(lidToPhoneMap).length} LID mappings`);
+    }
     console.log("Data loaded successfully");
   } catch (e) { console.error("Load data error:", e.message); }
 }
@@ -75,6 +114,7 @@ function saveData() {
     fs.writeFileSync(path.join(DATA_DIR, "tracking.json"), JSON.stringify(messageTracking, null, 2));
     fs.writeFileSync(path.join(DATA_DIR, "blocked.json"), JSON.stringify([...blockedNumbers]));
     fs.writeFileSync(path.join(DATA_DIR, "scheduled.json"), JSON.stringify(scheduledBroadcasts, null, 2));
+    fs.writeFileSync(path.join(DATA_DIR, "lid-map.json"), JSON.stringify({ lidToPhone: lidToPhoneMap, phoneToLid: phoneToLidMap }, null, 2));
   } catch (e) { console.error("Save data error:", e.message); }
 }
 
@@ -145,6 +185,42 @@ async function initializeClient() {
       console.log("WhatsApp CONNECTED!");
       sessionReady = true;
       qrCode = null;
+    }
+  });
+
+  // Track contacts for LID to phone mapping
+  sock.ev.on("contacts.upsert", (contacts) => {
+    console.log(`📇 Received ${contacts.length} contacts`);
+    for (const contact of contacts) {
+      // contact.id could be phone@s.whatsapp.net or lid@lid
+      // contact.lid has the LID
+      // contact.notify or contact.name has the name
+      if (contact.id && contact.lid) {
+        // Map LID to phone
+        const phone = contact.id.replace("@s.whatsapp.net", "").replace("@c.us", "");
+        const lid = contact.lid.replace("@lid", "");
+        updateLidMapping(lid, phone);
+      } else if (contact.id && contact.id.includes("@s.whatsapp.net")) {
+        // Regular phone, might have phone as both id and lid
+        const phone = contact.id.replace("@s.whatsapp.net", "");
+        if (contact.lid) {
+          updateLidMapping(contact.lid, phone);
+        }
+      }
+    }
+    saveData();
+  });
+
+  // Also track contacts.update for any mappings
+  sock.ev.on("contacts.update", (updates) => {
+    for (const update of updates) {
+      if (update.id && update.id.includes("@s.whatsapp.net")) {
+        const phone = update.id.replace("@s.whatsapp.net", "");
+        // If there's a lid field, update the mapping
+        if (update.lid) {
+          updateLidMapping(update.lid, phone);
+        }
+      }
     }
   });
 
@@ -233,16 +309,32 @@ async function initializeClient() {
         continue;
       }
       
-      // For @lid format, try to get real phone from participant or use the lid as identifier
+      // For @lid format, try to resolve to real phone number
       let phone = "";
+      let originalLid = ""; // Keep track of original LID for logging
+      
       if (remoteJid.includes("@lid")) {
-        // Check if there's a participant with real phone
-        if (msg.key.participant) {
+        originalLid = remoteJid.replace("@lid", "");
+        
+        // First check if there's a participant with real phone
+        if (msg.key.participant && !msg.key.participant.includes("@lid")) {
           phone = msg.key.participant.replace("@s.whatsapp.net", "").replace("@c.us", "");
+          console.log(`📇 @lid message resolved via participant: ${originalLid} -> ${phone}`);
+          // Update our mapping for future messages
+          updateLidMapping(originalLid, phone);
+          saveData();
         } else {
-          // Use lid as identifier - we'll still forward it
-          phone = remoteJid.replace("@lid", "");
-          console.log("⚠️ @lid message, using lid as phone:", phone);
+          // Try to resolve from our LID cache
+          const resolvedPhone = resolvePhoneFromLid(originalLid);
+          if (resolvedPhone) {
+            phone = resolvedPhone;
+            console.log(`📇 @lid message resolved via cache: ${originalLid} -> ${phone}`);
+          } else {
+            // Can't resolve - skip this message as we don't have a valid phone
+            console.log(`⚠️ @lid message cannot be resolved, skipping: ${originalLid}`);
+            console.log(`   Current LID cache has ${Object.keys(lidToPhoneMap).length} entries`);
+            continue;
+          }
         }
       } else {
         phone = remoteJid.replace("@s.whatsapp.net", "").replace("@c.us", "");
@@ -369,8 +461,130 @@ app.get("/status", authMiddleware, (req, res) => {
     hasQr: !!qrCode,
     sessionReady,
     qr: qrCode || null,
-    chatCount: 0
+    chatCount: 0,
+    lidMappings: Object.keys(lidToPhoneMap).length
   });
+});
+
+// Get/Set LID to phone mappings
+app.get("/lid-mappings", authMiddleware, (req, res) => {
+  res.json({
+    success: true,
+    count: Object.keys(lidToPhoneMap).length,
+    lidToPhone: lidToPhoneMap,
+    phoneToLid: phoneToLidMap
+  });
+});
+
+// Add a LID to phone mapping manually
+app.post("/lid-mappings", authMiddleware, (req, res) => {
+  const { lid, phone } = req.body;
+  if (!lid || !phone) {
+    return res.status(400).json({ error: "Missing lid or phone" });
+  }
+  updateLidMapping(lid, phone);
+  saveData();
+  res.json({ success: true, lid, phone });
+});
+
+// Bulk add LID mappings from CRM leads
+app.post("/lid-mappings/bulk", authMiddleware, (req, res) => {
+  const { mappings } = req.body;
+  if (!mappings || !Array.isArray(mappings)) {
+    return res.status(400).json({ error: "Missing mappings array" });
+  }
+  let added = 0;
+  for (const m of mappings) {
+    if (m.lid && m.phone) {
+      updateLidMapping(m.lid, m.phone);
+      added++;
+    }
+  }
+  saveData();
+  res.json({ success: true, added, total: Object.keys(lidToPhoneMap).length });
+});
+
+// Discover LID for a phone number by checking onWhatsApp
+app.post("/discover-lid", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ error: "WhatsApp not connected" });
+  
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: "Missing phone" });
+  
+  try {
+    const jid = toJid(phone);
+    const cleanPhone = phone.replace(/\D/g, "");
+    
+    // Check if on WhatsApp and get the user info
+    const [result] = await sock.onWhatsApp(jid);
+    
+    if (result && result.exists) {
+      console.log(`📇 onWhatsApp result for ${phone}:`, JSON.stringify(result));
+      
+      // result.jid might be the LID format
+      if (result.jid && result.jid.includes("@lid")) {
+        const lid = result.jid.replace("@lid", "");
+        updateLidMapping(lid, cleanPhone);
+        saveData();
+        return res.json({ success: true, phone: cleanPhone, lid, exists: true, jid: result.jid });
+      }
+      
+      return res.json({ 
+        success: true, 
+        phone: cleanPhone, 
+        exists: true, 
+        jid: result.jid,
+        note: "No LID returned, phone uses standard format"
+      });
+    }
+    
+    return res.json({ success: false, phone: cleanPhone, exists: false });
+  } catch (err) {
+    console.error("discover-lid error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Discover LIDs for multiple phone numbers
+app.post("/discover-lids", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ error: "WhatsApp not connected" });
+  
+  const { phones } = req.body;
+  if (!phones || !Array.isArray(phones)) return res.status(400).json({ error: "Missing phones array" });
+  
+  const results = [];
+  let discovered = 0;
+  
+  for (const phone of phones.slice(0, 50)) { // Limit to 50 at a time
+    try {
+      const jid = toJid(phone);
+      const cleanPhone = phone.replace(/\D/g, "");
+      
+      const [result] = await sock.onWhatsApp(jid);
+      
+      if (result && result.exists) {
+        if (result.jid && result.jid.includes("@lid")) {
+          const lid = result.jid.replace("@lid", "");
+          updateLidMapping(lid, cleanPhone);
+          discovered++;
+          results.push({ phone: cleanPhone, lid, exists: true });
+        } else {
+          results.push({ phone: cleanPhone, exists: true, jid: result.jid });
+        }
+      } else {
+        results.push({ phone: cleanPhone, exists: false });
+      }
+      
+      // Small delay to avoid rate limiting
+      await sleep(100);
+    } catch (err) {
+      results.push({ phone, error: err.message });
+    }
+  }
+  
+  if (discovered > 0) saveData();
+  
+  res.json({ success: true, total: phones.length, discovered, results });
 });
 
 app.get("/qr", authMiddleware, (req, res) => {
@@ -673,6 +887,7 @@ app.post("/send", authMiddleware, async (req, res) => {
 
   try {
     const jid = toJid(to);
+    const phone = to.replace(/\D/g, "");
     let result;
 
     if (type === "text") {
@@ -685,6 +900,14 @@ app.post("/send", authMiddleware, async (req, res) => {
       result = await sock.sendMessage(jid, { document: { url }, caption: caption || "", fileName: "document" });
     } else if (type === "audio" && url) {
       result = await sock.sendMessage(jid, { audio: { url }, mimetype: "audio/mp4" });
+    }
+
+    // Capture LID mapping from response if available
+    if (result?.key?.remoteJid?.includes("@lid")) {
+      const lid = result.key.remoteJid.replace("@lid", "");
+      updateLidMapping(lid, phone);
+      saveData();
+      console.log(`📇 Captured LID mapping from send: ${lid} -> ${phone}`);
     }
 
     console.log("Message sent to", jid);
