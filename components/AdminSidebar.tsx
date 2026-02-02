@@ -51,20 +51,39 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
   useEffect(() => {
     if (!token) return;
 
+    let retryCount = 0;
+    const maxRetries = 3;
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const fetchUnreadCount = async () => {
       try {
         const result = await crm.fetch('/api/admin/crm/messages/unread-count');
         setUnreadCount(result?.unreadCount || 0);
+        retryCount = 0; // Reset on success
       } catch (err) {
         console.error('Failed to fetch unread count:', err);
+        retryCount++;
+        // Stop retrying after max attempts to prevent infinite loop
+        if (retryCount >= maxRetries) {
+          console.warn('Max retries reached for unread count, stopping polling');
+          return;
+        }
       }
     };
 
     fetchUnreadCount();
 
     // Poll every 30 seconds for new messages
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (retryCount < maxRetries) {
+        fetchUnreadCount();
+      }
+    }, 30000);
+    
+    return () => {
+      clearInterval(interval);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [token, crm]);
 
   const handleNavClick = () => {
