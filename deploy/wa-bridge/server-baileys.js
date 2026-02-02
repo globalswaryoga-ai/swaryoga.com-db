@@ -624,6 +624,56 @@ app.get("/groups", authMiddleware, async (req, res) => {
   }
 });
 
+// Get group info from invite link (without joining)
+app.get("/group-invite/:code", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ error: "WhatsApp not connected" });
+  
+  try {
+    const inviteCode = req.params.code;
+    console.log("[GROUP-INVITE] Getting info for invite code:", inviteCode);
+    
+    const groupInfo = await sock.groupGetInviteInfo(inviteCode);
+    
+    res.json({
+      success: true,
+      group: {
+        id: groupInfo.id,
+        name: groupInfo.subject,
+        owner: groupInfo.owner,
+        creation: groupInfo.creation,
+        participantsCount: groupInfo.size || groupInfo.participants?.length || 0,
+        description: groupInfo.desc || null
+      }
+    });
+  } catch (err) {
+    console.error("[GROUP-INVITE] Error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Join a group using invite link
+app.post("/group-join", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ error: "WhatsApp not connected" });
+  
+  try {
+    const { inviteCode } = req.body;
+    if (!inviteCode) return res.status(400).json({ error: "inviteCode is required" });
+    
+    console.log("[GROUP-JOIN] Joining group with invite code:", inviteCode);
+    
+    const groupId = await sock.groupAcceptInvite(inviteCode);
+    
+    res.json({
+      success: true,
+      message: "Successfully joined group",
+      groupId: groupId
+    });
+  } catch (err) {
+    console.error("[GROUP-JOIN] Error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get messages for a chat (group or individual)
 // Note: Baileys doesn't store historical messages - this returns empty array
 // Messages are stored in MongoDB via the CRM webhook, so fetch from there instead

@@ -9,7 +9,7 @@ import {
   Search, ChevronDown, Plus, Filter, Download, ArrowRight, CheckCircle, AlertCircle,
   Clock, User, Settings, Loader, Globe, Upload, Bold, Italic, Strikethrough, Code, Smile, Wand2,
   Calendar, MapPin, Link as LinkIcon, Image as ImageIcon, Video as VideoIcon, FileText, Copy,
-  Heart, Share2
+  Heart, Share2, Eye
 } from 'lucide-react';
 
 /**
@@ -168,6 +168,18 @@ export default function AdminCommunityPage() {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
   const [showUploadVideoModal, setShowUploadVideoModal] = useState(false);
+  
+  // Recording Upload Modal State (Folder > Playlist > Video structure)
+  const [showUploadRecordingModal, setShowUploadRecordingModal] = useState(false);
+  const [recordingFolderName, setRecordingFolderName] = useState(''); // Workshop name
+  const [recordingPlaylistName, setRecordingPlaylistName] = useState(''); // Batch name
+  const [recordingVideoNumber, setRecordingVideoNumber] = useState(''); // Video number
+  const [recordingDescription, setRecordingDescription] = useState('');
+  const [uploadingRecording, setUploadingRecording] = useState(false);
+  
+  // Folder/Playlist view state for recordings
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
   const [draftPosts, setDraftPosts] = useState(0);
   const [pendingMembers, setPendingMembers] = useState(0);
   const [lastActivityTime, setLastActivityTime] = useState<string>('');
@@ -829,12 +841,13 @@ export default function AdminCommunityPage() {
     }
   };
 
-  // Fetch Recordings (Zoom synced)
+  // Fetch Recordings (all recordings with folder structure)
   const fetchRecordings = async () => {
     if (!token) return;
     setLoadingRecordings(true);
     try {
-      const res = await fetch(`/api/admin/communities/recordings-videos?communityId=${selectedCommunity}&type=recording`, {
+      // Fetch all content that has folder structure in title (Workshop > Batch > Video format)
+      const res = await fetch(`/api/admin/communities/recordings-videos?communityId=${selectedCommunity}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401 || res.status === 403) {
@@ -844,7 +857,11 @@ export default function AdminCommunityPage() {
       }
       const json = await res.json();
       if (json.success) {
-        setRecordings(json.content || []);
+        // Filter to only show recordings with folder structure (title contains " > ")
+        const folderRecordings = (json.content || []).filter((r: any) => 
+          r.title?.includes(' > ') || r.source === 'zoom'
+        );
+        setRecordings(folderRecordings);
       }
     } catch (error) {
       console.error('[Recordings] Fetch error:', error);
@@ -908,6 +925,62 @@ export default function AdminCommunityPage() {
       alert('❌ Upload failed: ' + error.message);
     } finally {
       setUploadingVideo(false);
+    }
+  };
+
+  // Upload recording with folder/playlist structure
+  const uploadNewRecording = async (file: File) => {
+    if (!token || !file) return;
+    if (!recordingFolderName.trim()) {
+      alert('❌ Please enter a Workshop/Folder name');
+      return;
+    }
+    if (!recordingPlaylistName.trim()) {
+      alert('❌ Please enter a Batch/Playlist name');
+      return;
+    }
+    if (!recordingVideoNumber.trim()) {
+      alert('❌ Please enter a Video number');
+      return;
+    }
+    
+    setUploadingRecording(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('communityId', selectedCommunity);
+      // Title format: "FolderName > PlaylistName > Video X"
+      const title = `${recordingFolderName} > ${recordingPlaylistName} > Video ${recordingVideoNumber}`;
+      formData.append('title', title);
+      formData.append('description', recordingDescription);
+      // Add metadata for folder/playlist organization
+      formData.append('folderName', recordingFolderName.trim());
+      formData.append('playlistName', recordingPlaylistName.trim());
+      formData.append('videoNumber', recordingVideoNumber.trim());
+      formData.append('isRecording', 'true');
+
+      const res = await fetch('/api/admin/communities/recordings-videos', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+
+      if (!res.ok) throw new Error('Upload failed');
+      
+      const json = await res.json();
+      if (json.success) {
+        alert('✅ Recording uploaded successfully!');
+        setShowUploadRecordingModal(false);
+        setRecordingFolderName('');
+        setRecordingPlaylistName('');
+        setRecordingVideoNumber('');
+        setRecordingDescription('');
+        fetchRecordings();
+      }
+    } catch (error: any) {
+      alert('❌ Upload failed: ' + error.message);
+    } finally {
+      setUploadingRecording(false);
     }
   };
 
@@ -1565,23 +1638,61 @@ export default function AdminCommunityPage() {
           </div>
         )}
 
-        {/* Recordings Tab */}
+        {/* Recordings Tab - Folder/Playlist/Video Structure */}
         {activeTab === 'recordings' && (
           <div className="flex-1 overflow-auto bg-slate-50/80 p-6">
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">🎥 Zoom Recordings</h3>
-                  <p className="text-sm text-slate-500">Synced from Zoom meetings for this community</p>
+                  <h3 className="text-lg font-bold text-slate-900">🎥 Workshop Recordings</h3>
+                  <p className="text-sm text-slate-500">Organized by Workshop (Folder) → Batch (Playlist) → Videos</p>
                 </div>
-                <button
-                  onClick={fetchRecordings}
-                  className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-all flex items-center gap-2"
-                >
-                  <Loader size={16} className={loadingRecordings ? 'animate-spin' : ''} />
-                  Refresh
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={fetchRecordings}
+                    className="px-4 py-2 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all flex items-center gap-2"
+                  >
+                    <Loader size={16} className={loadingRecordings ? 'animate-spin' : ''} />
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => setShowUploadRecordingModal(true)}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-2"
+                  >
+                    <Upload size={16} />
+                    Upload Recording
+                  </button>
+                </div>
               </div>
+              
+              {/* Breadcrumb navigation */}
+              {(selectedFolder || selectedPlaylist) && (
+                <div className="flex items-center gap-2 text-sm mb-4 bg-slate-50 p-3 rounded-xl">
+                  <button 
+                    onClick={() => { setSelectedFolder(null); setSelectedPlaylist(null); }}
+                    className="text-emerald-600 hover:underline font-bold"
+                  >
+                    All Workshops
+                  </button>
+                  {selectedFolder && (
+                    <>
+                      <span className="text-slate-400">›</span>
+                      <button 
+                        onClick={() => setSelectedPlaylist(null)}
+                        className={`font-bold ${selectedPlaylist ? 'text-emerald-600 hover:underline' : 'text-slate-900'}`}
+                      >
+                        {selectedFolder}
+                      </button>
+                    </>
+                  )}
+                  {selectedPlaylist && (
+                    <>
+                      <span className="text-slate-400">›</span>
+                      <span className="font-bold text-slate-900">{selectedPlaylist}</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {loadingRecordings ? (
@@ -1593,57 +1704,138 @@ export default function AdminCommunityPage() {
               <div className="bg-white rounded-[2.5rem] border border-slate-200/60 h-[400px] flex flex-col items-center justify-center text-center p-20 shadow-sm">
                 <VideoIcon size={48} className="text-slate-200 mb-6" />
                 <h3 className="text-xl font-bold text-slate-900 mb-2">No Recordings Yet</h3>
-                <p className="text-slate-500 text-sm">Zoom recordings will appear here once synced for this community.</p>
+                <p className="text-slate-500 text-sm mb-6">Upload workshop recordings organized by Folder → Playlist → Video.</p>
+                <button
+                  onClick={() => setShowUploadRecordingModal(true)}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all flex items-center gap-2"
+                >
+                  <Upload size={18} />
+                  Upload First Recording
+                </button>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {recordings.map(recording => (
-                  <div key={recording._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden hover:shadow-lg transition-all group">
-                    <div className="aspect-video bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center relative">
-                      {recording.thumbnailUrl ? (
-                        <img src={getProxiedMediaUrl(recording.thumbnailUrl, token)} alt={recording.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <VideoIcon size={48} className="text-emerald-300" />
-                      )}
-                      {recording.duration && (
-                        <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-lg font-bold">
-                          {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')}
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-5">
-                      <h4 className="font-bold text-slate-900 mb-1 line-clamp-2">{recording.title}</h4>
-                      <p className="text-xs text-slate-500 mb-3">
-                        {recording.recordedAt ? new Date(recording.recordedAt).toLocaleDateString() : new Date(recording.createdAt).toLocaleDateString()}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                          📊 {recording.views || 0} views
-                        </span>
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          {recording.s3Url && (
-                            <a 
-                              href={getProxiedMediaUrl(recording.s3Url, token)} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-500 border border-emerald-100"
+            ) : (() => {
+              // Parse recordings into folder/playlist structure
+              const folders: Record<string, Record<string, any[]>> = {};
+              recordings.forEach(rec => {
+                // Parse title format: "FolderName > PlaylistName > Video X"
+                const parts = rec.title?.split(' > ') || [];
+                const folder = parts[0] || 'Uncategorized';
+                const playlist = parts[1] || 'Default Batch';
+                
+                if (!folders[folder]) folders[folder] = {};
+                if (!folders[folder][playlist]) folders[folder][playlist] = [];
+                folders[folder][playlist].push(rec);
+              });
+              
+              // Show folders view
+              if (!selectedFolder) {
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Object.entries(folders).map(([folderName, playlists]) => {
+                      const totalVideos = Object.values(playlists).flat().length;
+                      const totalPlaylists = Object.keys(playlists).length;
+                      return (
+                        <button
+                          key={folderName}
+                          onClick={() => setSelectedFolder(folderName)}
+                          className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 text-left hover:shadow-lg hover:border-emerald-300 transition-all group"
+                        >
+                          <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-emerald-200 transition-all">
+                            <FileText size={28} className="text-emerald-600" />
+                          </div>
+                          <h4 className="font-bold text-slate-900 text-lg mb-1">{folderName}</h4>
+                          <p className="text-sm text-slate-500">{totalPlaylists} batches • {totalVideos} videos</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              
+              // Show playlists in selected folder
+              if (selectedFolder && !selectedPlaylist) {
+                const playlists = folders[selectedFolder] || {};
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Object.entries(playlists).map(([playlistName, videos]) => (
+                      <button
+                        key={playlistName}
+                        onClick={() => setSelectedPlaylist(playlistName)}
+                        className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 text-left hover:shadow-lg hover:border-emerald-300 transition-all group"
+                      >
+                        <div className="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-all">
+                          <VideoIcon size={28} className="text-purple-600" />
+                        </div>
+                        <h4 className="font-bold text-slate-900 text-lg mb-1">{playlistName}</h4>
+                        <p className="text-sm text-slate-500">{videos.length} videos</p>
+                      </button>
+                    ))}
+                  </div>
+                );
+              }
+              
+              // Show videos in selected playlist
+              const playlistVideos = folders[selectedFolder]?.[selectedPlaylist] || [];
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {playlistVideos.sort((a, b) => {
+                    // Sort by video number
+                    const numA = parseInt(a.title?.match(/Video (\d+)/)?.[1] || '0');
+                    const numB = parseInt(b.title?.match(/Video (\d+)/)?.[1] || '0');
+                    return numA - numB;
+                  }).map(recording => (
+                    <div key={recording._id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden hover:shadow-lg transition-all group">
+                      <div className="aspect-video bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center relative">
+                        {recording.thumbnailUrl ? (
+                          <img src={getProxiedMediaUrl(recording.thumbnailUrl, token)} alt={recording.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <VideoIcon size={48} className="text-emerald-300" />
+                        )}
+                        {recording.duration && (
+                          <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-lg font-bold">
+                            {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-5">
+                        <h4 className="font-bold text-slate-900 mb-1">
+                          {recording.title?.split(' > ').pop() || recording.title}
+                        </h4>
+                        {recording.description && (
+                          <p className="text-xs text-slate-500 mb-2 line-clamp-2">{recording.description}</p>
+                        )}
+                        <p className="text-xs text-slate-400 mb-3">
+                          {recording.recordedAt ? new Date(recording.recordedAt).toLocaleDateString() : new Date(recording.createdAt).toLocaleDateString()}
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                            📊 {recording.views || 0} views
+                          </span>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                            {recording.s3Url && (
+                              <a 
+                                href={getProxiedMediaUrl(recording.s3Url, token)} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="p-2 hover:bg-emerald-600 hover:text-white rounded-lg transition-all text-emerald-500 border border-emerald-100"
+                              >
+                                <ArrowRight size={16} />
+                              </a>
+                            )}
+                            <button
+                              onClick={() => deleteVideo(recording._id)}
+                              className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
                             >
-                              <ArrowRight size={16} />
-                            </a>
-                          )}
-                          <button
-                            onClick={() => deleteVideo(recording._id)}
-                            className="p-2 hover:bg-red-600 hover:text-white rounded-lg transition-all text-red-500 border border-red-100"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1808,6 +2000,117 @@ export default function AdminCommunityPage() {
                     disabled={uploadingVideo}
                   />
                 </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Recording Modal - Folder/Playlist/Video Structure */}
+      {showUploadRecordingModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 m-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900">🎥 Upload Recording</h3>
+              <button onClick={() => setShowUploadRecordingModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-all">
+                <Plus className="rotate-45" size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Folder/Workshop Name */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                  📁 Workshop Name (Folder)
+                </label>
+                <input 
+                  type="text" 
+                  value={recordingFolderName} 
+                  onChange={e => setRecordingFolderName(e.target.value)}
+                  placeholder="e.g., Swar Yoga Workshop"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
+                />
+              </div>
+              
+              {/* Playlist/Batch Name */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                  🎬 Batch Name (Playlist)
+                </label>
+                <input 
+                  type="text" 
+                  value={recordingPlaylistName} 
+                  onChange={e => setRecordingPlaylistName(e.target.value)}
+                  placeholder="e.g., February 2026 Batch"
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
+                />
+              </div>
+              
+              {/* Video Number */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">
+                  🔢 Video Number
+                </label>
+                <input 
+                  type="text" 
+                  value={recordingVideoNumber} 
+                  onChange={e => setRecordingVideoNumber(e.target.value)}
+                  placeholder="e.g., 1, 2, 3..."
+                  className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
+                />
+              </div>
+              
+              {/* Description */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Description (Optional)</label>
+                <textarea 
+                  value={recordingDescription} 
+                  onChange={e => setRecordingDescription(e.target.value)}
+                  placeholder="e.g., Introduction to Nadi, Breathing techniques..."
+                  className="w-full h-20 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all resize-none"
+                />
+              </div>
+              
+              {/* Preview */}
+              {recordingFolderName && recordingPlaylistName && recordingVideoNumber && (
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <p className="text-xs font-bold text-emerald-700 uppercase mb-1">Video will be saved as:</p>
+                  <p className="text-sm text-emerald-800 font-medium">
+                    📁 {recordingFolderName} → 🎬 {recordingPlaylistName} → 🎥 Video {recordingVideoNumber}
+                  </p>
+                </div>
+              )}
+              
+              {/* Video File Upload */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-2 block">Video File</label>
+                <label className={`flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${uploadingRecording ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'}`}>
+                  {uploadingRecording ? (
+                    <>
+                      <Loader className="animate-spin text-emerald-600 mb-2" size={32} />
+                      <span className="text-sm font-bold text-emerald-600">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="text-slate-400 mb-2" size={32} />
+                      <span className="text-sm font-medium text-slate-600">Click to select video</span>
+                      <span className="text-xs text-slate-400">MP4, WebM, MOV (max 500MB)</span>
+                    </>
+                  )}
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="video/*" 
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadNewRecording(file);
+                    }}
+                    disabled={uploadingRecording || !recordingFolderName || !recordingPlaylistName || !recordingVideoNumber}
+                  />
+                </label>
+                {(!recordingFolderName || !recordingPlaylistName || !recordingVideoNumber) && (
+                  <p className="text-xs text-amber-600 mt-2">⚠️ Fill all required fields above before uploading</p>
+                )}
               </div>
             </div>
           </div>

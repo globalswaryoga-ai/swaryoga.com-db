@@ -129,13 +129,20 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const file = formData.get('video') as File;
+    // Accept both 'video' and 'file' field names
+    const file = (formData.get('video') || formData.get('file')) as File;
     const title = formData.get('title') as string;
     const description = formData.get('description') as string || '';
     const communityId = formData.get('communityId') as string;
     const isCommon = formData.get('isCommon') === 'true';
     const tags = formData.get('tags') as string || '';
     const contentType = formData.get('contentType') as string || 'video'; // 'video' or 'recording'
+    
+    // Recording folder/playlist metadata
+    const folderName = formData.get('folderName') as string || '';
+    const playlistName = formData.get('playlistName') as string || '';
+    const videoNumber = formData.get('videoNumber') as string || '';
+    const isRecording = formData.get('isRecording') === 'true';
 
     if (!file || !title || !communityId) {
       return NextResponse.json(
@@ -177,8 +184,13 @@ export async function POST(request: NextRequest) {
     const s3Url = await uploadCommunityVideo(buffer, file.name, communityId);
     const s3Key = extractS3Key(s3Url);
 
-    // Parse tags
+    // Parse tags - include folder and playlist as tags for searchability
     const tagArray = tags.split(',').map(t => t.trim()).filter(t => t);
+    if (folderName) tagArray.push(`folder:${folderName}`);
+    if (playlistName) tagArray.push(`playlist:${playlistName}`);
+
+    // Determine source based on isRecording flag
+    const source = isRecording ? 'manual' : (contentType === 'recording' ? 'zoom' : 'manual');
 
     // Save metadata to MongoDB
     const CommunityVideo = getCommunityVideo();
@@ -191,7 +203,7 @@ export async function POST(request: NextRequest) {
       uploadedBy: decoded.email || decoded.userId || 'admin',
       isShareable: false,
       isCommon,
-      source: contentType === 'recording' ? 'zoom' : 'manual',
+      source,
       tags: tagArray,
       createdAt: new Date(),
     });
@@ -204,6 +216,9 @@ export async function POST(request: NextRequest) {
         title: video.title,
         communityId: video.communityId,
         communityName: community.name,
+        folderName,
+        playlistName,
+        videoNumber,
       },
     });
   } catch (error: any) {
