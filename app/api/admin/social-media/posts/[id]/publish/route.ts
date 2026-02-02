@@ -148,18 +148,92 @@ async function publishFacebookPagePost(args: {
   return postId;
 }
 
+async function waitForInstagramContainerReady(
+  containerId: string,
+  accessToken: string,
+  maxWaitMs: number = 120000
+): Promise<void> {
+  const startTime = Date.now();
+  const pollInterval = 5000; // 5 seconds
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const url = `https://graph.facebook.com/v24.0/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    const data = await res.json().catch(() => ({}));
+
+    const status = data?.status_code || data?.status;
+    console.log(`[Instagram] Container ${containerId} status: ${status}`);
+
+    if (status === 'FINISHED') {
+      return; // Ready to publish
+    }
+    if (status === 'ERROR' || status === 'EXPIRED') {
+      throw new Error(`Instagram container failed with status: ${status}`);
+    }
+    // IN_PROGRESS - wait and retry
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  throw new Error('Instagram video processing timed out after 2 minutes. Try a shorter video.');
+}
+
 async function publishInstagramPost(args: {
   igUserId: string;
   accessToken: string;
   caption: string;
   imageUrls: string[];
+  videoUrls: string[];
 }): Promise<string> {
-  const { igUserId, accessToken, caption, imageUrls } = args;
+  const { igUserId, accessToken, caption, imageUrls, videoUrls } = args;
 
   // Instagram Graph API does not support text-only feed posts.
-  if (imageUrls.length === 0) {
-    throw new Error('Instagram publishing requires at least 1 image URL (text-only is not supported).');
+  if (imageUrls.length === 0 && videoUrls.length === 0) {
+    throw new Error('Instagram publishing requires at least 1 image or video URL (text-only is not supported).');
   }
+
+  // VIDEO/REELS posting
+  if (videoUrls.length > 0) {
+    if (videoUrls.length > 1) {
+      throw new Error('Instagram Reels supports only 1 video per post.');
+    }
+    if (imageUrls.length > 0) {
+      throw new Error('Instagram does not support mixing images and videos in one post. Use either images or a video.');
+    }
+
+    console.log(`[Instagram] Creating Reels container for video: ${videoUrls[0]}`);
+
+    // Create video container (Reels)
+    const createContainer = await graphPost(`${encodeURIComponent(igUserId)}/media`, {
+      access_token: accessToken,
+      media_type: 'REELS',
+      video_url: videoUrls[0],
+      caption,
+    });
+
+    const containerId = String(createContainer?.id || '').trim();
+    if (!containerId) throw new Error('Instagram Reels container creation returned no id');
+
+    console.log(`[Instagram] Container created: ${containerId}, waiting for processing...`);
+
+    // Wait for video processing to complete
+    await waitForInstagramContainerReady(containerId, accessToken);
+
+    console.log(`[Instagram] Container ready, publishing Reel...`);
+
+    // Publish the Reel
+    const publish = await graphPost(`${encodeURIComponent(igUserId)}/media_publish`, {
+      access_token: accessToken,
+      creation_id: containerId,
+    });
+
+    const igPostId = String(publish?.id || '').trim();
+    if (!igPostId) throw new Error('Instagram Reels publish returned no id');
+    
+    console.log(`[Instagram] ✅ Reel published: ${igPostId}`);
+    return igPostId;
+  }
+
+  // IMAGE posting (existing logic)
   if (imageUrls.length > 1) {
     throw new Error('Instagram publishing currently supports only 1 image per post (carousel support not added yet).');
   }
@@ -484,12 +558,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         }
 
         if (platform === 'instagram') {
-          // Instagram requires media. For now we only support 1 image.
+          // Instagram supports images or Reels (videos)
           const igId = await publishInstagramPost({
             igUserId: accountId,
             accessToken,
             caption: text,
             imageUrls,
+            videoUrls,
           });
           platformPostIds.instagram = igId;
           results.push({ platform, ok: true, platformPostId: igId });

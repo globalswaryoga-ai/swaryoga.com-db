@@ -47,44 +47,52 @@ export default function AdminSidebar({ isOpen = true, onClose = () => {} }: Admi
     setIsSuperAdmin(superAdmin);
   }, []);
 
-  // Fetch unread message count
+  // Fetch unread message count - only once on mount, then every 60 seconds
   useEffect(() => {
     if (!token) return;
 
+    let isMounted = true;
     let retryCount = 0;
-    const maxRetries = 3;
-    let timeoutId: NodeJS.Timeout | null = null;
+    const maxRetries = 2;
 
     const fetchUnreadCount = async () => {
+      if (!isMounted || retryCount >= maxRetries) return;
+      
       try {
-        const result = await crm.fetch('/api/admin/crm/messages/unread-count');
-        setUnreadCount(result?.unreadCount || 0);
-        retryCount = 0; // Reset on success
-      } catch (err) {
-        console.error('Failed to fetch unread count:', err);
-        retryCount++;
-        // Stop retrying after max attempts to prevent infinite loop
-        if (retryCount >= maxRetries) {
-          console.warn('Max retries reached for unread count, stopping polling');
+        const response = await window.fetch('/api/admin/crm/messages/unread-count', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          retryCount++;
           return;
         }
+        
+        const result = await response.json();
+        if (isMounted) {
+          setUnreadCount(result?.unreadCount || 0);
+          retryCount = 0;
+        }
+      } catch (err) {
+        retryCount++;
       }
     };
 
-    fetchUnreadCount();
+    // Initial fetch after small delay
+    const initialTimeout = setTimeout(fetchUnreadCount, 1000);
 
-    // Poll every 30 seconds for new messages
-    const interval = setInterval(() => {
-      if (retryCount < maxRetries) {
-        fetchUnreadCount();
-      }
-    }, 30000);
+    // Poll every 60 seconds (not 30)
+    const interval = setInterval(fetchUnreadCount, 60000);
     
     return () => {
+      isMounted = false;
+      clearTimeout(initialTimeout);
       clearInterval(interval);
-      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [token, crm]);
+  }, [token]); // Only depend on token, not crm
 
   const handleNavClick = () => {
     // Auto-close sidebar on mobile when a link is clicked
