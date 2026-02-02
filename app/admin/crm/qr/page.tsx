@@ -2984,7 +2984,7 @@ function QRWhatsAppInboxPageContent() {
     }
   };
 
-  // Bulk delete selected chats (soft delete - mark lead as deleted)
+  // Bulk delete selected chats (soft delete - mark lead as deleted, or delete messages if no lead)
   const handleBulkDelete = async () => {
     if (selectedChatIds.size === 0 || processingBulkAction) return;
     if (!confirm(`⚠️ Delete ${selectedChatIds.size} selected chat(s)? This will remove them from your CRM.`)) return;
@@ -3000,20 +3000,43 @@ function QRWhatsAppInboxPageContent() {
           return cId === chatId;
         });
         
-        if (!chat || !chat.leadId) {
+        if (!chat) {
           errorCount++;
           continue;
         }
 
         try {
-          const res = await fetch(`/api/admin/crm/leads/${chat.leadId}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
+          let deleteSuccess = false;
           
-          if (res.ok) {
+          // If chat has leadId, delete the lead (which may cascade delete related data)
+          if (chat.leadId) {
+            const res = await fetch(`/api/admin/crm/leads/${chat.leadId}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            deleteSuccess = res.ok;
+          } 
+          // If no leadId, extract phone from chat ID and delete messages by phone
+          else {
+            const chatIdStr = typeof chat.id === 'string' ? chat.id : chat.id?._serialized || '';
+            const phoneNumber = chatIdStr.split('@')[0].replace(/\D/g, '');
+            
+            if (phoneNumber) {
+              const res = await fetch('/api/admin/crm/whatsapp/conversations/delete', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ phoneNumbers: [phoneNumber] })
+              });
+              deleteSuccess = res.ok;
+            }
+          }
+          
+          if (deleteSuccess) {
             successCount++;
             // Remove from chats list
             setChats(prev => prev.filter(c => {

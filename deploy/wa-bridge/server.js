@@ -207,6 +207,68 @@ async function initializeClient(forceRefresh = false) {
     }, 10000);
   });
 
+  // CRM Webhook URL to forward incoming messages
+  const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || 'https://crm.swaryoga.com/api/admin/crm/whatsapp/qr/webhook';
+
+  // Handle incoming messages - forward to CRM
+  client.on('message', async (msg) => {
+    try {
+      // Skip status broadcasts
+      if (msg.from === 'status@broadcast') return;
+      
+      // Skip messages from self
+      if (msg.fromMe) return;
+
+      const phoneNumber = msg.from.split('@')[0].replace(/\\D/g, '');
+      const hasMedia = msg.hasMedia || false;
+      const type = msg.type || 'chat';
+      
+      console.log(`[incoming] Message from ${phoneNumber}: ${(msg.body || '').substring(0, 50)}...`);
+      
+      // Build payload
+      const payload = {
+        from: msg.from,
+        body: msg.body || '',
+        type: type,
+        hasMedia: hasMedia,
+        timestamp: msg.timestamp ? msg.timestamp * 1000 : Date.now(),
+        messageId: msg.id?._serialized || msg.id?.id,
+        contactName: msg._data?.notifyName || msg._data?.pushname,
+      };
+      
+      // If message has media, try to download and attach
+      if (hasMedia && msg.hasMedia) {
+        try {
+          const media = await msg.downloadMedia();
+          if (media && media.data) {
+            payload.mediaBase64 = media.data;
+            payload.mediaMimeType = media.mimetype;
+          }
+        } catch (mediaErr) {
+          console.error('[incoming] Failed to download media:', mediaErr.message);
+        }
+      }
+      
+      // Forward to CRM webhook
+      axios.post(CRM_WEBHOOK_URL, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-bridge-secret': BRIDGE_SECRET
+        },
+        timeout: 30000
+      })
+      .then((res) => {
+        console.log('[incoming] Forwarded to CRM:', res.status);
+      })
+      .catch((err) => {
+        console.error('[incoming] Failed to forward to CRM:', err.message);
+      });
+      
+    } catch (err) {
+      console.error('[incoming] Error handling message:', err.message);
+    }
+  });
+
   try {
     await client.initialize();
   } catch (err) {
