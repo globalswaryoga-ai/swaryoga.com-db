@@ -598,6 +598,32 @@ app.get("/chats", authMiddleware, async (req, res) => {
   res.json([]);
 });
 
+// Get all WhatsApp groups the user is participating in
+app.get("/groups", authMiddleware, async (req, res) => {
+  if (!sock || !sessionReady) return res.status(503).json({ error: "WhatsApp not connected" });
+  
+  try {
+    console.log("[GROUPS] Fetching all participating groups...");
+    const groups = await sock.groupFetchAllParticipating();
+    
+    // Convert to array format with key info
+    const groupList = Object.entries(groups).map(([id, group]) => ({
+      id: id,
+      name: group.subject || "Unknown",
+      owner: group.owner || null,
+      creation: group.creation || null,
+      participantsCount: group.participants?.length || 0,
+      description: group.desc || null
+    }));
+    
+    console.log(`[GROUPS] Found ${groupList.length} groups`);
+    res.json({ success: true, count: groupList.length, groups: groupList });
+  } catch (err) {
+    console.error("[GROUPS] Error fetching groups:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get messages for a chat (group or individual)
 // Note: Baileys doesn't store historical messages - this returns empty array
 // Messages are stored in MongoDB via the CRM webhook, so fetch from there instead
