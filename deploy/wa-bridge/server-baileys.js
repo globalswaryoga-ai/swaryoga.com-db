@@ -713,55 +713,140 @@ app.post("/send-template", authMiddleware, async (req, res) => {
       bodyText.toLowerCase().trim().endsWith(footerText.toLowerCase().trim());
     const effectiveFooter = bodyAlreadyHasFooter ? '' : footerText;
 
-    // Build the full text content with buttons
-    let fullTextContent = bodyText || "";
-    
-    if (buttons && buttons.length > 0) {
-      const buttonList = buttons.map((b, i) => {
-        const text = typeof b === 'string' ? b : (b.text || b.title || b);
-        return `${i + 1}️⃣ *${text}*`;
-      }).join("\n");
-      fullTextContent = fullTextContent.trim() + "\n\n" + buttonList;
-    }
-    
-    if (effectiveFooter) {
-      fullTextContent = fullTextContent.trim() + "\n\n_" + effectiveFooter + "_";
-    }
-
-    // If we have an image, send image WITH caption (same width)
-    // If no image, send as text message
+    // STEP 1: Send image first (if provided)
     if (imageUrl) {
       try {
-        console.log("📷 Sending image with caption:", imageUrl.substring(0, 50));
+        console.log("📷 Sending image:", imageUrl.substring(0, 50));
         const imgResult = await sock.sendMessage(jid, { 
           image: { url: imageUrl }, 
-          caption: fullTextContent // Text as caption = same width as image
+          caption: bodyText || "" // Just the body text as caption
         });
         if (imgResult?.key?.id) {
           messageIds.push(imgResult.key.id);
-          console.log("✅ Image with caption sent successfully");
+          console.log("✅ Image sent successfully");
         }
-        
-        // Return early - we sent everything in one message
-        return res.json({ 
-          success: true, 
-          messageIds,
-          note: "Sent as image with caption"
-        });
       } catch (imgErr) {
-        console.log("⚠️ Image send failed, falling back to text only:", imgErr.message);
-        // Fall through to send text only
+        console.log("⚠️ Image send failed:", imgErr.message);
       }
     }
 
-    // No image or image failed - send as text message
-    const textResult = await sock.sendMessage(jid, { text: fullTextContent });
-    if (textResult?.key?.id) {
-      messageIds.push(textResult.key.id);
+    // STEP 2: Send interactive buttons (if provided)
+    if (buttons && buttons.length > 0) {
+      const validButtons = buttons.slice(0, 3).filter(b => b);
+      
+      if (validButtons.length > 0) {
+        // Try native interactive buttons (nativeFlowMessage format for 2024+)
+        try {
+          console.log("🔵 Trying native blue buttons...");
+          
+          const nativeButtons = validButtons.map((btn, idx) => ({
+            name: "quick_reply",
+            buttonParamsJson: JSON.stringify({
+              display_text: typeof btn === "string" ? btn : (btn.text || btn.title || btn),
+              id: "btn_" + idx
+            })
+          }));
+
+          const interactiveMsg = {
+            viewOnceMessage: {
+              message: {
+                interactiveMessage: {
+                  body: { text: imageUrl ? "" : (bodyText || "Please select an option") },
+                  footer: { text: effectiveFooter || "Swar Yoga" },
+                  nativeFlowMessage: {
+                    buttons: nativeButtons,
+                    messageParamsJson: ""
+                  }
+                }
+              }
+            }
+          };
+
+          const btnResult = await sock.sendMessage(jid, interactiveMsg);
+          if (btnResult?.key?.id) {
+            messageIds.push(btnResult.key.id);
+            console.log("✅ Native blue buttons sent!");
+            return res.json({ 
+              success: true, 
+              messageIds,
+              method: "native_buttons",
+              note: "Blue buttons sent successfully"
+            });
+          }
+        } catch (nativeErr) {
+          console.log("⚠️ Native buttons failed:", nativeErr.message);
+          
+          // Fallback: Try buttonsMessage format
+          try {
+            console.log("🔄 Trying buttonsMessage format...");
+            const buttonRows = validButtons.map((btn, idx) => ({
+              buttonId: "btn_" + idx,
+              buttonText: { displayText: typeof btn === "string" ? btn : (btn.text || btn.title || btn) },
+              type: 1
+            }));
+
+            const buttonsMsg = {
+              text: imageUrl ? "" : (bodyText || "Please select an option"),
+              footer: effectiveFooter || "Swar Yoga",
+              buttons: buttonRows,
+              headerType: 1
+            };
+
+            const btnResult2 = await sock.sendMessage(jid, buttonsMsg);
+            if (btnResult2?.key?.id) {
+              messageIds.push(btnResult2.key.id);
+              console.log("✅ Buttons message sent!");
+              return res.json({ 
+                success: true, 
+                messageIds,
+                method: "buttons_message",
+                note: "Buttons sent"
+              });
+            }
+          } catch (btnErr) {
+            console.log("⚠️ buttonsMessage also failed:", btnErr.message);
+          }
+          
+          // Final fallback: numbered text
+          console.log("📝 Falling back to numbered text...");
+          const buttonList = validButtons.map((b, i) => {
+            const text = typeof b === 'string' ? b : (b.text || b.title || b);
+            return `${i + 1}️⃣ *${text}*`;
+          }).join("\n");
+          
+          let fallbackText = imageUrl ? "" : (bodyText ? bodyText + "\n\n" : "");
+          fallbackText += buttonList;
+          if (effectiveFooter) {
+            fallbackText += "\n\n_" + effectiveFooter + "_";
+          }
+          
+          const textResult = await sock.sendMessage(jid, { text: fallbackText });
+          if (textResult?.key?.id) {
+            messageIds.push(textResult.key.id);
+          }
+          
+          return res.json({ 
+            success: true, 
+            messageIds,
+            method: "text_fallback",
+            warning: "Native buttons not supported on this WhatsApp version, sent as numbered text"
+          });
+        }
+      }
+    } else if (!imageUrl) {
+      // No buttons and no image - just send text
+      let textContent = bodyText || "";
+      if (effectiveFooter) {
+        textContent += "\n\n_" + effectiveFooter + "_";
+      }
+      const textResult = await sock.sendMessage(jid, { text: textContent });
+      if (textResult?.key?.id) {
+        messageIds.push(textResult.key.id);
+      }
     }
 
     console.log("✅ Template sent to", jid, "messageIds:", messageIds);
-    res.json({ success: true, messageIds, method: "image_then_text" });
+    res.json({ success: true, messageIds });
   } catch (err) {
     console.error("Send template error:", err.message);
     res.status(500).json({ success: false, error: err.message });
