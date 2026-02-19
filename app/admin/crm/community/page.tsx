@@ -1154,13 +1154,13 @@ export default function AdminCommunityPage() {
   };
 
   // Update Submission Status
-  const updateSubmissionStatus = async (submissionId: string, newStatus: string, adminNotes?: string) => {
+  const updateSubmissionStatus = async (submissionId: string, newStatus: string, adminNotes?: string, source?: string) => {
     if (!token) return;
     try {
       const res = await fetch('/api/admin/crm/community/submissions', {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ submissionId, status: newStatus, adminNotes }),
+        body: JSON.stringify({ submissionId, status: newStatus, adminNotes, source }),
       });
       if (res.ok) {
         fetchSubmissions();
@@ -1174,11 +1174,11 @@ export default function AdminCommunityPage() {
   };
 
   // Delete Submission
-  const deleteSubmission = async (submissionId: string) => {
+  const deleteSubmission = async (submissionId: string, source?: string) => {
     if (!token) return;
     if (!confirm('Delete this submission?')) return;
     try {
-      const res = await fetch(`/api/admin/crm/community/submissions?id=${submissionId}`, {
+      const res = await fetch(`/api/admin/crm/community/submissions?id=${submissionId}&source=${source || 'submission'}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -2572,13 +2572,13 @@ export default function AdminCommunityPage() {
                               Create Post
                             </button>
                             <button
-                              onClick={() => updateSubmissionStatus(sub._id, 'approved')}
+                              onClick={() => updateSubmissionStatus(sub._id, 'approved', undefined, sub.source)}
                               className="px-4 py-2 bg-green-100 text-green-700 rounded-xl font-bold text-sm hover:bg-green-200 transition-all"
                             >
                               ✅ Approve
                             </button>
                             <button
-                              onClick={() => updateSubmissionStatus(sub._id, 'rejected')}
+                              onClick={() => updateSubmissionStatus(sub._id, 'rejected', undefined, sub.source)}
                               className="px-4 py-2 bg-red-100 text-red-700 rounded-xl font-bold text-sm hover:bg-red-200 transition-all"
                             >
                               ❌ Reject
@@ -2595,7 +2595,7 @@ export default function AdminCommunityPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => deleteSubmission(sub._id)}
+                          onClick={() => deleteSubmission(sub._id, sub.source)}
                           className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all ml-auto"
                         >
                           <Trash2 size={16} />

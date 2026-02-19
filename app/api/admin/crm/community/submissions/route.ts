@@ -38,9 +38,31 @@ const communitySubmissionSchema = new mongoose.Schema({
   communityPostId: { type: mongoose.Schema.Types.ObjectId },
 }, { timestamps: true });
 
+// Experience schema for community_experiences collection (main DB)
+const experienceSchema = new mongoose.Schema({
+  userId: { type: String },
+  userName: { type: String, required: true },
+  userPhone: { type: String },
+  userEmail: { type: String },
+  userPhoto: { type: String },
+  content: { type: String, required: true },
+  rating: { type: Number, min: 1, max: 5, required: true },
+  photoUrl: { type: String },
+  communityId: { type: String, default: 'global' },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  featured: { type: Boolean, default: false },
+  approvedBy: { type: String },
+  approvedAt: { type: Date },
+  createdAt: { type: Date, default: Date.now },
+}, { collection: 'community_experiences' });
+
 function getCommunitySubmissionModel() {
   const crmDb = mongoose.connection.useDb(process.env.MONGODB_CRM_DB_NAME || 'swaryoga_admin_crm');
   return crmDb.models.CommunitySubmission || crmDb.model('CommunitySubmission', communitySubmissionSchema);
+}
+
+function getExperienceModel() {
+  return mongoose.models.Experience || mongoose.model('Experience', experienceSchema);
 }
 
 // GET - Get all pending submissions (admin only)
@@ -62,24 +84,86 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || 'pending';
     const category = searchParams.get('category');
-    // No limit - support unlimited submissions
     
     const CommunitySubmission = getCommunitySubmissionModel();
+    const Experience = getExperienceModel();
     
-    const query: any = {};
+    // Query for CRM submissions
+    const crmQuery: any = {};
     if (status !== 'all') {
-      query.status = status;
+      crmQuery.status = status;
     }
     if (category && category !== 'all') {
-      query.category = category;
+      crmQuery.category = category;
     }
     
-    const submissions = await CommunitySubmission.find(query)
+    // Query for experiences (map status: approved in experiences = posted for consistency)
+    const expQuery: any = {};
+    if (status === 'pending') {
+      expQuery.status = 'pending';
+    } else if (status === 'approved') {
+      // For CRM, approved != posted, but for experiences approved = ready to show
+      expQuery.status = 'approved';
+    } else if (status === 'rejected') {
+      expQuery.status = 'rejected';
+    } else if (status === 'posted') {
+      expQuery.status = 'approved'; // Experiences that are approved = posted
+    }
+    // For experiences, only show category = 'experiences' or no filter
+    if (category && category !== 'all' && category !== 'experiences') {
+      // Don't fetch experiences if filtering by other categories
+      expQuery._skipFetch = true;
+    }
+    
+    // Fetch CRM submissions
+    const crmSubmissions = await CommunitySubmission.find(crmQuery)
       .sort({ createdAt: -1 })
       .lean();
     
-    // Get counts by status
-    const counts = await CommunitySubmission.aggregate([
+    // Fetch experiences from main DB (unless filtered out)
+    let experiences: any[] = [];
+    if (!expQuery._skipFetch) {
+      delete expQuery._skipFetch;
+      experiences = await Experience.find(expQuery)
+        .sort({ createdAt: -1 })
+        .lean();
+    }
+    
+    // Transform experiences to match submission format
+    const transformedExperiences = experiences.map((exp: any) => ({
+      _id: exp._id,
+      source: 'experience', // Mark source for UI differentiation
+      userId: exp.userId,
+      userEmail: exp.userEmail || '',
+      userName: exp.userName,
+      participantName: exp.userName,
+      category: 'experiences',
+      status: exp.status === 'approved' ? 'approved' : exp.status,
+      experienceDetails: exp.content,
+      imageUrl: exp.photoUrl || exp.userPhoto,
+      rating: exp.rating,
+      communityId: exp.communityId,
+      featured: exp.featured,
+      createdAt: exp.createdAt,
+      updatedAt: exp.createdAt,
+    }));
+    
+    // Transform CRM submissions to mark source
+    const transformedCrmSubmissions = crmSubmissions.map((sub: any) => ({
+      ...sub,
+      source: 'submission',
+    }));
+    
+    // Merge and sort by createdAt
+    const allSubmissions = [...transformedCrmSubmissions, ...transformedExperiences]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    // Get counts by status from both sources
+    const crmCounts = await CommunitySubmission.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    
+    const expCounts = await Experience.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
     
@@ -89,13 +173,20 @@ export async function GET(req: NextRequest) {
       rejected: 0,
       posted: 0,
     };
-    counts.forEach((c: { _id: string; count: number }) => {
+    
+    crmCounts.forEach((c: { _id: string; count: number }) => {
       if (c._id in statusCounts) {
-        statusCounts[c._id as keyof typeof statusCounts] = c.count;
+        statusCounts[c._id as keyof typeof statusCounts] += c.count;
       }
     });
     
-    return apiSuccess({ submissions, counts: statusCounts });
+    expCounts.forEach((c: { _id: string; count: number }) => {
+      if (c._id === 'pending') statusCounts.pending += c.count;
+      else if (c._id === 'approved') statusCounts.approved += c.count;
+      else if (c._id === 'rejected') statusCounts.rejected += c.count;
+    });
+    
+    return apiSuccess({ submissions: allSubmissions, counts: statusCounts });
     
   } catch (error) {
     console.error('Get admin submissions error:', error);
@@ -120,12 +211,38 @@ export async function PATCH(req: NextRequest) {
     }
     
     const body = await req.json();
-    const { submissionId, status, adminNotes, answer } = body;
+    const { submissionId, status, adminNotes, answer, source } = body;
     
     if (!submissionId) {
       return apiError('Submission ID required', 400);
     }
     
+    // Handle experience source
+    if (source === 'experience') {
+      const Experience = getExperienceModel();
+      const expUpdateData: any = {
+        approvedBy: decoded.userId || decoded.email,
+        approvedAt: new Date(),
+      };
+      if (status) {
+        // Map 'posted' to 'approved' for experiences
+        expUpdateData.status = status === 'posted' ? 'approved' : status;
+      }
+      
+      const experience = await Experience.findByIdAndUpdate(
+        submissionId,
+        { $set: expUpdateData },
+        { new: true }
+      ).lean();
+      
+      if (!experience) {
+        return apiError('Experience not found', 404);
+      }
+      
+      return apiSuccess({ submission: experience, message: 'Experience updated' });
+    }
+    
+    // Handle CRM submission source
     const CommunitySubmission = getCommunitySubmissionModel();
     
     const updateData: any = {
@@ -182,11 +299,23 @@ export async function DELETE(req: NextRequest) {
     
     const { searchParams } = new URL(req.url);
     const submissionId = searchParams.get('id');
+    const source = searchParams.get('source');
     
     if (!submissionId) {
       return apiError('Submission ID required', 400);
     }
     
+    // Handle experience source
+    if (source === 'experience') {
+      const Experience = getExperienceModel();
+      const result = await Experience.findByIdAndDelete(submissionId);
+      if (!result) {
+        return apiError('Experience not found', 404);
+      }
+      return apiSuccess({ message: 'Experience deleted' });
+    }
+    
+    // Handle CRM submission
     const CommunitySubmission = getCommunitySubmissionModel();
     
     const result = await CommunitySubmission.findByIdAndDelete(submissionId);
