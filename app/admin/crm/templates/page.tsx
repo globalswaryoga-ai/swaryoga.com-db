@@ -147,6 +147,12 @@ export default function TemplatesPage() {
     fetchTemplates();
   }, [token, router, fetchTemplates]);
 
+  // Re-fetch when filters or page changes
+  useEffect(() => {
+    if (!token || !initialFetchDoneRef.current) return;
+    fetchTemplates();
+  }, [statusFilter, providerFilter, page, token, fetchTemplates]);
+
   const handleApproveTemplate = async (templateId: string) => {
     try {
       await crm.fetch('/api/admin/crm/templates', {
