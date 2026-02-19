@@ -170,7 +170,8 @@ export const locationData: LocationCountry[] = [
           { name: 'Toronto', latitude: 43.6532, longitude: -79.3832 },
           { name: 'Ottawa', latitude: 45.4215, longitude: -75.6972 },
           { name: 'Hamilton', latitude: 43.2557, longitude: -79.8711 },
-          { name: 'London', latitude: 42.9849, longitude: -81.245 }
+          { name: 'London', latitude: 42.9849, longitude: -81.245 },
+          { name: 'Mississauga', latitude: 43.5890, longitude: -79.6441 }
         ]
       },
       {
@@ -178,7 +179,8 @@ export const locationData: LocationCountry[] = [
         cities: [
           { name: 'Vancouver', latitude: 49.2827, longitude: -123.1207 },
           { name: 'Victoria', latitude: 48.4284, longitude: -123.3656 },
-          { name: 'Kelowna', latitude: 49.8879, longitude: -119.496 }
+          { name: 'Kelowna', latitude: 49.8879, longitude: -119.496 },
+          { name: 'Surrey', latitude: 49.1913, longitude: -122.8490 }
         ]
       },
       {
@@ -186,22 +188,35 @@ export const locationData: LocationCountry[] = [
         cities: [
           { name: 'Calgary', latitude: 51.0447, longitude: -114.0719 },
           { name: 'Edmonton', latitude: 53.5461, longitude: -113.4938 },
-          { name: 'Red Deer', latitude: 52.2681, longitude: -113.8112 }
+          { name: 'Red Deer', latitude: 52.2681, longitude: -113.8112 },
+          { name: 'Lethbridge', latitude: 49.6956, longitude: -112.8451 }
         ]
       },
       {
         name: 'Quebec',
         cities: [
           { name: 'Montreal', latitude: 45.5017, longitude: -73.5673 },
-          { name: 'Quebec City', latitude: 46.8139, longitude: -71.2080 }
+          { name: 'Quebec City', latitude: 46.8139, longitude: -71.2080 },
+          { name: 'Laval', latitude: 45.6066, longitude: -73.7124 },
+          { name: 'Gatineau', latitude: 45.4765, longitude: -75.7013 }
         ]
       },
       {
         name: 'Manitoba',
         cities: [
-          { name: 'Winnipeg', latitude: 49.8951, longitude: -97.1384 }
+          { name: 'Winnipeg', latitude: 49.8951, longitude: -97.1384 },
+          { name: 'Brandon', latitude: 49.8485, longitude: -99.9501 }
         ]
-      }
+      },
+      // Additional Canadian Provinces
+      { name: 'Saskatchewan', cities: [{ name: 'Saskatoon', latitude: 52.1332, longitude: -106.6700 }, { name: 'Regina', latitude: 50.4452, longitude: -104.6189 }] },
+      { name: 'Nova Scotia', cities: [{ name: 'Halifax', latitude: 44.6488, longitude: -63.5752 }, { name: 'Sydney', latitude: 46.1351, longitude: -60.1831 }] },
+      { name: 'New Brunswick', cities: [{ name: 'Moncton', latitude: 46.0878, longitude: -64.7782 }, { name: 'Saint John', latitude: 45.2733, longitude: -66.0633 }, { name: 'Fredericton', latitude: 45.9636, longitude: -66.6431 }] },
+      { name: 'Newfoundland and Labrador', cities: [{ name: "St. John's", latitude: 47.5615, longitude: -52.7126 }, { name: 'Corner Brook', latitude: 48.9500, longitude: -57.9500 }] },
+      { name: 'Prince Edward Island', cities: [{ name: 'Charlottetown', latitude: 46.2382, longitude: -63.1311 }] },
+      { name: 'Northwest Territories', cities: [{ name: 'Yellowknife', latitude: 62.4540, longitude: -114.3718 }] },
+      { name: 'Yukon', cities: [{ name: 'Whitehorse', latitude: 60.7212, longitude: -135.0568 }] },
+      { name: 'Nunavut', cities: [{ name: 'Iqaluit', latitude: 63.7467, longitude: -68.5170 }] }
     ]
   },
   {
@@ -503,6 +518,202 @@ export const locationData: LocationCountry[] = [
           { name: 'Chandigarh', latitude: 30.7333, longitude: 76.7794 },
           { name: 'Amritsar', latitude: 31.634, longitude: 74.8723 },
           { name: 'Ludhiana', latitude: 30.9, longitude: 75.8573 }
+        ]
+      },
+      // Additional Indian States
+      {
+        name: 'Madhya Pradesh',
+        cities: [
+          { name: 'Bhopal', latitude: 23.2599, longitude: 77.4126 },
+          { name: 'Indore', latitude: 22.7196, longitude: 75.8577 },
+          { name: 'Gwalior', latitude: 26.2183, longitude: 78.1828 },
+          { name: 'Jabalpur', latitude: 23.1815, longitude: 79.9864 }
+        ]
+      },
+      {
+        name: 'Bihar',
+        cities: [
+          { name: 'Patna', latitude: 25.5941, longitude: 85.1376 },
+          { name: 'Gaya', latitude: 24.7955, longitude: 85.0002 },
+          { name: 'Muzaffarpur', latitude: 26.1209, longitude: 85.3909 },
+          { name: 'Bhagalpur', latitude: 25.2425, longitude: 86.9842 }
+        ]
+      },
+      {
+        name: 'Odisha',
+        cities: [
+          { name: 'Bhubaneswar', latitude: 20.2961, longitude: 85.8245 },
+          { name: 'Cuttack', latitude: 20.4625, longitude: 85.8830 },
+          { name: 'Rourkela', latitude: 22.2604, longitude: 84.8536 },
+          { name: 'Puri', latitude: 19.8135, longitude: 85.8312 }
+        ]
+      },
+      {
+        name: 'Jharkhand',
+        cities: [
+          { name: 'Ranchi', latitude: 23.3441, longitude: 85.3096 },
+          { name: 'Jamshedpur', latitude: 22.8046, longitude: 86.2029 },
+          { name: 'Dhanbad', latitude: 23.7957, longitude: 86.4304 },
+          { name: 'Bokaro', latitude: 23.6693, longitude: 86.1511 }
+        ]
+      },
+      {
+        name: 'Chhattisgarh',
+        cities: [
+          { name: 'Raipur', latitude: 21.2514, longitude: 81.6296 },
+          { name: 'Bilaspur', latitude: 22.0797, longitude: 82.1391 },
+          { name: 'Durg', latitude: 21.1904, longitude: 81.2849 },
+          { name: 'Bhilai', latitude: 21.2094, longitude: 81.3786 }
+        ]
+      },
+      {
+        name: 'Haryana',
+        cities: [
+          { name: 'Gurugram', latitude: 28.4595, longitude: 77.0266 },
+          { name: 'Faridabad', latitude: 28.4089, longitude: 77.3178 },
+          { name: 'Panipat', latitude: 29.3909, longitude: 76.9635 },
+          { name: 'Ambala', latitude: 30.3782, longitude: 76.7767 }
+        ]
+      },
+      {
+        name: 'Himachal Pradesh',
+        cities: [
+          { name: 'Shimla', latitude: 31.1048, longitude: 77.1734 },
+          { name: 'Dharamshala', latitude: 32.2190, longitude: 76.3234 },
+          { name: 'Manali', latitude: 32.2396, longitude: 77.1887 },
+          { name: 'Kullu', latitude: 31.9579, longitude: 77.1095 }
+        ]
+      },
+      {
+        name: 'Uttarakhand',
+        cities: [
+          { name: 'Dehradun', latitude: 30.3165, longitude: 78.0322 },
+          { name: 'Haridwar', latitude: 29.9457, longitude: 78.1642 },
+          { name: 'Rishikesh', latitude: 30.0869, longitude: 78.2676 },
+          { name: 'Nainital', latitude: 29.3919, longitude: 79.4542 }
+        ]
+      },
+      {
+        name: 'Assam',
+        cities: [
+          { name: 'Guwahati', latitude: 26.1445, longitude: 91.7362 },
+          { name: 'Dibrugarh', latitude: 27.4728, longitude: 94.9120 },
+          { name: 'Silchar', latitude: 24.8333, longitude: 92.7789 },
+          { name: 'Jorhat', latitude: 26.7509, longitude: 94.2037 }
+        ]
+      },
+      {
+        name: 'Goa',
+        cities: [
+          { name: 'Panaji', latitude: 15.4909, longitude: 73.8278 },
+          { name: 'Margao', latitude: 15.2832, longitude: 73.9862 },
+          { name: 'Vasco da Gama', latitude: 15.3982, longitude: 73.8113 },
+          { name: 'Mapusa', latitude: 15.5913, longitude: 73.8086 }
+        ]
+      },
+      {
+        name: 'Tripura',
+        cities: [
+          { name: 'Agartala', latitude: 23.8315, longitude: 91.2868 },
+          { name: 'Udaipur', latitude: 23.5333, longitude: 91.4833 }
+        ]
+      },
+      {
+        name: 'Meghalaya',
+        cities: [
+          { name: 'Shillong', latitude: 25.5788, longitude: 91.8933 },
+          { name: 'Tura', latitude: 25.5143, longitude: 90.2149 }
+        ]
+      },
+      {
+        name: 'Manipur',
+        cities: [
+          { name: 'Imphal', latitude: 24.8170, longitude: 93.9368 },
+          { name: 'Churachandpur', latitude: 24.3333, longitude: 93.6833 }
+        ]
+      },
+      {
+        name: 'Mizoram',
+        cities: [
+          { name: 'Aizawl', latitude: 23.7271, longitude: 92.7176 },
+          { name: 'Lunglei', latitude: 22.8867, longitude: 92.7261 }
+        ]
+      },
+      {
+        name: 'Nagaland',
+        cities: [
+          { name: 'Kohima', latitude: 25.6751, longitude: 94.1086 },
+          { name: 'Dimapur', latitude: 25.9063, longitude: 93.7333 }
+        ]
+      },
+      {
+        name: 'Arunachal Pradesh',
+        cities: [
+          { name: 'Itanagar', latitude: 27.0844, longitude: 93.6053 },
+          { name: 'Naharlagun', latitude: 27.1044, longitude: 93.6943 }
+        ]
+      },
+      {
+        name: 'Sikkim',
+        cities: [
+          { name: 'Gangtok', latitude: 27.3389, longitude: 88.6065 },
+          { name: 'Namchi', latitude: 27.1667, longitude: 88.3500 }
+        ]
+      },
+      {
+        name: 'Jammu and Kashmir',
+        cities: [
+          { name: 'Srinagar', latitude: 34.0837, longitude: 74.7973 },
+          { name: 'Jammu', latitude: 32.7266, longitude: 74.8570 },
+          { name: 'Anantnag', latitude: 33.7311, longitude: 75.1547 },
+          { name: 'Leh', latitude: 34.1526, longitude: 77.5771 }
+        ]
+      },
+      {
+        name: 'Ladakh',
+        cities: [
+          { name: 'Leh', latitude: 34.1526, longitude: 77.5771 },
+          { name: 'Kargil', latitude: 34.5539, longitude: 76.1349 }
+        ]
+      },
+      {
+        name: 'Puducherry',
+        cities: [
+          { name: 'Puducherry', latitude: 11.9416, longitude: 79.8083 },
+          { name: 'Karaikal', latitude: 10.9254, longitude: 79.8380 }
+        ]
+      },
+      {
+        name: 'Andaman and Nicobar Islands',
+        cities: [
+          { name: 'Port Blair', latitude: 11.6234, longitude: 92.7265 },
+          { name: 'Havelock Island', latitude: 11.9810, longitude: 93.0111 }
+        ]
+      },
+      {
+        name: 'Lakshadweep',
+        cities: [
+          { name: 'Kavaratti', latitude: 10.5626, longitude: 72.6369 },
+          { name: 'Agatti Island', latitude: 10.8566, longitude: 72.1851 }
+        ]
+      },
+      {
+        name: 'Chandigarh',
+        cities: [
+          { name: 'Chandigarh', latitude: 30.7333, longitude: 76.7794 }
+        ]
+      },
+      {
+        name: 'Dadra and Nagar Haveli',
+        cities: [
+          { name: 'Silvassa', latitude: 20.2767, longitude: 73.0169 }
+        ]
+      },
+      {
+        name: 'Daman and Diu',
+        cities: [
+          { name: 'Daman', latitude: 20.4283, longitude: 72.8397 },
+          { name: 'Diu', latitude: 20.7141, longitude: 70.9871 }
         ]
       }
     ]
@@ -943,7 +1154,14 @@ export const locationData: LocationCountry[] = [
           { name: 'London', latitude: 51.5074, longitude: -0.1278 },
           { name: 'Manchester', latitude: 53.4808, longitude: -2.2426 },
           { name: 'Birmingham', latitude: 52.4862, longitude: -1.8904 },
-          { name: 'Leeds', latitude: 53.8008, longitude: -1.5491 }
+          { name: 'Leeds', latitude: 53.8008, longitude: -1.5491 },
+          { name: 'Liverpool', latitude: 53.4084, longitude: -2.9916 },
+          { name: 'Bristol', latitude: 51.4545, longitude: -2.5879 },
+          { name: 'Sheffield', latitude: 53.3811, longitude: -1.4701 },
+          { name: 'Newcastle', latitude: 54.9783, longitude: -1.6178 },
+          { name: 'Nottingham', latitude: 52.9548, longitude: -1.1581 },
+          { name: 'Cambridge', latitude: 52.2053, longitude: 0.1218 },
+          { name: 'Oxford', latitude: 51.7520, longitude: -1.2577 }
         ]
       },
       {
@@ -951,7 +1169,9 @@ export const locationData: LocationCountry[] = [
         cities: [
           { name: 'Edinburgh', latitude: 55.9533, longitude: -3.1883 },
           { name: 'Glasgow', latitude: 55.8642, longitude: -4.2518 },
-          { name: 'Aberdeen', latitude: 57.1497, longitude: -2.0943 }
+          { name: 'Aberdeen', latitude: 57.1497, longitude: -2.0943 },
+          { name: 'Dundee', latitude: 56.4620, longitude: -2.9707 },
+          { name: 'Inverness', latitude: 57.4778, longitude: -4.2247 }
         ]
       },
       {
@@ -959,14 +1179,17 @@ export const locationData: LocationCountry[] = [
         cities: [
           { name: 'Cardiff', latitude: 51.4816, longitude: -3.1791 },
           { name: 'Swansea', latitude: 51.6214, longitude: -3.9436 },
-          { name: 'Newport', latitude: 51.5880, longitude: -3.0094 }
+          { name: 'Newport', latitude: 51.5880, longitude: -3.0094 },
+          { name: 'Wrexham', latitude: 53.0461, longitude: -2.9932 }
         ]
       },
       {
         name: 'Northern Ireland',
         cities: [
           { name: 'Belfast', latitude: 54.5973, longitude: -5.9301 },
-          { name: 'Derry', latitude: 54.9973, longitude: -7.1679 }
+          { name: 'Derry', latitude: 54.9973, longitude: -7.1679 },
+          { name: 'Lisburn', latitude: 54.5167, longitude: -6.0333 },
+          { name: 'Newry', latitude: 54.1761, longitude: -6.3379 }
         ]
       }
     ]
@@ -982,7 +1205,8 @@ export const locationData: LocationCountry[] = [
           { name: 'Los Angeles', latitude: 34.0522, longitude: -118.2437 },
           { name: 'San Francisco', latitude: 37.7749, longitude: -122.4194 },
           { name: 'San Diego', latitude: 32.7157, longitude: -117.1611 },
-          { name: 'San Jose', latitude: 37.3382, longitude: -121.8863 }
+          { name: 'San Jose', latitude: 37.3382, longitude: -121.8863 },
+          { name: 'Sacramento', latitude: 38.5816, longitude: -121.4944 }
         ]
       },
       {
@@ -991,7 +1215,8 @@ export const locationData: LocationCountry[] = [
           { name: 'Austin', latitude: 30.2672, longitude: -97.7431 },
           { name: 'Dallas', latitude: 32.7767, longitude: -96.797 },
           { name: 'Houston', latitude: 29.7604, longitude: -95.3698 },
-          { name: 'San Antonio', latitude: 29.4241, longitude: -98.4936 }
+          { name: 'San Antonio', latitude: 29.4241, longitude: -98.4936 },
+          { name: 'Fort Worth', latitude: 32.7555, longitude: -97.3308 }
         ]
       },
       {
@@ -999,7 +1224,8 @@ export const locationData: LocationCountry[] = [
         cities: [
           { name: 'New York City', latitude: 40.7128, longitude: -74.006 },
           { name: 'Buffalo', latitude: 42.8864, longitude: -78.8784 },
-          { name: 'Rochester', latitude: 43.1566, longitude: -77.6088 }
+          { name: 'Rochester', latitude: 43.1566, longitude: -77.6088 },
+          { name: 'Albany', latitude: 42.6526, longitude: -73.7562 }
         ]
       },
       {
@@ -1007,15 +1233,64 @@ export const locationData: LocationCountry[] = [
         cities: [
           { name: 'Miami', latitude: 25.7617, longitude: -80.1918 },
           { name: 'Orlando', latitude: 28.5383, longitude: -81.3792 },
-          { name: 'Tampa', latitude: 27.9506, longitude: -82.4572 }
+          { name: 'Tampa', latitude: 27.9506, longitude: -82.4572 },
+          { name: 'Jacksonville', latitude: 30.3322, longitude: -81.6557 }
         ]
       },
       {
         name: 'Illinois',
         cities: [
-          { name: 'Chicago', latitude: 41.8781, longitude: -87.6298 }
+          { name: 'Chicago', latitude: 41.8781, longitude: -87.6298 },
+          { name: 'Springfield', latitude: 39.7817, longitude: -89.6501 },
+          { name: 'Rockford', latitude: 42.2711, longitude: -89.0940 }
         ]
-      }
+      },
+      // Additional US States
+      { name: 'Alabama', cities: [{ name: 'Birmingham', latitude: 33.5186, longitude: -86.8104 }, { name: 'Montgomery', latitude: 32.3792, longitude: -86.3077 }, { name: 'Huntsville', latitude: 34.7304, longitude: -86.5861 }] },
+      { name: 'Alaska', cities: [{ name: 'Anchorage', latitude: 61.2181, longitude: -149.9003 }, { name: 'Fairbanks', latitude: 64.8378, longitude: -147.7164 }, { name: 'Juneau', latitude: 58.3019, longitude: -134.4197 }] },
+      { name: 'Arizona', cities: [{ name: 'Phoenix', latitude: 33.4484, longitude: -112.0740 }, { name: 'Tucson', latitude: 32.2226, longitude: -110.9747 }, { name: 'Mesa', latitude: 33.4152, longitude: -111.8315 }] },
+      { name: 'Arkansas', cities: [{ name: 'Little Rock', latitude: 34.7465, longitude: -92.2896 }, { name: 'Fort Smith', latitude: 35.3859, longitude: -94.3985 }] },
+      { name: 'Colorado', cities: [{ name: 'Denver', latitude: 39.7392, longitude: -104.9903 }, { name: 'Colorado Springs', latitude: 38.8339, longitude: -104.8214 }, { name: 'Boulder', latitude: 40.0150, longitude: -105.2705 }] },
+      { name: 'Connecticut', cities: [{ name: 'Hartford', latitude: 41.7658, longitude: -72.6734 }, { name: 'New Haven', latitude: 41.3083, longitude: -72.9279 }, { name: 'Stamford', latitude: 41.0534, longitude: -73.5387 }] },
+      { name: 'Delaware', cities: [{ name: 'Wilmington', latitude: 39.7391, longitude: -75.5398 }, { name: 'Dover', latitude: 39.1582, longitude: -75.5244 }] },
+      { name: 'Georgia', cities: [{ name: 'Atlanta', latitude: 33.7490, longitude: -84.3880 }, { name: 'Savannah', latitude: 32.0809, longitude: -81.0912 }, { name: 'Augusta', latitude: 33.4735, longitude: -82.0105 }] },
+      { name: 'Hawaii', cities: [{ name: 'Honolulu', latitude: 21.3069, longitude: -157.8583 }, { name: 'Hilo', latitude: 19.7074, longitude: -155.0847 }, { name: 'Maui', latitude: 20.7984, longitude: -156.3319 }] },
+      { name: 'Idaho', cities: [{ name: 'Boise', latitude: 43.6150, longitude: -116.2023 }, { name: 'Idaho Falls', latitude: 43.4926, longitude: -112.0401 }] },
+      { name: 'Indiana', cities: [{ name: 'Indianapolis', latitude: 39.7684, longitude: -86.1581 }, { name: 'Fort Wayne', latitude: 41.0793, longitude: -85.1394 }, { name: 'Evansville', latitude: 37.9716, longitude: -87.5711 }] },
+      { name: 'Iowa', cities: [{ name: 'Des Moines', latitude: 41.5868, longitude: -93.6250 }, { name: 'Cedar Rapids', latitude: 41.9779, longitude: -91.6656 }] },
+      { name: 'Kansas', cities: [{ name: 'Wichita', latitude: 37.6872, longitude: -97.3301 }, { name: 'Kansas City', latitude: 39.1141, longitude: -94.6275 }, { name: 'Topeka', latitude: 39.0473, longitude: -95.6752 }] },
+      { name: 'Kentucky', cities: [{ name: 'Louisville', latitude: 38.2527, longitude: -85.7585 }, { name: 'Lexington', latitude: 38.0406, longitude: -84.5037 }, { name: 'Frankfort', latitude: 38.2009, longitude: -84.8733 }] },
+      { name: 'Louisiana', cities: [{ name: 'New Orleans', latitude: 29.9511, longitude: -90.0715 }, { name: 'Baton Rouge', latitude: 30.4515, longitude: -91.1871 }, { name: 'Shreveport', latitude: 32.5252, longitude: -93.7502 }] },
+      { name: 'Maine', cities: [{ name: 'Portland', latitude: 43.6591, longitude: -70.2568 }, { name: 'Augusta', latitude: 44.3106, longitude: -69.7795 }] },
+      { name: 'Maryland', cities: [{ name: 'Baltimore', latitude: 39.2904, longitude: -76.6122 }, { name: 'Annapolis', latitude: 38.9784, longitude: -76.4922 }, { name: 'Rockville', latitude: 39.0840, longitude: -77.1528 }] },
+      { name: 'Massachusetts', cities: [{ name: 'Boston', latitude: 42.3601, longitude: -71.0589 }, { name: 'Worcester', latitude: 42.2626, longitude: -71.8023 }, { name: 'Cambridge', latitude: 42.3736, longitude: -71.1097 }] },
+      { name: 'Michigan', cities: [{ name: 'Detroit', latitude: 42.3314, longitude: -83.0458 }, { name: 'Grand Rapids', latitude: 42.9634, longitude: -85.6681 }, { name: 'Ann Arbor', latitude: 42.2808, longitude: -83.7430 }] },
+      { name: 'Minnesota', cities: [{ name: 'Minneapolis', latitude: 44.9778, longitude: -93.2650 }, { name: 'Saint Paul', latitude: 44.9537, longitude: -93.0900 }, { name: 'Duluth', latitude: 46.7867, longitude: -92.1005 }] },
+      { name: 'Mississippi', cities: [{ name: 'Jackson', latitude: 32.2988, longitude: -90.1848 }, { name: 'Gulfport', latitude: 30.3674, longitude: -89.0928 }] },
+      { name: 'Missouri', cities: [{ name: 'Kansas City', latitude: 39.0997, longitude: -94.5786 }, { name: 'St. Louis', latitude: 38.6270, longitude: -90.1994 }, { name: 'Springfield', latitude: 37.2090, longitude: -93.2923 }] },
+      { name: 'Montana', cities: [{ name: 'Billings', latitude: 45.7833, longitude: -108.5007 }, { name: 'Missoula', latitude: 46.8721, longitude: -113.9940 }, { name: 'Helena', latitude: 46.5891, longitude: -112.0391 }] },
+      { name: 'Nebraska', cities: [{ name: 'Omaha', latitude: 41.2565, longitude: -95.9345 }, { name: 'Lincoln', latitude: 40.8258, longitude: -96.6852 }] },
+      { name: 'Nevada', cities: [{ name: 'Las Vegas', latitude: 36.1699, longitude: -115.1398 }, { name: 'Reno', latitude: 39.5296, longitude: -119.8138 }, { name: 'Henderson', latitude: 36.0395, longitude: -114.9817 }] },
+      { name: 'New Hampshire', cities: [{ name: 'Manchester', latitude: 42.9956, longitude: -71.4548 }, { name: 'Concord', latitude: 43.2081, longitude: -71.5376 }] },
+      { name: 'New Jersey', cities: [{ name: 'Newark', latitude: 40.7357, longitude: -74.1724 }, { name: 'Jersey City', latitude: 40.7178, longitude: -74.0431 }, { name: 'Trenton', latitude: 40.2171, longitude: -74.7429 }] },
+      { name: 'New Mexico', cities: [{ name: 'Albuquerque', latitude: 35.0844, longitude: -106.6504 }, { name: 'Santa Fe', latitude: 35.6869, longitude: -105.9378 }, { name: 'Las Cruces', latitude: 32.3199, longitude: -106.7637 }] },
+      { name: 'North Carolina', cities: [{ name: 'Charlotte', latitude: 35.2271, longitude: -80.8431 }, { name: 'Raleigh', latitude: 35.7796, longitude: -78.6382 }, { name: 'Greensboro', latitude: 36.0726, longitude: -79.7920 }] },
+      { name: 'North Dakota', cities: [{ name: 'Fargo', latitude: 46.8772, longitude: -96.7898 }, { name: 'Bismarck', latitude: 46.8083, longitude: -100.7837 }] },
+      { name: 'Ohio', cities: [{ name: 'Columbus', latitude: 39.9612, longitude: -82.9988 }, { name: 'Cleveland', latitude: 41.4993, longitude: -81.6944 }, { name: 'Cincinnati', latitude: 39.1031, longitude: -84.5120 }] },
+      { name: 'Oklahoma', cities: [{ name: 'Oklahoma City', latitude: 35.4676, longitude: -97.5164 }, { name: 'Tulsa', latitude: 36.1540, longitude: -95.9928 }] },
+      { name: 'Oregon', cities: [{ name: 'Portland', latitude: 45.5152, longitude: -122.6784 }, { name: 'Salem', latitude: 44.9429, longitude: -123.0351 }, { name: 'Eugene', latitude: 44.0521, longitude: -123.0868 }] },
+      { name: 'Pennsylvania', cities: [{ name: 'Philadelphia', latitude: 39.9526, longitude: -75.1652 }, { name: 'Pittsburgh', latitude: 40.4406, longitude: -79.9959 }, { name: 'Harrisburg', latitude: 40.2732, longitude: -76.8867 }] },
+      { name: 'Rhode Island', cities: [{ name: 'Providence', latitude: 41.8240, longitude: -71.4128 }, { name: 'Newport', latitude: 41.4901, longitude: -71.3128 }] },
+      { name: 'South Carolina', cities: [{ name: 'Charleston', latitude: 32.7765, longitude: -79.9311 }, { name: 'Columbia', latitude: 34.0007, longitude: -81.0348 }, { name: 'Greenville', latitude: 34.8526, longitude: -82.3940 }] },
+      { name: 'South Dakota', cities: [{ name: 'Sioux Falls', latitude: 43.5446, longitude: -96.7311 }, { name: 'Rapid City', latitude: 44.0805, longitude: -103.2310 }] },
+      { name: 'Tennessee', cities: [{ name: 'Nashville', latitude: 36.1627, longitude: -86.7816 }, { name: 'Memphis', latitude: 35.1495, longitude: -90.0490 }, { name: 'Knoxville', latitude: 35.9606, longitude: -83.9207 }] },
+      { name: 'Utah', cities: [{ name: 'Salt Lake City', latitude: 40.7608, longitude: -111.8910 }, { name: 'Provo', latitude: 40.2338, longitude: -111.6585 }, { name: 'Park City', latitude: 40.6461, longitude: -111.4980 }] },
+      { name: 'Vermont', cities: [{ name: 'Burlington', latitude: 44.4759, longitude: -73.2121 }, { name: 'Montpelier', latitude: 44.2601, longitude: -72.5754 }] },
+      { name: 'Virginia', cities: [{ name: 'Virginia Beach', latitude: 36.8529, longitude: -75.9780 }, { name: 'Richmond', latitude: 37.5407, longitude: -77.4360 }, { name: 'Norfolk', latitude: 36.8508, longitude: -76.2859 }] },
+      { name: 'Washington', cities: [{ name: 'Seattle', latitude: 47.6062, longitude: -122.3321 }, { name: 'Spokane', latitude: 47.6588, longitude: -117.4260 }, { name: 'Tacoma', latitude: 47.2529, longitude: -122.4443 }] },
+      { name: 'West Virginia', cities: [{ name: 'Charleston', latitude: 38.3498, longitude: -81.6326 }, { name: 'Huntington', latitude: 38.4192, longitude: -82.4452 }] },
+      { name: 'Wisconsin', cities: [{ name: 'Milwaukee', latitude: 43.0389, longitude: -87.9065 }, { name: 'Madison', latitude: 43.0731, longitude: -89.4012 }, { name: 'Green Bay', latitude: 44.5133, longitude: -88.0133 }] },
+      { name: 'Wyoming', cities: [{ name: 'Cheyenne', latitude: 41.1400, longitude: -104.8202 }, { name: 'Casper', latitude: 42.8666, longitude: -106.3131 }, { name: 'Jackson', latitude: 43.4799, longitude: -110.7624 }] }
     ]
   },
 
