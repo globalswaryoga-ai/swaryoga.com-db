@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Loader, CheckCircle, User, Mail, Phone, MapPin, Briefcase, Calendar, Lock, Globe, BookOpen, Users } from 'lucide-react';
+import { Loader, CheckCircle, User, Mail, Phone, MapPin, Briefcase, Calendar, Lock, Globe, BookOpen, Users, Search } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
+import { workshopCatalog } from '@/lib/workshopsData';
+import { getAllCountries, getStatesByCountry } from '@/lib/globalLocationData';
 
 type FormType = 'signup' | 'lead' | 'workshop' | 'sales' | 'inquiry';
 
@@ -61,21 +63,8 @@ const FORM_CONFIGS: Record<FormType, FormConfig> = {
   },
 };
 
-const WORKSHOPS = [
-  'Swar Yoga Foundation',
-  'Aham Bramhasmi',
-  'Astavakra Gita',
-  'Shivoham',
-  'I Am Fit',
-  'Youth Wellness',
-  'Children Yoga',
-  'Married Life Harmony',
-  'Business Success',
-  'Shankara Philosophy',
-  'Amrut Bhoj',
-  'Yogasana Mastery',
-  'English Swar Yoga',
-];
+// Auto-populated from workshopsData.ts
+const WORKSHOPS = workshopCatalog.map(w => w.name);
 
 const LANGUAGES = [
   { value: 'hindi', label: 'हिंदी (Hindi)' },
@@ -83,15 +72,63 @@ const LANGUAGES = [
   { value: 'marathi', label: 'मराठी (Marathi)' },
 ];
 
-const COUNTRIES = [
-  'India', 'USA', 'UK', 'Canada', 'Australia', 'Germany', 'UAE', 'Singapore', 'Other'
-];
-
-const INDIAN_STATES = [
-  'Maharashtra', 'Gujarat', 'Karnataka', 'Tamil Nadu', 'Telangana', 'Delhi', 'Uttar Pradesh',
-  'Madhya Pradesh', 'Rajasthan', 'West Bengal', 'Bihar', 'Andhra Pradesh', 'Kerala', 'Punjab',
-  'Haryana', 'Jharkhand', 'Chhattisgarh', 'Assam', 'Odisha', 'Uttarakhand', 'Goa', 'Other'
-];
+// Country to phone code mapping
+const COUNTRY_PHONE_CODES: Record<string, { code: string; flag: string }> = {
+  'India': { code: '+91', flag: '🇮🇳' },
+  'USA': { code: '+1', flag: '🇺🇸' },
+  'United States': { code: '+1', flag: '🇺🇸' },
+  'United Kingdom': { code: '+44', flag: '🇬🇧' },
+  'UK': { code: '+44', flag: '🇬🇧' },
+  'Canada': { code: '+1', flag: '🇨🇦' },
+  'Australia': { code: '+61', flag: '🇦🇺' },
+  'Germany': { code: '+49', flag: '🇩🇪' },
+  'UAE': { code: '+971', flag: '🇦🇪' },
+  'United Arab Emirates': { code: '+971', flag: '🇦🇪' },
+  'Singapore': { code: '+65', flag: '🇸🇬' },
+  'Nepal': { code: '+977', flag: '🇳🇵' },
+  'Bangladesh': { code: '+880', flag: '🇧🇩' },
+  'Pakistan': { code: '+92', flag: '🇵🇰' },
+  'Sri Lanka': { code: '+94', flag: '🇱🇰' },
+  'Malaysia': { code: '+60', flag: '🇲🇾' },
+  'Indonesia': { code: '+62', flag: '🇮🇩' },
+  'Thailand': { code: '+66', flag: '🇹🇭' },
+  'Philippines': { code: '+63', flag: '🇵🇭' },
+  'Japan': { code: '+81', flag: '🇯🇵' },
+  'South Korea': { code: '+82', flag: '🇰🇷' },
+  'China': { code: '+86', flag: '🇨🇳' },
+  'Russia': { code: '+7', flag: '🇷🇺' },
+  'France': { code: '+33', flag: '🇫🇷' },
+  'Italy': { code: '+39', flag: '🇮🇹' },
+  'Spain': { code: '+34', flag: '🇪🇸' },
+  'Netherlands': { code: '+31', flag: '🇳🇱' },
+  'Belgium': { code: '+32', flag: '🇧🇪' },
+  'Switzerland': { code: '+41', flag: '🇨🇭' },
+  'Austria': { code: '+43', flag: '🇦🇹' },
+  'Sweden': { code: '+46', flag: '🇸🇪' },
+  'Norway': { code: '+47', flag: '🇳🇴' },
+  'Denmark': { code: '+45', flag: '🇩🇰' },
+  'Finland': { code: '+358', flag: '🇫🇮' },
+  'Poland': { code: '+48', flag: '🇵🇱' },
+  'Ireland': { code: '+353', flag: '🇮🇪' },
+  'Portugal': { code: '+351', flag: '🇵🇹' },
+  'Greece': { code: '+30', flag: '🇬🇷' },
+  'Turkey': { code: '+90', flag: '🇹🇷' },
+  'Saudi Arabia': { code: '+966', flag: '🇸🇦' },
+  'Qatar': { code: '+974', flag: '🇶🇦' },
+  'Kuwait': { code: '+965', flag: '🇰🇼' },
+  'Bahrain': { code: '+973', flag: '🇧🇭' },
+  'Oman': { code: '+968', flag: '🇴🇲' },
+  'South Africa': { code: '+27', flag: '🇿🇦' },
+  'Kenya': { code: '+254', flag: '🇰🇪' },
+  'Nigeria': { code: '+234', flag: '🇳🇬' },
+  'Egypt': { code: '+20', flag: '🇪🇬' },
+  'Morocco': { code: '+212', flag: '🇲🇦' },
+  'Brazil': { code: '+55', flag: '🇧🇷' },
+  'Mexico': { code: '+52', flag: '🇲🇽' },
+  'Argentina': { code: '+54', flag: '🇦🇷' },
+  'New Zealand': { code: '+64', flag: '🇳🇿' },
+  'Other': { code: '+91', flag: '🌍' },
+};
 
 export default function DynamicFormPage() {
   const params = useParams();
@@ -109,6 +146,17 @@ export default function DynamicFormPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [credentials, setCredentials] = useState<{ email: string; password: string; userId: string } | null>(null);
+  
+  // User ID lookup (optional - for existing users)
+  const [userId, setUserId] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [userFound, setUserFound] = useState(false);
+  
+  // Dynamic countries and states from globalLocationData
+  const [countries, setCountries] = useState<string[]>([]);
+  const [states, setStates] = useState<string[]>([]);
+  const [customState, setCustomState] = useState('');
+  const [useCustomState, setUseCustomState] = useState(false);
   
   // Form fields
   const [name, setName] = useState('');
@@ -129,22 +177,111 @@ export default function DynamicFormPage() {
   const [paymentMode, setPaymentMode] = useState('');
   const [message, setMessage] = useState('');
   
+  // Load countries on mount
+  useEffect(() => {
+    const allCountries = getAllCountries();
+    // Add 'Other' at the end
+    setCountries([...allCountries, 'Other']);
+  }, []);
+  
+  // Update states when country changes
+  useEffect(() => {
+    if (country && country !== 'Other') {
+      const countryStates = getStatesByCountry(country);
+      setStates([...countryStates, 'Other']);
+      setUseCustomState(false);
+      setCustomState('');
+      // Reset state when country changes
+      if (countryStates.length > 0) {
+        setState(countryStates[0]);
+      } else {
+        setState('');
+        setUseCustomState(true);
+      }
+    } else {
+      setStates([]);
+      setUseCustomState(true);
+      setState('');
+    }
+    
+    // Update country code based on country
+    const phoneData = COUNTRY_PHONE_CODES[country];
+    if (phoneData) {
+      setCountryCode(phoneData.code);
+    }
+  }, [country]);
+  
+  // Handle user ID lookup
+  const handleUserLookup = useCallback(async () => {
+    if (!userId || userId.trim().length < 3) return;
+    
+    setLookupLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch(`/api/forms/user-lookup?userId=${encodeURIComponent(userId.trim())}`);
+      const data = await response.json();
+      
+      if (data.found && data.user) {
+        setName(data.user.name || '');
+        setEmail(data.user.email || '');
+        setPhone(data.user.phone || '');
+        setCountryCode(data.user.countryCode || '+91');
+        setCountry(data.user.country || 'India');
+        // State will be set after country effect runs
+        setTimeout(() => {
+          if (data.user.state) {
+            const countryStates = getStatesByCountry(data.user.country || 'India');
+            if (countryStates.includes(data.user.state)) {
+              setState(data.user.state);
+            } else {
+              setCustomState(data.user.state);
+              setUseCustomState(true);
+            }
+          }
+        }, 100);
+        setGender(data.user.gender || '');
+        setAge(data.user.age ? String(data.user.age) : '');
+        setProfession(data.user.profession || '');
+        setUserFound(true);
+      } else {
+        setUserFound(false);
+        setError('User ID not found. Please fill the form manually.');
+      }
+    } catch {
+      setError('Failed to lookup user. Please fill manually.');
+    } finally {
+      setLookupLoading(false);
+    }
+  }, [userId]);
+  
+  // Get effective state value
+  const getEffectiveState = () => {
+    if (useCustomState || state === 'Other') {
+      return customState;
+    }
+    return state;
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    
+    const effectiveState = getEffectiveState();
     
     try {
       const payload = {
         formType,
         source: sourceParam || 'form-link',
         ref: refParam,
+        existingUserId: userFound ? userId : undefined,
         name: name.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         countryCode,
         country,
-        state,
+        state: effectiveState,
         ...(config.fields.includes('gender') && { gender }),
         ...(config.fields.includes('age') && { age: parseInt(age) }),
         ...(config.fields.includes('profession') && { profession }),
@@ -269,6 +406,46 @@ export default function DynamicFormPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
             <div className="p-6 sm:p-8 space-y-6">
+              
+              {/* User ID Lookup - Only for workshop form */}
+              {formType === 'workshop' && (
+                <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                  <label className="block text-sm font-bold text-purple-700 mb-2">
+                    <Search size={14} className="inline mr-2" />
+                    Already Registered? Enter Your ID (Optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={userId}
+                      onChange={(e) => {
+                        setUserId(e.target.value.replace(/[^0-9]/g, '').slice(0, 6));
+                        setUserFound(false);
+                      }}
+                      placeholder="e.g. 518520"
+                      className="flex-1 h-12 px-4 border border-purple-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUserLookup}
+                      disabled={lookupLoading || !userId}
+                      className="px-6 h-12 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {lookupLoading ? <Loader className="animate-spin" size={16} /> : <Search size={16} />}
+                      Fetch
+                    </button>
+                  </div>
+                  {userFound && (
+                    <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                      <CheckCircle size={12} /> User found! Form auto-filled.
+                    </p>
+                  )}
+                  <p className="text-xs text-purple-600 mt-2">
+                    💡 Enter your 6-digit Profile ID to auto-fill your details. Find it in your account or email.
+                  </p>
+                </div>
+              )}
+              
               {/* Name */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">
@@ -308,28 +485,19 @@ export default function DynamicFormPage() {
                   WhatsApp Number *
                 </label>
                 <div className="flex gap-2">
-                  <select
-                    value={countryCode}
-                    onChange={(e) => setCountryCode(e.target.value)}
-                    className="w-24 h-12 px-3 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-300"
-                  >
-                    <option value="+91">🇮🇳 +91</option>
-                    <option value="+1">🇺🇸 +1</option>
-                    <option value="+44">🇬🇧 +44</option>
-                    <option value="+971">🇦🇪 +971</option>
-                    <option value="+61">🇦🇺 +61</option>
-                    <option value="+65">🇸🇬 +65</option>
-                    <option value="+49">🇩🇪 +49</option>
-                  </select>
+                  <div className="w-28 h-12 px-3 border border-gray-200 rounded-xl text-sm font-medium bg-gray-50 flex items-center justify-center">
+                    {COUNTRY_PHONE_CODES[country]?.flag || '🌍'} {countryCode}
+                  </div>
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
                     placeholder="9876543210"
                     className="flex-1 h-12 px-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-300"
                     required
                   />
                 </div>
+                <p className="text-xs text-gray-500 mt-1">📱 Country code auto-updates based on selected country</p>
               </div>
               
               {/* Country & State */}
@@ -346,7 +514,11 @@ export default function DynamicFormPage() {
                       className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-300"
                       required
                     >
-                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      {countries.map(c => (
+                        <option key={c} value={c}>
+                          {COUNTRY_PHONE_CODES[c]?.flag || '🌍'} {c}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -354,25 +526,47 @@ export default function DynamicFormPage() {
                       <MapPin size={14} className="inline mr-2" />
                       State *
                     </label>
-                    {country === 'India' ? (
+                    {states.length > 0 && !useCustomState ? (
                       <select
                         value={state}
-                        onChange={(e) => setState(e.target.value)}
+                        onChange={(e) => {
+                          if (e.target.value === 'Other') {
+                            setUseCustomState(true);
+                            setState('Other');
+                          } else {
+                            setState(e.target.value);
+                          }
+                        }}
                         className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-300"
                         required
                       >
                         <option value="">Select State</option>
-                        {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                        {states.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     ) : (
-                      <input
-                        type="text"
-                        value={state}
-                        onChange={(e) => setState(e.target.value)}
-                        placeholder="Enter your state"
-                        className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-300"
-                        required
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={customState}
+                          onChange={(e) => setCustomState(e.target.value)}
+                          placeholder="Enter your state/province"
+                          className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-300"
+                          required
+                        />
+                        {states.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUseCustomState(false);
+                              setCustomState('');
+                              setState(states[0] || '');
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-purple-600 hover:underline"
+                          >
+                            Show list
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

@@ -45,7 +45,9 @@ function generatePassword(name: string, phone: string): string {
 }
 
 /**
- * Send WhatsApp notification with credentials
+ * Send WhatsApp notification with credentials using UTILITY template
+ * Template: user_credentials_notification
+ * Params: {{1}}=Profile ID, {{2}}=Email, {{3}}=Password
  */
 async function sendWhatsAppCredentials(
   phone: string,
@@ -68,25 +70,84 @@ async function sendWhatsAppCredentials(
       return;
     }
     
-    const message = `🙏 *Welcome to Swar Yoga!*
+    // Use UTILITY template for credentials notification
+    const templateName = 'user_credentials_notification';
+    
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: fullPhone,
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: 'en' },
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: userId },      // {{1}} Profile ID
+                  { type: 'text', text: email },       // {{2}} Email  
+                  { type: 'text', text: password },    // {{3}} Password
+                ],
+              },
+            ],
+          },
+        }),
+      }
+    );
+    
+    if (response.ok) {
+      console.log(`✅ WhatsApp credentials template sent to ${fullPhone}`);
+    } else {
+      const errData = await response.json();
+      console.error('❌ WhatsApp template send failed:', errData);
+      
+      // Fallback to plain text if template fails (not approved yet)
+      if (errData?.error?.code === 132000 || errData?.error?.message?.includes('template')) {
+        console.log('[WhatsApp] Template not ready, sending plain text fallback...');
+        await sendWhatsAppCredentialsFallback(fullPhone, name, email, password, userId);
+      }
+    }
+  } catch (error) {
+    console.error('❌ WhatsApp notification error:', error);
+  }
+}
 
-Hello *${name}* 👋
+/**
+ * Fallback: Send plain text (if template not approved yet)
+ */
+async function sendWhatsAppCredentialsFallback(
+  fullPhone: string,
+  name: string,
+  email: string,
+  password: string,
+  userId: string
+) {
+  try {
+    const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+    const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    
+    const message = `Welcome to Swar Yoga!
 
-Thank you for registering with us!
+Your account has been created successfully.
 
-📋 *Your Login Credentials:*
-━━━━━━━━━━━━━━━━━
-🆔 User ID: *${userId}*
-📧 Email: ${email}
-🔐 Password: *${password}*
-━━━━━━━━━━━━━━━━━
+Your Login Credentials:
+Profile ID: ${userId}
+Email: ${email}
+Password: ${password}
 
-🔗 Login here: https://swaryoga.com/signin
+Login here: https://swaryoga.com/signin
 
-⚠️ Please save these credentials safely!
+Please save these credentials safely.
 
-🧘 *Swar Yoga - Transform Your Life*
-🌐 www.swaryoga.com`;
+Har Har Mahadev`;
 
     const response = await fetch(
       `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
@@ -106,13 +167,10 @@ Thank you for registering with us!
     );
     
     if (response.ok) {
-      console.log(`✅ WhatsApp credentials sent to ${fullPhone}`);
-    } else {
-      const errData = await response.json();
-      console.error('❌ WhatsApp send failed:', errData);
+      console.log(`✅ WhatsApp fallback text sent to ${fullPhone}`);
     }
   } catch (error) {
-    console.error('❌ WhatsApp notification error:', error);
+    console.error('❌ WhatsApp fallback error:', error);
   }
 }
 

@@ -19,12 +19,17 @@ interface Question {
 }
 
 const categories = [
-  { id: 'all', name: 'All Questions', icon: '📋' },
-  { id: 'general', name: 'General', icon: '💭' },
-  { id: 'yoga', name: 'Yoga', icon: '🧘' },
-  { id: 'pranayama', name: 'Pranayama', icon: '🌬️' },
-  { id: 'health', name: 'Health', icon: '❤️' },
-  { id: 'lifestyle', name: 'Lifestyle', icon: '🌿' },
+  { id: 'all', name: 'All Questions', icon: '☰', color: '#3B82F6' },
+  { id: 'swar-yoga-workshop', name: 'Swar Yoga Workshop', icon: '◎', color: '#8B5CF6' },
+  { id: 'swar-yoga-health', name: 'Swar Yoga- Health', icon: '♥', color: '#EF4444' },
+  { id: 'weight-loss', name: 'Weight Loss', icon: '⚖', color: '#F59E0B' },
+  { id: 'amrut-aahar', name: 'Amrut aahar', icon: '❧', color: '#10B981' },
+  { id: 'pre-pregnancy', name: 'Pre Pregnancy', icon: '✿', color: '#EC4899' },
+  { id: 'married-life', name: 'Married Life', icon: '♡', color: '#F43F5E' },
+  { id: 'yogasana', name: 'Yogasana', icon: '☯', color: '#6366F1' },
+  { id: 'business-wealth', name: 'Business & Wealth', icon: '◆', color: '#0EA5E9' },
+  { id: 'youth', name: 'Youth', icon: '★', color: '#FBBF24' },
+  { id: 'children', name: 'Children', icon: '✦', color: '#A855F7' },
 ];
 
 export default function QuestionsPage() {
@@ -40,7 +45,7 @@ export default function QuestionsPage() {
   const [form, setForm] = useState({
     userName: '',
     question: '',
-    category: 'general',
+    category: 'swar-yoga-workshop',
     userPhone: '',
     userEmail: '',
   });
@@ -112,7 +117,7 @@ export default function QuestionsPage() {
       
       if (data.success) {
         setMessage({ type: 'success', text: data.message });
-        setForm({ userName: '', question: '', category: 'general', userPhone: '', userEmail: '' });
+        setForm({ userName: '', question: '', category: 'swar-yoga-workshop', userPhone: '', userEmail: '' });
         setShowForm(false);
       } else {
         setMessage({ type: 'error', text: data.error });
@@ -169,7 +174,7 @@ export default function QuestionsPage() {
                   : 'bg-white text-gray-600 hover:bg-blue-50 border border-gray-200'
               }`}
             >
-              {c.icon} {c.name}
+              <span style={{ color: selectedCategory === c.id ? 'white' : c.color }}>{c.icon}</span> {c.name}
             </button>
           ))}
         </div>
@@ -305,7 +310,7 @@ export default function QuestionsPage() {
                           </span>
                         )}
                         <span className="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-1 rounded-lg">
-                          {categories.find(c => c.id === q.category)?.icon} {q.category}
+                          <span style={{ color: categories.find(c => c.id === q.category)?.color }}>{categories.find(c => c.id === q.category)?.icon}</span> {q.category}
                         </span>
                       </div>
                       <h3 className="text-base sm:text-lg font-semibold text-gray-900 line-clamp-2">{q.question}</h3>

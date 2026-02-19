@@ -24,11 +24,17 @@ interface Transformation {
 }
 
 const communities = [
-  { id: 'global', name: 'All Communities' },
-  { id: 'swar-yoga', name: 'Swar Yoga' },
-  { id: 'pranayama', name: 'Pranayama' },
-  { id: 'meditation', name: 'Meditation' },
-  { id: 'youth', name: 'Youth Program' },
+  { id: 'global', name: 'All Communities', icon: '☰', color: '#3B82F6' },
+  { id: 'swar-yoga-workshop', name: 'Swar Yoga Workshop', icon: '◎', color: '#8B5CF6' },
+  { id: 'swar-yoga-health', name: 'Swar Yoga- Health', icon: '♥', color: '#EF4444' },
+  { id: 'weight-loss', name: 'Weight Loss', icon: '⚖', color: '#F59E0B' },
+  { id: 'amrut-aahar', name: 'Amrut aahar', icon: '❧', color: '#10B981' },
+  { id: 'pre-pregnancy', name: 'Pre Pregnancy', icon: '✿', color: '#EC4899' },
+  { id: 'married-life', name: 'Married Life', icon: '♡', color: '#F43F5E' },
+  { id: 'yogasana', name: 'Yogasana', icon: '☯', color: '#6366F1' },
+  { id: 'business-wealth', name: 'Business & Wealth', icon: '◆', color: '#0EA5E9' },
+  { id: 'youth', name: 'Youth', icon: '★', color: '#FBBF24' },
+  { id: 'children', name: 'Children', icon: '✦', color: '#A855F7' },
 ];
 
 export default function TransformationsPage() {
@@ -183,7 +189,7 @@ export default function TransformationsPage() {
                     : 'bg-white text-gray-600 hover:bg-orange-50 border border-gray-200'
                 }`}
               >
-                {c.name}
+                <span style={{ color: selectedCommunity === c.id ? 'white' : c.color }}>{c.icon}</span> {c.name}
               </button>
             ))}
           </div>
@@ -311,7 +317,7 @@ export default function TransformationsPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   >
                     {communities.slice(1).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                      <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
                     ))}
                   </select>
                 </div>

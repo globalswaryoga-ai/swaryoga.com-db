@@ -12,7 +12,7 @@ const QuestionSchema = new mongoose.Schema({
   userEmail: { type: String },
   question: { type: String, required: true },
   answer: { type: String },
-  category: { type: String, default: 'general' }, // yoga, pranayama, health, lifestyle
+  category: { type: String, default: 'swar-yoga-workshop' }, // swar-yoga-workshop, swar-yoga-health, weight-loss, amrut-aahar, pre-pregnancy, married-life, yogasana, business-wealth, youth, children
   communityId: { type: String, default: 'global' },
   status: { type: String, enum: ['pending', 'answered', 'rejected'], default: 'pending' },
   answeredBy: { type: String },
