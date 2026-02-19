@@ -19,6 +19,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || 'active';
     const skip = parseInt(searchParams.get('skip') || '0');
     const limitParam = searchParams.get('limit');
+    // No limit by default (0 = unlimited)
+    const limit = limitParam ? parseInt(limitParam) : 0;
 
     const query: any = { communityId };
     if (status === 'pending') {
@@ -31,9 +33,9 @@ export async function GET(request: NextRequest) {
       .sort({ joinedAt: -1 })
       .skip(skip);
     
-    // Only apply limit if explicitly provided
-    if (limitParam) {
-      membersQuery = membersQuery.limit(parseInt(limitParam));
+    // Only apply limit if specified and > 0
+    if (limit > 0) {
+      membersQuery = membersQuery.limit(limit);
     }
     
     const members = await membersQuery.lean();

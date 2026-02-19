@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || 'pending';
     const category = searchParams.get('category');
+    // No limit - support unlimited submissions
     
     const CommunitySubmission = getCommunitySubmissionModel();
     
