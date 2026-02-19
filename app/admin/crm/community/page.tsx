@@ -1448,7 +1448,7 @@ export default function AdminCommunityPage() {
    }, [selectedCommunity, statusFilter, token, router]);
 
   const filteredMembers = members.filter(member => 
-    (member.name.toLowerCase().includes(searchQuery.toLowerCase()) || member.mobile.includes(searchQuery)) && 
+    ((member.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (member.mobile || '').includes(searchQuery)) && 
     (statusFilter === 'all' || member.status === statusFilter)
   );
 
