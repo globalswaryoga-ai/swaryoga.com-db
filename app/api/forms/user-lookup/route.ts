@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB, getUserModel } from '@/lib/db';
+import { connectDB, getUser } from '@/lib/db';
 
 /**
  * GET /api/forms/user-lookup?userId=xxx
@@ -21,10 +21,28 @@ export async function GET(request: NextRequest) {
     }
     
     await connectDB();
-    const User = getUserModel();
+    const User = getUser();
+    
+    // Try multiple formats for profileId lookup
+    // - Original input (e.g., "007131")
+    // - Without leading zeros (e.g., "7131")  
+    // - Padded to 6 digits (e.g., "007131")
+    const searchTerms = [userId];
+    
+    // Add version without leading zeros
+    const withoutLeadingZeros = userId.replace(/^0+/, '');
+    if (withoutLeadingZeros && !searchTerms.includes(withoutLeadingZeros)) {
+      searchTerms.push(withoutLeadingZeros);
+    }
+    
+    // Add zero-padded 6-digit version
+    const paddedVersion = withoutLeadingZeros.padStart(6, '0');
+    if (!searchTerms.includes(paddedVersion)) {
+      searchTerms.push(paddedVersion);
+    }
     
     // Search by profileId (the 6-digit numeric ID)
-    const user = await User.findOne({ profileId: userId })
+    const user = await User.findOne({ profileId: { $in: searchTerms } })
       .select('name email phone countryCode country state gender age profession profileId')
       .lean();
     
