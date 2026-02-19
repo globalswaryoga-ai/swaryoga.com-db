@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { CommunityMember } from '@/lib/db';
 import { contentHasLink, enforceCommunityChatPolicy, getMyCommunityChatPolicy } from '@/lib/communityChatPolicy';
 import { upsertMediaPostFromSocialPost } from '@/lib/socialToMediaPost';
+import { sendMetaTemplate } from '@/lib/whatsapp';
+import { normalizePhone } from '@/lib/whatsapp';
 import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
@@ -47,6 +49,7 @@ type Body = {
     media?: boolean;
     socialMedia?: boolean;
   };
+  broadcastToMembers?: boolean;
 };
 
 function buildMessage(params: {
@@ -131,6 +134,7 @@ export async function POST(request: NextRequest) {
     const scheduledFor = body?.scheduledAt ? new Date(body.scheduledAt) : undefined;
     const category = body?.category || 'general';
     const categoryMetadata = body?.categoryMetadata || null;
+    const broadcastToMembers = Boolean(body?.broadcastToMembers);
 
     if (communityIds.length === 0) {
       return NextResponse.json({ error: 'communityIds is required' }, { status: 400 });
@@ -282,12 +286,88 @@ export async function POST(request: NextRequest) {
       postResults.push(dbPost);
     }
 
+    // 3. Broadcast to community members' WhatsApp (if enabled)
+    let broadcastStats = { sent: 0, failed: 0, total: 0 };
+    if (broadcastToMembers) {
+      try {
+        // Get all unique member phone numbers from selected communities
+        const allMembers = await CommunityMember.find({
+          communityId: { $in: communityIds },
+          status: 'active',
+        }).select('mobile name');
+
+        // Deduplicate by phone number
+        const phoneMap = new Map<string, string>();
+        for (const member of allMembers) {
+          if (member.mobile) {
+            const normalized = normalizePhone(member.mobile);
+            if (normalized && !phoneMap.has(normalized)) {
+              phoneMap.set(normalized, member.name || 'Member');
+            }
+          }
+        }
+
+        broadcastStats.total = phoneMap.size;
+        console.log(`[Broadcast] Sending to ${phoneMap.size} unique members from ${communityIds.length} communities`);
+
+        // Send messages with rate limiting (1 message per second)
+        for (const [phone, name] of phoneMap) {
+          try {
+            // Use Meta API to send text message
+            const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+            const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+
+            if (!phoneNumberId || !accessToken) {
+              console.error('[Broadcast] Missing Meta API credentials');
+              broadcastStats.failed++;
+              continue;
+            }
+
+            // Send as text message via Meta API
+            const response = await axios.post(
+              `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+              {
+                messaging_product: 'whatsapp',
+                to: phone,
+                type: 'text',
+                text: { body: message }
+              },
+              {
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+                timeout: 10000,
+              }
+            );
+
+            if (response.data?.messages?.[0]?.id) {
+              broadcastStats.sent++;
+            } else {
+              broadcastStats.failed++;
+            }
+
+            // Rate limit: wait 1 second between messages
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (err: any) {
+            console.error(`[Broadcast] Failed to send to ${phone}:`, err.response?.data || err.message);
+            broadcastStats.failed++;
+          }
+        }
+
+        console.log(`[Broadcast] Complete: ${broadcastStats.sent} sent, ${broadcastStats.failed} failed`);
+      } catch (err) {
+        console.error('[Broadcast] Error:', err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: `Successfully posted to ${communityIds.length} communities`,
+      message: `Successfully posted to ${communityIds.length} communities${broadcastToMembers ? ` and broadcast to ${broadcastStats.sent} members` : ''}`,
       data: {
         postCount: postResults.length,
         communityIds,
+        broadcast: broadcastToMembers ? broadcastStats : undefined,
       },
     });
   } catch (error) {

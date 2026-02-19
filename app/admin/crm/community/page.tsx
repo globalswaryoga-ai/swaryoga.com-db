@@ -149,6 +149,8 @@ export default function AdminCommunityPage() {
   const [postSelectedCommunityIds, setPostSelectedCommunityIds] = useState<Set<string>>(new Set(['global']));
   const [crossPostMedia, setCrossPostMedia] = useState(false);
   const [crossPostSocial, setCrossPostSocial] = useState(false);
+  const [broadcastToMembers, setBroadcastToMembers] = useState(false);
+  const [broadcastSending, setBroadcastSending] = useState(false);
   const [postVideoUrl, setPostVideoUrl] = useState('');
   const [postDocUrl, setPostDocUrl] = useState('');
   const [postExtraLinks, setPostExtraLinks] = useState('');
@@ -634,7 +636,8 @@ export default function AdminCommunityPage() {
           scheduledAt: postScheduledAt,
           category: postCategory,
           categoryMetadata,
-          crossPost: { media: crossPostMedia, socialMedia: crossPostSocial } 
+          crossPost: { media: crossPostMedia, socialMedia: crossPostSocial },
+          broadcastToMembers,
         }),
       });
 
@@ -649,8 +652,13 @@ export default function AdminCommunityPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed');
       
-      alert('✅ Campaign Deployed!');
+      let successMsg = '✅ Campaign Deployed!';
+      if (data.data?.broadcast) {
+        successMsg += `\n📱 WhatsApp Broadcast: ${data.data.broadcast.sent} sent, ${data.data.broadcast.failed} failed`;
+      }
+      alert(successMsg);
       setShowPostModal(false);
+      setBroadcastToMembers(false);
     } catch (err: any) {
       alert('❌ Error deploying campaign: ' + err.message);
     }
@@ -3698,7 +3706,7 @@ export default function AdminCommunityPage() {
 
                     <section className="bg-white p-10 rounded-[2rem] border shadow-sm space-y-8">
                        <h3 className="text-sm font-bold uppercase tracking-widest">5. Distribution Channels</h3>
-                       <div className="flex gap-6">
+                       <div className="flex flex-wrap gap-6">
                           <label className="flex items-center gap-3 cursor-pointer">
                              <input type="checkbox" checked={crossPostMedia} onChange={e => setCrossPostMedia(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                              <span className="text-sm font-bold text-slate-700">Media Library</span>
@@ -3707,7 +3715,16 @@ export default function AdminCommunityPage() {
                              <input type="checkbox" checked={crossPostSocial} onChange={e => setCrossPostSocial(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                              <span className="text-sm font-bold text-slate-700">Social Media</span>
                           </label>
+                          <label className="flex items-center gap-3 cursor-pointer bg-green-50 px-4 py-2 rounded-xl border border-green-200">
+                             <input type="checkbox" checked={broadcastToMembers} onChange={e => setBroadcastToMembers(e.target.checked)} className="w-5 h-5 rounded border-green-300 text-green-600 focus:ring-green-500" />
+                             <span className="text-sm font-bold text-green-700">📱 WhatsApp Broadcast to Members</span>
+                          </label>
                        </div>
+                       {broadcastToMembers && (
+                          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
+                             <strong>ℹ️ Note:</strong> This will send WhatsApp messages directly to all members of the selected communities using Meta API.
+                          </div>
+                       )}
                     </section>
                  </div>
                  <div className="w-[500px] bg-slate-100 border-l flex flex-col items-center p-12 gap-8 overflow-y-auto">
