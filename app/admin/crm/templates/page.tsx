@@ -14,7 +14,7 @@ interface Template {
   _id: string;
   templateName: string;
   provider?: 'meta' | 'qr';
-  category: 'MARKETING' | 'OTP' | 'TRANSACTIONAL' | 'ACCOUNT_UPDATE' | string;
+  category: 'MARKETING' | 'OTP' | 'UTILITY' | 'ACCOUNT_UPDATE' | string;
   language?: string;
   templateContent: string;
   headerFormat?: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | string;

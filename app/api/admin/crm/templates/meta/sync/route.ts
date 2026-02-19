@@ -223,7 +223,7 @@ function mapMetaCategoryToLocal(metaCategory: string): string {
     case 'MARKETING':
       return 'MARKETING';
     case 'UTILITY':
-      return 'TRANSACTIONAL';
+      return 'UTILITY';
     case 'AUTHENTICATION':
       return 'OTP';
     default:

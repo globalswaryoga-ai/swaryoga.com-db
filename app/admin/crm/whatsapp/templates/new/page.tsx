@@ -378,7 +378,7 @@ export default function CreateTemplatePage() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1E7F43] focus:border-transparent"
                     >
                       <option value="MARKETING">📢 Marketing</option>
-                      <option value="TRANSACTIONAL">💳 Transactional</option>
+                      <option value="UTILITY">🔧 Utility</option>
                       <option value="OTP">🔐 OTP</option>
                     </select>
                   </div>

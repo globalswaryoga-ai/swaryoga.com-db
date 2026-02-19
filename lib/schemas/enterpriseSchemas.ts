@@ -575,7 +575,7 @@ const WhatsAppTemplateSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['MARKETING', 'OTP', 'TRANSACTIONAL', 'ACCOUNT_UPDATE'],
+      enum: ['MARKETING', 'OTP', 'UTILITY', 'ACCOUNT_UPDATE'],
       default: 'MARKETING',
     },
     language: { type: String, default: 'en', index: true },

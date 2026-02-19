@@ -216,8 +216,8 @@ function TemplateCard({
     switch (category) {
       case 'MARKETING':
         return '📢';
-      case 'TRANSACTIONAL':
-        return '💳';
+      case 'UTILITY':
+        return '🔧';
       case 'OTP':
         return '🔐';
       default:
@@ -497,7 +497,7 @@ export default function TemplateSelector({
                 <option value="">All Categories</option>
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>
-                    {cat === 'MARKETING' ? '📢' : cat === 'TRANSACTIONAL' ? '💳' : '🔐'} {cat}
+                    {cat === 'MARKETING' ? '📢' : cat === 'UTILITY' ? '🔧' : '🔐'} {cat}
                   </option>
                 ))}
               </select>

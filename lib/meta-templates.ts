@@ -584,7 +584,7 @@ export function convertToMetaFormat(localTemplate: {
   // Map category - Meta only accepts MARKETING, UTILITY, or AUTHENTICATION
   let metaCategory: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION' = 'MARKETING';
   const cat = localTemplate.category?.toUpperCase();
-  if (cat === 'UTILITY' || cat === 'TRANSACTIONAL' || cat === 'ACCOUNT_UPDATE') {
+  if (cat === 'UTILITY' || cat === 'ACCOUNT_UPDATE') {
     metaCategory = 'UTILITY';
   } else if (cat === 'OTP' || cat === 'AUTHENTICATION') {
     metaCategory = 'AUTHENTICATION';
